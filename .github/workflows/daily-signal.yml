@@ -1,0 +1,37 @@
+name: Daily Portfolio Signal
+
+on:
+  schedule:
+    # Runs at 7:00 AM ET (12:00 UTC) on weekdays
+    - cron: '0 12 * * 1-5'
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  generate-signal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Portfolio Signals
+        id: signals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node .github/scripts/generate-signals.mjs
+
+      - name: Send Email via Gmail
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: node .github/scripts/send-email.mjs
