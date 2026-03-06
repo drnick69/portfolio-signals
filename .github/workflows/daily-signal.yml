@@ -9,7 +9,7 @@ on:
 jobs:
   generate-signal:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -23,8 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Fetch Market Data
+        run: node .github/scripts/fetch-market-data.mjs
+
       - name: Generate Portfolio Signals
-        id: signals
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node .github/scripts/generate-signals.mjs
@@ -35,3 +37,17 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: node .github/scripts/send-email.mjs
+
+      - name: Save signal data to repo
+        run: |
+          mkdir -p docs
+          cp /tmp/signal-data.json docs/signal-data.json
+          cp /tmp/signal-email.html docs/latest-email.html
+
+      - name: Commit updated signal data
+        run: |
+          git config user.name "Portfolio Bot"
+          git config user.email "bot@portfolio-signals"
+          git add docs/signal-data.json docs/latest-email.html
+          git diff --staged --quiet || git commit -m "Signal update $(date -u +%Y-%m-%d)"
+          git push
