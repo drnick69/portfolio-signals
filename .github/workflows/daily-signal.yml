@@ -2,9 +2,8 @@ name: Daily Portfolio Signal
 
 on:
   schedule:
-    # Runs at 7:00 AM ET (12:00 UTC) on weekdays
     - cron: '0 12 * * 1-5'
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
 
 jobs:
   generate-signal:
@@ -24,6 +23,11 @@ jobs:
         run: npm install
 
       - name: Fetch Market Data
+        env:
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+          TD_KEY: ${{ secrets.TD_KEY }}
+          CG_KEY: ${{ secrets.CG_KEY }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
         run: node .github/scripts/fetch-market-data.mjs
 
       - name: Generate Portfolio Signals
