@@ -1,0 +1,16 @@
+{
+  "name": "portfolio-strategy-hub",
+  "version": "3.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "fetch": "node .github/scripts/fetch-market-data.mjs",
+    "signal": "node .github/scripts/generate-signals.mjs",
+    "email": "node .github/scripts/send-email.mjs",
+    "run": "npm run fetch && npm run signal && npm run email"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0",
+    "yahoo-finance2": "^2.14.0"
+  }
+}
