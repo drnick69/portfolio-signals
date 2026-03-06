@@ -5,10 +5,13 @@ on:
     - cron: '0 12 * * 1-5'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate-signal:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -24,9 +27,8 @@ jobs:
 
       - name: Fetch Market Data
         env:
-          FMP_KEY: ${{ secrets.FMP_KEY }}
+          FK: ${{ secrets.FK }}
           TD_KEY: ${{ secrets.TD_KEY }}
-          CG_KEY: ${{ secrets.CG_KEY }}
           FRED_KEY: ${{ secrets.FRED_KEY }}
         run: node .github/scripts/fetch-market-data.mjs
 
