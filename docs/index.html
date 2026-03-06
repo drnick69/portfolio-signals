@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Strategy Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #05080e;
+      color: #c8d6e5;
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(91,141,238,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(91,141,238,0.02) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 20px 28px 80px; }
+
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #141e2e; padding-bottom: 20px; margin-bottom: 28px; }
+    .header h1 { font-size: 28px; font-weight: 800; color: #e0e8f0; letter-spacing: -0.02em; }
+    .header .sub { font-size: 11px; color: #445566; margin-top: 6px; letter-spacing: 0.1em; }
+    .header .meta { text-align: right; }
+    .header .timestamp { font-size: 11px; color: #556677; }
+    .header .refresh-btn {
+      margin-top: 8px; background: linear-gradient(135deg, #5b8dee, #4ecdc4); color: #000;
+      border: none; border-radius: 6px; padding: 8px 18px; font-family: inherit; font-size: 11px;
+      font-weight: 700; cursor: pointer; letter-spacing: 0.05em;
+    }
+
+    /* Status */
+    .status { text-align: center; padding: 80px 0; }
+    .status .icon { font-size: 48px; margin-bottom: 16px; }
+    .status .msg { font-size: 14px; color: #667788; }
+    .status .detail { font-size: 11px; color: #445566; margin-top: 8px; max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+    .error { color: #ff6b6b; }
+
+    /* Daily Signal Cards */
+    .signal-section { background: #0a0f18; border: 1px solid #1a2332; border-radius: 10px; padding: 24px; margin-bottom: 28px; }
+    .signal-section .section-title { font-size: 11px; color: #445566; letter-spacing: 0.12em; font-weight: 600; margin-bottom: 16px; }
+    .signal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .signal-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .signal-grid { grid-template-columns: 1fr; } }
+
+    .signal-card {
+      padding: 16px; border-radius: 8px; cursor: default; transition: all 0.2s ease;
+    }
+    .signal-card:hover { transform: translateY(-1px); }
+    .signal-card .label { font-size: 10px; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+    .signal-card .ticker { font-size: 22px; font-weight: 800; color: #e0e8f0; margin-bottom: 4px; }
+    .signal-card .name { font-size: 10px; color: #667788; margin-bottom: 8px; }
+    .signal-card .summary { font-size: 10px; color: #889aaa; line-height: 1.5; }
+    .signal-card .scores { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .signal-card .scores span { font-size: 10px; color: #445566; }
+    .signal-card .scores .val { font-size: 12px; font-weight: 700; }
+
+    /* Ranking Table */
+    .ranking { margin-top: 28px; background: #0a0f18; border: 1px solid #1a2332; border-radius: 10px; padding: 24px; overflow-x: auto; }
+    .ranking .section-title { font-size: 11px; color: #445566; letter-spacing: 0.12em; font-weight: 600; margin-bottom: 4px; }
+    .ranking .section-sub { font-size: 10px; color: #334455; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { padding: 8px 10px; text-align: left; color: #445566; font-size: 9px; letter-spacing: 0.1em; font-weight: 600; border-bottom: 1px solid #1a2332; }
+    td { padding: 10px 10px; border-bottom: 1px solid #0f1520; }
+    tr:hover td { background: #0d1420; }
+    .rank-num { color: #334455; }
+    .role-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+    }
+
+    /* Detail Panel */
+    .detail-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(5,8,14,0.92); z-index: 100;
+      overflow-y: auto; padding: 40px 28px;
+    }
+    .detail-overlay.active { display: block; }
+    .detail-content { max-width: 900px; margin: 0 auto; }
+    .detail-back {
+      background: none; border: 1px solid #1a2332; border-radius: 4px; color: #667788;
+      font-family: inherit; font-size: 11px; padding: 6px 14px; cursor: pointer; margin-bottom: 20px;
+    }
+    .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+    .detail-ticker { font-size: 36px; font-weight: 800; }
+    .detail-name { font-size: 16px; color: #667788; margin-left: 12px; }
+    .detail-price { font-size: 28px; font-weight: 700; color: #e0e8f0; }
+    .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    @media (max-width: 700px) { .score-grid { grid-template-columns: repeat(2, 1fr); } }
+    .score-card { padding: 18px; background: #0a0f18; border: 1px solid #141e2e; border-radius: 8px; }
+    .score-card .layer { font-size: 10px; color: #445566; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; margin-bottom: 10px; }
+    .score-card .score-val { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .score-card .signal-label { font-size: 10px; font-weight: 700; margin-bottom: 6px; }
+    .score-card .rationale { font-size: 10px; color: #667788; line-height: 1.5; }
+    .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 600px) { .info-row { grid-template-columns: 1fr; } }
+    .info-box { padding: 18px; background: #0a0f18; border: 1px solid #141e2e; border-radius: 8px; }
+    .info-box .box-title { font-size: 10px; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 10px; }
+    .info-box .item { font-size: 10px; color: #889aaa; line-height: 1.6; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="status"><div class="icon">📊</div><div class="msg">Loading signal data...</div></div>
+  </div>
+
+  <div class="detail-overlay" id="detailOverlay">
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+
+  <script>
+    // ─── CONFIG ──────────────────────────────────────────────────────────────
+    const HOLDINGS = {
+      MOS:   { name: "Mosaic",         accent: "#2a9d8f" },
+      ASML:  { name: "ASML",            accent: "#5b8dee" },
+      SMH:   { name: "VanEck Semis",    accent: "#7c5cbf" },
+      ENB:   { name: "Enbridge",        accent: "#e8963e" },
+      ETHA:  { name: "iShares ETH",     accent: "#627eea" },
+      GLD:   { name: "SPDR Gold",       accent: "#d4a843" },
+      IBIT:  { name: "iShares BTC",     accent: "#f7931a" },
+      KOF:   { name: "Coca-Cola FEMSA", accent: "#e63946" },
+      "PBR.A": { name: "Petrobras",     accent: "#00a651" },
+      AMKBY: { name: "Maersk",          accent: "#009fda" },
+      SPY:   { name: "S&P 500",         accent: "#8899aa" },
+    };
+
+    const ROLES = {
+      tacticalBuy:   { label: "TACTICAL BUY",   icon: "⚡", color: "#00ff88", bg: "rgba(0,255,136,0.08)", border: "rgba(0,255,136,0.25)" },
+      positionalBuy: { label: "POSITIONAL BUY", icon: "📐", color: "#4ecdc4", bg: "rgba(78,205,196,0.08)", border: "rgba(78,205,196,0.25)" },
+      strategicBuy:  { label: "STRATEGIC BUY",  icon: "🏗️", color: "#5b8dee", bg: "rgba(91,141,238,0.08)", border: "rgba(91,141,238,0.25)" },
+      trim:          { label: "TRIM",           icon: "✂️", color: "#ff6b6b", bg: "rgba(255,107,107,0.08)", border: "rgba(255,107,107,0.25)" },
+    };
+
+    const scoreColor = s => s <= -60 ? "#00ff88" : s <= -25 ? "#4ecdc4" : s <= 24 ? "#8899aa" : s <= 59 ? "#f4a261" : "#ff6b6b";
+    const zColor = z => z <= -1.5 ? "#00ff88" : z <= -0.5 ? "#4ecdc4" : z <= 0.5 ? "#8899aa" : z <= 1.5 ? "#f4a261" : "#ff6b6b";
+    const fmtPct = v => `${(v||0) >= 0 ? "+" : ""}${(v||0).toFixed(2)}%`;
+    const pctColor = v => (v||0) >= 0 ? "#4ecdc4" : "#ff6b6b";
+
+    // ─── LOAD DATA ──────────────────────────────────────────────────────────
+    let DATA = null;
+
+    async function loadData() {
+      try {
+        const resp = await fetch("signal-data.json?" + Date.now());
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        DATA = await resp.json();
+        render();
+      } catch (e) {
+        document.getElementById("app").innerHTML = `
+          <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">GITHUB PAGES DASHBOARD</div></div></div>
+          <div class="status">
+            <div class="icon">⏳</div>
+            <div class="msg">No signal data found yet</div>
+            <div class="detail">The daily workflow hasn't run yet, or the signal-data.json file hasn't been committed to the docs/ folder. Run the workflow manually from the Actions tab, then refresh this page.</div>
+          </div>`;
+      }
+    }
+
+    // ─── RENDER ─────────────────────────────────────────────────────────────
+    function render() {
+      const { normalized, assignments, timestamp } = DATA;
+      const sorted = [...normalized].sort((a, b) => (a.z?.composite ?? 0) - (b.z?.composite ?? 0));
+      const find = sym => normalized.find(s => s.symbol === sym);
+      const ts = new Date(timestamp).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+      const getRole = sym => {
+        if (sym === assignments.tacticalBuy) return "tacticalBuy";
+        if (sym === assignments.positionalBuy) return "positionalBuy";
+        if (sym === assignments.strategicBuy) return "strategicBuy";
+        if (sym === assignments.trim) return "trim";
+        return null;
+      };
+
+      // Signal cards
+      const cards = ["tacticalBuy", "positionalBuy", "strategicBuy", "trim"].map(key => {
+        const sym = assignments[key];
+        const s = find(sym);
+        const r = ROLES[key];
+        const h = HOLDINGS[sym] || {};
+        if (!s) return `<div class="signal-card" style="background:#0d1420;border:1px solid #141e2e;"><span style="color:#334455">—</span></div>`;
+        return `
+          <div class="signal-card" style="background:${r.bg};border:1px solid ${r.border};" onclick="showDetail('${sym}')">
+            <div class="label" style="color:${r.color}">${r.icon} ${r.label}</div>
+            <div class="ticker">${sym}</div>
+            <div class="name">${h.name || ""}</div>
+            <div class="summary">${(s.composite?.summary || "").slice(0, 100)}</div>
+            <div class="scores">
+              <span>Raw</span> <span class="val" style="color:${scoreColor(s.composite?.score||0)}">${s.composite?.score ?? "—"}</span>
+              <span style="margin-left:6px">Z</span> <span class="val" style="color:${zColor(s.z?.composite||0)}">${s.z?.composite?.toFixed(2) ?? "—"}</span>
+            </div>
+          </div>`;
+      }).join("");
+
+      // Ranking rows
+      const rows = sorted.map((s, i) => {
+        const role = getRole(s.symbol);
+        const r = role ? ROLES[role] : null;
+        const h = HOLDINGS[s.symbol] || {};
+        const km = s.key_metric;
+        const roleBadge = r
+          ? `<span class="role-badge" style="background:${r.bg};border:1px solid ${r.border};color:${r.color}">${r.icon} ${r.label}</span>`
+          : `<span class="role-badge" style="background:rgba(85,102,119,0.04);border:1px solid rgba(85,102,119,0.12);color:#556677">━ HOLD</span>`;
+        return `
+          <tr onclick="showDetail('${s.symbol}')" style="cursor:pointer">
+            <td class="rank-num">${i+1}</td>
+            <td><div style="font-weight:800;font-size:14px;color:${h.accent||'#e0e8f0'}">${s.symbol}</div><div style="font-size:10px;color:#556677">${h.name||""}</div></td>
+            <td style="text-align:right"><div style="font-size:14px;font-weight:700;color:#e0e8f0">$${s.price?.current?.toFixed?.(2)||"—"}</div><div style="font-size:10px;color:${pctColor(s.price?.change_pct)}">${fmtPct(s.price?.change_pct)}</div></td>
+            <td style="text-align:center"><div style="font-size:16px;font-weight:800;color:${scoreColor(s.composite?.score??0)}">${s.composite?.score??0}</div></td>
+            <td style="text-align:center;color:${scoreColor(s.tactical?.score??0)}">${s.tactical?.score??0}</td>
+            <td style="text-align:center;color:${scoreColor(s.positional?.score??0)}">${s.positional?.score??0}</td>
+            <td style="text-align:center;color:${scoreColor(s.strategic?.score??0)}">${s.strategic?.score??0}</td>
+            <td>${roleBadge}</td>
+            <td style="font-size:10px;color:#889aaa">${km?.name ? `<span style="color:#556677">${km.name}:</span> ${km.value}` : "—"}</td>
+          </tr>`;
+      }).join("");
+
+      document.getElementById("app").innerHTML = `
+        <div class="header">
+          <div>
+            <h1>PORTFOLIO STRATEGY HUB</h1>
+            <div class="sub">11 HOLDINGS • Z-SCORE NORMALIZED • 3 BUYS + 1 TRIM</div>
+          </div>
+          <div class="meta">
+            <div class="timestamp">Updated: ${ts}</div>
+            <button class="refresh-btn" onclick="loadData()">REFRESH</button>
+          </div>
+        </div>
+
+        <div class="signal-section">
+          <div class="section-title">DAILY SIGNAL</div>
+          <div class="signal-grid">${cards}</div>
+        </div>
+
+        <div class="ranking">
+          <div class="section-title">COMPOSITE RANKINGS</div>
+          <div class="section-sub">Sorted by z-score — strongest buy at top, weakest at bottom</div>
+          <table>
+            <thead><tr>
+              <th>#</th><th>HOLDING</th><th style="text-align:right">PRICE</th><th style="text-align:center">COMP</th>
+              <th style="text-align:center">TAC</th><th style="text-align:center">POS</th><th style="text-align:center">STR</th>
+              <th>ROLE</th><th>KEY METRIC</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
+    // ─── DETAIL VIEW ────────────────────────────────────────────────────────
+    function showDetail(sym) {
+      const s = DATA.normalized.find(d => d.symbol === sym);
+      if (!s) return;
+      const h = HOLDINGS[sym] || {};
+      const overlay = document.getElementById("detailOverlay");
+      const content = document.getElementById("detailContent");
+
+      const scoreCards = ["tactical","positional","strategic","composite"].map(layer => {
+        const d = layer === "composite" ? s.composite : s[layer];
+        const z = s.z?.[layer];
+        return `
+          <div class="score-card">
+            <div class="layer">${layer}</div>
+            <div class="score-val" style="color:${scoreColor(d?.score??0)}">${d?.score??"—"}</div>
+            ${z!=null ? `<span style="font-size:12px;color:${zColor(z)};font-weight:600">z:${z.toFixed(2)}</span>` : ""}
+            <div class="signal-label" style="color:${scoreColor(d?.score??0)}">${d?.signal||d?.recommendation||"—"}</div>
+            <div class="rationale">${d?.rationale||d?.summary||"—"}</div>
+          </div>`;
+      }).join("");
+
+      const risks = (s.risks||[]).map(r => `<div class="item">• ${r}</div>`).join("");
+      const catalysts = (s.catalysts||[]).map(c => `<div class="item">• ${c}</div>`).join("");
+
+      content.innerHTML = `
+        <button class="detail-back" onclick="hideDetail()">← BACK TO DASHBOARD</button>
+        <div class="detail-header">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <span class="detail-ticker" style="color:${h.accent||'#e0e8f0'}">${sym}</span>
+            <span class="detail-name">${h.name||""}</span>
+          </div>
+          <div style="text-align:right">
+            <div class="detail-price">$${s.price?.current?.toFixed?.(2)??"—"}</div>
+            ${s.price?.change_pct!=null ? `<div style="font-size:14px;font-weight:600;color:${pctColor(s.price.change_pct)}">${fmtPct(s.price.change_pct)}</div>` : ""}
+          </div>
+        </div>
+        <div class="score-grid">${scoreCards}</div>
+        ${s.key_metric?.name ? `
+          <div class="info-box" style="margin-bottom:14px">
+            <div class="box-title" style="color:#445566">KEY METRIC</div>
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="font-size:11px;color:#889aaa">${s.key_metric.name}:</span>
+              <span style="font-size:16px;font-weight:700;color:#e0e8f0">${s.key_metric.value}</span>
+            </div>
+            ${s.key_metric.interpretation ? `<div style="font-size:10px;color:#667788;margin-top:4px">${s.key_metric.interpretation}</div>` : ""}
+          </div>` : ""}
+        <div class="info-row">
+          <div class="info-box"><div class="box-title" style="color:#ff6b6b">RISKS</div>${risks||'<div class="item">—</div>'}</div>
+          <div class="info-box"><div class="box-title" style="color:#4ecdc4">CATALYSTS</div>${catalysts||'<div class="item">—</div>'}</div>
+        </div>`;
+
+      overlay.classList.add("active");
+    }
+
+    function hideDetail() { document.getElementById("detailOverlay").classList.remove("active"); }
+    document.getElementById("detailOverlay").addEventListener("click", e => { if (e.target === e.currentTarget) hideDetail(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") hideDetail(); });
+
+    // ─── INIT ───────────────────────────────────────────────────────────────
+    loadData();
+  </script>
+</body>
+</html>
