@@ -61,7 +61,7 @@ Remember: NEUTRAL (score ~0) is the correct answer on most days.`;
 }
 
 async function fetchSignal(holding) {
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 5;
   console.log(`  Fetching ${holding.symbol}...`);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -81,6 +81,15 @@ async function fetchSignal(holding) {
           messages: [{ role: "user", content: buildPrompt(holding) }],
         }),
       });
+
+      // ── RATE LIMIT HANDLING ──
+      if (resp.status === 429) {
+        const retryAfter = parseInt(resp.headers.get("retry-after") || "60", 10);
+        const waitSec = Math.max(retryAfter, 60);
+        console.log(`  ⚠ ${holding.symbol} rate limited (429). Waiting ${waitSec}s before retry ${attempt+1}/${MAX_RETRIES}...`);
+        if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, waitSec * 1000)); continue; }
+        throw new Error("Rate limited after all retries");
+      }
 
       if (!resp.ok) {
         const errText = await resp.text();
@@ -393,17 +402,18 @@ async function main() {
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}\n`);
 
-  // Run in batches of 2 with longer delays to ensure complete responses
+  // Run ONE at a time with 60s cooldowns.
+  // Your API tier has a 30k input tokens/min limit.
+  // Each web-search call uses ~10-15k tokens, so we need ≥60s between calls.
   const allSignals = [];
-  const batchSize = 2;
-  for (let i = 0; i < HOLDINGS.length; i += batchSize) {
-    const batch = HOLDINGS.slice(i, i + batchSize);
-    console.log(`\nBatch ${Math.floor(i/batchSize)+1}/${Math.ceil(HOLDINGS.length/batchSize)}: ${batch.map(h=>h.symbol).join(", ")}`);
-    const results = await Promise.all(batch.map(fetchSignal));
-    allSignals.push(...results);
-    if (i + batchSize < HOLDINGS.length) {
-      console.log("  (3s cooldown before next batch)");
-      await new Promise(r => setTimeout(r, 3000));
+  for (let i = 0; i < HOLDINGS.length; i++) {
+    const h = HOLDINGS[i];
+    console.log(`\n[${i+1}/${HOLDINGS.length}] ${h.symbol} (${h.name})`);
+    const result = await fetchSignal(h);
+    allSignals.push(result);
+    if (i < HOLDINGS.length - 1) {
+      console.log("  (60s cooldown — rate limit compliance)");
+      await new Promise(r => setTimeout(r, 60000));
     }
   }
 
