@@ -4,10 +4,10 @@
 // This eliminates web search from Claude calls, cutting token usage ~90%.
 
 import { writeFileSync } from "fs";
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 
-// Suppress yahoo-finance2 deprecation notices
-yahooFinance.suppressNotices(["yahooSurvey"]);
+// v3 requires instantiation
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const SYMBOLS = [
   { symbol: "MOS",   yahoo: "MOS",   type: "equity" },
