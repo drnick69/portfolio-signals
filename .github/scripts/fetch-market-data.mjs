@@ -1,33 +1,33 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v3 — Uses FMP + TwelveData + CoinGecko + FRED
-// No yahoo-finance2 dependency. Direct API calls only.
+// fetch-market-data.mjs v4 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro)
+// No npm dependencies. Direct fetch() calls only.
 
 import { writeFileSync } from "fs";
 
-// ─── API KEYS (from GitHub Secrets) ──────────────────────────────────────────
-const FMP_KEY   = process.env.FMP_KEY;       // Financial Modeling Prep
-const TD_KEY    = process.env.TD_KEY;        // TwelveData
-const CG_KEY    = process.env.CG_KEY;        // CoinGecko
-const FRED_KEY  = process.env.FRED_KEY;      // FRED
+const FK      = process.env.FK;         // Finnhub
+const TD_KEY  = process.env.TD_KEY;     // TwelveData
+const FRED_KEY = process.env.FRED_KEY;  // FRED
 
-if (!FMP_KEY)  console.warn("⚠ Missing FMP_KEY — quote data will be limited");
-if (!TD_KEY)   console.warn("⚠ Missing TD_KEY — technical indicators unavailable");
+if (!FK)       console.warn("⚠ Missing FK — quote data unavailable");
+if (!TD_KEY)   console.warn("⚠ Missing TD_KEY — technicals unavailable");
+if (!FRED_KEY) console.warn("⚠ Missing FRED_KEY — macro data unavailable");
 
 const SYMBOLS = [
-  { symbol: "MOS",   fmp: "MOS",   td: "MOS",   type: "equity" },
-  { symbol: "ASML",  fmp: "ASML",  td: "ASML",  type: "equity" },
-  { symbol: "SMH",   fmp: "SMH",   td: "SMH",   type: "etf" },
-  { symbol: "ENB",   fmp: "ENB",   td: "ENB",   type: "equity" },
-  { symbol: "ETHA",  fmp: "ETHA",  td: "ETHA",  type: "etf" },
-  { symbol: "GLD",   fmp: "GLD",   td: "GLD",   type: "etf" },
-  { symbol: "IBIT",  fmp: "IBIT",  td: "IBIT",  type: "etf" },
-  { symbol: "KOF",   fmp: "KOF",   td: "KOF",   type: "equity" },
-  { symbol: "PBR.A", fmp: "PBR-A", td: "PBR-A", type: "equity" },
-  { symbol: "AMKBY", fmp: "AMKBY", td: "AMKBY", type: "equity" },
-  { symbol: "SPY",   fmp: "SPY",   td: "SPY",   type: "etf" },
+  { symbol: "MOS",   finnhub: "MOS",   td: "MOS" },
+  { symbol: "ASML",  finnhub: "ASML",  td: "ASML" },
+  { symbol: "SMH",   finnhub: "SMH",   td: "SMH" },
+  { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
+  { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
+  { symbol: "GLD",   finnhub: "GLD",   td: "GLD" },
+  { symbol: "IBIT",  finnhub: "IBIT",  td: "IBIT" },
+  { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
+  { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR-A" },
+  { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
+  { symbol: "SPY",   finnhub: "SPY",   td: "SPY" },
 ];
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 async function fetchJSON(url, label) {
   try {
     const resp = await fetch(url);
@@ -39,57 +39,72 @@ async function fetchJSON(url, label) {
   }
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ─── STAGE 1: FMP BATCH QUOTES ──────────────────────────────────────────────
-// Gets: price, change%, 52w high/low, PE, EPS, market cap, volume, div yield
-async function fetchFMPQuotes() {
-  if (!FMP_KEY) return {};
-  const tickers = SYMBOLS.map(s => s.fmp).join(",");
-  console.log("  [FMP] Fetching batch quotes...");
-  const data = await fetchJSON(
-    `https://financialmodelingprep.com/api/v3/quote/${tickers}?apikey=${FMP_KEY}`,
-    "FMP batch"
-  );
-  if (!data || !Array.isArray(data)) return {};
-
+// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 11 symbols) ────────
+// Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
+// Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range
+async function fetchQuotes() {
+  if (!FK) return {};
   const result = {};
-  for (const q of data) {
-    // Map FMP ticker back to our symbol
-    const sym = SYMBOLS.find(s => s.fmp === q.symbol);
-    if (!sym) continue;
+
+  for (const sym of SYMBOLS) {
+    console.log(`  [FH] ${sym.symbol}: quote + metrics...`);
+
+    // Quote
+    const q = await fetchJSON(
+      `https://finnhub.io/api/v1/quote?symbol=${sym.finnhub}&token=${FK}`,
+      `FH quote ${sym.symbol}`
+    );
+
+    // Basic financials (PE, PB, 52w, div yield, beta)
+    const m = await fetchJSON(
+      `https://finnhub.io/api/v1/stock/metric?symbol=${sym.finnhub}&metric=all&token=${FK}`,
+      `FH metrics ${sym.symbol}`
+    );
+
+    const metrics = m?.metric || {};
+    const price = q?.c ?? null;
+    const w52h = metrics["52WeekHigh"] ?? null;
+    const w52l = metrics["52WeekLow"] ?? null;
+
     result[sym.symbol] = {
-      price: q.price,
-      change_pct: q.changesPercentage ? +q.changesPercentage.toFixed(2) : 0,
-      previous_close: q.previousClose,
-      week52_high: q.yearHigh,
-      week52_low: q.yearLow,
-      week52_position_pct: (q.yearHigh && q.yearLow && q.price)
-        ? +((q.price - q.yearLow) / (q.yearHigh - q.yearLow) * 100).toFixed(1) : null,
-      pe: q.pe,
-      eps: q.eps,
-      market_cap: q.marketCap,
-      volume: q.volume,
-      avg_volume: q.avgVolume,
-      volume_ratio: (q.volume && q.avgVolume) ? +(q.volume / q.avgVolume).toFixed(2) : null,
-      dividend_yield: q.dividendYield ? +q.dividendYield.toFixed(2) : null,
-      name: q.name,
-      exchange: q.exchange,
+      price: price,
+      change_pct: q?.dp != null ? +q.dp.toFixed(2) : 0,
+      change_dollar: q?.d ?? 0,
+      open: q?.o ?? null,
+      high: q?.h ?? null,
+      low: q?.l ?? null,
+      previous_close: q?.pc ?? null,
+      week52_high: w52h,
+      week52_low: w52l,
+      week52_position_pct: (w52h && w52l && price)
+        ? +((price - w52l) / (w52h - w52l) * 100).toFixed(1) : null,
+      pe: metrics["peBasicExclExtraTTM"] ?? metrics["peTTM"] ?? null,
+      pb: metrics["pbQuarterly"] ?? metrics["pbAnnual"] ?? null,
+      dividend_yield: metrics["dividendYieldIndicatedAnnual"] ?? null,
+      beta: metrics["beta"] ?? null,
+      market_cap: metrics["marketCapitalization"] ?? null,
     };
+
+    const p = result[sym.symbol];
+    console.log(`  [FH] ✓ ${sym.symbol}: $${p.price ?? "—"} (${p.change_pct >= 0 ? "+" : ""}${p.change_pct}%) 52w:${p.week52_position_pct ?? "—"}%`);
+
+    await sleep(1100); // Finnhub free = 60/min, so ~1 call/sec is safe
   }
-  console.log(`  [FMP] ✓ ${Object.keys(result).length} quotes loaded`);
+
   return result;
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
-// Gets: RSI(14), SMA(50), SMA(200) per symbol
-async function fetchTechnicals() {
+// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 33 total.
+// Pacing: 8s between each set of 3, so ~8 calls/min.
+async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
   const result = {};
 
-  for (const sym of SYMBOLS) {
-    console.log(`  [TD] ${sym.symbol}: RSI + SMA...`);
-    result[sym.symbol] = { rsi14: null, sma50: null, sma200: null, ma_signal: "unknown" };
+  for (let i = 0; i < SYMBOLS.length; i++) {
+    const sym = SYMBOLS[i];
+    console.log(`  [TD] ${sym.symbol} (${i+1}/${SYMBOLS.length}): RSI + SMA...`);
+    const t = { rsi14: null, sma50: null, sma200: null, ma_signal: "unknown" };
 
     // RSI(14)
     const rsiData = await fetchJSON(
@@ -97,10 +112,10 @@ async function fetchTechnicals() {
       `TD RSI ${sym.symbol}`
     );
     if (rsiData?.values?.[0]?.rsi) {
-      result[sym.symbol].rsi14 = +parseFloat(rsiData.values[0].rsi).toFixed(2);
+      t.rsi14 = +parseFloat(rsiData.values[0].rsi).toFixed(2);
     }
 
-    await sleep(200); // pace requests
+    await sleep(8000); // Wait 8s between calls to stay under 8/min
 
     // SMA(50)
     const sma50Data = await fetchJSON(
@@ -108,10 +123,10 @@ async function fetchTechnicals() {
       `TD SMA50 ${sym.symbol}`
     );
     if (sma50Data?.values?.[0]?.sma) {
-      result[sym.symbol].sma50 = +parseFloat(sma50Data.values[0].sma).toFixed(2);
+      t.sma50 = +parseFloat(sma50Data.values[0].sma).toFixed(2);
     }
 
-    await sleep(200);
+    await sleep(8000);
 
     // SMA(200)
     const sma200Data = await fetchJSON(
@@ -119,13 +134,11 @@ async function fetchTechnicals() {
       `TD SMA200 ${sym.symbol}`
     );
     if (sma200Data?.values?.[0]?.sma) {
-      result[sym.symbol].sma200 = +parseFloat(sma200Data.values[0].sma).toFixed(2);
+      t.sma200 = +parseFloat(sma200Data.values[0].sma).toFixed(2);
     }
 
-    // Compute MA signal
-    const t = result[sym.symbol];
-    const fmpData = QUOTES[sym.symbol];
-    const price = fmpData?.price;
+    // Compute MA signal using Finnhub price
+    const price = quotes[sym.symbol]?.price;
     if (price && t.sma50 && t.sma200) {
       if (price > t.sma50 && price > t.sma200 && t.sma50 > t.sma200) t.ma_signal = "above_both_golden";
       else if (price > t.sma50 && price > t.sma200) t.ma_signal = "above_both";
@@ -135,76 +148,74 @@ async function fetchTechnicals() {
       else t.ma_signal = "below_both";
     }
 
-    const rsiStr = t.rsi14 != null ? t.rsi14 : "—";
-    const maStr = t.ma_signal;
-    console.log(`  [TD] ✓ ${sym.symbol}: RSI=${rsiStr}, MA=${maStr}`);
+    console.log(`  [TD] ✓ ${sym.symbol}: RSI=${t.rsi14 ?? "—"}, SMA50=${t.sma50 ?? "—"}, SMA200=${t.sma200 ?? "—"}, MA=${t.ma_signal}`);
+    result[sym.symbol] = t;
 
-    await sleep(300); // pace between symbols
+    // Extra pause between symbols (8s already passed from last call)
+    if (i < SYMBOLS.length - 1) await sleep(8000);
   }
 
   return result;
 }
 
-// ─── STAGE 3: MACRO DATA (FRED) ─────────────────────────────────────────────
+// ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
   console.log("  [FRED] Fetching macro indicators...");
 
   const series = {
-    dxy_proxy: "DTWEXBGS",      // Trade-weighted dollar
-    us10y: "DGS10",              // 10-year yield
-    us2y: "DGS2",                // 2-year yield
-    tips10y: "DFII10",           // 10yr TIPS real yield
-    fed_funds: "FEDFUNDS",       // Fed funds rate
-    vix: "VIXCLS",               // VIX
-    hy_oas: "BAMLH0A0HYM2",     // HY OAS spread
+    dxy_proxy: "DTWEXBGS",
+    us10y: "DGS10",
+    us2y: "DGS2",
+    tips10y: "DFII10",
+    fed_funds: "FEDFUNDS",
+    vix: "VIXCLS",
+    hy_oas: "BAMLH0A0HYM2",
   };
 
   const result = {};
   for (const [key, seriesId] of Object.entries(series)) {
     const data = await fetchJSON(
-      `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=1&api_key=${FRED_KEY}&file_type=json`,
+      `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5&api_key=${FRED_KEY}&file_type=json`,
       `FRED ${key}`
     );
-    if (data?.observations?.[0]?.value && data.observations[0].value !== ".") {
-      result[key] = +parseFloat(data.observations[0].value).toFixed(4);
-    }
-    await sleep(100);
+    // Take the most recent non-empty observation
+    const obs = data?.observations?.find(o => o.value && o.value !== ".");
+    if (obs) result[key] = +parseFloat(obs.value).toFixed(4);
+    await sleep(200);
   }
 
-  // Computed fields
   if (result.us10y != null && result.us2y != null) {
-    result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0); // bps
+    result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0);
   }
 
-  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators loaded`);
+  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}`);
   return result;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
-let QUOTES = {}; // module-level so technicals stage can reference prices
-
 async function main() {
-  console.log("Market Data Pre-Fetch v3");
+  console.log("Market Data Pre-Fetch v4");
   console.log("========================");
   console.log(`Date: ${new Date().toISOString()}`);
-  console.log(`APIs: FMP=${!!FMP_KEY} TD=${!!TD_KEY} CG=${!!CG_KEY} FRED=${!!FRED_KEY}\n`);
+  console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY}\n`);
 
-  // Stage 1: Quotes
-  QUOTES = await fetchFMPQuotes();
+  // Stage 1: Quotes (Finnhub — ~15s)
+  console.log("─── STAGE 1: QUOTES (Finnhub) ───");
+  const quotes = await fetchQuotes();
 
-  // Stage 2: Technicals
-  console.log("");
-  const technicals = await fetchTechnicals();
+  // Stage 2: Technicals (TwelveData — ~5 min with rate limit pacing)
+  console.log("\n─── STAGE 2: TECHNICALS (TwelveData) ───");
+  const technicals = await fetchTechnicals(quotes);
 
-  // Stage 3: Macro
-  console.log("");
+  // Stage 3: Macro (FRED — ~3s)
+  console.log("\n─── STAGE 3: MACRO (FRED) ───");
   const macro = await fetchMacro();
 
-  // Assemble final output
+  // Assemble output
   const output = {};
   for (const sym of SYMBOLS) {
-    const q = QUOTES[sym.symbol] || {};
+    const q = quotes[sym.symbol] || {};
     const t = technicals[sym.symbol] || {};
 
     output[sym.symbol] = {
@@ -225,25 +236,46 @@ async function main() {
       },
       valuation: {
         trailingPE: q.pe ?? null,
-        eps: q.eps ?? null,
+        priceToBook: q.pb ?? null,
         dividendYield: q.dividend_yield ?? null,
+        beta: q.beta ?? null,
         marketCap: q.market_cap ?? null,
       },
-      volume: {
-        today: q.volume ?? null,
-        avg: q.avg_volume ?? null,
-        ratio: q.volume_ratio ?? null,
-      },
-      type: sym.type,
+      volume: {},
+      type: sym.symbol === "ETHA" || sym.symbol === "GLD" || sym.symbol === "IBIT" || sym.symbol === "SMH" || sym.symbol === "SPY" ? "etf" : "equity",
     };
   }
 
-  // Attach macro to output
   output._macro = macro;
 
-  const successCount = Object.keys(output).filter(k => k !== "_macro" && output[k].price?.current != null).length;
-  console.log(`\n✓ ${successCount}/${SYMBOLS.length} symbols with price data`);
-  console.log(`✓ Macro indicators: ${Object.keys(macro).length}`);
+  // Flag symbols that need web search fallback (missing price = critical)
+  const needsWebSearch = [];
+  for (const sym of SYMBOLS) {
+    const d = output[sym.symbol];
+    if (d.price?.current == null) {
+      needsWebSearch.push(sym.symbol);
+    }
+  }
+  output._meta = {
+    needsWebSearch,
+    timestamp: new Date().toISOString(),
+    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred" },
+  };
+
+  // Summary
+  const withPrice = Object.keys(output).filter(k => k !== "_macro" && output[k].price?.current != null).length;
+  const withRSI = Object.keys(output).filter(k => k !== "_macro" && output[k].technicals?.rsi14 != null).length;
+  const withSMA = Object.keys(output).filter(k => k !== "_macro" && output[k].technicals?.sma50 != null).length;
+
+  console.log(`\n═══════════════════════════════════`);
+  console.log(`  Prices:     ${withPrice}/${SYMBOLS.length}`);
+  console.log(`  RSI(14):    ${withRSI}/${SYMBOLS.length}`);
+  console.log(`  SMA 50/200: ${withSMA}/${SYMBOLS.length}`);
+  console.log(`  Macro:      ${Object.keys(macro).length} indicators`);
+  if (needsWebSearch.length > 0) {
+    console.log(`  ⚠ Web search needed: ${needsWebSearch.join(", ")}`);
+  }
+  console.log(`═══════════════════════════════════`);
 
   writeFileSync("/tmp/market-data.json", JSON.stringify(output, null, 2));
   console.log("✓ Written to /tmp/market-data.json");
