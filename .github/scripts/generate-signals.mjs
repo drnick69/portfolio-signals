@@ -31,7 +31,13 @@ const CALIBRATION = `CALIBRATION RULES:
 • RSI 60-70 → +15 to +25. RSI >70 → +40 to +60.
 • 52w position >90% → +10 to +30. 52w position <10% → -10 to -30.
 • NEUTRAL is correct most days. Only deviate with clear evidence.
-• Signals: ≤-60 STRONG_BUY, -59 to -25 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.`;
+• Signals: ≤-60 STRONG_BUY, -59 to -25 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
+
+MANDATORY: Every string field MUST contain substantive text. No empty strings.
+• "rationale": must explain WHY this score, referencing specific numbers.
+• "summary": must be 1-2 sentences synthesizing the overall thesis.
+• "key_metric.name" + "key_metric.value": the single most telling data point.
+• "risks" and "catalysts": at least 1 real risk and 1 real catalyst, never empty.`;
 
 const JSON_TEMPLATE = (sym, price) => `{"symbol":"${sym}","price":{"current":${price?.current||0},"change_pct":${price?.change_pct||0},"week52_high":${price?.week52_high||0},"week52_low":${price?.week52_low||0}},"tactical":{"score":0,"signal":"NEUTRAL","rationale":""},"positional":{"score":0,"signal":"NEUTRAL","rationale":""},"strategic":{"score":0,"signal":"NEUTRAL","rationale":""},"composite":{"score":0,"recommendation":"HOLD","summary":""},"key_metric":{"name":"","value":""},"risks":[""],"catalysts":[""]}`;
 
