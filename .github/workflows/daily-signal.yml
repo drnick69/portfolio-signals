@@ -30,6 +30,8 @@ jobs:
           FK: ${{ secrets.FK }}
           TD_KEY: ${{ secrets.TD_KEY }}
           FRED_KEY: ${{ secrets.FRED_KEY }}
+          ALPK: ${{ secrets.ALPK }}
+          ALPS: ${{ secrets.ALPS }}
         run: node .github/scripts/fetch-market-data.mjs
 
       - name: Generate Portfolio Signals
