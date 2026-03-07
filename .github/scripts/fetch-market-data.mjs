@@ -157,8 +157,12 @@ async function fetchTechnicals(quotes) {
   return result;
 }
 
-// ─── STAGE 2b: FINNHUB CANDLE FALLBACK ──────────────────────────────────────
-// For symbols TwelveData can't handle, compute RSI + SMA from Finnhub candles.
+// ─── STAGE 2b: ALPACA CANDLE FALLBACK ────────────────────────────────────────
+// For symbols TwelveData can't handle, get historical bars from Alpaca and compute locally.
+// Alpaca covers ALL US-exchange-listed securities including ADRs.
+const ALPACA_KEY    = process.env.ALPK;
+const ALPACA_SECRET = process.env.ALPS;
+
 function computeRSI(closes, period = 14) {
   if (closes.length < period + 1) return null;
   let gains = 0, losses = 0;
@@ -183,26 +187,50 @@ function computeSMA(closes, period) {
   return +(slice.reduce((a, b) => a + b, 0) / period).toFixed(2);
 }
 
-async function fillTechnicalsFromFinnhub(technicals, quotes) {
-  if (!FK) return;
+async function fillTechnicalsFromAlpaca(technicals, quotes) {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA] No keys — skipping candle fallback");
+    return;
+  }
 
-  // Find symbols missing RSI
   const gaps = SYMBOLS.filter(s => technicals[s.symbol]?.rsi14 == null);
-  if (gaps.length === 0) { console.log("  [FH CANDLE] No gaps — all symbols have RSI"); return; }
+  if (gaps.length === 0) { console.log("  [ALPACA] No gaps — all symbols have RSI"); return; }
 
-  console.log(`  [FH CANDLE] Filling ${gaps.length} gaps: ${gaps.map(s => s.symbol).join(", ")}`);
+  console.log(`  [ALPACA] Filling ${gaps.length} gaps: ${gaps.map(s => s.symbol).join(", ")}`);
 
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - 86400 * 300; // ~300 days back for 200-day SMA
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0]; // 1 year back
 
   for (const sym of gaps) {
-    const data = await fetchJSON(
-      `https://finnhub.io/api/v1/stock/candle?symbol=${sym.finnhub}&resolution=D&from=${from}&to=${now}&token=${FK}`,
-      `FH candle ${sym.symbol}`
-    );
+    // Alpaca uses the base ticker without class suffix for some ADRs
+    // PBR-A on Finnhub → PBR.A on Alpaca (they support dot notation)
+    const alpacaSymbol = sym.symbol.replace(".", "/"); // PBR.A → PBR/A for Alpaca
 
-    if (data?.s === "ok" && data.c?.length > 14) {
-      const closes = data.c; // array of close prices, oldest first
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`,
+        {
+          headers: {
+            "APCA-API-KEY-ID": ALPACA_KEY,
+            "APCA-API-SECRET-KEY": ALPACA_SECRET,
+          },
+        }
+      );
+
+      if (!resp.ok) {
+        console.log(`    ✗ ${sym.symbol}: Alpaca ${resp.status} ${resp.statusText}`);
+        continue;
+      }
+
+      const data = await resp.json();
+      const bars = data.bars || [];
+
+      if (bars.length < 15) {
+        console.log(`    ✗ ${sym.symbol}: only ${bars.length} bars (need 15+)`);
+        continue;
+      }
+
+      const closes = bars.map(b => b.c); // close prices, oldest first
       const rsi = computeRSI(closes);
       const sma50 = computeSMA(closes, 50);
       const sma200 = computeSMA(closes, 200);
@@ -225,9 +253,9 @@ async function fillTechnicalsFromFinnhub(technicals, quotes) {
         else t.ma_signal = "below_both";
       }
 
-      console.log(`    ✓ ${sym.symbol}: RSI=${t.rsi14 ?? "—"}, SMA50=${t.sma50 ?? "—"}, SMA200=${t.sma200 ?? "—"}, MA=${t.ma_signal} [from ${closes.length} candles]`);
-    } else {
-      console.log(`    ✗ ${sym.symbol}: no candle data (status: ${data?.s || "null"})`);
+      console.log(`    ✓ ${sym.symbol}: RSI=${t.rsi14 ?? "—"}, SMA50=${t.sma50 ?? "—"}, SMA200=${t.sma200 ?? "—"}, MA=${t.ma_signal} [${bars.length} bars]`);
+    } catch (e) {
+      console.log(`    ✗ ${sym.symbol}: ${e.message}`);
     }
 
     await sleep(500);
@@ -274,7 +302,7 @@ async function main() {
   console.log("Market Data Pre-Fetch v4");
   console.log("========================");
   console.log(`Date: ${new Date().toISOString()}`);
-  console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY}\n`);
+  console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
 
   // Stage 1: Quotes (Finnhub — ~15s)
   console.log("─── STAGE 1: QUOTES (Finnhub) ───");
@@ -284,9 +312,9 @@ async function main() {
   console.log("\n─── STAGE 2: TECHNICALS (TwelveData) ───");
   const technicals = await fetchTechnicals(quotes);
 
-  // Stage 2b: Fill gaps from Finnhub candles (for ADRs that TwelveData doesn't cover)
-  console.log("\n─── STAGE 2b: FINNHUB CANDLE FALLBACK ───");
-  await fillTechnicalsFromFinnhub(technicals, quotes);
+  // Stage 2b: Fill gaps from Alpaca candles (for ADRs that TwelveData doesn't cover)
+  console.log("\n─── STAGE 2b: ALPACA CANDLE FALLBACK ───");
+  await fillTechnicalsFromAlpaca(technicals, quotes);
 
   // Stage 3: Macro (FRED — ~3s)
   console.log("\n─── STAGE 3: MACRO (FRED) ───");
