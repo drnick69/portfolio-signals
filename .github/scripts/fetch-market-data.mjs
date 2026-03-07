@@ -212,27 +212,99 @@ async function main() {
   console.log("\n─── STAGE 3: MACRO (FRED) ───");
   const macro = await fetchMacro();
 
-  // Assemble output
+  // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
+  // Aggressive quality checks: bad data gets nulled out and symbol routed to web search.
   const output = {};
+  const needsWebSearch = [];
+
+  console.log("\n─── DATA QUALITY AUDIT ───");
+
   for (const sym of SYMBOLS) {
     const q = quotes[sym.symbol] || {};
     const t = technicals[sym.symbol] || {};
+    const issues = [];
+
+    // ── Price check ──
+    const hasPrice = q.price != null && q.price > 0;
+    if (!hasPrice) issues.push("NO PRICE");
+
+    // ── 52-week validation ──
+    // Finnhub returns garbage for ADRs (negative percentages, impossible ranges).
+    let w52High = q.week52_high ?? null;
+    let w52Low = q.week52_low ?? null;
+    let w52Pct = null;
+    let w52Valid = false;
+
+    if (w52High && w52Low && hasPrice) {
+      const rangePositive = w52Low > 0 && w52High > 0;
+      const lowUnderHigh = w52Low < w52High;
+      const priceReasonable = q.price >= w52Low * 0.85 && q.price <= w52High * 1.15;
+
+      if (rangePositive && lowUnderHigh && priceReasonable) {
+        w52Pct = +((q.price - w52Low) / (w52High - w52Low) * 100).toFixed(1);
+        // Final sanity: must be -10% to 110% (small tolerance for after-hours)
+        if (w52Pct >= -10 && w52Pct <= 110) {
+          w52Valid = true;
+        } else {
+          issues.push(`52w%=${w52Pct} out of bounds`);
+          w52High = null; w52Low = null; w52Pct = null;
+        }
+      } else {
+        issues.push(`bad 52w: L=$${w52Low} H=$${w52High} P=$${q.price}`);
+        w52High = null; w52Low = null;
+      }
+    } else if (hasPrice) {
+      issues.push("no 52w data");
+    }
+
+    // ── RSI check ──
+    const hasRSI = t.rsi14 != null && t.rsi14 >= 0 && t.rsi14 <= 100;
+    if (!hasRSI) issues.push("no RSI");
+
+    // ── SMA check ── (validate SMAs are in plausible range vs price)
+    let sma50 = t.sma50, sma200 = t.sma200, maSignal = t.ma_signal;
+    if (sma50 && hasPrice) {
+      if (sma50 > q.price * 5 || sma50 < q.price * 0.1) {
+        issues.push(`SMA50=$${sma50} vs price=$${q.price} suspicious`);
+        sma50 = null; maSignal = "unknown";
+      }
+    }
+    if (sma200 && hasPrice) {
+      if (sma200 > q.price * 5 || sma200 < q.price * 0.1) {
+        issues.push(`SMA200=$${sma200} vs price=$${q.price} suspicious`);
+        sma200 = null; maSignal = "unknown";
+      }
+    }
+    const hasSMA = sma50 != null || sma200 != null;
+    if (!hasSMA) issues.push("no SMA");
+
+    // ── Route decision ──
+    // Web search if: no price, OR (bad 52w AND no RSI), OR no price AND no RSI
+    const insufficient = !hasPrice || (!w52Valid && !hasRSI) || (issues.length >= 4);
+    if (insufficient) needsWebSearch.push(sym.symbol);
+
+    // Log
+    const grade = issues.length === 0 ? "✓ FULL" : insufficient ? "✗ → WEB SEARCH" : `⚠ PARTIAL (${issues.length} issues)`;
+    console.log(`  ${sym.symbol.padEnd(6)} ${grade}`);
+    if (issues.length > 0) console.log(`         ${issues.join(" | ")}`);
 
     output[sym.symbol] = {
       symbol: sym.symbol,
+      completeness: issues.length === 0 ? "full" : insufficient ? "insufficient" : "partial",
+      issues,
       price: {
-        current: q.price ?? null,
+        current: hasPrice ? q.price : null,
         change_pct: q.change_pct ?? 0,
         previous_close: q.previous_close ?? null,
-        week52_high: q.week52_high ?? null,
-        week52_low: q.week52_low ?? null,
-        week52_position_pct: q.week52_position_pct ?? null,
+        week52_high: w52Valid ? w52High : null,
+        week52_low: w52Valid ? w52Low : null,
+        week52_position_pct: w52Valid ? w52Pct : null,
       },
       technicals: {
-        rsi14: t.rsi14 ?? null,
-        sma50: t.sma50 ?? null,
-        sma200: t.sma200 ?? null,
-        ma_signal: t.ma_signal ?? "unknown",
+        rsi14: hasRSI ? t.rsi14 : null,
+        sma50: sma50 ?? null,
+        sma200: sma200 ?? null,
+        ma_signal: maSignal ?? "unknown",
       },
       valuation: {
         trailingPE: q.pe ?? null,
@@ -242,39 +314,29 @@ async function main() {
         marketCap: q.market_cap ?? null,
       },
       volume: {},
-      type: sym.symbol === "ETHA" || sym.symbol === "GLD" || sym.symbol === "IBIT" || sym.symbol === "SMH" || sym.symbol === "SPY" ? "etf" : "equity",
+      type: sym.type || "equity",
     };
   }
 
   output._macro = macro;
-
-  // Flag symbols that need web search fallback (missing price = critical)
-  const needsWebSearch = [];
-  for (const sym of SYMBOLS) {
-    const d = output[sym.symbol];
-    if (d.price?.current == null) {
-      needsWebSearch.push(sym.symbol);
-    }
-  }
   output._meta = {
     needsWebSearch,
     timestamp: new Date().toISOString(),
     sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred" },
   };
 
-  // Summary
-  const withPrice = Object.keys(output).filter(k => k !== "_macro" && output[k].price?.current != null).length;
-  const withRSI = Object.keys(output).filter(k => k !== "_macro" && output[k].technicals?.rsi14 != null).length;
-  const withSMA = Object.keys(output).filter(k => k !== "_macro" && output[k].technicals?.sma50 != null).length;
+  // ─── SUMMARY ──────────────────────────────────────────────────────────────
+  const fullCount = SYMBOLS.filter(s => (output[s.symbol].issues || []).length === 0).length;
+  const partialCount = SYMBOLS.filter(s => (output[s.symbol].issues || []).length > 0 && !needsWebSearch.includes(s.symbol)).length;
 
   console.log(`\n═══════════════════════════════════`);
-  console.log(`  Prices:     ${withPrice}/${SYMBOLS.length}`);
-  console.log(`  RSI(14):    ${withRSI}/${SYMBOLS.length}`);
-  console.log(`  SMA 50/200: ${withSMA}/${SYMBOLS.length}`);
-  console.log(`  Macro:      ${Object.keys(macro).length} indicators`);
+  console.log(`  Full data:      ${fullCount}/${SYMBOLS.length}`);
+  console.log(`  Partial (ok):   ${partialCount}/${SYMBOLS.length}`);
+  console.log(`  → Web search:   ${needsWebSearch.length}/${SYMBOLS.length}`);
   if (needsWebSearch.length > 0) {
-    console.log(`  ⚠ Web search needed: ${needsWebSearch.join(", ")}`);
+    console.log(`    Symbols: ${needsWebSearch.join(", ")}`);
   }
+  console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
   console.log(`═══════════════════════════════════`);
 
   writeFileSync("/tmp/market-data.json", JSON.stringify(output, null, 2));
