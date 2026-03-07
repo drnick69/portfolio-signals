@@ -21,7 +21,7 @@ const SYMBOLS = [
   { symbol: "GLD",   finnhub: "GLD",   td: "GLD" },
   { symbol: "IBIT",  finnhub: "IBIT",  td: "IBIT" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
-  { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR-A" },
+  { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
   { symbol: "SPY",   finnhub: "SPY",   td: "SPY" },
 ];
