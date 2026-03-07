@@ -79,21 +79,53 @@ Fill in scores, signals, rationales, key_metric, risks, catalysts.`;
 }
 
 // ─── TRACK B: WEB SEARCH PROMPT (for missing symbols) ───────────────────────
+// Injects whatever pre-fetched data we DO have, then asks Claude to fill gaps.
 function buildSearchPrompt(h) {
+  const md = MARKET_DATA[h.symbol] || {};
+  const macro = MARKET_DATA._macro || {};
+  const issues = md.issues || [];
+
+  // Build block of VERIFIED data (from Finnhub/TwelveData)
+  const verified = [
+    md.price?.current ? `VERIFIED Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
+    md.price?.week52_high ? `VERIFIED 52-Week: High $${md.price.week52_high} | Low $${md.price.week52_low} | Position: ${md.price.week52_position_pct}%` : null,
+    md.technicals?.rsi14 != null ? `VERIFIED RSI(14): ${md.technicals.rsi14}` : null,
+    md.technicals?.sma50 ? `VERIFIED SMA 50: $${md.technicals.sma50}` : null,
+    md.technicals?.sma200 ? `VERIFIED SMA 200: $${md.technicals.sma200}` : null,
+    md.valuation?.trailingPE ? `VERIFIED P/E: ${md.valuation.trailingPE}` : null,
+    md.valuation?.priceToBook ? `VERIFIED P/B: ${md.valuation.priceToBook}` : null,
+    md.valuation?.dividendYield ? `VERIFIED Div Yield: ${md.valuation.dividendYield}%` : null,
+    macro.vix ? `VERIFIED VIX: ${macro.vix}` : null,
+    macro.us10y ? `VERIFIED US 10Y: ${macro.us10y}%` : null,
+  ].filter(Boolean);
+
+  // Determine what's missing
+  const missing = [];
+  if (!md.price?.current) missing.push("current price and daily change %");
+  if (!md.price?.week52_high) missing.push("52-week high and low");
+  if (md.technicals?.rsi14 == null) missing.push("RSI(14)");
+  if (!md.technicals?.sma50) missing.push("50-day and 200-day moving averages");
+  missing.push("latest news, catalysts, or sector developments");
+
+  const verifiedBlock = verified.length > 0
+    ? `VERIFIED DATA (from market APIs — use these numbers exactly, do NOT override with search results):\n${verified.join("\n")}\n`
+    : "";
+
+  const price = md.price?.current || 0;
+  const changePct = md.price?.change_pct || 0;
+
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name}).
 
 ${CALIBRATION}
 
-Fetch these data points using web search for ${h.symbol}:
-1. Current price, today's change %, 52-week high/low
-2. RSI(14) or recent price action to estimate
-3. Key moving averages (50d, 200d)
-4. Primary valuation metric for this asset type
-5. The single most important sector-specific data point
-6. Latest relevant news or catalyst
+${verifiedBlock}
+MISSING DATA — search the web for ONLY these:
+${missing.map((m, i) => `${i+1}. ${m}`).join("\n")}
+
+CRITICAL: The VERIFIED DATA above comes from financial APIs and is accurate. Do NOT replace verified prices or metrics with different numbers from web search. Only use web search to fill in the MISSING items.
 
 Return ONLY valid JSON (no markdown):
-${JSON_TEMPLATE(h.symbol, {})}
+${JSON_TEMPLATE(h.symbol, { current: price, change_pct: changePct, week52_high: md.price?.week52_high || 0, week52_low: md.price?.week52_low || 0 })}
 
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
 Remember: NEUTRAL (score ~0) is the correct answer on most days.`;
@@ -163,10 +195,15 @@ async function fetchSignal(holding, useWebSearch) {
         throw new Error("Invalid structure");
       }
 
-      // Inject accurate price from pre-fetched data if available
+      // Inject verified price data — Finnhub values always win over LLM-returned values
       const md = MARKET_DATA[holding.symbol];
-      if (md?.price?.current) {
-        parsed.price = { ...parsed.price, ...md.price };
+      if (md?.price) {
+        // Only overwrite with non-null verified values
+        if (md.price.current) parsed.price.current = md.price.current;
+        if (md.price.change_pct != null) parsed.price.change_pct = md.price.change_pct;
+        if (md.price.week52_high) parsed.price.week52_high = md.price.week52_high;
+        if (md.price.week52_low) parsed.price.week52_low = md.price.week52_low;
+        if (md.price.week52_position_pct != null) parsed.price.week52_position_pct = md.price.week52_position_pct;
       }
 
       const tokIn = result.usage?.input_tokens || "?";
