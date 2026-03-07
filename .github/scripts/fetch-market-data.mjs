@@ -115,7 +115,7 @@ async function fetchTechnicals(quotes) {
       t.rsi14 = +parseFloat(rsiData.values[0].rsi).toFixed(2);
     }
 
-    await sleep(8000); // Wait 8s between calls to stay under 8/min
+    await sleep(8000);
 
     // SMA(50)
     const sma50Data = await fetchJSON(
@@ -151,11 +151,87 @@ async function fetchTechnicals(quotes) {
     console.log(`  [TD] ✓ ${sym.symbol}: RSI=${t.rsi14 ?? "—"}, SMA50=${t.sma50 ?? "—"}, SMA200=${t.sma200 ?? "—"}, MA=${t.ma_signal}`);
     result[sym.symbol] = t;
 
-    // Extra pause between symbols (8s already passed from last call)
     if (i < SYMBOLS.length - 1) await sleep(8000);
   }
 
   return result;
+}
+
+// ─── STAGE 2b: FINNHUB CANDLE FALLBACK ──────────────────────────────────────
+// For symbols TwelveData can't handle, compute RSI + SMA from Finnhub candles.
+function computeRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return +(100 - 100 / (1 + avgGain / avgLoss)).toFixed(2);
+}
+
+function computeSMA(closes, period) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  return +(slice.reduce((a, b) => a + b, 0) / period).toFixed(2);
+}
+
+async function fillTechnicalsFromFinnhub(technicals, quotes) {
+  if (!FK) return;
+
+  // Find symbols missing RSI
+  const gaps = SYMBOLS.filter(s => technicals[s.symbol]?.rsi14 == null);
+  if (gaps.length === 0) { console.log("  [FH CANDLE] No gaps — all symbols have RSI"); return; }
+
+  console.log(`  [FH CANDLE] Filling ${gaps.length} gaps: ${gaps.map(s => s.symbol).join(", ")}`);
+
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - 86400 * 300; // ~300 days back for 200-day SMA
+
+  for (const sym of gaps) {
+    const data = await fetchJSON(
+      `https://finnhub.io/api/v1/stock/candle?symbol=${sym.finnhub}&resolution=D&from=${from}&to=${now}&token=${FK}`,
+      `FH candle ${sym.symbol}`
+    );
+
+    if (data?.s === "ok" && data.c?.length > 14) {
+      const closes = data.c; // array of close prices, oldest first
+      const rsi = computeRSI(closes);
+      const sma50 = computeSMA(closes, 50);
+      const sma200 = computeSMA(closes, 200);
+
+      if (!technicals[sym.symbol]) technicals[sym.symbol] = { rsi14: null, sma50: null, sma200: null, ma_signal: "unknown" };
+      const t = technicals[sym.symbol];
+
+      if (rsi != null) t.rsi14 = rsi;
+      if (sma50 != null && t.sma50 == null) t.sma50 = sma50;
+      if (sma200 != null && t.sma200 == null) t.sma200 = sma200;
+
+      // Recompute MA signal
+      const price = quotes[sym.symbol]?.price;
+      if (price && t.sma50 && t.sma200) {
+        if (price > t.sma50 && price > t.sma200 && t.sma50 > t.sma200) t.ma_signal = "above_both_golden";
+        else if (price > t.sma50 && price > t.sma200) t.ma_signal = "above_both";
+        else if (price > t.sma50) t.ma_signal = "above_50_below_200";
+        else if (price > t.sma200) t.ma_signal = "above_200_below_50";
+        else if (t.sma50 < t.sma200) t.ma_signal = "below_both_death";
+        else t.ma_signal = "below_both";
+      }
+
+      console.log(`    ✓ ${sym.symbol}: RSI=${t.rsi14 ?? "—"}, SMA50=${t.sma50 ?? "—"}, SMA200=${t.sma200 ?? "—"}, MA=${t.ma_signal} [from ${closes.length} candles]`);
+    } else {
+      console.log(`    ✗ ${sym.symbol}: no candle data (status: ${data?.s || "null"})`);
+    }
+
+    await sleep(500);
+  }
 }
 
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
@@ -207,6 +283,10 @@ async function main() {
   // Stage 2: Technicals (TwelveData — ~5 min with rate limit pacing)
   console.log("\n─── STAGE 2: TECHNICALS (TwelveData) ───");
   const technicals = await fetchTechnicals(quotes);
+
+  // Stage 2b: Fill gaps from Finnhub candles (for ADRs that TwelveData doesn't cover)
+  console.log("\n─── STAGE 2b: FINNHUB CANDLE FALLBACK ───");
+  await fillTechnicalsFromFinnhub(technicals, quotes);
 
   // Stage 3: Macro (FRED — ~3s)
   console.log("\n─── STAGE 3: MACRO (FRED) ───");
