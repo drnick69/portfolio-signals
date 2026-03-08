@@ -3,531 +3,783 @@
     {
       "symbol": "MOS",
       "price": {
-        "current": 26.32,
-        "change_pct": 0.15,
+        "current": 26.31,
+        "change_pct": 0.11,
         "week52_high": 38.23,
         "week52_low": 22.36,
-        "week52_position_pct": 25
+        "week52_position_pct": 24.9
       },
       "tactical": {
-        "score": -15,
-        "signal": "BUY",
-        "rationale": "RSI at 40.43 suggests oversold conditions in neutral territory, warranting mild bullish tactical positioning. Price below both SMAs indicates recent weakness but RSI prevents deeper negative scoring."
-      },
-      "positional": {
         "score": -5,
         "signal": "NEUTRAL",
-        "rationale": "Stock trading at 25% of 52-week range indicates substantial decline from highs, but not extreme enough for strong contrarian signal. Death cross pattern with price below both moving averages creates headwind offsetting oversold position."
+        "rationale": "While RSI at 40.43 suggests neutral momentum, fertilizer sector is showing early signs of seasonal pre-planting demand pickup. Recent stabilization in potash pricing and inventory destocking at distributors creates tactical buying opportunity that momentum indicators haven't captured yet. Agricultural input companies often see demand acceleration in Q1 ahead of spring planting season.",
+        "det_score": 0,
+        "llm_score": -10,
+        "det_notes": [
+          "RSI 40.43: neutral"
+        ]
+      },
+      "positional": {
+        "score": -22,
+        "signal": "NEUTRAL",
+        "rationale": "Death cross signal appears overly pessimistic given fundamental improvements in fertilizer markets. Global food security concerns post-Ukraine conflict continue to support agricultural investment. MOS trading at 25% of 52-week range reflects excessive bearishness despite crop nutrient demand remaining structurally sound. Company's integrated mining operations provide cost advantages as fertilizer prices stabilize above trough levels.",
+        "det_score": -20,
+        "llm_score": -25,
+        "det_notes": [
+          "MA: below_both_death (-15)",
+          "52w: 24.9% — below mid"
+        ]
       },
       "strategic": {
-        "score": -10,
+        "score": -22,
         "signal": "NEUTRAL",
-        "rationale": "Attractive valuation metrics with P/E of 15.7 and exceptionally low P/B of 0.63 suggest potential value opportunity. However, agricultural inputs face headwinds from commodity cycles and fertilizer market volatility limiting strategic conviction."
+        "rationale": "P/B of 0.63 represents compelling value for integrated fertilizer producer with significant phosphate and potash reserves. 3.35% dividend yield appears sustainable given improving cash flows and debt reduction efforts. Management has demonstrated disciplined capital allocation through cycle, maintaining strong balance sheet. Global population growth and yield improvement needs support long-term fertilizer demand despite current pricing pressures.",
+        "det_score": -15,
+        "llm_score": -30,
+        "det_notes": [
+          "P/E 15.4495: fair",
+          "P/B 0.6327: below book",
+          "Yield 3.348554%: moderate"
+        ]
       },
       "composite": {
-        "score": -9,
-        "signal": "NEUTRAL",
-        "summary": "MOS presents modest value opportunity with oversold technical conditions and compelling valuation metrics, but agricultural sector headwinds and technical deterioration limit upside conviction. Cautious neutral stance warranted given mixed signals across timeframes."
+        "score": -18,
+        "recommendation": "HOLD",
+        "summary": "MOS presents attractive value opportunity with stock oversold relative to improving fertilizer fundamentals and seasonal demand patterns. Technical weakness conflicts with strong balance sheet metrics and reasonable valuation for integrated ag inputs leader.",
+        "det_score": -13,
+        "llm_score": -22
       },
       "key_metric": {
         "name": "Price-to-Book Ratio",
-        "value": "0.63"
+        "value": "0.6327"
       },
       "risks": [
-        "Commodity price volatility could further pressure fertilizer demand and margins",
-        "Agricultural sector faces potential headwinds from weather patterns and crop pricing cycles"
+        "Continued weakness in global fertilizer prices due to demand destruction from high input costs",
+        "Potential recession reducing crop planting and fertilizer application rates globally"
       ],
       "catalysts": [
-        "Seasonal spring planting demand could drive fertilizer volume recovery",
-        "Potential agricultural commodity price stabilization improving farmer economics"
+        "Spring planting season driving seasonal fertilizer demand surge in Q1-Q2",
+        "Geopolitical tensions limiting Russian/Belarusian fertilizer exports boosting North American producers"
       ],
+      "_scoring": {
+        "deterministic": -13,
+        "llm": -22,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.8333114894472148,
-        "positional": -0.5384686189633036,
-        "strategic": -0.795723008015498,
-        "composite": -0.7974598794318142
+        "tactical": -0.15733610727300856,
+        "positional": -1.1514663684774418,
+        "strategic": -0.9651530850247269,
+        "composite": -1.3349943613181974
       }
     },
     {
       "symbol": "ASML",
       "price": {
-        "current": 1292.81,
+        "current": 1292.8,
         "change_pct": -5.52,
         "week52_high": 1312.8,
         "week52_low": 508.4,
         "week52_position_pct": 97.5
       },
       "tactical": {
-        "score": 15,
+        "score": -20,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 37.82 suggests mild oversold conditions worth -15 points, but 52-week position at 97.5% indicates extreme valuation risk worth +25 points, with recent -5.52% decline showing momentum weakness"
+        "rationale": "The sharp 5.52% decline appears to be an overreaction to broader semiconductor weakness rather than ASML-specific issues. With RSI at 37.82 approaching oversold levels and ASML's monopolistic position in EUV lithography, this creates a tactical buying opportunity. The elevated VIX at 23.75 suggests broader market fear, but ASML's structural moat makes it resilient to short-term volatility. The technical selloff contradicts the company's fundamental strength in AI chip manufacturing demand.",
+        "det_score": -25,
+        "llm_score": -15,
+        "det_notes": [
+          "RSI 37.82: approaching oversold",
+          "Daily -5.52%: sharp decline"
+        ]
       },
       "positional": {
-        "score": 20,
-        "signal": "NEUTRAL",
-        "rationale": "Trading above 200-day SMA at $995.46 shows long-term uptrend, but below 50-day SMA at $1340.04 indicates short-term weakness, while extreme 97.5% position near 52-week highs creates significant downside vulnerability"
+        "score": 28,
+        "signal": "SELL",
+        "rationale": "While the stock sits at extreme highs (97.5% of 52-week range), this reflects genuine fundamental strength rather than speculative excess. ASML's EUV monopoly positions it perfectly for the AI infrastructure buildout cycle. However, the position above SMA 50 but below recent highs suggests some consolidation is healthy. Geopolitical tensions around China export restrictions create near-term positioning risk, but the secular AI trend supports maintaining exposure despite elevated levels.",
+        "det_score": 35,
+        "llm_score": 20,
+        "det_notes": [
+          "MA: above_200_below_50 (+5)",
+          "52w: 97.5% — extreme high"
+        ]
       },
       "strategic": {
-        "score": 25,
-        "signal": "SELL",
-        "rationale": "Trailing P/E of 47.14 and P/B of 17.89 reflect extreme valuations even for a monopolistic semiconductor equipment leader, with high beta of 1.85 amplifying risk in current volatile market environment with VIX at 23.75"
+        "score": 14,
+        "signal": "NEUTRAL",
+        "rationale": "The premium valuation metrics (P/E 47.14, P/B 17.89) are justified by ASML's irreplaceable technology moat and accelerating earnings trajectory driven by AI chip demand. Management has demonstrated exceptional execution in scaling EUV production while maintaining technological leadership. The strategic value is further enhanced by limited competition in advanced lithography and strong visibility into multi-year customer commitments from TSMC, Samsung, and Intel. Rising interest rates pose some multiple compression risk, but the growth profile offsets valuation concerns.",
+        "det_score": 23,
+        "llm_score": 5,
+        "det_notes": [
+          "P/E 47.1449: expensive",
+          "P/B 17.8876: premium"
+        ]
       },
       "composite": {
-        "score": 21,
-        "recommendation": "NEUTRAL",
-        "summary": "ASML trades at extreme valuations near 52-week highs despite recent weakness, with fundamental strength offset by significant downside risk from stretched metrics. Current technical oversold condition provides limited tactical opportunity against strategic overvaluation concerns."
+        "score": 12,
+        "recommendation": "HOLD",
+        "summary": "ASML represents a rare combination of tactical oversold conditions and strategic moat strength, with the recent decline creating an attractive entry point despite premium valuations. The company's EUV monopoly positions it as a critical enabler of the AI revolution with strong earnings visibility ahead.",
+        "det_score": 18,
+        "llm_score": 4
       },
       "key_metric": {
         "name": "52-Week Position",
-        "value": "97.5%"
+        "value": "97.5% - extreme high territory despite structural growth drivers"
       },
       "risks": [
-        "Semiconductor cycle downturn could severely impact equipment demand given ASML's cyclical exposure",
-        "Extreme valuation metrics leave little margin for error if growth disappoints or competition emerges"
+        "China export restriction expansion could significantly impact revenue given 25-30% exposure to Chinese customers",
+        "Semiconductor cycle downturn could delay customer capex despite AI demand strength"
       ],
       "catalysts": [
-        "China trade tensions could accelerate Western semiconductor reshoring benefiting ASML's advanced lithography monopoly",
-        "AI chip demand surge may drive sustained capital equipment investment cycles"
+        "Accelerating AI chip production requirements driving increased EUV system orders from foundries",
+        "Resolution of geopolitical tensions allowing normalized China business relationships"
       ],
+      "_scoring": {
+        "deterministic": 18,
+        "llm": 4,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": 0.6372381978125761,
-        "positional": 1.4359163172354763,
-        "strategic": 2.3303316663311007,
-        "composite": 1.8878642043691929
+        "tactical": -1.1558152495824858,
+        "positional": 1.6140642108351915,
+        "strategic": 2.6405131571431206,
+        "composite": 2.133888624784205
       }
     },
     {
       "symbol": "SMH",
       "price": {
-        "current": 380.57,
+        "current": 380.56,
         "change_pct": -3.74,
         "week52_high": 427.94,
         "week52_low": 170.11,
         "week52_position_pct": 81.6
       },
       "tactical": {
-        "score": -18,
-        "signal": "BUY",
-        "rationale": "RSI at 38.6 sits in the 30-40 oversold zone, warranting a -18 score. The 3.74% single-day decline creates potential short-term bounce opportunity from technically oversold levels."
+        "score": -21,
+        "signal": "NEUTRAL",
+        "rationale": "Disagree with quant's oversold reading. The 3.74% decline appears driven by China trade tensions and AI bubble concerns rather than technical factors. VIX at 23.75 suggests broader market stress, but semis are being unfairly punished given strong underlying demand for AI chips and data center buildouts. The RSI approaching oversold creates a tactical buying opportunity, especially with earnings season approaching where NVDA and other leaders could provide positive catalysts.",
+        "det_score": -18,
+        "llm_score": -25,
+        "det_notes": [
+          "RSI 38.6: approaching oversold",
+          "Daily -3.74%: notable decline"
+        ]
       },
       "positional": {
-        "score": 5,
+        "score": 11,
         "signal": "NEUTRAL",
-        "rationale": "52-week position at 81.6% indicates elevated levels but not extreme. Price above 200-day SMA at $330.91 shows intact uptrend, but below 50-day SMA at $395.67 signals recent momentum weakness. Mixed technicals justify slight positive bias."
+        "rationale": "Less bullish than quant suggests despite strong 52-week positioning. While semis remain in a structural uptrend above 200-day MA, the sector faces headwinds from China export restrictions, potential memory chip oversupply, and growing concerns about AI capex sustainability. The below-50-day MA positioning suggests near-term momentum has stalled. Geopolitical risks around Taiwan and continued US-China tech decoupling create ongoing uncertainty for the sector's supply chains.",
+        "det_score": 17,
+        "llm_score": 5,
+        "det_notes": [
+          "MA: above_200_below_50 (+5)",
+          "52w: 81.6% — upper quartile"
+        ]
       },
       "strategic": {
-        "score": 8,
+        "score": -7,
         "signal": "NEUTRAL",
-        "rationale": "Beta of 1.61 creates high sensitivity to market volatility with VIX at elevated 23.75. Rising 10-year yield at 4.13% pressures growth-sensitive semiconductors. Sector fundamentals remain cyclically challenged despite long-term AI tailwinds."
+        "rationale": "Strategically constructive on semiconductors despite current volatility. The AI revolution and digital transformation remain in early innings, requiring massive semiconductor content increases across data centers, edge computing, and autonomous systems. Memory and logic chip demand should accelerate through 2024-2025. Rising real yields and elevated term structure favor growth sectors that can deliver actual earnings growth rather than just multiples expansion. Semis offer both cyclical recovery and secular growth themes.",
+        "det_score": 0,
+        "llm_score": -15,
+        "det_notes": []
       },
       "composite": {
-        "score": -2,
+        "score": -5,
         "recommendation": "HOLD",
-        "summary": "SMH shows tactical oversold bounce potential with RSI at 38.6, but elevated 52-week positioning and macro headwinds from rising rates limit upside. Slight negative composite score reflects mixed risk-reward at current levels."
+        "summary": "SMH presents a tactical buying opportunity as recent weakness appears overdone relative to strong fundamental backdrop and AI-driven secular demand trends. While near-term geopolitical headwinds warrant caution, the strategic outlook remains compelling for patient investors.",
+        "det_score": 1,
+        "llm_score": -10
       },
       "key_metric": {
-        "name": "RSI Oversold Level",
-        "value": "38.6"
+        "name": "52-week position",
+        "value": "81.6% - indicating underlying strength despite recent pullback"
       },
       "risks": [
-        "Rising 10-year Treasury yield at 4.13% pressures high-beta semiconductor valuations and increases discount rates for growth-dependent sector cash flows"
+        "Escalating US-China trade tensions and potential semiconductor export restrictions",
+        "AI capex spending slowdown if hyperscaler returns disappoint",
+        "Memory chip inventory correction and pricing pressure",
+        "Taiwan geopolitical tensions disrupting supply chains"
       ],
       "catalysts": [
-        "Technical oversold bounce opportunity from RSI 38.6 level could drive short-term mean reversion rally back toward 50-day moving average at $395.67"
+        "Strong Q4 earnings from NVDA, AMD, and other AI chip leaders",
+        "Accelerating data center buildouts for AI inference workloads",
+        "Automotive semiconductor recovery as EV adoption accelerates",
+        "Memory chip pricing stabilization and inventory normalization"
       ],
+      "_scoring": {
+        "deterministic": 1,
+        "llm": -10,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.9803664581731939,
-        "positional": 0.25128535551620834,
-        "strategic": 0.8119622530770385,
-        "composite": -0.1708842598782459
+        "tactical": -1.222380525736451,
+        "positional": 0.6737838138688961,
+        "strategic": 0.5372078492118763,
+        "composite": 0.1681882659928437
       }
     },
     {
       "symbol": "ENB",
       "price": {
-        "current": 54.07,
-        "change_pct": 0.35,
-        "week52_high": 0,
-        "week52_low": 0
+        "current": 54.06,
+        "change_pct": 0.33
       },
       "tactical": {
-        "score": 20,
-        "signal": "NEUTRAL",
-        "rationale": "RSI at 68.05 sits in the 60-70 range indicating mild overbought conditions, warranting a +20 score. Price trading above both SMA 50 ($49.49) and SMA 200 ($47.69) shows bullish momentum, but RSI proximity to 70 threshold suggests limited near-term upside."
-      },
-      "positional": {
         "score": 5,
         "signal": "NEUTRAL",
-        "rationale": "Strong defensive characteristics with beta of 0.24 provide portfolio stability in current volatile environment (VIX 23.75). However, P/E of 21.4 appears elevated for a utility-like midstream company, and without 52-week range data, cannot assess position within trading range. Neutral positioning warranted."
+        "rationale": "The RSI at 68 indicates mild overbought conditions, but utility stocks like ENB often sustain higher RSI levels during flight-to-quality periods. Current macro environment with elevated VIX at 23.75 and inverted yield curve suggests defensive positioning is warranted. ENB's defensive characteristics and 6.7% yield make it attractive in risk-off environments, suggesting the overbought condition may persist longer than typical.",
+        "det_score": 20,
+        "llm_score": -10,
+        "det_notes": [
+          "RSI 68.05: mildly overbought"
+        ]
+      },
+      "positional": {
+        "score": 3,
+        "signal": "NEUTRAL",
+        "rationale": "The golden cross technical setup aligns well with fundamental drivers for midstream energy. North American energy infrastructure remains critical regardless of energy transition timelines. ENB's regulated utility-like cash flows and essential pipeline network create sustainable competitive advantages. The technical momentum reflects growing recognition of ENB's defensive qualities amid macro uncertainty and its role in continental energy security.",
+        "det_score": 20,
+        "llm_score": -15,
+        "det_notes": [
+          "MA: above_both_golden (+15)"
+        ]
       },
       "strategic": {
         "score": -15,
         "signal": "NEUTRAL",
-        "rationale": "Exceptional 6.74% dividend yield provides compelling income in rising rate environment, offering 260bps premium to 10-year Treasury at 4.13%. Low beta of 0.24 and stable midstream model offer defensive qualities, but elevated valuation metrics (P/E 21.4, P/B 2.3) suggest limited margin of safety for long-term investors."
+        "rationale": "While P/E of 21.4 appears elevated for utilities, ENB's growth profile justifies the premium given its $24B secured capital program through 2028. The 6.7% yield is particularly compelling with 10-year treasuries at 4.13%, offering a 257bp spread with inflation protection potential. Management has demonstrated exceptional capital allocation with 29 consecutive years of dividend increases. Energy transition actually benefits ENB through renewable power transmission needs and hydrogen-ready pipeline infrastructure.",
+        "det_score": -5,
+        "llm_score": -25,
+        "det_notes": [
+          "P/E 21.4455: moderate",
+          "Yield 6.7391305%: attractive"
+        ]
       },
       "composite": {
-        "score": -2,
-        "signal": "NEUTRAL",
-        "summary": "ENB presents a mixed picture with strong defensive income characteristics offset by elevated valuation and mild technical overbought conditions. The exceptional dividend yield provides strategic value, but tactical and positional factors suggest limited near-term upside potential."
+        "score": -6,
+        "recommendation": "HOLD",
+        "summary": "ENB presents a compelling defensive play with strong technical momentum supported by fundamental quality and attractive yield in uncertain macro environment. The combination of essential infrastructure assets, predictable cash flows, and energy transition positioning creates multiple expansion catalysts despite current premium valuation.",
+        "det_score": 8,
+        "llm_score": -18
       },
       "key_metric": {
-        "name": "Dividend Yield",
-        "value": "6.74%"
+        "name": "Dividend Yield vs 10Y Treasury Spread",
+        "value": "257 basis points (6.74% vs 4.13%)"
       },
       "risks": [
-        "Rising interest rates could pressure the high-yielding utility-like stock as investors seek alternatives, particularly given the current 4.13% 10-year Treasury yield",
-        "Elevated P/E ratio of 21.4 suggests limited downside protection if energy infrastructure sentiment deteriorates"
+        "Rising interest rates could pressure utility valuations and increase refinancing costs for capital-intensive projects",
+        "Regulatory challenges or pipeline approval delays could impact growth capital deployment and returns",
+        "Energy transition acceleration could strand conventional pipeline assets faster than anticipated depreciation schedules"
       ],
       "catalysts": [
-        "Exceptional 6.74% dividend yield becomes increasingly attractive if market volatility persists, providing stable income stream in uncertain environment",
-        "Low beta of 0.24 could drive defensive rotation if VIX remains elevated above 20 threshold"
+        "Completion of Line 3 replacement and other major projects driving EBITDA growth and utilization rate improvements",
+        "Increased North American energy export capacity driving higher throughput volumes and expansion opportunities",
+        "ESG-focused institutional investment flows favoring best-in-class infrastructure operators with transition strategies"
       ],
+      "_scoring": {
+        "deterministic": 8,
+        "llm": -18,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": 0.8823298123558745,
-        "positional": 0.25128535551620834,
-        "strategic": -1.2423022472078693,
-        "composite": -0.1708842598782459
+        "tactical": 0.5083166542666431,
+        "positional": 0.23129892117887477,
+        "strategic": -0.26405131571431206,
+        "composite": 0.052558833122763625
       }
     },
     {
       "symbol": "ETHA",
       "price": {
-        "current": 14.94,
-        "change_pct": -5.44,
+        "current": 14.93,
+        "change_pct": -5.51,
         "week52_high": 36.8,
         "week52_low": 10.99,
         "week52_position_pct": 15.3
       },
       "tactical": {
-        "score": -15,
-        "signal": "BUY",
-        "rationale": "RSI at 41.8 sits just above oversold territory, suggesting near-term selling pressure may be exhausting. The -5.44% daily decline shows momentum weakness but RSI hasn't reached extreme oversold levels that would warrant a stronger buy signal."
+        "score": -17,
+        "signal": "NEUTRAL",
+        "rationale": "The sharp 5.51% decline appears to be crypto-wide selling pressure rather than ETHA-specific weakness. With VIX at 23.75 indicating broader market stress, this creates a tactical opportunity as crypto often overshoots on both sides. ETH's technical infrastructure improvements and upcoming network upgrades suggest the selling is sentiment-driven rather than fundamental, making this decline a potential entry point for nimble traders.",
+        "det_score": -15,
+        "llm_score": -20,
+        "det_notes": [
+          "RSI 41.8: neutral",
+          "Daily -5.51%: sharp decline"
+        ]
       },
       "positional": {
-        "score": -20,
+        "score": -31,
         "signal": "BUY",
-        "rationale": "Price at 15.3% of 52-week range indicates significant technical damage from the $36.8 high. Trading below both SMA 50 ($19.3) and SMA 200 ($24.73) in death cross pattern confirms bearish intermediate trend, but low 52-week positioning suggests much selling already occurred."
+        "rationale": "While the death cross signal is concerning, ETH's position at only 15.3% of its 52-week range creates compelling risk-reward dynamics. The crypto cycle typically sees major corrections of 70-80% followed by explosive recoveries. ETH's transition to proof-of-stake and growing DeFi ecosystem provide structural support that traditional technical analysis may not capture adequately in this emerging asset class.",
+        "det_score": -37,
+        "llm_score": -25,
+        "det_notes": [
+          "MA: below_both_death (-15)",
+          "52w: 15.3% — lower quartile",
+          "-22.6% below SMA50"
+        ]
       },
       "strategic": {
-        "score": -10,
-        "signal": "BUY",
-        "rationale": "Elevated VIX at 23.75 reflects heightened market stress creating potential opportunity for risk assets. However, 10-year yield at 4.13% and real yields at 1.82% maintain headwinds for speculative crypto exposure. HY credit spreads at only 3bps show limited systemic stress."
+        "score": -15,
+        "signal": "NEUTRAL",
+        "rationale": "ETH represents the backbone of decentralized finance and smart contract infrastructure with no viable competitor at scale. Institutional adoption continues accelerating with spot ETH ETFs recently approved, while Layer 2 scaling solutions are dramatically reducing transaction costs. The current macro environment of elevated rates may be temporarily suppressing risk assets, but ETH's utility-driven demand profile differentiates it from purely speculative crypto assets.",
+        "det_score": 0,
+        "llm_score": -30,
+        "det_notes": []
       },
       "composite": {
-        "score": -15,
-        "recommendation": "BUY",
-        "summary": "ETHA shows oversold conditions with RSI above 40 and price near 52-week lows, but remains in confirmed downtrend below key moving averages. Elevated market volatility creates tactical opportunity despite challenging rate environment for crypto assets."
+        "score": -21,
+        "recommendation": "HOLD",
+        "summary": "Despite severe technical deterioration showing death cross and 22.6% below SMA50, ETH's fundamental infrastructure value and oversold positioning at 15.3% of 52-week range present a compelling contrarian opportunity. The quantitative bearishness may be missing crypto's unique cycle dynamics and ETH's structural growth drivers.",
+        "det_score": -17,
+        "llm_score": -26
       },
       "key_metric": {
-        "name": "52-Week Position",
+        "name": "52-Week Range Position",
         "value": "15.3%"
       },
       "risks": [
-        "Continued institutional crypto selling pressure amid regulatory uncertainty and high interest rate environment could drive price toward 52-week low of $10.99",
-        "Death cross technical pattern with price below both major moving averages indicates sustained bearish momentum that could persist"
+        "Regulatory crackdowns on crypto trading or DeFi protocols could severely impact ETH demand and utility",
+        "Prolonged high interest rate environment may continue suppressing speculative technology investments including crypto"
       ],
       "catalysts": [
-        "Potential Federal Reserve pivot or dovish commentary could reduce real yields and improve appetite for risk assets like crypto ETFs",
-        "Oversold RSI conditions and proximity to 52-week lows may attract institutional value buyers seeking crypto exposure"
+        "Major institutional adoption announcements or corporate treasury allocations to ETH could trigger significant inflows",
+        "Successful implementation of ETH network upgrades improving scalability and reducing energy consumption"
       ],
+      "_scoring": {
+        "deterministic": -17,
+        "llm": -26,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.8333114894472148,
-        "positional": -1.7230995806825713,
-        "strategic": -0.795723008015498,
-        "composite": -1.3345246961920156
+        "tactical": -0.9561194211205903,
+        "positional": -1.6492618727537158,
+        "strategic": -0.26405131571431206,
+        "composite": -1.6818826599284378
       }
     },
     {
       "symbol": "GLD",
       "price": {
-        "current": 473.52,
-        "change_pct": 1.59,
+        "current": 473.51,
+        "change_pct": 1.58,
         "week52_high": 509.7,
         "week52_low": 265.64,
         "week52_position_pct": 85.2
       },
       "tactical": {
-        "score": 15,
-        "signal": "SELL",
-        "rationale": "RSI at 54.6 sits in neutral territory but 52-week position at 85.2% suggests overbought conditions, warranting a modest sell bias given limited upside to recent highs"
+        "score": -7,
+        "signal": "NEUTRAL",
+        "rationale": "While RSI at 54.6 suggests neutral momentum, gold is benefiting from persistent geopolitical tensions including Ukraine-Russia conflict and Middle East instability. The dollar has shown recent weakness and inflation expectations remain elevated with TIPS at 1.82%. VIX at 23.75 indicates moderate risk-off sentiment favoring safe haven assets. Technical neutrality masks underlying fundamental support for gold in current environment.",
+        "det_score": 0,
+        "llm_score": -15,
+        "det_notes": [
+          "RSI 54.6: neutral"
+        ]
       },
       "positional": {
-        "score": 5,
+        "score": 9,
         "signal": "NEUTRAL",
-        "rationale": "Golden cross signal with price above both SMAs is constructive, but VIX at 23.75 indicates elevated volatility concerns while real yields at 1.82% create modest headwinds for non-yielding gold"
+        "rationale": "The golden cross signal and strong 52-week positioning at 85.2% reflect genuine strength driven by central bank buying, particularly from emerging markets diversifying reserves. However, gold faces headwinds from elevated real yields with 10Y at 4.13% and potential Fed hawkishness. The technical strength is supported by fundamental demand but faces yield competition.",
+        "det_score": 27,
+        "llm_score": -10,
+        "det_notes": [
+          "MA: above_both_golden (+15)",
+          "52w: 85.2% — upper quartile"
+        ]
       },
       "strategic": {
-        "score": -5,
+        "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "Rising real yields at 1.82% present headwinds for gold, but steepening yield curve at 56bps and elevated VIX at 23.75 support defensive positioning in precious metals during uncertain macro environment"
+        "rationale": "Gold remains strategically attractive in an environment of high government debt levels, persistent inflation risks, and potential currency debasement. Central banks globally continue accumulating gold reserves as geopolitical fragmentation accelerates. While current real yields are challenging, the longer-term fiscal dynamics and dedollarization trends support gold as a strategic hedge against monetary and geopolitical instability.",
+        "det_score": 0,
+        "llm_score": -25,
+        "det_notes": []
       },
       "composite": {
-        "score": 3,
+        "score": -4,
         "recommendation": "HOLD",
-        "summary": "GLD shows mixed signals with overbought technicals offset by defensive macro positioning. Limited conviction either direction given conflicting technical and fundamental factors."
+        "summary": "GLD shows technical strength with golden cross formation supported by geopolitical tensions and central bank demand, though elevated real yields create near-term headwinds. Strategic positioning favors gold as hedge against fiscal and monetary risks despite current yield competition.",
+        "det_score": 9,
+        "llm_score": -17
       },
       "key_metric": {
-        "name": "52-Week Position",
-        "value": "85.2%"
+        "name": "Real Yield (10Y-TIPS)",
+        "value": "2.31%"
       },
       "risks": [
-        "Further rise in real yields above 2% could pressure gold prices significantly",
-        "Potential Fed dovish pivot could reduce safe-haven demand"
+        "Rising real yields making gold less attractive relative to yield-bearing assets",
+        "Potential Fed hawkishness and dollar strength reducing safe haven demand"
       ],
       "catalysts": [
-        "Escalating geopolitical tensions or banking stress could drive defensive flows",
-        "Real yield decline below 1.5% would remove key headwind for gold"
+        "Escalation of geopolitical tensions increasing safe haven flows",
+        "Signs of Fed pivot or dollar weakness boosting gold appeal"
       ],
+      "_scoring": {
+        "deterministic": 9,
+        "llm": -17,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": 0.6372381978125761,
-        "positional": 0.25128535551620834,
-        "strategic": -0.34914376882312664,
-        "composite": 0.2766697540885886
+        "tactical": -0.2904666595809388,
+        "positional": 0.5631625906963907,
+        "strategic": 0.03642087113300853,
+        "composite": 0.2838176988629238
       }
     },
     {
       "symbol": "IBIT",
       "price": {
-        "current": 38.61,
-        "change_pct": -4.41,
+        "current": 38.6,
+        "change_pct": -4.43,
         "week52_high": 71.82,
         "week52_low": 35.3,
-        "week52_position_pct": 9.1
+        "week52_position_pct": 9
       },
       "tactical": {
-        "score": -15,
-        "signal": "BUY",
-        "rationale": "RSI at 43.56 sits in the 40-60 range leaning toward oversold territory, warranting a modest negative score. The 4.41% daily decline suggests near-term selling pressure may be overdone."
+        "score": 6,
+        "signal": "NEUTRAL",
+        "rationale": "While the -4.43% decline appears harsh, Bitcoin ETFs like IBIT remain vulnerable to crypto's inherent volatility and regulatory uncertainty. The elevated VIX at 23.75 reflects broader market stress that typically amplifies crypto selloffs. With rising yields (10Y at 4.13%) making risk-free assets more attractive, the tactical environment favors taking profits or reducing exposure to speculative assets like Bitcoin ETFs.",
+        "det_score": -8,
+        "llm_score": 20,
+        "det_notes": [
+          "RSI 43.56: neutral",
+          "Daily -4.43%: notable decline"
+        ]
       },
       "positional": {
-        "score": -20,
+        "score": -30,
         "signal": "BUY",
-        "rationale": "52-week position at 9.1% indicates severe technical weakness, trading near annual lows. Price below both SMA 50 ($45.27) and SMA 200 ($57.3) confirms bearish momentum, but extreme positioning suggests potential mean reversion opportunity."
+        "rationale": "Despite the death cross signal, IBIT's proximity to 52-week lows at 9% position suggests significant downside is already priced in. The institutional adoption story for Bitcoin remains intact with ETF flows still positive year-to-date. While the technical damage is real, the risk-reward at these levels favors patient accumulation over panic selling, especially given Bitcoin's historical tendency to recover from oversold conditions.",
+        "det_score": -40,
+        "llm_score": -20,
+        "det_notes": [
+          "MA: below_both_death (-15)",
+          "52w: 9% — near lows"
+        ]
       },
       "strategic": {
-        "score": -10,
+        "score": -15,
         "signal": "NEUTRAL",
-        "rationale": "High beta of 2.0 amplifies Bitcoin volatility risk in current macro environment. Elevated VIX at 23.75 and steepening yield curve (56bps 2s10s spread) create headwinds, but HY OAS at only 3bps suggests credit markets remain stable."
+        "rationale": "Long-term Bitcoin thesis strengthens amid global monetary debasement concerns and institutional adoption acceleration. With potential Fed policy shifts on the horizon and increasing corporate treasury adoption, Bitcoin ETFs like IBIT offer pure-play exposure to digital asset appreciation. The strategic case for portfolio diversification into uncorrelated assets remains compelling despite near-term volatility.",
+        "det_score": 0,
+        "llm_score": -30,
+        "det_notes": []
       },
       "composite": {
-        "score": -16,
-        "recommendation": "BUY",
-        "summary": "IBIT trades near 52-week lows with oversold technical conditions presenting a tactical opportunity. However, high volatility profile and uncertain macro backdrop demand cautious position sizing."
+        "score": -14,
+        "recommendation": "HOLD",
+        "summary": "IBIT shows tactical weakness amid broader market stress but presents strategic value near 52-week lows. The quantitative sell signals are partially offset by compelling long-term Bitcoin adoption fundamentals and oversold positioning.",
+        "det_score": -16,
+        "llm_score": -10
       },
       "key_metric": {
         "name": "52-Week Position",
-        "value": "9.1%"
+        "value": "9% - Near historical lows suggesting limited downside"
       },
       "risks": [
-        "Bitcoin regulatory crackdowns could trigger sharp ETF outflows",
-        "Rising real yields at 1.82% reduce appeal of non-yielding crypto assets"
+        "Regulatory crackdown on cryptocurrency trading or ETF structures",
+        "Bitcoin correlation with tech stocks increasing during market stress"
       ],
       "catalysts": [
-        "Potential Bitcoin ETF approval expansion could drive institutional adoption",
-        "Oversold technical levels near $35.3 support may attract momentum buyers"
+        "Federal Reserve pivot toward dovish policy supporting risk assets",
+        "Major institutional announcements of Bitcoin treasury adoption"
       ],
+      "_scoring": {
+        "deterministic": -16,
+        "llm": -10,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.8333114894472148,
-        "positional": -1.7230995806825713,
-        "strategic": -0.795723008015498,
-        "composite": -1.4240354989853825
+        "tactical": 0.5748819304206082,
+        "positional": -1.593951261167463,
+        "strategic": -0.26405131571431206,
+        "composite": -0.872476629837877
       }
     },
     {
       "symbol": "KOF",
       "price": {
-        "current": 104.25,
-        "change_pct": -1.2,
-        "week52_high": 0,
-        "week52_low": 0
+        "current": 104.24,
+        "change_pct": -1.21
       },
       "tactical": {
-        "score": -10,
+        "score": -5,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 42.24 sits in neutral zone but leans slightly oversold, suggesting minor tactical support. Trading above SMA 200 at $92.53 provides uptrend confirmation, though below SMA 50 at $104.53 indicates near-term weakness."
+        "rationale": "RSI at 42 suggests oversold conditions developing, and recent -1.21% decline appears overdone given stable fundamentals. Mexican peso weakness creates translation headwinds but also improves local competitiveness. Current VIX at 23.75 reflects broader market anxiety rather than KOF-specific concerns, creating short-term opportunity.",
+        "det_score": 0,
+        "llm_score": -10,
+        "det_notes": [
+          "RSI 42.24: neutral"
+        ]
       },
       "positional": {
         "score": -5,
         "signal": "NEUTRAL",
-        "rationale": "Moderate P/E of 16.8 and reasonable P/B of 2.26 suggest fair valuation for a LatAm consumer staple. Low beta of 0.60 provides defensive characteristics in current elevated VIX environment of 23.75, though currency and regional risks persist."
+        "rationale": "Strong uptrend remains intact above 200-day MA at $92.53, though pullback from 50-day suggests healthy consolidation. Latin American consumer staples showing resilience amid regional political uncertainties. Coca-Cola FEMSA benefits from defensive characteristics while maintaining growth exposure to recovering LatAm economies.",
+        "det_score": 5,
+        "llm_score": -15,
+        "det_notes": [
+          "MA: above_200_below_50 (+5)"
+        ]
       },
       "strategic": {
-        "score": 0,
+        "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "Solid dividend yield of 3.76% supports income-focused investors, while defensive consumer staples positioning offers portfolio stability. However, LatAm exposure creates structural headwinds from currency volatility and economic uncertainty that offset fundamental strengths."
+        "rationale": "P/E of 16.86 appears reasonable for dominant regional franchise with pricing power and market leadership across key territories. 3.76% yield provides attractive income in current rate environment. Management has demonstrated disciplined capital allocation and successful navigation of currency volatility. Structural demographic trends in LatAm favor long-term consumption growth despite near-term macro headwinds.",
+        "det_score": -5,
+        "llm_score": -20,
+        "det_notes": [
+          "P/E 16.8628: fair",
+          "Yield 3.75801%: moderate"
+        ]
       },
       "composite": {
-        "score": -4,
+        "score": -9,
         "recommendation": "HOLD",
-        "summary": "KOF presents a marginally attractive risk-adjusted opportunity with defensive characteristics and reasonable valuation, though LatAm exposure limits conviction. The combination of modest technical oversold conditions and stable dividend yield provides limited downside with constrained upside."
+        "summary": "KOF presents attractive risk-adjusted opportunity combining defensive consumer staple characteristics with LatAm growth exposure, supported by reasonable valuation and strong competitive positioning. Quantitative neutrality balanced by qualitative positives including franchise strength and demographic tailwinds.",
+        "det_score": -1,
+        "llm_score": -16
       },
       "key_metric": {
-        "name": "RSI_14",
-        "value": "42.24"
+        "name": "Price relative to 200-day MA",
+        "value": "12.7% premium signals sustained uptrend integrity"
       },
       "risks": [
-        "Mexican peso and other LatAm currency devaluation against USD could significantly impact returns for US investors",
-        "Rising interest rates and potential LatAm economic slowdown could pressure consumer discretionary spending on beverages"
+        "Mexican peso devaluation pressuring translated earnings and creating currency hedging costs",
+        "Rising interest rates in Mexico and Brazil increasing financing costs and consumer pressure"
       ],
       "catalysts": [
-        "Potential Fed pivot or pause in rate hikes could strengthen LatAm currencies and improve relative valuation",
-        "Strong US dollar earnings translation benefits if company maintains pricing power in local markets"
+        "Successful implementation of revenue management initiatives and premiumization strategy across key markets",
+        "Potential acquisition opportunities in fragmented LatAm beverage markets leveraging KOF's scale advantages"
       ],
+      "_scoring": {
+        "deterministic": -1,
+        "llm": -16,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.5882198749039164,
-        "positional": -0.5384686189633036,
-        "strategic": 0.09743547036924463,
-        "composite": -0.3499058654649797
+        "tactical": -0.15733610727300856,
+        "positional": -0.21118597151114654,
+        "strategic": 0.03642087113300853,
+        "composite": -0.2943294654874766
       }
     },
     {
       "symbol": "PBR.A",
       "price": {
-        "current": 16.13,
-        "change_pct": 4.27,
-        "week52_high": 0,
-        "week52_low": 0
+        "current": 16.12,
+        "change_pct": 4.2
       },
       "tactical": {
-        "score": 45,
+        "score": 34,
         "signal": "SELL",
-        "rationale": "RSI at 73.84 is significantly overbought territory above 70, warranting a +40 to +60 score range. The 4.27% daily surge adds momentum concern for near-term pullback risk."
+        "rationale": "While the 4.2% rally and RSI of 73.84 suggest overbought conditions, the broader energy sector context is concerning. Oil prices remain volatile amid global growth fears, and Petrobras faces unique operational challenges in deepwater drilling. The technical momentum appears divorced from fundamental energy market dynamics, with refined product margins under pressure and Brazilian political uncertainty adding volatility risk to short-term positioning.",
+        "det_score": 43,
+        "llm_score": 25,
+        "det_notes": [
+          "RSI 73.84: overbought",
+          "Daily +4.2%: notable rally"
+        ]
       },
       "positional": {
-        "score": 15,
-        "signal": "NEUTRAL",
-        "rationale": "Golden cross formation with price above both SMA 50 ($14.3) and SMA 200 ($12.84) shows positive trend, but RSI overbought condition limits upside. Reasonable P/E of 7.02 provides some fundamental support."
-      },
-      "strategic": {
         "score": 5,
         "signal": "NEUTRAL",
-        "rationale": "Attractive valuation metrics with P/E 7.02 and P/B 1.06 suggest undervaluation, but EM energy exposure amid uncertain commodity cycles and geopolitical risks in Brazil warrant cautious optimism rather than aggressive positioning."
+        "rationale": "The golden cross signal at $14.30/$12.84 SMAs captures genuine structural improvement in Petrobras operations and Brazil's energy policy stability. Management has successfully reduced debt burden and improved operational efficiency in pre-salt operations. However, EM energy names face persistent capital allocation concerns, and the company's positioning benefits from both domestic energy security themes and improving corporate governance under current leadership.",
+        "det_score": 20,
+        "llm_score": -10,
+        "det_notes": [
+          "MA: above_both_golden (+15)"
+        ]
+      },
+      "strategic": {
+        "score": -26,
+        "signal": "BUY",
+        "rationale": "The P/E of 7.02 and P/B of 1.06 reflect genuine deep value in a structurally improving energy giant. Petrobras benefits from low-cost pre-salt reserves, increasing energy independence themes, and substantial free cash flow generation capability. The Brazilian real's recent stability and government's more market-friendly energy policies create a compelling long-term setup. ESG improvements and debt reduction create sustainable competitive advantages versus other EM energy players.",
+        "det_score": -18,
+        "llm_score": -35,
+        "det_notes": [
+          "P/E 7.0226: deep value",
+          "P/B 1.0636: near book"
+        ]
       },
       "composite": {
-        "score": 18,
+        "score": -3,
         "recommendation": "HOLD",
-        "summary": "PBR.A shows strong momentum but extreme RSI overbought conditions at 73.84 create near-term pullback risk. Attractive valuation provides downside support but insufficient to overcome technical warning signals."
+        "summary": "Petrobras presents compelling deep value characteristics with improving operational fundamentals, though near-term technical overbought conditions warrant caution. The combination of structural improvements and attractive valuation creates a moderately bullish outlook despite tactical headwinds.",
+        "det_score": 8,
+        "llm_score": -12
       },
       "key_metric": {
-        "name": "RSI(14)",
-        "value": "73.84"
+        "name": "P/E Ratio",
+        "value": "7.0226"
       },
       "risks": [
-        "Extreme RSI overbought condition at 73.84 suggests imminent technical correction and profit-taking pressure",
-        "Brazilian political instability and commodity price volatility could impact state-controlled oil company operations"
+        "Brazilian political instability affecting energy policy and operational autonomy",
+        "Global oil demand destruction from economic slowdown impacting revenue streams"
       ],
       "catalysts": [
-        "Attractive valuation at 7.02 P/E ratio may attract value investors seeking energy exposure",
-        "Golden cross technical pattern with price above both moving averages indicates sustained upward momentum"
+        "Continued pre-salt production ramp-up improving unit economics and reserve life",
+        "Further debt reduction announcements enhancing dividend sustainability and credit profile"
       ],
+      "_scoring": {
+        "deterministic": 8,
+        "llm": -12,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": 2.107787885072367,
-        "positional": 1.0410393299957204,
-        "strategic": 0.5440147095616159,
-        "composite": 1.619331795989092
+        "tactical": 2.4387096627316325,
+        "positional": 0.34192014435138013,
+        "strategic": -1.365782667487821,
+        "composite": 0.3994471317330039
       }
     },
     {
       "symbol": "AMKBY",
       "price": {
         "current": 13.24,
-        "change_pct": 1.15,
-        "week52_high": 0,
-        "week52_low": 0
+        "change_pct": 1.15
       },
       "tactical": {
-        "score": 18,
+        "score": 8,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 62.6 suggests mild overbought conditions warranting +18 score. Price trading above both SMA 50 ($12.1) and SMA 200 ($10.57) in golden cross formation, but momentum appears stretched short-term"
+        "rationale": "RSI at 62.6 suggests mild overbought conditions, but shipping stocks are notoriously volatile and technical levels can be misleading during earnings seasons or geopolitical events. With Red Sea disruptions ongoing and peak shipping season approaching, the RSI reading may not fully capture the momentum driven by supply chain premiums. However, at current levels, some near-term consolidation is likely before the next leg up.",
+        "det_score": 10,
+        "llm_score": 5,
+        "det_notes": [
+          "RSI 62.6: approaching overbought"
+        ]
       },
       "positional": {
         "score": 5,
         "signal": "NEUTRAL",
-        "rationale": "Mixed technical picture with price 9.4% above SMA 50 indicating some extension, but strong trend intact above 200-day MA. Shipping sector facing cyclical headwinds but AMKBY maintaining relative strength. Slight positive bias at +5"
+        "rationale": "The golden cross above both moving averages is particularly significant for cyclical stocks like Maersk. Shipping cycles can extend longer than expected, and the current disruption-driven freight rate environment could persist through 2024. Global trade normalization post-COVID combined with Red Sea rerouting is creating sustained demand for shipping capacity. The technical momentum aligns well with fundamental shipping cycle dynamics.",
+        "det_score": 20,
+        "llm_score": -10,
+        "det_notes": [
+          "MA: above_both_golden (+15)"
+        ]
       },
       "strategic": {
-        "score": -8,
+        "score": -19,
         "signal": "NEUTRAL",
-        "rationale": "P/B ratio of 0.60 suggests potential value with assets trading below book value. However, trailing P/E of 14.1 appears reasonable but not compelling given shipping industry volatility. Dividend yield of 2.83% provides some downside protection. Modest negative score of -8 reflects cautious optimism"
+        "rationale": "P/B of 0.6 for a capital-intensive shipping company with modern fleet assets is exceptionally attractive, suggesting the market is pricing in cyclical trough conditions despite current strong fundamentals. Management has demonstrated disciplined capital allocation and the company benefits from consolidation in the container shipping industry. The P/E of 14.1 appears reasonable given elevated earnings from current freight rates, though earnings quality deserves scrutiny given cyclical nature.",
+        "det_score": -13,
+        "llm_score": -25,
+        "det_notes": [
+          "P/E 14.1129: fair",
+          "P/B 0.6026: below book"
+        ]
       },
       "composite": {
-        "score": 3,
+        "score": -3,
         "recommendation": "HOLD",
-        "summary": "AMKBY shows mixed signals with mild technical overbought conditions offset by attractive valuation metrics and defensive characteristics. The composite score of +3 reflects a essentially neutral stance with slight caution given extended short-term momentum"
+        "summary": "Maersk presents a compelling value opportunity with strong technical momentum supported by ongoing supply chain disruptions and attractive book value metrics. While RSI suggests near-term caution, the strategic undervaluation and favorable shipping cycle dynamics outweigh short-term overbought concerns.",
+        "det_score": 6,
+        "llm_score": -8
       },
       "key_metric": {
         "name": "Price-to-Book Ratio",
-        "value": "0.6008"
+        "value": "0.6026 - trading at 40% discount to book value despite strong operational environment"
       },
       "risks": [
-        "Global trade slowdown could severely impact shipping demand and freight rates",
-        "Rising fuel costs and potential overcapacity in container shipping market"
+        "Freight rate normalization as Red Sea disruptions resolve and alternative shipping capacity comes online",
+        "Global trade recession reducing container volumes and pricing power"
       ],
       "catalysts": [
-        "Potential supply chain disruptions could drive freight rate premiums higher",
-        "Asset monetization opportunities given trading below book value"
+        "Extended Red Sea crisis requiring continued rerouting around Cape of Good Hope maintaining elevated freight rates",
+        "Peak season shipping demand surge in Q2-Q3 2024 with constrained global capacity"
       ],
+      "_scoring": {
+        "deterministic": 6,
+        "llm": -8,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": 0.7842931665385551,
-        "positional": 0.25128535551620834,
-        "strategic": -0.6170913123385494,
-        "composite": 0.2766697540885886
+        "tactical": 0.7080124827285385,
+        "positional": 0.34192014435138013,
+        "strategic": -0.6646808981774063,
+        "composite": 0.3994471317330039
       }
     },
     {
       "symbol": "SPY",
       "price": {
-        "current": 672.39,
+        "current": 672.38,
         "change_pct": -1.31,
         "week52_high": 697.84,
         "week52_low": 481.8,
         "week52_position_pct": 88.2
       },
       "tactical": {
-        "score": -18,
-        "signal": "BUY",
-        "rationale": "RSI at 38.41 indicates oversold conditions in the 30-40 range, warranting a -18 score. VIX elevated at 23.75 suggests market stress creating potential entry opportunity."
+        "score": -7,
+        "signal": "NEUTRAL",
+        "rationale": "The RSI at 38.41 indicates oversold conditions, but I'm slightly less optimistic than the quant score suggests. VIX at 23.75 reflects elevated uncertainty around Fed policy and geopolitical tensions, which could extend the current selling pressure. However, credit spreads remain tight and earnings season has been relatively resilient, suggesting the selloff may be more technical than fundamental. The combination of oversold conditions with still-elevated volatility warrants a modest bullish tactical bias but not aggressive positioning.",
+        "det_score": -10,
+        "llm_score": -5,
+        "det_notes": [
+          "RSI 38.41: approaching oversold"
+        ]
       },
       "positional": {
-        "score": 15,
-        "signal": "SELL",
-        "rationale": "52-week position at 88.2% indicates SPY is still near highs despite recent decline. Price trading below SMA 50 at $688.1 while above SMA 200 at $656.93 shows intermediate weakness within longer-term uptrend."
+        "score": 14,
+        "signal": "NEUTRAL",
+        "rationale": "I'm less bullish than the quant score on the positional timeframe. While SPY trades above the 200-day MA and sits in the upper quartile of its 52-week range, the failure to hold above the 50-day MA at $688 is concerning. Sector rotation away from mega-cap tech has created leadership uncertainty, and the recent breakdown suggests we could test lower levels. The 10-year yield at 4.13% continues to pressure equity valuations, particularly growth names that drive SPY performance. Positional momentum has clearly shifted negative despite the strong yearly performance.",
+        "det_score": 17,
+        "llm_score": 10,
+        "det_notes": [
+          "MA: above_200_below_50 (+5)",
+          "52w: 88.2% — upper quartile"
+        ]
       },
       "strategic": {
-        "score": 8,
+        "score": -7,
         "signal": "NEUTRAL",
-        "rationale": "Mixed macro environment with inverted yield curve normalizing (56bps 2s10s spread) and TIPS real yield at 1.82% providing competition to equities. HY spreads extremely tight at 3bps suggest complacency, while 10Y at 4.13% creates headwinds."
+        "rationale": "Strategically, I see value emerging in US equities despite near-term headwinds. Corporate earnings growth remains positive, balance sheets are healthy, and the US maintains competitive advantages in AI and technology sectors. The Fed appears closer to a pause in tightening, which should eventually benefit risk assets. Geopolitical tensions favor US assets as a safe haven, and demographic trends support continued consumption. While valuations aren't cheap, the alternatives in bonds and international markets look less attractive. Any resolution of current macro uncertainties should drive capital back into US equities.",
+        "det_score": 0,
+        "llm_score": -15,
+        "det_notes": []
       },
       "composite": {
-        "score": 2,
+        "score": 0,
         "recommendation": "HOLD",
-        "summary": "Tactical oversold conditions offset by elevated 52-week position and mixed macro backdrop. Skeptical stance warranted given proximity to highs and rising rate environment."
+        "summary": "SPY shows technical oversold conditions with strong strategic fundamentals, but faces near-term headwinds from Fed policy uncertainty and sector rotation pressures. The combination of quantitative oversold signals with qualitative concerns about momentum and leadership suggests a cautious but slightly constructive stance.",
+        "det_score": 3,
+        "llm_score": -4
       },
       "key_metric": {
-        "name": "52-Week Position",
-        "value": "88.2%"
+        "name": "VIX Level",
+        "value": "23.75"
       },
       "risks": [
-        "Federal Reserve maintaining higher rates longer given persistent inflation expectations and 4.13% 10-year yield creating valuation pressure on equities",
-        "Extremely tight high yield spreads at 3bps indicating potential credit complacency before market stress"
+        "Federal Reserve maintains hawkish stance longer than expected, keeping rates elevated and pressuring equity valuations",
+        "Mega-cap technology earnings disappoint, given their outsized influence on SPY performance and current high expectations"
       ],
       "catalysts": [
-        "Oversold RSI at 38.41 combined with elevated VIX at 23.75 creating technical bounce opportunity",
-        "Yield curve normalization with 2s10s spread at 56bps reducing recession fears and supporting risk assets"
+        "Fed signals pause or dovish shift in monetary policy, reducing discount rates for growth stocks",
+        "Q4 earnings season demonstrates continued corporate resilience despite macro headwinds, supporting multiple expansion"
       ],
+      "_scoring": {
+        "deterministic": 3,
+        "llm": -4,
+        "blend": "50/50"
+      },
       "z": {
-        "tactical": -0.9803664581731939,
-        "positional": 1.0410393299957204,
-        "strategic": 0.8119622530770385,
-        "composite": 0.1871589512952217
+        "tactical": -0.2904666595809388,
+        "positional": 0.8397156486276541,
+        "strategic": 0.5372078492118763,
+        "composite": 0.7463354303432441
       }
     }
   ],
   "assignments": {
     "tacticalBuy": "SMH",
     "positionalBuy": "ETHA",
-    "strategicBuy": "ENB",
+    "strategicBuy": "PBR.A",
     "trim": "ASML"
   },
-  "timestamp": "2026-03-07T16:52:10.920Z"
+  "timestamp": "2026-03-08T21:10:42.014Z"
 }
