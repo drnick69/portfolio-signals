@@ -262,6 +262,57 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
   }
 }
 
+// ─── STAGE 2c: ALPACA 52-WEEK FIX ───────────────────────────────────────────
+// Finnhub's 52w data is wrong for ADRs. Compute actual 52w high/low from Alpaca bars.
+async function fix52WeekFromAlpaca(quotes) {
+  if (!ALPACA_KEY || !ALPACA_SECRET) { console.log("  [ALPACA] No keys — skipping 52w fix"); return; }
+
+  // Find symbols with suspicious 52w data
+  const suspects = SYMBOLS.filter(sym => {
+    const q = quotes[sym.symbol];
+    if (!q?.price || !q.week52_high || !q.week52_low) return true;
+    const pct = ((q.price - q.week52_low) / (q.week52_high - q.week52_low)) * 100;
+    return pct < -10 || pct > 110 || q.week52_low <= 0;
+  });
+
+  if (suspects.length === 0) { console.log("  [ALPACA 52W] All 52w data looks valid"); return; }
+  console.log(`  [ALPACA 52W] Fixing ${suspects.length} symbols: ${suspects.map(s => s.symbol).join(", ")}`);
+
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0];
+
+  for (const sym of suspects) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym.symbol}: Alpaca ${resp.status}`); continue; }
+
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 20) { console.log(`    ✗ ${sym.symbol}: only ${bars.length} bars`); continue; }
+
+      const highs = bars.map(b => b.h);
+      const lows = bars.map(b => b.l);
+      const w52High = Math.max(...highs);
+      const w52Low = Math.min(...lows);
+      const price = quotes[sym.symbol]?.price;
+
+      if (w52High > 0 && w52Low > 0 && price) {
+        const pct = +((price - w52Low) / (w52High - w52Low) * 100).toFixed(1);
+        quotes[sym.symbol].week52_high = +w52High.toFixed(2);
+        quotes[sym.symbol].week52_low = +w52Low.toFixed(2);
+        quotes[sym.symbol].week52_position_pct = pct;
+        console.log(`    ✓ ${sym.symbol}: 52w H=$${w52High.toFixed(2)} L=$${w52Low.toFixed(2)} Position=${pct}% [${bars.length} bars]`);
+      }
+    } catch (e) {
+      console.log(`    ✗ ${sym.symbol}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -315,6 +366,10 @@ async function main() {
   // Stage 2b: Fill gaps from Alpaca candles (for ADRs that TwelveData doesn't cover)
   console.log("\n─── STAGE 2b: ALPACA CANDLE FALLBACK ───");
   await fillTechnicalsFromAlpaca(technicals, quotes);
+
+  // Stage 2c: Fix 52-week data from Alpaca (Finnhub gives garbage for ADRs)
+  console.log("\n─── STAGE 2c: ALPACA 52-WEEK FIX ───");
+  await fix52WeekFromAlpaca(quotes);
 
   // Stage 3: Macro (FRED — ~3s)
   console.log("\n─── STAGE 3: MACRO (FRED) ───");
