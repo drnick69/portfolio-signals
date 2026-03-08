@@ -55,6 +55,9 @@ jobs:
       - name: Log signal history
         run: node .github/scripts/log-signals.mjs
 
+      - name: Run paper trader
+        run: node .github/scripts/paper-trader.mjs
+
       - name: Commit updated signal data
         run: |
           git config user.name "Portfolio Bot"
