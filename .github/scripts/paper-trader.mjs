@@ -30,6 +30,42 @@ try {
 
 const { normalized, assignments, timestamp } = signalData;
 const date = new Date(timestamp).toISOString().split("T")[0];
+const dayOfWeek = new Date(timestamp).getUTCDay(); // 0=Sun, 6=Sat
+
+// ─── MARKET CALENDAR CHECK ──────────────────────────────────────────────────
+// US market holidays (fixed dates + observed). Update annually.
+const HOLIDAYS_2026 = [
+  "2026-01-01", // New Year's
+  "2026-01-19", // MLK Day
+  "2026-02-16", // Presidents' Day
+  "2026-04-03", // Good Friday
+  "2026-05-25", // Memorial Day
+  "2026-06-19", // Juneteenth
+  "2026-07-03", // Independence Day (observed)
+  "2026-09-07", // Labor Day
+  "2026-11-26", // Thanksgiving
+  "2026-12-25", // Christmas
+];
+const HOLIDAYS_2027 = [
+  "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
+  "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06",
+  "2027-11-25", "2027-12-24",
+];
+const ALL_HOLIDAYS = new Set([...HOLIDAYS_2026, ...HOLIDAYS_2027]);
+
+const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+const isHoliday = ALL_HOLIDAYS.has(date);
+
+if (isWeekend || isHoliday) {
+  console.log(`Paper Trader: ${date} is ${isWeekend ? "a weekend" : "a market holiday"} — skipping trades.`);
+  // Still save portfolio state (revalue at last known prices) but don't trade
+  if (existsSync(PORTFOLIO_PATH)) {
+    const portfolio = JSON.parse(readFileSync(PORTFOLIO_PATH, "utf-8"));
+    writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2));
+    console.log(`Portfolio preserved at $${portfolio.total_value?.toLocaleString() || "?"}`);
+  }
+  process.exit(0);
+}
 
 // Build price map
 const prices = {};
