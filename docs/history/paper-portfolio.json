@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 4,
-  "cash": 0,
-  "total_deposited": 1040000,
+  "day_count": 5,
+  "cash": 0.01,
+  "total_deposited": 1050000,
   "holdings": {
     "MOS": {
       "shares": 3455.3056,
@@ -10,7 +10,7 @@
       "avg_price": 26.31
     },
     "ASML": {
-      "shares": 62.2533,
+      "shares": 60.3857,
       "cost_basis": 90909.09090909091,
       "avg_price": 1292.8
     },
@@ -25,9 +25,9 @@
       "avg_price": 54.06
     },
     "ETHA": {
-      "shares": 7251.6527,
-      "cost_basis": 108692.47,
-      "avg_price": 14.9886
+      "shares": 7534.0447,
+      "cost_basis": 113072.37,
+      "avg_price": 15.0082
     },
     "GLD": {
       "shares": 191.9898,
@@ -40,14 +40,14 @@
       "avg_price": 38.6
     },
     "KOF": {
-      "shares": 921.4786,
-      "cost_basis": 95978.91,
-      "avg_price": 104.1575
+      "shares": 971.7155,
+      "cost_basis": 100984.51,
+      "avg_price": 103.9239
     },
     "PBR.A": {
-      "shares": 6400.3526,
-      "cost_basis": 103611.51,
-      "avg_price": 16.1884
+      "shares": 6580.9819,
+      "cost_basis": 106740.01,
+      "avg_price": 16.2195
     },
     "AMKBY": {
       "shares": 7263.4947,
@@ -256,7 +256,56 @@
         "strategicBuy": "PBR.A",
         "trim": "ASML"
       }
+    },
+    {
+      "date": "2026-03-12",
+      "day": 5,
+      "total_value": 1078371.16,
+      "total_deposited": 1050000,
+      "cash": 0.01,
+      "holdings_value": 1078371.15,
+      "pnl": 28371.16,
+      "pnl_pct": 2.7,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ASML",
+          "shares": -1.8676,
+          "price": 1346.12,
+          "value": 2514.01
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "KOF",
+          "shares": 50.2369,
+          "price": 99.64,
+          "value": 5005.6
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "ETHA",
+          "shares": 282.392,
+          "price": 15.51,
+          "value": 4379.9
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "PBR.A",
+          "shares": 180.6293,
+          "price": 17.32,
+          "value": 3128.5
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "KOF",
+        "positionalBuy": "ETHA",
+        "strategicBuy": "PBR.A",
+        "trim": "ASML"
+      }
     }
   ],
-  "total_value": 1069114.74
+  "total_value": 1078371.16
 }
