@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 14,
-  "cash": 0.01,
-  "total_deposited": 1140000,
+  "day_count": 15,
+  "cash": 0,
+  "total_deposited": 1150000,
   "holdings": {
     "MOS": {
       "shares": 4035.0513,
@@ -10,7 +10,7 @@
       "avg_price": 26.1278
     },
     "ASML": {
-      "shares": 45.907,
+      "shares": 44.5298,
       "cost_basis": 90909.09090909091,
       "avg_price": 1292.8
     },
@@ -35,9 +35,9 @@
       "avg_price": 465.9634
     },
     "IBIT": {
-      "shares": 2774.9533,
-      "cost_basis": 108098.3,
-      "avg_price": 38.955
+      "shares": 2878.8092,
+      "cost_basis": 112270.19,
+      "avg_price": 38.9988
     },
     "KOF": {
       "shares": 1225.4913,
@@ -45,9 +45,9 @@
       "avg_price": 102.4505
     },
     "PBR.A": {
-      "shares": 7792.8389,
-      "cost_basis": 128113.68,
-      "avg_price": 16.4399
+      "shares": 7957.2029,
+      "cost_basis": 131093.6,
+      "avg_price": 16.4748
     },
     "AMKBY": {
       "shares": 7263.4947,
@@ -55,9 +55,9 @@
       "avg_price": 13.2181
     },
     "SPY": {
-      "shares": 150.2013,
-      "cost_basis": 100796.95,
-      "avg_price": 671.0791
+      "shares": 157.4603,
+      "cost_basis": 105564.82,
+      "avg_price": 670.4218
     }
   },
   "history": [
@@ -746,7 +746,56 @@
         "strategicBuy": "PBR.A",
         "trim": "ASML"
       }
+    },
+    {
+      "date": "2026-03-26",
+      "day": 15,
+      "total_value": 1169799.05,
+      "total_deposited": 1150000,
+      "cash": 0,
+      "holdings_value": 1169799.05,
+      "pnl": 19799.05,
+      "pnl_pct": 1.72,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ASML",
+          "shares": -1.3772,
+          "price": 1393.89,
+          "value": 1919.67
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "SPY",
+          "shares": 7.259,
+          "price": 656.82,
+          "value": 4767.87
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "IBIT",
+          "shares": 103.8559,
+          "price": 40.17,
+          "value": 4171.89
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "PBR.A",
+          "shares": 164.364,
+          "price": 18.13,
+          "value": 2979.92
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "SPY",
+        "positionalBuy": "IBIT",
+        "strategicBuy": "PBR.A",
+        "trim": "ASML"
+      }
     }
   ],
-  "total_value": 1140385.43
+  "total_value": 1169799.05
 }
