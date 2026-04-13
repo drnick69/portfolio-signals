@@ -18,7 +18,7 @@ const SYMBOLS = [
   { symbol: "SMH",   finnhub: "SMH",   td: "SMH" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
-  { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY", type: "equity" },
+  { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
   { symbol: "IBIT",  finnhub: "IBIT",  td: "IBIT" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
