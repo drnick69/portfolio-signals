@@ -18,7 +18,7 @@ const HOLDINGS = [
   { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",   weights: { t:.30, p:.35, s:.35 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy", weights: { t:.15, p:.35, s:.50 } },
   { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",     weights: { t:.25, p:.35, s:.40 } },
-  { symbol: "GLNCY", name: "Glencore", sector: "Diversified Mining",      weights: { t: .20, p: .35, s: .45 },
+  { symbol: "GLNCY", name: "Glencore", sector: "Diversified Mining",      weights: { t: .20, p: .35, s: .45 } },
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",     weights: { t:.30, p:.35, s:.35 } },
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",   weights: { t:.15, p:.30, s:.55 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",        weights: { t:.20, p:.35, s:.45 } },
