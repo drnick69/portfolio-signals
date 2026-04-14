@@ -10,6 +10,18 @@
 // Each layer (tactical/positional/strategic) gets a deterministic sub-score
 // that the LLM score is blended with at the layer level.
 
+// ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
+// For cyclical businesses, high trailing P/E = trough earnings = BUY.
+// Low trailing P/E = peak earnings = TRIM. This is the opposite of
+// secular/growth names where high P/E = expensive.
+// "Buy cyclicals when P/E is high, sell when P/E is low." — Peter Lynch
+const CYCLICAL_ARCHETYPES = new Set([
+  "cyclical_commodity",          // MOS
+  "diversified_commodity_trader", // GLNCY
+  "cyclical_trade_bellwether",   // AMKBY
+  "em_state_oil_dividend",       // PBR.A
+]);
+
 // ─── TACTICAL LAYER (short-term mean reversion) ─────────────────────────────
 // Inputs: RSI, daily change %, volume ratio
 export function scoreTactical(data) {
@@ -97,20 +109,38 @@ export function scorePositional(data) {
 
 // ─── STRATEGIC LAYER (long-term valuation) ──────────────────────────────────
 // Inputs: P/E, P/B, dividend yield, VIX, real yields
+// NOTE: archetype-aware — cyclical names get INVERTED P/E scoring
 export function scoreStrategic(data, macro) {
   let score = 0;
   const notes = [];
 
-  // P/E valuation
+  const archetype = data._archetype || "";
+  const isCyclical = CYCLICAL_ARCHETYPES.has(archetype);
+
+  // P/E valuation — ARCHETYPE AWARE
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
-    if (pe < 8)        { score += -15; notes.push(`P/E ${pe}: deep value`); }
-    else if (pe < 12)  { score += -8;  notes.push(`P/E ${pe}: value`); }
-    else if (pe < 18)  { score += -3;  notes.push(`P/E ${pe}: fair`); }
-    else if (pe <= 25) { score += 0;   notes.push(`P/E ${pe}: moderate`); }
-    else if (pe < 35)  { score += 8;   notes.push(`P/E ${pe}: rich`); }
-    else if (pe < 50)  { score += 15;  notes.push(`P/E ${pe}: expensive`); }
-    else               { score += 25;  notes.push(`P/E ${pe}: extreme`); }
+    if (isCyclical) {
+      // ─── CYCLICAL PE LOGIC (INVERTED) ─────────────────────────────
+      // High trailing P/E = earnings at trough = BUY the cycle
+      // Low trailing P/E = earnings at peak = TRIM before rollover
+      // "Buy cyclicals when the P/E looks terrible." — Peter Lynch
+      if (pe > 100)      { score += -20; notes.push(`P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 50)  { score += -12; notes.push(`P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
+      else if (pe > 25)  { score += -5;  notes.push(`P/E ${pe.toFixed(0)}x: below-trend earnings`); }
+      else if (pe > 15)  { score += 0;   notes.push(`P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 8)   { score += 10;  notes.push(`P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
+      else               { score += 20;  notes.push(`P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
+    } else {
+      // ─── SECULAR / GROWTH PE LOGIC (STANDARD) ─────────────────────
+      if (pe < 8)        { score += -15; notes.push(`P/E ${pe}: deep value`); }
+      else if (pe < 12)  { score += -8;  notes.push(`P/E ${pe}: value`); }
+      else if (pe < 18)  { score += -3;  notes.push(`P/E ${pe}: fair`); }
+      else if (pe <= 25) { score += 0;   notes.push(`P/E ${pe}: moderate`); }
+      else if (pe < 35)  { score += 8;   notes.push(`P/E ${pe}: rich`); }
+      else if (pe < 50)  { score += 15;  notes.push(`P/E ${pe}: expensive`); }
+      else               { score += 25;  notes.push(`P/E ${pe}: extreme`); }
+    }
   }
 
   // P/B valuation
