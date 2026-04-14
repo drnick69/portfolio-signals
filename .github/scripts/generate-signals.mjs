@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// generate-signals.mjs v5 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v5.1 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
+// v5.1: archetype-aware cyclical PE logic in both deterministic + LLM layers.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -13,18 +14,26 @@ let MARKET_DATA = {};
 try { MARKET_DATA = JSON.parse(readFileSync("/tmp/market-data.json", "utf-8")); } catch {}
 
 const HOLDINGS = [
-  { symbol: "MOS",   name: "Mosaic",         sector: "Ag Inputs",        weights: { t:.25, p:.35, s:.40 } },
-  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",    weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",   weights: { t:.30, p:.35, s:.35 } },
-  { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy", weights: { t:.15, p:.35, s:.50 } },
-  { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",     weights: { t:.25, p:.35, s:.40 } },
-  { symbol: "GLNCY", name: "Glencore", sector: "Diversified Mining",      weights: { t: .20, p: .35, s: .45 } },
-  { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",     weights: { t:.30, p:.35, s:.35 } },
-  { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",   weights: { t:.15, p:.30, s:.55 } },
-  { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",        weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",  weights: { t:.25, p:.40, s:.35 } },
-  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",    weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "MOS",   name: "Mosaic",          sector: "Ag Inputs",         archetype: "cyclical_commodity",           weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",    archetype: "sector_beta",                  weights: { t:.30, p:.35, s:.35 } },
+  { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",  archetype: "dividend_compounder",          weights: { t:.15, p:.35, s:.50 } },
+  { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader", weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",      archetype: "momentum_store_of_value",      weights: { t:.30, p:.35, s:.35 } },
+  { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
+  { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",         archetype: "em_state_oil_dividend",        weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.40, s:.35 } },
+  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.25, p:.35, s:.40 } },
 ];
+
+// ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
+const CYCLICAL_ARCHETYPES = new Set([
+  "cyclical_commodity",
+  "diversified_commodity_trader",
+  "cyclical_trade_bellwether",
+  "em_state_oil_dividend",
+]);
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
 // The LLM's job is now QUALITATIVE: interpret context, assess catalysts/risks,
@@ -36,6 +45,7 @@ const JSON_TEMPLATE = (sym) => `{"tactical":{"score":0,"rationale":""},"position
 function buildPrompt(h, detScores) {
   const md = MARKET_DATA[h.symbol] || {};
   const macro = MARKET_DATA._macro || {};
+  const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
 
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
@@ -52,7 +62,14 @@ function buildPrompt(h, detScores) {
     macro.hy_oas ? `HY OAS: ${macro.hy_oas}bps` : null,
   ].filter(Boolean).join("\n");
 
-  const detSummary = detScores.allNotes.join("; ");
+  const cyclicalWarning = isCyclical ? `
+CRITICAL — CYCLICAL VALUATION RULES FOR ${h.symbol}:
+${h.symbol} is a CYCLICAL business (archetype: ${h.archetype}). Trailing P/E must be interpreted INVERSELY:
+• HIGH trailing P/E (>50x) = earnings are at TROUGH = this is a BUY signal, NOT expensive
+• LOW trailing P/E (<10x) = earnings are at PEAK = cycle rollover risk = TRIM signal
+• "Buy cyclicals when the P/E looks terrible, sell when it looks cheap." — Peter Lynch
+• The deterministic engine has already applied inverted PE scoring. Your qualitative score should NOT penalize high trailing P/E for this holding. Instead, consider whether the earnings trough is deepening or recovering.
+` : "";
 
   return `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for ${h.symbol}.
 
@@ -66,7 +83,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-
+${cyclicalWarning}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -91,6 +108,12 @@ Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.r
 
 // Web search prompt for symbols with insufficient data
 function buildSearchPrompt(h) {
+  const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
+
+  const cyclicalWarning = isCyclical ? `
+CRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.
+` : "";
+
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
 
 VERIFIED DATA (from APIs — do NOT override these):
@@ -105,7 +128,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-
+${cyclicalWarning}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -175,13 +198,13 @@ async function scoreHolding(holding, useWebSearch) {
   const md = MARKET_DATA[holding.symbol] || {};
   const macro = MARKET_DATA._macro || {};
 
-  // Step 1: Deterministic scores
-  const dataForEngine = { ...md, _weights: holding.weights };
+  // Step 1: Deterministic scores (archetype-aware via _archetype)
+  const dataForEngine = { ...md, _weights: holding.weights, _archetype: holding.archetype };
   const detScores = computeDeterministicScores(dataForEngine, macro);
 
   console.log(`  [DET] tac=${detScores.tactical.score} pos=${detScores.positional.score} str=${detScores.strategic.score} comp=${detScores.composite.score}`);
 
-  // Step 2: LLM qualitative scores
+  // Step 2: LLM qualitative scores (cyclical warning injected into prompt)
   const prompt = useWebSearch ? buildSearchPrompt(holding) : buildPrompt(holding, detScores);
   console.log(`  [LLM] scoring [${useWebSearch ? "web search" : "qualitative"}]...`);
 
@@ -291,17 +314,17 @@ function buildEmailHTML(normalized, assignments) {
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v5.0</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v5.1 — Archetype-aware cyclical PE logic</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v5");
-  console.log("======================================");
+  console.log("Portfolio Strategy Signal Generator v5.1");
+  console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
-  console.log(`Scoring: 50% deterministic + 50% LLM\n`);
+  console.log(`Scoring: 50% deterministic + 50% LLM (archetype-aware)\n`);
 
   const meta = MARKET_DATA._meta || {};
   const needsSearch = new Set(meta.needsWebSearch || []);
