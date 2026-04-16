@@ -33,6 +33,9 @@ jobs:
           ALPK: ${{ secrets.ALPK }}
           ALPS: ${{ secrets.ALPS }}
         run: node .github/scripts/fetch-market-data.mjs
+     
+      - name: Compute signal accuracy
+        run: node .github/scripts/signal-accuracy.mjs
 
       - name: Generate Portfolio Signals
         env:
