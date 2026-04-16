@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.1 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro)
-// No npm dependencies. Direct fetch() calls only.
+// fetch-market-data.mjs v4.2 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
+// No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
+// v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
 
 import { writeFileSync } from "fs";
 
@@ -27,10 +28,8 @@ const SYMBOLS = [
   { symbol: "SPY",   finnhub: "SPY",   td: "SPY" },
 ];
 
-// ── NEW: Auxiliary symbols (not scored, used as inputs to other holdings) ──
+// ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
 // RSP = Invesco S&P 500 Equal Weight ETF — used for SPY breadth measurement.
-// When RSP outperforms SPY, the rally is broad/healthy; when SPY outperforms
-// RSP, the rally is narrow/top-heavy.
 const AUX_SYMBOLS = [
   { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
 ];
@@ -49,8 +48,6 @@ async function fetchJSON(url, label) {
 }
 
 // ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 11 symbols) ────────
-// Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
-// Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range
 async function fetchQuotes() {
   if (!FK) return {};
   const result = {};
@@ -58,13 +55,11 @@ async function fetchQuotes() {
   for (const sym of SYMBOLS) {
     console.log(`  [FH] ${sym.symbol}: quote + metrics...`);
 
-    // Quote
     const q = await fetchJSON(
       `https://finnhub.io/api/v1/quote?symbol=${sym.finnhub}&token=${FK}`,
       `FH quote ${sym.symbol}`
     );
 
-    // Basic financials (PE, PB, 52w, div yield, beta)
     const m = await fetchJSON(
       `https://finnhub.io/api/v1/stock/metric?symbol=${sym.finnhub}&metric=all&token=${FK}`,
       `FH metrics ${sym.symbol}`
@@ -97,14 +92,13 @@ async function fetchQuotes() {
     const p = result[sym.symbol];
     console.log(`  [FH] ✓ ${sym.symbol}: $${p.price ?? "—"} (${p.change_pct >= 0 ? "+" : ""}${p.change_pct}%) 52w:${p.week52_position_pct ?? "—"}%`);
 
-    await sleep(1100); // Finnhub free = 60/min, so ~1 call/sec is safe
+    await sleep(1100);
   }
 
   return result;
 }
 
 // ─── STAGE 1b: AUXILIARY QUOTES (RSP for SPY breadth) ───────────────────────
-// Quote-only (no metrics needed). Used downstream as breadth indicator.
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
@@ -135,8 +129,6 @@ async function fetchAuxQuotes() {
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
-// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 33 total.
-// Pacing: 8s between each set of 3, so ~8 calls/min.
 async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
   const result = {};
@@ -198,8 +190,6 @@ async function fetchTechnicals(quotes) {
 }
 
 // ─── STAGE 2b: ALPACA CANDLE FALLBACK ────────────────────────────────────────
-// For symbols TwelveData can't handle, get historical bars from Alpaca and compute locally.
-// Alpaca covers ALL US-exchange-listed securities including ADRs.
 const ALPACA_KEY    = process.env.ALPK;
 const ALPACA_SECRET = process.env.ALPS;
 
@@ -239,12 +229,10 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
   console.log(`  [ALPACA] Filling ${gaps.length} gaps: ${gaps.map(s => s.symbol).join(", ")}`);
 
   const end = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0]; // 1 year back
+  const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0];
 
   for (const sym of gaps) {
-    // Alpaca uses the base ticker without class suffix for some ADRs
-    // PBR-A on Finnhub → PBR.A on Alpaca (they support dot notation)
-    const alpacaSymbol = sym.symbol.replace(".", "/"); // PBR.A → PBR/A for Alpaca
+    const alpacaSymbol = sym.symbol.replace(".", "/");
 
     try {
       const resp = await fetch(
@@ -270,7 +258,7 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
         continue;
       }
 
-      const closes = bars.map(b => b.c); // close prices, oldest first
+      const closes = bars.map(b => b.c);
       const rsi = computeRSI(closes);
       const sma50 = computeSMA(closes, 50);
       const sma200 = computeSMA(closes, 200);
@@ -303,11 +291,9 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
 }
 
 // ─── STAGE 2c: ALPACA 52-WEEK FIX ───────────────────────────────────────────
-// Finnhub's 52w data is wrong for ADRs. Compute actual 52w high/low from Alpaca bars.
 async function fix52WeekFromAlpaca(quotes) {
   if (!ALPACA_KEY || !ALPACA_SECRET) { console.log("  [ALPACA] No keys — skipping 52w fix"); return; }
 
-  // Find symbols with suspicious 52w data
   const suspects = SYMBOLS.filter(sym => {
     const q = quotes[sym.symbol];
     if (!q?.price || !q.week52_high || !q.week52_low) return true;
@@ -374,7 +360,6 @@ async function fetchMacro() {
       `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&sort_order=desc&limit=5&api_key=${FRED_KEY}&file_type=json`,
       `FRED ${key}`
     );
-    // Take the most recent non-empty observation
     const obs = data?.observations?.find(o => o.value && o.value !== ".");
     if (obs) result[key] = +parseFloat(obs.value).toFixed(4);
     await sleep(200);
@@ -388,9 +373,79 @@ async function fetchMacro() {
   return result;
 }
 
+// ─── STAGE 3b: NY FED GSCPI (Global Supply Chain Pressure Index) ────────────
+// Monthly composite of BDI + Harpex (container shipping) + airfreight + PMI
+// supply chain components. Free, no API key needed.
+// Source: https://www.newyorkfed.org/research/policy/gscpi
+//
+// GSCPI interpretation:
+//   0    = historical average
+//   >0   = above-average supply chain pressure (disruptions, high freight rates)
+//   <0   = below-average pressure (calm shipping, low freight rates)
+//   >1.5 = stressed (2021-2022 crisis peaked at ~4.3)
+//   <-1  = unusually calm
+//
+// Attached to _macro.gscpi and _macro.gscpi_date.
+// Used by score-engine.mjs for AMKBY positional + strategic layers.
+async function fetchGSCPI() {
+  console.log("  [GSCPI] Fetching NY Fed Global Supply Chain Pressure Index...");
+  try {
+    const resp = await fetch(
+      "https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx"
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+
+    const buffer = Buffer.from(await resp.arrayBuffer());
+
+    // Dynamic import — xlsx must be installed (package.json dependency)
+    const XLSX = await import("xlsx");
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws);
+
+    if (!rows || rows.length === 0) throw new Error("Empty spreadsheet");
+
+    // Find the latest row with a GSCPI value
+    const lastRow = rows[rows.length - 1];
+    const keys = Object.keys(lastRow);
+
+    // Try to find the GSCPI column (flexible matching)
+    const gscpiKey = keys.find(k => /gscpi/i.test(k)) || keys[keys.length - 1];
+    const dateKey = keys.find(k => /date/i.test(k)) || keys[0];
+
+    const value = parseFloat(lastRow[gscpiKey]);
+    const dateRaw = lastRow[dateKey];
+
+    if (isNaN(value)) throw new Error(`Could not parse GSCPI value from column "${gscpiKey}"`);
+
+    // Format date (could be Excel serial number or string)
+    let dateStr;
+    if (typeof dateRaw === "number") {
+      // Excel serial date → JS date
+      const excelEpoch = new Date(1899, 11, 30);
+      const jsDate = new Date(excelEpoch.getTime() + dateRaw * 86400000);
+      dateStr = jsDate.toISOString().split("T")[0];
+    } else {
+      dateStr = String(dateRaw);
+    }
+
+    const rounded = +value.toFixed(2);
+    const regime = rounded > 1.5 ? "STRESSED" :
+      rounded > 0.5 ? "ELEVATED" :
+      rounded > -0.5 ? "NORMAL" :
+      rounded > -1 ? "CALM" : "VERY CALM";
+
+    console.log(`  [GSCPI] ✓ Latest: ${rounded} (${dateStr}) — ${regime}`);
+    return { gscpi: rounded, gscpi_date: dateStr };
+  } catch (e) {
+    console.log(`  [GSCPI] ✗ Failed: ${e.message} — continuing without GSCPI`);
+    return {};
+  }
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.1");
+  console.log("Market Data Pre-Fetch v4.2");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -419,8 +474,12 @@ async function main() {
   console.log("\n─── STAGE 3: MACRO (FRED) ───");
   const macro = await fetchMacro();
 
+  // Stage 3b: GSCPI (NY Fed — supply chain pressure for AMKBY)
+  console.log("\n─── STAGE 3b: GSCPI (NY Fed) ───");
+  const gscpiData = await fetchGSCPI();
+  Object.assign(macro, gscpiData);
+
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
-  // Aggressive quality checks: bad data gets nulled out and symbol routed to web search.
   const output = {};
   const needsWebSearch = [];
 
@@ -436,7 +495,6 @@ async function main() {
     if (!hasPrice) issues.push("NO PRICE");
 
     // ── 52-week validation ──
-    // Finnhub returns garbage for ADRs (negative percentages, impossible ranges).
     let w52High = q.week52_high ?? null;
     let w52Low = q.week52_low ?? null;
     let w52Pct = null;
@@ -449,7 +507,6 @@ async function main() {
 
       if (rangePositive && lowUnderHigh && priceReasonable) {
         w52Pct = +((q.price - w52Low) / (w52High - w52Low) * 100).toFixed(1);
-        // Final sanity: must be -10% to 110% (small tolerance for after-hours)
         if (w52Pct >= -10 && w52Pct <= 110) {
           w52Valid = true;
         } else {
@@ -468,7 +525,7 @@ async function main() {
     const hasRSI = t.rsi14 != null && t.rsi14 >= 0 && t.rsi14 <= 100;
     if (!hasRSI) issues.push("no RSI");
 
-    // ── SMA check ── (validate SMAs are in plausible range vs price)
+    // ── SMA check ──
     let sma50 = t.sma50, sma200 = t.sma200, maSignal = t.ma_signal;
     if (sma50 && hasPrice) {
       if (sma50 > q.price * 5 || sma50 < q.price * 0.1) {
@@ -486,7 +543,6 @@ async function main() {
     if (!hasSMA) issues.push("no SMA");
 
     // ── Route decision ──
-    // Web search if: no price, OR (bad 52w AND no RSI), OR no price AND no RSI
     const insufficient = !hasPrice || (!w52Valid && !hasRSI) || (issues.length >= 4);
     if (insufficient) needsWebSearch.push(sym.symbol);
 
@@ -525,8 +581,7 @@ async function main() {
     };
   }
 
-  // ── NEW: Attach SPY breadth data from RSP auxiliary quote ────────────────
-  // The score-engine's positional layer reads data.breadth.* for SPY.
+  // ── Attach SPY breadth data from RSP auxiliary quote ────────────────────
   if (output.SPY && auxQuotes.RSP) {
     const spyPrice = output.SPY.price?.current;
     const spyChange = output.SPY.price?.change_pct;
@@ -543,7 +598,7 @@ async function main() {
         rsp_change_pct: rspChange,
         spy_change_pct: spyChange,
         rsp_spy_ratio: ratio,
-        rsp_spy_spread_pp: spread, // RSP return minus SPY return, in percentage points
+        rsp_spy_spread_pp: spread,
       };
 
       const broadStr = spread == null ? "—"
@@ -562,7 +617,7 @@ async function main() {
   output._meta = {
     needsWebSearch,
     timestamp: new Date().toISOString(),
-    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", aux: "finnhub" },
+    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", gscpi: "nyfed", aux: "finnhub" },
     aux_symbols: Object.keys(auxQuotes),
   };
 
@@ -578,6 +633,7 @@ async function main() {
     console.log(`    Symbols: ${needsWebSearch.join(", ")}`);
   }
   console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
+  console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
   console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
