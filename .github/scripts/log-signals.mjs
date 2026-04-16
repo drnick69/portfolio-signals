@@ -48,6 +48,7 @@ const CSV_HEADERS = [
   "key_metric_name", "key_metric_value",
   "data_source",
   "vix", "us10y", "hy_oas",
+  "confidence_level", "confidence_score", "confidence_missing",
 ].join(",");
 
 const csvExists = existsSync(CSV_PATH);
@@ -102,6 +103,9 @@ for (const s of normalized) {
     macro.vix ?? "",
     macro.us10y ?? "",
     macro.hy_oas ?? "",
+    s.confidence?.level ?? "",
+    s.confidence?.score ?? "",
+    esc((s.confidence?.missing || []).join(";")),
   ].join(",");
 
   csvContent += row + "\n";
