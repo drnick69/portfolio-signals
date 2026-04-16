@@ -5,6 +5,7 @@
 //
 // Trade rules:
 //   - New cash ($10K) split: 40% to tactical buy, 35% to positional, 25% to strategic
+//   - Confidence-weighted: high=100%, medium=70%, low=40% of allocation  // ← NEW
 //   - Trim: sell 3% of trim position and add proceeds to cash
 //   - Prices come from /tmp/signal-data.json + /tmp/market-data.json
 //   - State persists in docs/history/paper-portfolio.json
@@ -17,6 +18,15 @@ const PORTFOLIO_PATH = "docs/history/paper-portfolio.json";
 const INITIAL_CAPITAL = 1_000_000;
 const DAILY_DEPOSIT = 10_000;
 const TRIM_PCT = 0.03; // sell 3% of trim position each day
+
+// ── NEW: Confidence-weighted allocation multipliers ─────────────────────────
+const CONFIDENCE_MULTIPLIER = { high: 1.0, medium: 0.7, low: 0.4 };  // ← NEW
+
+function getConfidenceMultiplier(signalData, symbol) {  // ← NEW
+  const holding = (signalData.normalized || []).find(s => s.symbol === symbol);  // ← NEW
+  const level = holding?.confidence?.level || "medium";  // ← NEW
+  return CONFIDENCE_MULTIPLIER[level] || 0.7;  // ← NEW
+}  // ← NEW
 
 // ─── LOAD DATA ──────────────────────────────────────────────────────────────
 let signalData, marketData;
@@ -149,7 +159,8 @@ for (const { key, pct, label } of buyAllocations) {
   const sym = assignments[key];
   if (!sym || !prices[sym]) continue;
 
-  const amount = +(availableCash * pct).toFixed(2);
+  const confMult = getConfidenceMultiplier(signalData, sym);  // ← NEW
+  const amount = +(availableCash * pct * confMult).toFixed(2);  // ← NEW: multiplied by confidence
   const price = prices[sym];
   const shares = +(amount / price).toFixed(4);
 
@@ -164,8 +175,8 @@ for (const { key, pct, label } of buyAllocations) {
   h.avg_price = h.shares > 0 ? +(h.cost_basis / h.shares).toFixed(4) : 0;
   portfolio.cash = +(portfolio.cash - amount).toFixed(2);
 
-  trades.push({ type: "BUY", signal: label, symbol: sym, shares, price, value: amount });
-  console.log(`  ${label} BUY ${sym}: ${shares} shares @ $${price.toFixed(2)} = $${amount.toFixed(0)}`);
+  trades.push({ type: "BUY", signal: label, symbol: sym, shares, price, value: amount, confidence: confMult });  // ← NEW: confidence in trade log
+  console.log(`  ${label} BUY ${sym}: ${shares} shares @ $${price.toFixed(2)} = $${amount.toFixed(0)} [conf: ${confMult}]`);  // ← NEW: confidence in log
 }
 
 // ─── COMPUTE PORTFOLIO VALUE ────────────────────────────────────────────────
