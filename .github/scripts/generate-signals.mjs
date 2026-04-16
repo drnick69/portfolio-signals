@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// generate-signals.mjs v6.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v6.1 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v5.1: archetype-aware cyclical PE logic in both deterministic + LLM layers.
 // v6.0: calibration feedback, confidence bands, accuracy tracking integration.
+// v6.1: SPY weight fix (20/40/40), SPY-specific prompt guidance, breadth data.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
-import { loadCalibration, buildCalibrationBlock, computeConfidence } from "./calibration-loader.mjs";  // ← NEW
+import { loadCalibration, buildCalibrationBlock, computeConfidence } from "./calibration-loader.mjs";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) { console.error("Missing ANTHROPIC_API_KEY"); process.exit(1); }
@@ -15,8 +16,8 @@ if (!ANTHROPIC_API_KEY) { console.error("Missing ANTHROPIC_API_KEY"); process.ex
 let MARKET_DATA = {};
 try { MARKET_DATA = JSON.parse(readFileSync("/tmp/market-data.json", "utf-8")); } catch {}
 
-const CALIBRATION = loadCalibration();  // ← NEW
-console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} days of history loaded` : "no history yet"}`);  // ← NEW
+const CALIBRATION = loadCalibration();
+console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} days of history loaded` : "no history yet"}`);
 
 const HOLDINGS = [
   { symbol: "MOS",   name: "Mosaic",          sector: "Ag Inputs",         archetype: "cyclical_commodity",           weights: { t:.25, p:.35, s:.40 } },
@@ -29,7 +30,7 @@ const HOLDINGS = [
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",         archetype: "em_state_oil_dividend",        weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.40, s:.35 } },
-  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.20, p:.40, s:.40 } },  // ← CHANGED from 25/35/40
 ];
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
@@ -51,6 +52,15 @@ function buildPrompt(h, detScores) {
   const md = MARKET_DATA[h.symbol] || {};
   const macro = MARKET_DATA._macro || {};
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
+  const isSPY = h.archetype === "beta_sizing";  // ← NEW
+
+  // ── Derived macro strings (shown for all, used especially by SPY) ──
+  const curveStr = macro.spread_2s10s != null  // ← NEW
+    ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`  // ← NEW
+    : null;  // ← NEW
+  const realRate = (macro.fed_funds != null && macro.tips10y != null)  // ← NEW
+    ? +(macro.fed_funds - macro.tips10y).toFixed(2)  // ← NEW
+    : null;  // ← NEW
 
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
@@ -62,9 +72,11 @@ function buildPrompt(h, detScores) {
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
-    macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%` : null,
-    macro.tips10y ? `TIPS: ${macro.tips10y}%` : null,
-    macro.hy_oas ? `HY OAS: ${macro.hy_oas}bps` : null,
+    macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,  // ← CHANGED
+    macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,  // ← CHANGED
+    macro.hy_oas ? `HY OAS credit spread: ${macro.hy_oas}bps` : null,
+    // ── NEW: SPY-specific breadth line ──
+    (isSPY && md.breadth) ? `Breadth (RSP/SPY): RSP ${md.breadth.rsp_change_pct >= 0 ? "+" : ""}${md.breadth.rsp_change_pct}% vs SPY ${md.breadth.spy_change_pct >= 0 ? "+" : ""}${md.breadth.spy_change_pct}% | Spread: ${md.breadth.rsp_spy_spread_pp >= 0 ? "+" : ""}${md.breadth.rsp_spy_spread_pp}pp (${md.breadth.rsp_spy_spread_pp > 0 ? "broad/healthy" : md.breadth.rsp_spy_spread_pp < 0 ? "narrow/top-heavy" : "inline"})` : null,
   ].filter(Boolean).join("\n");
 
   const cyclicalWarning = isCyclical ? `
@@ -76,14 +88,29 @@ ${h.symbol} is a CYCLICAL business (archetype: ${h.archetype}). Trailing P/E mus
 • The deterministic engine has already applied inverted PE scoring. Your qualitative score should NOT penalize high trailing P/E for this holding. Instead, consider whether the earnings trough is deepening or recovering.
 ` : "";
 
-  // ── NEW: Calibration feedback + confidence ────────────────────────────────
-  const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);  // ← NEW
-  const confidence = computeConfidence(MARKET_DATA, h.symbol);  // ← NEW
-  const confidenceNote = confidence.level === "low"  // ← NEW
-    ? `\n⚠️ DATA CONFIDENCE: LOW (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Lean toward NEUTRAL when data is incomplete.\n`  // ← NEW
-    : confidence.level === "medium"  // ← NEW
-    ? `\nDATA CONFIDENCE: MEDIUM (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Exercise caution in extreme scores.\n`  // ← NEW
-    : "";  // ← NEW
+  // ── NEW: SPY-specific guidance ────────────────────────────────────────────
+  const spyGuidance = isSPY ? `
+CRITICAL — SPY-SPECIFIC SCORING GUIDANCE:
+SPY is the broad US market. It is the most efficient instrument in the world — edge is structurally limited. Your role here is narrower than for single stocks:
+
+• DO NOT penalize proximity to 52-week highs. SPY makes new highs ~7% of trading days, and forward 20-day returns average +1.2% when within 2% of highs. New highs are momentum-positive for a broad index, NOT overbought. The deterministic engine has been corrected for this — do not reintroduce the bias.
+• DO NOT double-count what the engine handles: RSI, VIX+RSI combo triggers, 2s10s curve, HY OAS credit spreads, real rate regime, and RSP/SPY breadth are all deterministically scored. If you agree with the quant, return a similar score.
+• YOUR VALUE-ADD for SPY is what the numbers can't capture:
+    — Event risk: earnings season heat, Fed meeting proximity, fiscal/policy catalysts, election uncertainty, geopolitical shocks
+    — Regime context: is VIX elevated because of a specific event or broad fear? Is credit widening from one sector or systemic?
+    — Forward catalysts: rate cut path priced in, earnings growth inflection, fiscal package
+    — Qualitative breadth beyond RSP/SPY: mega-cap concentration, sector rotation dynamics
+• SPY DESERVES MORE NEUTRAL SCORES THAN SINGLE STOCKS. The market is efficient. Scores beyond ±30 should reflect GENUINE dislocations (policy shock, crisis, earnings breakdown) — not ordinary technical readings.
+• When in doubt on SPY, return closer to 0. NEUTRAL is the most common correct answer.
+` : "";
+
+  const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
+  const confidence = computeConfidence(MARKET_DATA, h.symbol);
+  const confidenceNote = confidence.level === "low"
+    ? `\n⚠️ DATA CONFIDENCE: LOW (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Lean toward NEUTRAL when data is incomplete.\n`
+    : confidence.level === "medium"
+    ? `\nDATA CONFIDENCE: MEDIUM (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Exercise caution in extreme scores.\n`
+    : "";
 
   return `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for ${h.symbol}.
 
@@ -97,7 +124,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -123,14 +150,19 @@ Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.r
 // Web search prompt for symbols with insufficient data
 function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
-  const md = MARKET_DATA[h.symbol] || {};  // ← NEW (moved up so calibration can use it)
+  const isSPY = h.archetype === "beta_sizing";  // ← NEW
+  const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
 CRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.
 ` : "";
 
-  // ── NEW: Calibration feedback for search-routed symbols ───────────────────
-  const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);  // ← NEW
+  // ── NEW: SPY guidance (abbreviated for web search path) ──
+  const spyGuidance = isSPY ? `
+CRITICAL — SPY SCORING: SPY is the broad market, structurally efficient. Do NOT penalize proximity to 52w highs (momentum-positive for indexes). Focus on event risk, policy catalysts, and regime context. Scores beyond ±30 require genuine dislocations. When in doubt, return NEUTRAL (0).
+` : "";
+
+  const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
 
@@ -145,7 +177,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -216,6 +248,7 @@ async function scoreHolding(holding, useWebSearch) {
   const macro = MARKET_DATA._macro || {};
 
   // Step 1: Deterministic scores (archetype-aware via _archetype)
+  // Breadth data (if present on md, e.g. SPY's md.breadth) flows through via spread.
   const dataForEngine = { ...md, _weights: holding.weights, _archetype: holding.archetype };
   const detScores = computeDeterministicScores(dataForEngine, macro);
 
@@ -240,14 +273,13 @@ async function scoreHolding(holding, useWebSearch) {
     if (md.price?.week52_low) price.week52_low = md.price.week52_low;
     if (md.price?.week52_position_pct != null) price.week52_position_pct = md.price.week52_position_pct;
 
-    // ── NEW: Compute confidence for this holding ────────────────────────────
-    const confidence = computeConfidence(MARKET_DATA, holding.symbol);  // ← NEW
+    const confidence = computeConfidence(MARKET_DATA, holding.symbol);
 
     const result = {
       symbol: holding.symbol,
       price: { ...price, ...(llm.price || {}) },
       ...blended,
-      confidence,  // ← NEW
+      confidence,
       key_metric: llm.key_metric || { name: "", value: "" },
       risks: llm.risks || [],
       catalysts: llm.catalysts || [],
@@ -258,7 +290,7 @@ async function scoreHolding(holding, useWebSearch) {
     if (md.price?.current) result.price.current = md.price.current;
     if (md.price?.change_pct != null) result.price.change_pct = md.price.change_pct;
 
-    console.log(`  ✓ ${holding.symbol}: DET=${detScores.composite.score} + LLM=${llm.composite?.score ?? 0} → BLENDED=${blended.composite.score} [confidence: ${confidence.level}]`);  // ← NEW: added confidence to log
+    console.log(`  ✓ ${holding.symbol}: DET=${detScores.composite.score} + LLM=${llm.composite?.score ?? 0} → BLENDED=${blended.composite.score} [confidence: ${confidence.level}]`);
     return result;
   } catch (e) {
     console.error(`  ✗ ${holding.symbol}: ${e.message}`);
@@ -311,12 +343,11 @@ function buildEmailHTML(normalized, assignments) {
     return `<tr style="border-bottom:1px solid #1a2332;"><td style="padding:14px 16px;font-size:13px;color:${color};font-weight:700;white-space:nowrap;">${icon} ${label}</td><td style="padding:14px 16px;font-size:18px;font-weight:800;color:#e0e8f0;">${sym}</td><td style="padding:14px 16px;font-size:12px;color:#889aaa;">${h?.name||""}</td><td style="padding:14px 16px;font-size:14px;font-weight:600;color:#e0e8f0;">$${s.price?.current?.toFixed?.(2)||"—"}</td><td style="padding:14px 16px;font-size:12px;color:${chgClr(s.price?.change_pct)};">${chgFmt(s.price?.change_pct)}</td><td style="padding:14px 16px;font-size:11px;color:#667788;max-width:320px;">${s.composite?.summary||"—"}<br><span style="color:#445566;font-size:9px;">DET:${det} LLM:${llm}</span></td></tr>`;
   };
 
-  // ── NEW: Confidence badge helper ──────────────────────────────────────────
-  const confBadge = (level) => {  // ← NEW
-    const colors = { high: "#4ecdc4", medium: "#f4a261", low: "#ff6b6b" };  // ← NEW
-    const color = colors[level] || "#556677";  // ← NEW
-    return `<span style="font-size:8px;letter-spacing:0.06em;color:${color};border:1px solid ${color}40;padding:1px 4px;margin-left:4px;">${(level||"?").toUpperCase()}</span>`;  // ← NEW
-  };  // ← NEW
+  const confBadge = (level) => {
+    const colors = { high: "#4ecdc4", medium: "#f4a261", low: "#ff6b6b" };
+    const color = colors[level] || "#556677";
+    return `<span style="font-size:8px;letter-spacing:0.06em;color:${color};border:1px solid ${color}40;padding:1px 4px;margin-left:4px;">${(level||"?").toUpperCase()}</span>`;
+  };
 
   const rankingRows = [...normalized].sort((a,b)=>(a.z?.composite??0)-(b.z?.composite??0)).map((s,i) => {
     const role = s.symbol===assignments.tacticalBuy?"⚡ TAC BUY":s.symbol===assignments.positionalBuy?"📐 POS BUY":s.symbol===assignments.strategicBuy?"🏗️ STR BUY":s.symbol===assignments.trim?"✂️ TRIM":"━ HOLD";
@@ -332,27 +363,25 @@ function buildEmailHTML(normalized, assignments) {
     return `<tr style="border-bottom:1px solid #0f1520;"><td style="padding:12px 14px;vertical-align:top;width:80px;"><div style="font-weight:800;font-size:13px;color:#e0e8f0;">${icon} ${s.symbol}</div></td><td style="padding:12px 14px;"><div style="font-size:11px;color:#889aaa;line-height:1.6;margin-bottom:4px;">${s.composite?.summary||"—"}</div><div style="font-size:10px;color:#556677;">Tactical: ${s.tactical?.rationale||"—"}</div></td></tr>`;
   }).join("");
 
-  // ── NEW: Accuracy section for email ───────────────────────────────────────
-  let accuracySection = "";  // ← NEW
-  if (CALIBRATION.available && CALIBRATION.totalDays >= 3) {  // ← NEW
-    const rel = CALIBRATION.reliability || {};  // ← NEW
-    const gradeColor = (g) => ({ STRONG:"#00ff88", MODERATE:"#f4a261", WEAK:"#ff6b6b", POOR:"#ff3355" }[g] || "#556677");  // ← NEW
-    const relRow = (layer, d) => {  // ← NEW
-      if (!d) return "";  // ← NEW
-      return `<tr><td style="padding:4px 8px;color:#7a8a9a;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">${layer}</td><td style="padding:4px 8px;color:${gradeColor(d.grade)};font-size:11px;font-weight:600;">${d.grade}</td><td style="padding:4px 8px;color:#c8d0e5;font-size:11px;">${d.hit_rate!=null?d.hit_rate+"%":"—"}</td><td style="padding:4px 8px;color:${(d.avg_return||0)>=0?"#4ecdc4":"#ff6b6b"};font-size:11px;">${d.avg_return!=null?(d.avg_return>=0?"+":"")+d.avg_return+"%":"—"}</td><td style="padding:4px 8px;color:#445566;font-size:10px;">${d.total_signals||0}</td></tr>`;  // ← NEW
-    };  // ← NEW
+  let accuracySection = "";
+  if (CALIBRATION.available && CALIBRATION.totalDays >= 3) {
+    const rel = CALIBRATION.reliability || {};
+    const gradeColor = (g) => ({ STRONG:"#00ff88", MODERATE:"#f4a261", WEAK:"#ff6b6b", POOR:"#ff3355" }[g] || "#556677");
+    const relRow = (layer, d) => {
+      if (!d) return "";
+      return `<tr><td style="padding:4px 8px;color:#7a8a9a;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">${layer}</td><td style="padding:4px 8px;color:${gradeColor(d.grade)};font-size:11px;font-weight:600;">${d.grade}</td><td style="padding:4px 8px;color:#c8d0e5;font-size:11px;">${d.hit_rate!=null?d.hit_rate+"%":"—"}</td><td style="padding:4px 8px;color:${(d.avg_return||0)>=0?"#4ecdc4":"#ff6b6b"};font-size:11px;">${d.avg_return!=null?(d.avg_return>=0?"+":"")+d.avg_return+"%":"—"}</td><td style="padding:4px 8px;color:#445566;font-size:10px;">${d.total_signals||0}</td></tr>`;
+    };
 
-    // Streak warnings  // ← NEW
-    let streakWarning = "";  // ← NEW
-    if (CALIBRATION.streaks) {  // ← NEW
-      const long = Object.entries(CALIBRATION.streaks).filter(([_,s]) => s.streak_days >= 5).map(([sym,s]) => `${sym}: ${s.current_role} ${s.streak_days}d`);  // ← NEW
-      if (long.length > 0) streakWarning = `<div style="margin-top:10px;padding:6px 10px;background:#1a1000;border:1px solid #3a2a00;font-size:10px;color:#c8a050;">⚠️ Extended streaks: ${long.join(" · ")}</div>`;  // ← NEW
-    }  // ← NEW
+    let streakWarning = "";
+    if (CALIBRATION.streaks) {
+      const long = Object.entries(CALIBRATION.streaks).filter(([_,s]) => s.streak_days >= 5).map(([sym,s]) => `${sym}: ${s.current_role} ${s.streak_days}d`);
+      if (long.length > 0) streakWarning = `<div style="margin-top:10px;padding:6px 10px;background:#1a1000;border:1px solid #3a2a00;font-size:10px;color:#c8a050;">⚠️ Extended streaks: ${long.join(" · ")}</div>`;
+    }
 
-    accuracySection = `<div style="margin-bottom:28px;padding:16px 20px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;"><div style="font-size:11px;letter-spacing:0.1em;color:#667788;margin-bottom:10px;">SIGNAL ACCURACY — ${CALIBRATION.totalDays} TRADING DAYS</div><table style="width:100%;border-collapse:collapse;"><tr style="border-bottom:1px solid #1a2332;"><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">LAYER</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">GRADE</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">HIT RATE</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">AVG RET</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">N</th></tr>${relRow("tactical",rel.tactical)}${relRow("positional",rel.positional)}${relRow("strategic",rel.strategic)}${relRow("composite",rel.composite)}</table>${streakWarning}</div>`;  // ← NEW
-  } else if (CALIBRATION.totalDays > 0) {  // ← NEW
-    accuracySection = `<div style="margin-bottom:28px;padding:12px 16px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;font-size:11px;color:#556677;">Signal accuracy tracking: ${CALIBRATION.totalDays} day(s) logged. Grades appear after 3+ days.</div>`;  // ← NEW
-  }  // ← NEW
+    accuracySection = `<div style="margin-bottom:28px;padding:16px 20px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;"><div style="font-size:11px;letter-spacing:0.1em;color:#667788;margin-bottom:10px;">SIGNAL ACCURACY — ${CALIBRATION.totalDays} TRADING DAYS</div><table style="width:100%;border-collapse:collapse;"><tr style="border-bottom:1px solid #1a2332;"><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">LAYER</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">GRADE</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">HIT RATE</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">AVG RET</th><th style="padding:4px 8px;text-align:left;font-size:9px;color:#445566;">N</th></tr>${relRow("tactical",rel.tactical)}${relRow("positional",rel.positional)}${relRow("strategic",rel.strategic)}${relRow("composite",rel.composite)}</table>${streakWarning}</div>`;
+  } else if (CALIBRATION.totalDays > 0) {
+    accuracySection = `<div style="margin-bottom:28px;padding:12px 16px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;font-size:11px;color:#556677;">Signal accuracy tracking: ${CALIBRATION.totalDays} day(s) logged. Grades appear after 3+ days.</div>`;
+  }
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#05080e;font-family:'SF Mono','Fira Code','Consolas',monospace;">
@@ -365,13 +394,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.0 — Calibration feedback + confidence bands</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.1 — SPY model refinement (VIX+RSI combos, RSP breadth, curve/credit regime)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.0");
+  console.log("Portfolio Strategy Signal Generator v6.1");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
