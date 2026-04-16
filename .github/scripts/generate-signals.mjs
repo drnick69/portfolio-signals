@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// generate-signals.mjs v6.3 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v6.4 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
-// v5.1: archetype-aware cyclical PE logic in both deterministic + LLM layers.
 // v6.0: calibration feedback, confidence bands, accuracy tracking integration.
 // v6.1: SPY weight fix (20/40/40), SPY-specific prompt guidance, breadth data.
 // v6.2: IBIT-specific prompt guidance (no mechanical cycle trim, flows > timing).
-// v6.3: ASML secular_growth_monopoly (dampened RSI/52w, compounder thesis, 15/30/55 weights).
+// v6.3: ASML secular_growth_monopoly (dampened RSI/52w, compounder thesis, 15/30/55).
+// v6.4: ENB dividend_compounder (yield spread primary, rate regime, gas/LNG qualitative, 10/45/45).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -23,9 +23,9 @@ console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} da
 
 const HOLDINGS = [
   { symbol: "MOS",   name: "Mosaic",          sector: "Ag Inputs",         archetype: "cyclical_commodity",           weights: { t:.25, p:.35, s:.40 } },
-  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.15, p:.30, s:.55 } },  // ← CHANGED from 20/35/45
+  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.15, p:.30, s:.55 } },
   { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",    archetype: "sector_beta",                  weights: { t:.30, p:.35, s:.35 } },
-  { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",  archetype: "dividend_compounder",          weights: { t:.15, p:.35, s:.50 } },
+  { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",  archetype: "dividend_compounder",          weights: { t:.10, p:.45, s:.45 } },  // ← CHANGED from 15/35/50
   { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.25, p:.35, s:.40 } },
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader", weights: { t:.20, p:.35, s:.45 } },
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",      archetype: "momentum_store_of_value",      weights: { t:.30, p:.35, s:.35 } },
@@ -66,7 +66,8 @@ function buildPrompt(h, detScores) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isSPY = h.archetype === "beta_sizing";
   const isIBIT = h.archetype === "momentum_store_of_value";
-  const isASML = h.archetype === "secular_growth_monopoly";  // ← NEW
+  const isASML = h.archetype === "secular_growth_monopoly";
+  const isENB = h.archetype === "dividend_compounder";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -82,6 +83,14 @@ function buildPrompt(h, detScores) {
     ibitExtensionLine = `BTC vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
   }
 
+  // ── NEW: ENB yield spread line ────────────────────────────────────────────
+  let enbYieldSpreadLine = null;
+  if (isENB && md.valuation?.dividendYield && macro.us10y) {
+    const spread = md.valuation.dividendYield - macro.us10y;
+    const spreadBps = Math.round(spread * 100);
+    enbYieldSpreadLine = `ENB yield spread vs 10Y: ${spreadBps}bps (ENB ${md.valuation.dividendYield}% − 10Y ${macro.us10y}%)${spreadBps > 300 ? " — ATTRACTIVE" : spreadBps < 150 ? " — RICH" : ""}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -92,6 +101,7 @@ function buildPrompt(h, detScores) {
     md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
+    enbYieldSpreadLine,  // ← NEW (null-filtered for non-ENB)
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -129,84 +139,80 @@ SPY is the broad US market. It is the most efficient instrument in the world —
 
   const ibitGuidance = isIBIT ? `
 CRITICAL — IBIT-SPECIFIC SCORING GUIDANCE:
-IBIT is a spot Bitcoin ETF. Bitcoin is momentum-dominant, flow-driven, and trades in regimes — NOT like equities. Your role here reflects a specific philosophy:
+IBIT is a spot Bitcoin ETF. Bitcoin is momentum-dominant, flow-driven, and trades in regimes — NOT like equities.
 
 PHILOSOPHY — CYCLE PHASE IS CONTEXT, NOT A TRIGGER:
-• The halving cycle pattern is real and still relevant. But timing is probably STRETCHING this cycle: spot ETF flows and institutional adoption create a longer, less mechanical cycle than pre-2024.
-• DO NOT score negatively just because we are "deep in the cycle" or approaching a historical "peak window." Time passing is NOT a sell signal by itself.
-• The deterministic engine uses cycle phase only as a MODIFIER on extension signals (BTC % from 200DMA) — the deeper into the cycle, the more concerning same-extension becomes, and the more aggressive buying-of-weakness becomes. This is how cycle context legitimately earns its keep. Do not reintroduce mechanical calendar-based trim bias.
+• The halving cycle pattern is real but timing is STRETCHING. DO NOT score negatively just because we are "deep in the cycle."
+• The deterministic engine uses cycle phase only as a MODIFIER on extension signals. Do not reintroduce calendar-based trim bias.
 
-WHAT TO SCORE POSITIVELY (trim bias) — only through current-condition signals:
-• ETF flow DIVERGENCE: aggregate spot BTC ETF inflows decelerating while price makes new highs → distribution pattern → earned trim bias. If you don't have fresh flow data, don't invent this.
-• Long-term-holder (LTH) supply RAPIDLY distributing (declining >0.5%/month) → cycle distribution underway → earned trim bias
-• Perpetual futures funding rates sustained high (>0.05% daily for 7+ days) → overleveraged longs → flush risk
-• BTC >2x its 200DMA WITH one or more of the above — this is where genuine top risk lives, regardless of calendar
+TRIM BIAS (only through current-condition signals):
+• ETF flow DIVERGENCE (inflows decelerating while price rises), LTH supply rapidly distributing, funding rates sustained >0.05% for 7+ days, BTC >2x 200DMA WITH confirming signals.
 
-WHAT NOT TO PENALIZE:
-• RSI 70-80 alone = normal momentum in BTC (trends sustain), NOT overbought
-• Proximity to 52-week highs = mid-cycle momentum, NOT a reversal signal
-• Price significantly above 200DMA ALONE — only concerning if flows/LTH confirm
-• "We're X months post-halving" — drop this reasoning. It does NOT drive your score.
+DO NOT PENALIZE: RSI 70-80, proximity to 52w highs, price above 200DMA alone, months-since-halving reasoning.
 
-WHAT TO SCORE NEGATIVELY (buy bias):
-• BTC below 200DMA = bear regime, contrarian buy opportunity — and MORE aggressive deeper into the cycle (cycle-bottom territory)
-• RSI <30 in BTC = rare and powerful — strong buy
-• Capitulation-style moves (down 8%+ in a day) with high volume
-• Flows turning from outflows back to inflows after a drawdown
+BUY BIAS: BTC below 200DMA (more aggressive deeper in cycle), RSI <30, capitulation moves, flows turning positive after drawdown. UPSIDE IS UNCAPPED.
 
-UPSIDE IS UNCAPPED:
-• A genuine parabolic move to $250K+ BTC is possible and should not be mechanically trimmed just because prior cycles topped earlier. If flows remain healthy and LTH behavior is stable, momentum can run.
-• Only trim when EXHAUSTION signals appear (flow divergence, LTH distribution, funding blowouts) — not because "this is high."
-
-YOUR VALUE-ADD FOR IBIT:
-• Flow data interpretation: are inflows broad-based or concentrated? Are corporate treasuries still adding?
-• Regulatory/macro catalysts specific to BTC (SEC actions, country-level adoption, stablecoin policy)
-• On-chain signal interpretation (LTH behavior, exchange flows, miner behavior)
-• Assessing whether the current move has structural support or is speculative froth
-• Qualitative read on whether THIS cycle is breaking from the 4-year pattern
+YOUR VALUE-ADD: Flow interpretation, regulatory catalysts, on-chain signals, whether THIS cycle is breaking the 4-year pattern.
 ` : "";
 
-  // ── NEW: ASML-specific guidance ───────────────────────────────────────────
   const asmlGuidance = isASML ? `
 CRITICAL — ASML-SPECIFIC SCORING GUIDANCE:
-ASML is a SECULAR GROWTH MONOPOLY — the sole supplier of EUV lithography to the world's leading-edge fabs. This stock compounds up-and-to-the-right over time. Your scoring must reflect this.
+ASML is a SECULAR GROWTH MONOPOLY — sole EUV supplier. Compounds up-and-to-the-right.
+
+DO NOT PENALIZE: 52w proximity (normal for compounder), RSI 65-75 (normal momentum), trailing P/E 30-42x (normal range), P/B (irrelevant), golden cross MA (default state).
+
+TRIM BIAS (rare): Forward P/E >45x, book-to-bill <1.0, TSMC+Samsung+Intel ALL cutting capex, China revenue collapse.
+
+BUY BIAS (rare but powerful): Drawdown >15% from highs, forward P/E <25x, TSMC rev accelerating + backlog growing, big single-day drops on non-fundamental news.
+
+STRUCTURAL: ~3-5% annual buybacks ("sneaky buyback monster"), High-NA EUV ramp ($350M+/tool), 2-3yr backlog visibility.
+
+YOUR VALUE-ADD: Forward P/E (#1 contribution), TSMC/Samsung/Intel capex commentary, China export controls, WFE cycle position.
+
+MOST DAYS = NEUTRAL (±10). Scores beyond ±15 only on genuine drawdowns or valuation extremes.
+` : "";
+
+  // ── NEW: ENB-specific guidance ────────────────────────────────────────────
+  const enbGuidance = isENB ? `
+CRITICAL — ENB-SPECIFIC SCORING GUIDANCE:
+Enbridge is a DIVIDEND COMPOUNDER — midstream pipeline infrastructure that trades like a toll road, NOT like an oil producer. Revenue is largely contracted and fee-based. ENB is a hold-forever income name.
+
+WHAT DRIVES ENB (three layers of importance):
+1. YIELD SPREAD VS BONDS (daily-to-monthly price action driver): The deterministic engine already scores the ENB yield spread vs US 10Y. When the spread is >300bps, ENB is historically cheap. When it compresses below 150bps, it's rich. This is the #1 measurable signal. DO NOT duplicate this scoring — if you agree with the quant's positional score, return similar.
+2. GAS VOLUMES + LNG BUILDOUT (medium-to-long-term earnings trajectory): This is YOUR primary value-add. ENB's gas transmission is ~25% of EBITDA. Natural gas prices are a LEADING INDICATOR for throughput volumes, not a direct revenue driver. LNG export buildout (LNG Canada, US Gulf Coast expansion) creates structural demand for ENB's pipeline capacity. Henry Hub price levels affect drilling activity which affects volumes.
+3. CRUDE THROUGHPUT (Mainline economics): WCS-WTI spread, Canadian crude production growth, Trans Mountain dynamics. ENB's Liquids Pipelines are ~55% of EBITDA.
 
 WHAT NOT TO PENALIZE:
-• Proximity to 52-week highs = NORMAL for a compounder. ASML spends ~70% of trading days in the upper third of its 52w range. This is NOT overbought. The deterministic engine scores this as 0 (neutral). Do not reintroduce trim bias.
-• RSI 65-75 = normal uptrend momentum for a compounder. NOT a sell signal. Only RSI >85 suggests genuine exhaustion.
-• Trailing P/E 30-42x = normal compounder range. ASML's trailing P/E lags the semi cycle. Do NOT treat 35-40x as "expensive" — it's the base case for a company with ~90% gross margins on EUV and 3-year backlog visibility.
-• P/B is meaningless for an asset-light IP monopoly. Ignore it entirely.
-• "above_both_golden" MA signal = the DEFAULT state for a compounder in a healthy trend. This is 0, not +15. Do not add trim bias just because the stock is in an uptrend.
+• Proximity to 52-week highs — normal for a dividend compounder
+• RSI 55-70 — normal range for a low-volatility yield stock (ENB daily moves are typically 0.3-0.8%)
+• Trailing P/E 18-24x — normal range for pipeline infrastructure
+• The stock being "boring" — that IS the thesis
 
-WHAT EARNS REAL TRIM BIAS (rare — maybe 5-10% of days):
-• Forward P/E >45x (if you can find consensus NTM earnings) — genuine valuation stretch
-• Book-to-bill ratio breaking below 1.0 — backlog shrinking, cycle peaking
-• TSMC/Samsung/Intel ALL cutting capex simultaneously — demand destruction
-• China revenue collapsing faster than replaced by other customers — structural revenue hole
-• Multiple of these signals combining — that's real trim territory, earned through fundamentals
+WHAT EARNS TRIM BIAS (very rare for a hold-forever income name):
+• Yield spread compressing below 100bps (ENB yield advantage over bonds has eroded)
+• Dividend cut risk (payout ratio >100%, EBITDA declining)
+• Genuine structural pipeline obsolescence risk (not realistic near-term)
+• Trim is mainly OPPORTUNITY COST — if other names flash much stronger signals, redeploy ENB capital
 
-WHAT EARNS BUY BIAS (also rare — the alpha is here):
-• Drawdown >15% from 52w highs — ASML rarely sells off this much. When it does (spring 2019, COVID crash, late 2022, spring 2025), these are high-conviction buy opportunities. The model should lean in HARD here.
-• Forward P/E <25x — historically rare and powerful
-• TSMC monthly revenue accelerating + ASML backlog growing — WFE cycle inflection
-• Big single-day drops (5%+) driven by non-fundamental news (China export headlines, geopolitical) — the thesis hasn't changed, only the price
-• Real rates falling (accommodative monetary policy) — long-duration asset benefits
+WHAT EARNS BUY BIAS:
+• Yield spread >300bps (historically strong buy zone — market overpricing rate risk)
+• 10Y yield spike causing ENB to drop >2% sympathetically — rate overreaction, the thesis hasn't changed
+• ENB yield in top quartile of its 5-year range
+• Rate cutting cycle beginning or accelerating — structural tailwind for yield stocks
+• LNG export capacity expanding (LNG Canada Phase 2, new Gulf Coast terminals) — structural earnings growth
 
-STRUCTURAL ADVANTAGES TO KEEP IN MIND:
-• ASML buys back ~3-5% of shares annually — a "sneaky buyback monster." This provides persistent intrinsic compounding whether the price moves or not. During drawdowns, buybacks retire more shares per dollar spent.
-• Revenue per EUV tool is structurally increasing as High-NA EUV ramps (~$350M+ per tool vs $150M for EUV). This makes the growth trajectory steeper than it looks from unit volumes alone.
-• Backlog visibility is 2-3 years. This is the single most important strategic signal — if backlog is growing, the business is accelerating regardless of quarterly noise.
-
-YOUR VALUE-ADD FOR ASML:
-• Forward P/E assessment (the deterministic engine only has trailing P/E — your qualitative read on forward earnings power is the #1 contribution)
-• TSMC/Samsung/Intel capex commentary from recent earnings calls
-• China export control developments and revenue substitution
-• EUV → High-NA transition timeline and customer adoption
-• Semi cycle positioning: are we in early/mid/late WFE cycle?
-• Backlog and book-to-bill trajectory if recently reported
+YOUR VALUE-ADD FOR ENB:
+• Natural gas volume outlook: Is Henry Hub supportive? Are pipeline throughputs growing?
+• LNG buildout status: LNG Canada Phase 2 progress, BC Pipeline utilization, Gulf Coast export terminal pipeline
+• WCS-WTI spread dynamics and Canadian crude production trajectory
+• Pipeline permitting environment (federal/provincial headwinds or tailwinds)
+• Fed/BoC rate commentary and forward rate expectations
+• Dividend growth sustainability: Does the earnings trajectory support 3-5% annual dividend growth?
+• CAD/USD impact on USD-denominated ADR returns
+• Ex-dividend date proximity (worth noting but should not drive the score)
 
 MOST DAYS SHOULD BE NEUTRAL:
-ASML should produce composite scores between -10 and +10 roughly 80% of trading days. It's a hold-and-compound stock. Meaningful scores (beyond ±15) should only appear during genuine drawdowns (buy) or genuine valuation/cycle peaks (trim). If you're scoring ±20+ on an ordinary day, something is wrong.
+ENB should produce composite scores between -5 and +5 roughly 85% of trading days. It's a hold-and-collect-income stock. Meaningful scores only appear during rate overreaction selloffs (buy), yield spread extremes (buy or trim), or genuinely structural catalysts (LNG buildout, dividend policy changes).
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -229,7 +235,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -257,7 +263,8 @@ function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isSPY = h.archetype === "beta_sizing";
   const isIBIT = h.archetype === "momentum_store_of_value";
-  const isASML = h.archetype === "secular_growth_monopoly";  // ← NEW
+  const isASML = h.archetype === "secular_growth_monopoly";
+  const isENB = h.archetype === "dividend_compounder";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -269,12 +276,16 @@ CRITICAL — SPY SCORING: SPY is the broad market, structurally efficient. Do NO
 ` : "";
 
   const ibitGuidance = isIBIT ? `
-CRITICAL — IBIT SCORING: Bitcoin is momentum-dominant and flow-driven. Cycle phase is context, NOT a trim trigger. Do NOT penalize proximity to 52w highs or "late-cycle" timing. Real trim signals come from FLOW DIVERGENCE (inflows decelerating while price rises), LTH distribution, or extreme extension (>2x 200DMA). RSI 70-80 is normal BTC momentum. Upside is uncapped — a parabolic move is not automatically a top. Buy weakness harder deeper in the cycle (potential cycle-bottom territory).
+CRITICAL — IBIT SCORING: Bitcoin is momentum-dominant and flow-driven. Cycle phase is context, NOT a trim trigger. Do NOT penalize proximity to 52w highs or "late-cycle" timing. Real trim signals: flow divergence, LTH distribution, extreme 200DMA extension. RSI 70-80 is normal BTC momentum. Upside uncapped. Buy weakness harder deeper in cycle.
 ` : "";
 
-  // ── NEW: ASML guidance (abbreviated for web search path) ──
   const asmlGuidance = isASML ? `
-CRITICAL — ASML SCORING: ASML is a secular growth monopoly (sole EUV supplier). Do NOT penalize proximity to 52w highs or RSI 65-75 (normal compounder momentum). Trailing P/E 30-42x is NORMAL for ASML. Real buy signals: drawdowns >15% from highs (rare, high-conviction). Real trim signals: forward P/E >45x, book-to-bill <1.0, simultaneous customer capex cuts. Most days should score near NEUTRAL (0). ASML also buys back ~3-5% of shares annually — buybacks are more efficient during drawdowns. Search for: forward P/E, TSMC revenue trends, backlog/book-to-bill, China export control developments.
+CRITICAL — ASML SCORING: Secular growth monopoly (sole EUV supplier). Do NOT penalize 52w proximity or RSI 65-75. Trailing P/E 30-42x is NORMAL. Buy signals: drawdowns >15%. Trim signals: forward P/E >45x, book-to-bill <1.0. Buybacks ~3-5% annual. Most days = NEUTRAL.
+` : "";
+
+  // ── NEW: ENB guidance (abbreviated for web search path) ──
+  const enbGuidance = isENB ? `
+CRITICAL — ENB SCORING: Dividend compounder / toll-road infrastructure — NOT an oil producer. Do NOT penalize 52w proximity or RSI 55-70 (normal for yield stock). P/E 18-24x is NORMAL. The #1 signal is yield spread vs US 10Y (>300bps = buy, <150bps = rich). ENB is a hold-forever income name — trim is rare and mainly opportunity cost. Search for: ENB dividend yield vs 10Y spread, rate outlook, LNG Canada buildout, WCS-WTI spread, pipeline permitting, dividend growth guidance. Gas volumes and LNG export buildout are real earnings drivers (not just "noise").
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -292,7 +303,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -502,13 +513,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.3 — ASML compounder model (dampened RSI/52w, forward PE focus, buyback awareness)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.4 — ENB yield compounder model (yield spread, rate regime, gas/LNG qualitative)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.3");
+  console.log("Portfolio Strategy Signal Generator v6.4");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
