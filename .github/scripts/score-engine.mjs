@@ -21,6 +21,9 @@
 //   - DIVIDEND_COMPOUNDER (ENB): heavily dampened RSI (yield stock barely moves),
 //     inverted 52w, yield-spread-vs-10Y as primary positional signal,
 //     enhanced real yield + rate regime strategic scoring, P/B skipped
+//   - CYCLICAL_TRADE_BELLWETHER (AMKBY): shipping-specific PE thresholds (more
+//     extreme cycles), enhanced P/B (asset-heavy fleet), dampened MA golden cross,
+//     dampened 52w at highs, GSCPI + HY OAS as strategic overlays
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -225,9 +228,8 @@ export function scorePositional(data, macro) {
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";  // ← NEW
-
-  // Moving average signal — archetype-aware
+  const isENB = archetype === "dividend_compounder";
+  const isAMKBY = archetype === "cyclical_trade_bellwether";  // ← NEW — archetype-aware
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -275,6 +277,21 @@ export function scorePositional(data, macro) {
       if (enbMaScores[ma] != null) {
         score += enbMaScores[ma];
         notes.push(`ENB MA: ${ma} (${enbMaScores[ma] !== 0 ? (enbMaScores[ma] > 0 ? "+" : "") + enbMaScores[ma] : "normal yield compounder trend"})`);
+      }
+    } else if (isAMKBY) {
+      // ── AMKBY: dampened golden cross (confirms up-cycle, doesn't predict end)
+      // Death cross is meaningful (cyclical downturn confirmed) — buy signal.
+      const amkbyMaScores = {
+        "above_both_golden": 8,        // cyclical uptrend confirmed (dampened from +15)
+        "above_both": 5,               // uptrend
+        "above_50_below_200": -5,      // recovering from cyclical trough — buy
+        "above_200_below_50": 3,       // weakening
+        "below_both": -12,             // cyclical downturn — buy opportunity
+        "below_both_death": -18,       // deep cyclical trough — strong buy
+      };
+      if (amkbyMaScores[ma] != null) {
+        score += amkbyMaScores[ma];
+        notes.push(`AMKBY MA: ${ma} (${amkbyMaScores[ma] > 0 ? "+" : ""}${amkbyMaScores[ma]})`);
       }
     } else {
       const maScores = {
@@ -330,6 +347,19 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`ENB 52w: ${w52}% — significant drawdown, high yield buy`); }
       else if (w52 > 15) { score += -35; notes.push(`ENB 52w: ${w52}% — major drawdown, strong buy (rare)`); }
       else               { score += -45; notes.push(`ENB 52w: ${w52}% — distressed — max conviction buy`); }
+    } else if (isAMKBY) {
+      // ── AMKBY: DAMPENED AT HIGHS (cyclical can be late-cycle at highs)
+      // Not inverted like compounders — cyclical at 52w highs genuinely CAN be
+      // late-cycle. But the generic +30 at 95%+ is too aggressive when combined
+      // with cyclical PE and RSI signals. Dampen highs, keep strong buy at lows.
+      if (w52 > 95)      { score += 15;  notes.push(`AMKBY 52w: ${w52}% — near highs, possible late-cycle`); }
+      else if (w52 > 85) { score += 8;   notes.push(`AMKBY 52w: ${w52}% — upper range`); }
+      else if (w52 > 70) { score += 3;   notes.push(`AMKBY 52w: ${w52}% — above mid`); }
+      else if (w52 > 50) { score += 0;   notes.push(`AMKBY 52w: ${w52}% — mid range`); }
+      else if (w52 > 30) { score += -8;  notes.push(`AMKBY 52w: ${w52}% — below mid, cyclical opportunity`); }
+      else if (w52 > 15) { score += -20; notes.push(`AMKBY 52w: ${w52}% — lower range, freight trough buy`); }
+      else if (w52 > 5)  { score += -30; notes.push(`AMKBY 52w: ${w52}% — near lows, deep cyclical buy`); }
+      else               { score += -35; notes.push(`AMKBY 52w: ${w52}% — extreme low, max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -473,6 +503,22 @@ export function scorePositional(data, macro) {
     else                { score += 30; notes.push(`HY OAS ${oas}bps: crisis-level spreads`); }
   }
 
+  // ── AMKBY ONLY: GSCPI (Global Supply Chain Pressure Index) ────────────────
+  // Monthly composite from NY Fed incorporating BDI + container shipping + airfreight.
+  // Positive = above-average pressure (high freight rates, disruptions).
+  // For AMKBY: elevated GSCPI is short-term revenue positive (higher rates) but
+  // can signal trade disruption that eventually hurts volumes. The LLM disambiguates.
+  // At the deterministic level, we score the raw level as a regime indicator.
+  if (isAMKBY && macro?.gscpi != null) {
+    const g = macro.gscpi;
+    if (g > 2.0)       { score += 5;   notes.push(`GSCPI ${g}: crisis-level pressure — rates high but trade disrupted`); }
+    else if (g > 1.0)  { score += 0;   notes.push(`GSCPI ${g}: elevated pressure — freight revenue tailwind`); }
+    else if (g > 0.3)  { score += -3;  notes.push(`GSCPI ${g}: mildly above average — healthy shipping demand`); }
+    else if (g > -0.3) { score += 0;   notes.push(`GSCPI ${g}: normal supply chain conditions`); }
+    else if (g > -1.0) { score += 5;   notes.push(`GSCPI ${g}: below average — calm shipping, rate pressure`); }
+    else               { score += 10;  notes.push(`GSCPI ${g}: very calm — freight trough territory`); }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -486,7 +532,8 @@ export function scoreStrategic(data, macro) {
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";  // ← NEW
+  const isENB = archetype === "dividend_compounder";
+  const isAMKBY = archetype === "cyclical_trade_bellwether";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -580,6 +627,84 @@ export function scoreStrategic(data, macro) {
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — ENB defensive quality, mild buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — ENB as safe haven`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── AMKBY STRATEGIC ──────────────────────────────────────────────────────  ← NEW
+  // Three pillars: (1) shipping-specific PE cycle, (2) P/B (fleet value),
+  // (3) supply chain pressure (GSCPI) + credit conditions (HY OAS).
+  // Freight rates and trade volumes are handled qualitatively by the LLM.
+  if (isAMKBY) {
+    // Shipping-specific PE — more extreme cycles than commodity cyclicals.
+    // Maersk at genuine peak can have PE 2-4x. PE 8x is arguably mid-cycle.
+    // PE 50+ is deep trough (earnings collapsed).
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe > 100)      { score += -25; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: deep trough — shipping buy`); }
+      else if (pe > 50)  { score += -18; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 25)  { score += -8;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: below-trend — recovery territory`); }
+      else if (pe > 12)  { score += 0;   notes.push(`AMKBY P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 6)   { score += 10;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)   { score += 18;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: peak earnings — shipping trim`); }
+      else               { score += 25;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+    }
+
+    // P/B — ENHANCED for shipping (asset-heavy fleet of container ships).
+    // P/B <1.0 = market pricing fleet below replacement cost.
+    // P/B <0.6 = near scrap value, historically powerful buy signal.
+    const pb = data.valuation?.priceToBook;
+    if (pb != null && pb > 0) {
+      if (pb < 0.5)      { score += -20; notes.push(`AMKBY P/B ${pb.toFixed(2)}: near scrap value — strong buy`); }
+      else if (pb < 0.7) { score += -15; notes.push(`AMKBY P/B ${pb.toFixed(2)}: below replacement cost — buy`); }
+      else if (pb < 0.9) { score += -8;  notes.push(`AMKBY P/B ${pb.toFixed(2)}: below book — value territory`); }
+      else if (pb < 1.2) { score += -3;  notes.push(`AMKBY P/B ${pb.toFixed(2)}: near book`); }
+      else if (pb < 1.8) { score += 0;   notes.push(`AMKBY P/B ${pb.toFixed(2)}: normal`); }
+      else if (pb < 2.5) { score += 5;   notes.push(`AMKBY P/B ${pb.toFixed(2)}: above book — cycle pricing in`); }
+      else               { score += 10;  notes.push(`AMKBY P/B ${pb.toFixed(2)}: premium — late cycle risk`); }
+    }
+
+    // Dividend yield
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 8)       { score += -8; notes.push(`AMKBY yield ${dy}%: very high — cyclical trough?`); }
+      else if (dy > 5)  { score += -4; notes.push(`AMKBY yield ${dy}%: attractive`); }
+      else if (dy > 3)  { score += -2; notes.push(`AMKBY yield ${dy}%: moderate`); }
+    }
+
+    // HY OAS — credit conditions as trade flow proxy.
+    // Tight credit = healthy trade flows = AMKBY demand.
+    // Wide credit = trade contraction risk = AMKBY headwind.
+    if (macro?.hy_oas != null) {
+      const oas = macro.hy_oas;
+      if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy trade environment`); }
+      else if (oas < 400) { score += 0;  notes.push(`HY OAS ${oas}bps: normal`); }
+      else if (oas < 500) { score += 5;  notes.push(`HY OAS ${oas}bps: widening — trade contraction risk`); }
+      else if (oas < 700) { score += 10; notes.push(`HY OAS ${oas}bps: stressed — trade headwind`); }
+      else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — shipping demand at risk`); }
+    }
+
+    // GSCPI — supply chain pressure as strategic regime indicator.
+    // At the strategic level, extreme GSCPI values inform cycle positioning:
+    // Very negative = freight trough, potential bottom → contrarian buy if P/B confirms.
+    // Very positive = supply chain stress, rates high → Maersk revenue strong but unsustainable?
+    if (macro?.gscpi != null) {
+      const g = macro.gscpi;
+      if (g > 2.5)       { score += 5;   notes.push(`GSCPI ${g}: extreme disruption — rate surge unsustainable?`); }
+      else if (g > 1.5)  { score += 3;   notes.push(`GSCPI ${g}: stressed — high rates but disruption risk`); }
+      else if (g > 0.5)  { score += 0;   notes.push(`GSCPI ${g}: above average — healthy freight demand`); }
+      else if (g > -0.5) { score += 0;   notes.push(`GSCPI ${g}: normal`); }
+      else if (g > -1.0) { score += -3;  notes.push(`GSCPI ${g}: below average — freight weakness`); }
+      else               { score += -8;  notes.push(`GSCPI ${g}: deeply negative — freight trough, contrarian buy?`); }
+    }
+
+    // VIX — mild overlay (shipping is globally exposed)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — global trade fear, contrarian buy`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
 
     return { score: clamp(score), notes };
