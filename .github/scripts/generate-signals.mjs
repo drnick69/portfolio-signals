@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// generate-signals.mjs v6.1 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v6.2 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v5.1: archetype-aware cyclical PE logic in both deterministic + LLM layers.
 // v6.0: calibration feedback, confidence bands, accuracy tracking integration.
 // v6.1: SPY weight fix (20/40/40), SPY-specific prompt guidance, breadth data.
+// v6.2: IBIT-specific prompt guidance (no mechanical cycle trim, flows > timing).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -30,7 +31,7 @@ const HOLDINGS = [
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",         archetype: "em_state_oil_dividend",        weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.40, s:.35 } },
-  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.20, p:.40, s:.40 } },  // ← CHANGED from 25/35/40
+  { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.20, p:.40, s:.40 } },
 ];
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
@@ -40,6 +41,22 @@ const CYCLICAL_ARCHETYPES = new Set([
   "cyclical_trade_bellwether",
   "em_state_oil_dividend",
 ]);
+
+// ─── HALVING PHASE HELPER (for IBIT prompt context) ─────────────────────────  ← NEW
+// Mirrors the logic in score-engine.mjs. Used to tell the LLM where we are in
+// the cycle so it can reason about flow/cycle dynamics qualitatively.
+function getIBITPhaseContext() {
+  const halvingDate = new Date("2024-04-20");
+  const now = new Date();
+  const months = (now.getFullYear() - halvingDate.getFullYear()) * 12
+               + (now.getMonth() - halvingDate.getMonth());
+  let phase;
+  if (months < 12) phase = "early_expansion";
+  else if (months < 18) phase = "mid_expansion";
+  else if (months < 30) phase = "extended_expansion";
+  else phase = "post_expansion";
+  return { months, phase };
+}
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
 // The LLM's job is now QUALITATIVE: interpret context, assess catalysts/risks,
@@ -52,15 +69,22 @@ function buildPrompt(h, detScores) {
   const md = MARKET_DATA[h.symbol] || {};
   const macro = MARKET_DATA._macro || {};
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
-  const isSPY = h.archetype === "beta_sizing";  // ← NEW
+  const isSPY = h.archetype === "beta_sizing";
+  const isIBIT = h.archetype === "momentum_store_of_value";  // ← NEW
 
-  // ── Derived macro strings (shown for all, used especially by SPY) ──
-  const curveStr = macro.spread_2s10s != null  // ← NEW
-    ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`  // ← NEW
-    : null;  // ← NEW
-  const realRate = (macro.fed_funds != null && macro.tips10y != null)  // ← NEW
-    ? +(macro.fed_funds - macro.tips10y).toFixed(2)  // ← NEW
-    : null;  // ← NEW
+  const curveStr = macro.spread_2s10s != null
+    ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
+    : null;
+  const realRate = (macro.fed_funds != null && macro.tips10y != null)
+    ? +(macro.fed_funds - macro.tips10y).toFixed(2)
+    : null;
+
+  // ── IBIT-specific: compute BTC-vs-200DMA extension for the prompt ──  ← NEW
+  let ibitExtensionLine = null;
+  if (isIBIT && md.price?.current && md.technicals?.sma200) {
+    const pct = ((md.price.current - md.technicals.sma200) / md.technicals.sma200) * 100;
+    ibitExtensionLine = `BTC vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
+  }
 
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
@@ -68,15 +92,20 @@ function buildPrompt(h, detScores) {
     md.price?.week52_high ? `52-Week: High $${md.price.week52_high} | Low $${md.price.week52_low} | Position: ${md.price.week52_position_pct}%` : null,
     md.technicals?.rsi14 != null ? `RSI(14): ${md.technicals.rsi14}` : null,
     md.technicals?.sma50 ? `SMA 50: $${md.technicals.sma50} | SMA 200: $${md.technicals.sma200 ?? "N/A"} | Signal: ${md.technicals.ma_signal}` : null,
+    ibitExtensionLine,  // ← NEW (null-filtered below)
     md.valuation?.trailingPE ? `P/E: ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
-    macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,  // ← CHANGED
-    macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,  // ← CHANGED
+    macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
+    macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
     macro.hy_oas ? `HY OAS credit spread: ${macro.hy_oas}bps` : null,
-    // ── NEW: SPY-specific breadth line ──
     (isSPY && md.breadth) ? `Breadth (RSP/SPY): RSP ${md.breadth.rsp_change_pct >= 0 ? "+" : ""}${md.breadth.rsp_change_pct}% vs SPY ${md.breadth.spy_change_pct >= 0 ? "+" : ""}${md.breadth.spy_change_pct}% | Spread: ${md.breadth.rsp_spy_spread_pp >= 0 ? "+" : ""}${md.breadth.rsp_spy_spread_pp}pp (${md.breadth.rsp_spy_spread_pp > 0 ? "broad/healthy" : md.breadth.rsp_spy_spread_pp < 0 ? "narrow/top-heavy" : "inline"})` : null,
+    // ── NEW: IBIT cycle phase line ──
+    isIBIT ? (() => {
+      const p = getIBITPhaseContext();
+      return `Halving cycle: month ${p.months} post-halving (phase: ${p.phase})`;
+    })() : null,
   ].filter(Boolean).join("\n");
 
   const cyclicalWarning = isCyclical ? `
@@ -88,7 +117,6 @@ ${h.symbol} is a CYCLICAL business (archetype: ${h.archetype}). Trailing P/E mus
 • The deterministic engine has already applied inverted PE scoring. Your qualitative score should NOT penalize high trailing P/E for this holding. Instead, consider whether the earnings trough is deepening or recovering.
 ` : "";
 
-  // ── NEW: SPY-specific guidance ────────────────────────────────────────────
   const spyGuidance = isSPY ? `
 CRITICAL — SPY-SPECIFIC SCORING GUIDANCE:
 SPY is the broad US market. It is the most efficient instrument in the world — edge is structurally limited. Your role here is narrower than for single stocks:
@@ -102,6 +130,46 @@ SPY is the broad US market. It is the most efficient instrument in the world —
     — Qualitative breadth beyond RSP/SPY: mega-cap concentration, sector rotation dynamics
 • SPY DESERVES MORE NEUTRAL SCORES THAN SINGLE STOCKS. The market is efficient. Scores beyond ±30 should reflect GENUINE dislocations (policy shock, crisis, earnings breakdown) — not ordinary technical readings.
 • When in doubt on SPY, return closer to 0. NEUTRAL is the most common correct answer.
+` : "";
+
+  // ── NEW: IBIT-specific guidance ───────────────────────────────────────────
+  const ibitGuidance = isIBIT ? `
+CRITICAL — IBIT-SPECIFIC SCORING GUIDANCE:
+IBIT is a spot Bitcoin ETF. Bitcoin is momentum-dominant, flow-driven, and trades in regimes — NOT like equities. Your role here reflects a specific philosophy:
+
+PHILOSOPHY — CYCLE PHASE IS CONTEXT, NOT A TRIGGER:
+• The halving cycle pattern is real and still relevant. But timing is probably STRETCHING this cycle: spot ETF flows and institutional adoption create a longer, less mechanical cycle than pre-2024.
+• DO NOT score negatively just because we are "deep in the cycle" or approaching a historical "peak window." Time passing is NOT a sell signal by itself.
+• The deterministic engine uses cycle phase only as a MODIFIER on extension signals (BTC % from 200DMA) — the deeper into the cycle, the more concerning same-extension becomes, and the more aggressive buying-of-weakness becomes. This is how cycle context legitimately earns its keep. Do not reintroduce mechanical calendar-based trim bias.
+
+WHAT TO SCORE POSITIVELY (trim bias) — only through current-condition signals:
+• ETF flow DIVERGENCE: aggregate spot BTC ETF inflows decelerating while price makes new highs → distribution pattern → earned trim bias. If you don't have fresh flow data, don't invent this.
+• Long-term-holder (LTH) supply RAPIDLY distributing (declining >0.5%/month) → cycle distribution underway → earned trim bias
+• Perpetual futures funding rates sustained high (>0.05% daily for 7+ days) → overleveraged longs → flush risk
+• BTC >2x its 200DMA WITH one or more of the above — this is where genuine top risk lives, regardless of calendar
+
+WHAT NOT TO PENALIZE:
+• RSI 70-80 alone = normal momentum in BTC (trends sustain), NOT overbought
+• Proximity to 52-week highs = mid-cycle momentum, NOT a reversal signal
+• Price significantly above 200DMA ALONE — only concerning if flows/LTH confirm
+• "We're X months post-halving" — drop this reasoning. It does NOT drive your score.
+
+WHAT TO SCORE NEGATIVELY (buy bias):
+• BTC below 200DMA = bear regime, contrarian buy opportunity — and MORE aggressive deeper into the cycle (cycle-bottom territory)
+• RSI <30 in BTC = rare and powerful — strong buy
+• Capitulation-style moves (down 8%+ in a day) with high volume
+• Flows turning from outflows back to inflows after a drawdown
+
+UPSIDE IS UNCAPPED:
+• A genuine parabolic move to $250K+ BTC is possible and should not be mechanically trimmed just because prior cycles topped earlier. If flows remain healthy and LTH behavior is stable, momentum can run.
+• Only trim when EXHAUSTION signals appear (flow divergence, LTH distribution, funding blowouts) — not because "this is high."
+
+YOUR VALUE-ADD FOR IBIT:
+• Flow data interpretation: are inflows broad-based or concentrated? Are corporate treasuries still adding?
+• Regulatory/macro catalysts specific to BTC (SEC actions, country-level adoption, stablecoin policy)
+• On-chain signal interpretation (LTH behavior, exchange flows, miner behavior)
+• Assessing whether the current move has structural support or is speculative froth
+• Qualitative read on whether THIS cycle is breaking from the 4-year pattern
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -124,7 +192,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -150,16 +218,21 @@ Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.r
 // Web search prompt for symbols with insufficient data
 function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
-  const isSPY = h.archetype === "beta_sizing";  // ← NEW
+  const isSPY = h.archetype === "beta_sizing";
+  const isIBIT = h.archetype === "momentum_store_of_value";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
 CRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.
 ` : "";
 
-  // ── NEW: SPY guidance (abbreviated for web search path) ──
   const spyGuidance = isSPY ? `
 CRITICAL — SPY SCORING: SPY is the broad market, structurally efficient. Do NOT penalize proximity to 52w highs (momentum-positive for indexes). Focus on event risk, policy catalysts, and regime context. Scores beyond ±30 require genuine dislocations. When in doubt, return NEUTRAL (0).
+` : "";
+
+  // ── NEW: IBIT guidance (abbreviated for web search path) ──
+  const ibitGuidance = isIBIT ? `
+CRITICAL — IBIT SCORING: Bitcoin is momentum-dominant and flow-driven. Cycle phase is context, NOT a trim trigger. Do NOT penalize proximity to 52w highs or "late-cycle" timing. Real trim signals come from FLOW DIVERGENCE (inflows decelerating while price rises), LTH distribution, or extreme extension (>2x 200DMA). RSI 70-80 is normal BTC momentum. Upside is uncapped — a parabolic move is not automatically a top. Buy weakness harder deeper in the cycle (potential cycle-bottom territory).
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -177,7 +250,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -220,7 +293,6 @@ async function fetchLLMScore(holding, prompt, useWebSearch) {
       if (result.stop_reason === "max_tokens") { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("Truncated"); }
 
       const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-      // Handle +N in JSON (invalid but Claude sometimes produces it)
       const sanitized = text.replace(/:\s*\+(\d)/g, ': $1');
       const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
       if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON"); }
@@ -247,14 +319,11 @@ async function scoreHolding(holding, useWebSearch) {
   const md = MARKET_DATA[holding.symbol] || {};
   const macro = MARKET_DATA._macro || {};
 
-  // Step 1: Deterministic scores (archetype-aware via _archetype)
-  // Breadth data (if present on md, e.g. SPY's md.breadth) flows through via spread.
   const dataForEngine = { ...md, _weights: holding.weights, _archetype: holding.archetype };
   const detScores = computeDeterministicScores(dataForEngine, macro);
 
   console.log(`  [DET] tac=${detScores.tactical.score} pos=${detScores.positional.score} str=${detScores.strategic.score} comp=${detScores.composite.score}`);
 
-  // Step 2: LLM qualitative scores (cyclical warning injected into prompt)
   const prompt = useWebSearch ? buildSearchPrompt(holding) : buildPrompt(holding, detScores);
   console.log(`  [LLM] scoring [${useWebSearch ? "web search" : "qualitative"}]...`);
 
@@ -262,10 +331,8 @@ async function scoreHolding(holding, useWebSearch) {
     const { parsed: llm, elapsed, tokIn, tokOut } = await fetchLLMScore(holding, prompt, useWebSearch);
     console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok)`);
 
-    // Step 3: Blend 50/50
     const blended = blendScores(detScores, llm, holding.weights);
 
-    // Inject verified price
     const price = {};
     if (md.price?.current) price.current = md.price.current;
     if (md.price?.change_pct != null) price.change_pct = md.price.change_pct;
@@ -286,7 +353,6 @@ async function scoreHolding(holding, useWebSearch) {
       _scoring: { deterministic: detScores.composite.score, llm: llm.composite?.score ?? 0, blend: "50/50" },
     };
 
-    // Override price with verified values
     if (md.price?.current) result.price.current = md.price.current;
     if (md.price?.change_pct != null) result.price.change_pct = md.price.change_pct;
 
@@ -394,13 +460,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.1 — SPY model refinement (VIX+RSI combos, RSP breadth, curve/credit regime)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.2 — IBIT model refinement (cycle phase as modifier, not trigger)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.1");
+  console.log("Portfolio Strategy Signal Generator v6.2");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
@@ -416,7 +482,6 @@ async function main() {
 
   const allSignals = [];
 
-  // Track A: Hybrid scoring (deterministic + LLM qualitative)
   if (dataHoldings.length > 0) {
     console.log(`── TRACK A: ${dataHoldings.length} holdings (hybrid scoring) ──`);
     for (let i = 0; i < dataHoldings.length; i++) {
@@ -426,7 +491,6 @@ async function main() {
     }
   }
 
-  // Track B: Web search (for insufficient data)
   if (searchHoldings.length > 0) {
     console.log(`\n── TRACK B: ${searchHoldings.length} holdings (web search) ──`);
     for (let i = 0; i < searchHoldings.length; i++) {
