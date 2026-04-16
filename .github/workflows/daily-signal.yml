@@ -66,5 +66,6 @@ jobs:
           git config user.name "Portfolio Bot"
           git config user.email "bot@portfolio-signals"
           git add docs/signal-data.json docs/latest-email.html docs/history/
-          git diff --staged --quiet || git commit -m "Signal update $(date -u +%Y-%m-%d)"
-          git push
+              git commit -m "Signal update $(date +%Y-%m-%d)" || exit 0
+              git pull --rebase origin main
+              git push
