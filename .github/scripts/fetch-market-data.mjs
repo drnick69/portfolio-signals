@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro)
+// fetch-market-data.mjs v4.1 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro)
 // No npm dependencies. Direct fetch() calls only.
+// v4.1: RSP/SPY breadth data fetch for SPY positional layer
 
 import { writeFileSync } from "fs";
 
@@ -24,6 +25,14 @@ const SYMBOLS = [
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
   { symbol: "SPY",   finnhub: "SPY",   td: "SPY" },
+];
+
+// ── NEW: Auxiliary symbols (not scored, used as inputs to other holdings) ──
+// RSP = Invesco S&P 500 Equal Weight ETF — used for SPY breadth measurement.
+// When RSP outperforms SPY, the rally is broad/healthy; when SPY outperforms
+// RSP, the rally is narrow/top-heavy.
+const AUX_SYMBOLS = [
+  { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -89,6 +98,37 @@ async function fetchQuotes() {
     console.log(`  [FH] ✓ ${sym.symbol}: $${p.price ?? "—"} (${p.change_pct >= 0 ? "+" : ""}${p.change_pct}%) 52w:${p.week52_position_pct ?? "—"}%`);
 
     await sleep(1100); // Finnhub free = 60/min, so ~1 call/sec is safe
+  }
+
+  return result;
+}
+
+// ─── STAGE 1b: AUXILIARY QUOTES (RSP for SPY breadth) ───────────────────────
+// Quote-only (no metrics needed). Used downstream as breadth indicator.
+async function fetchAuxQuotes() {
+  if (!FK) return {};
+  const result = {};
+
+  for (const sym of AUX_SYMBOLS) {
+    console.log(`  [FH-AUX] ${sym.symbol} (${sym.purpose}): quote...`);
+
+    const q = await fetchJSON(
+      `https://finnhub.io/api/v1/quote?symbol=${sym.finnhub}&token=${FK}`,
+      `FH aux ${sym.symbol}`
+    );
+
+    if (q?.c) {
+      result[sym.symbol] = {
+        price: q.c,
+        change_pct: q.dp != null ? +q.dp.toFixed(2) : 0,
+        previous_close: q.pc ?? null,
+      };
+      console.log(`  [FH-AUX] ✓ ${sym.symbol}: $${q.c} (${q.dp >= 0 ? "+" : ""}${q.dp?.toFixed(2)}%)`);
+    } else {
+      console.log(`  [FH-AUX] ✗ ${sym.symbol}: no quote returned`);
+    }
+
+    await sleep(1100);
   }
 
   return result;
@@ -350,14 +390,18 @@ async function fetchMacro() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4");
-  console.log("========================");
+  console.log("Market Data Pre-Fetch v4.1");
+  console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
 
   // Stage 1: Quotes (Finnhub — ~15s)
   console.log("─── STAGE 1: QUOTES (Finnhub) ───");
   const quotes = await fetchQuotes();
+
+  // Stage 1b: Auxiliary quotes (RSP for SPY breadth)
+  console.log("\n─── STAGE 1b: AUXILIARY QUOTES (Finnhub) ───");
+  const auxQuotes = await fetchAuxQuotes();
 
   // Stage 2: Technicals (TwelveData — ~5 min with rate limit pacing)
   console.log("\n─── STAGE 2: TECHNICALS (TwelveData) ───");
@@ -481,11 +525,45 @@ async function main() {
     };
   }
 
+  // ── NEW: Attach SPY breadth data from RSP auxiliary quote ────────────────
+  // The score-engine's positional layer reads data.breadth.* for SPY.
+  if (output.SPY && auxQuotes.RSP) {
+    const spyPrice = output.SPY.price?.current;
+    const spyChange = output.SPY.price?.change_pct;
+    const rspPrice = auxQuotes.RSP.price;
+    const rspChange = auxQuotes.RSP.change_pct;
+
+    if (spyPrice && rspPrice) {
+      const ratio = +(rspPrice / spyPrice).toFixed(6);
+      const spread = (rspChange != null && spyChange != null)
+        ? +(rspChange - spyChange).toFixed(3) : null;
+
+      output.SPY.breadth = {
+        rsp_price: rspPrice,
+        rsp_change_pct: rspChange,
+        spy_change_pct: spyChange,
+        rsp_spy_ratio: ratio,
+        rsp_spy_spread_pp: spread, // RSP return minus SPY return, in percentage points
+      };
+
+      const broadStr = spread == null ? "—"
+        : spread > 0 ? `RSP outperforming by ${spread}pp (broad rally)`
+        : spread < 0 ? `SPY outperforming by ${(-spread).toFixed(2)}pp (narrow rally)`
+        : "inline";
+      console.log(`  SPY breadth: RSP/SPY=${ratio} | ${broadStr}`);
+    } else {
+      console.log(`  SPY breadth: skipped (missing price data)`);
+    }
+  } else if (output.SPY) {
+    console.log(`  SPY breadth: skipped (no RSP quote available)`);
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
     timestamp: new Date().toISOString(),
-    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred" },
+    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", aux: "finnhub" },
+    aux_symbols: Object.keys(auxQuotes),
   };
 
   // ─── SUMMARY ──────────────────────────────────────────────────────────────
@@ -500,6 +578,7 @@ async function main() {
     console.log(`    Symbols: ${needsWebSearch.join(", ")}`);
   }
   console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
+  console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
   writeFileSync("/tmp/market-data.json", JSON.stringify(output, null, 2));
