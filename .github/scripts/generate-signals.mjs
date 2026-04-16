@@ -7,6 +7,7 @@
 // v6.2: IBIT-specific prompt guidance (no mechanical cycle trim, flows > timing).
 // v6.3: ASML secular_growth_monopoly (dampened RSI/52w, compounder thesis, 15/30/55).
 // v6.4: ENB dividend_compounder (yield spread primary, rate regime, gas/LNG qualitative, 10/45/45).
+// v6.5: AMKBY cyclical_trade_bellwether (shipping PE, enhanced P/B, GSCPI, freight cycle guidance, 25/35/40).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -31,7 +32,7 @@ const HOLDINGS = [
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",      archetype: "momentum_store_of_value",      weights: { t:.30, p:.35, s:.35 } },
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",         archetype: "em_state_oil_dividend",        weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.40, s:.35 } },
+  { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.35, s:.40 } },  // ← CHANGED from 25/40/35
   { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.20, p:.40, s:.40 } },
 ];
 
@@ -67,7 +68,8 @@ function buildPrompt(h, detScores) {
   const isSPY = h.archetype === "beta_sizing";
   const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
-  const isENB = h.archetype === "dividend_compounder";  // ← NEW
+  const isENB = h.archetype === "dividend_compounder";
+  const isAMKBY = h.archetype === "cyclical_trade_bellwether";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -91,6 +93,14 @@ function buildPrompt(h, detScores) {
     enbYieldSpreadLine = `ENB yield spread vs 10Y: ${spreadBps}bps (ENB ${md.valuation.dividendYield}% − 10Y ${macro.us10y}%)${spreadBps > 300 ? " — ATTRACTIVE" : spreadBps < 150 ? " — RICH" : ""}`;
   }
 
+  // ── NEW: AMKBY GSCPI line ─────────────────────────────────────────────────
+  let amkbyGscpiLine = null;
+  if (isAMKBY && macro.gscpi != null) {
+    const g = macro.gscpi;
+    const regime = g > 1.5 ? "STRESSED" : g > 0.5 ? "ELEVATED" : g > -0.5 ? "NORMAL" : g > -1.0 ? "CALM" : "VERY CALM";
+    amkbyGscpiLine = `GSCPI (supply chain pressure): ${g} (${regime}) — date: ${macro.gscpi_date || "latest"}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -102,6 +112,7 @@ function buildPrompt(h, detScores) {
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
     enbYieldSpreadLine,  // ← NEW (null-filtered for non-ENB)
+    amkbyGscpiLine,     // ← NEW (null-filtered for non-AMKBY)
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -215,6 +226,38 @@ MOST DAYS SHOULD BE NEUTRAL:
 ENB should produce composite scores between -5 and +5 roughly 85% of trading days. It's a hold-and-collect-income stock. Meaningful scores only appear during rate overreaction selloffs (buy), yield spread extremes (buy or trim), or genuinely structural catalysts (LNG buildout, dividend policy changes).
 ` : "";
 
+  // ── NEW: AMKBY-specific guidance ──────────────────────────────────────────
+  const amkbyGuidance = isAMKBY ? `
+CRITICAL — AMKBY-SPECIFIC SCORING GUIDANCE:
+Maersk is a CYCLICAL TRADE BELLWETHER — the world's largest container shipping company, also transforming into an integrated logistics provider.
+
+CYCLICAL P/E — SHIPPING-SPECIFIC:
+The engine uses INVERTED P/E. Shipping cycles are MORE EXTREME than commodity cycles: PE 2-5x = genuine peak (trim risk), PE 6-12x = mid-cycle, PE 15-25x = below-trend (recovery), PE 50+ = deep trough (strong buy). Your job: assess WHERE IN THE FREIGHT CYCLE we are.
+
+P/B MATTERS (asset-heavy fleet):
+P/B <0.7 = fleet priced below replacement cost = historically powerful buy. P/B >2.0 = late-cycle premium. Engine already scores this with enhanced weights.
+
+YOUR PRIMARY VALUE-ADD — FREIGHT RATES AND TRADE VOLUMES:
+The engine has NO freight rate data (WCI, SCFI, BDI are paywalled). This is your most important contribution:
+• Drewry WCI / SCFI: current container rates and trend. Are spikes from disruptions (Red Sea, congestion) or genuine demand?
+• Baltic Dry Index as broader shipping demand proxy
+• CPB World Trade Monitor: global trade volume direction (3-month trend)
+• Tariff/trade war impact on container volumes
+• Whether current freight rate levels are sustainable
+
+SUM-OF-PARTS VALUATION:
+• Market often prices Maersk's logistics segment at ZERO during freight troughs
+• Compare logistics implied EV/EBITDA vs DSV (~20x) and Kuehne+Nagel (~15-20x)
+• When logistics is priced at <5x vs peers at 15-20x → structural undervaluation
+• Track logistics transformation progress: revenue mix, acquisition integration
+
+GSCPI CONTEXT:
+If shown in data, GSCPI >1.5 = supply chain stress (rates high but disrupted), GSCPI <-0.5 = calm markets (rate pressure).
+
+SCORES CAN BE MORE VOLATILE:
+Unlike compounders where ±5 is normal, AMKBY legitimately scores ±15 to ±25 during active freight markets. Ground scores in CURRENT freight conditions, not just technicals.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -235,7 +278,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -264,7 +307,8 @@ function buildSearchPrompt(h) {
   const isSPY = h.archetype === "beta_sizing";
   const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
-  const isENB = h.archetype === "dividend_compounder";  // ← NEW
+  const isENB = h.archetype === "dividend_compounder";
+  const isAMKBY = h.archetype === "cyclical_trade_bellwether";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -288,6 +332,11 @@ CRITICAL — ASML SCORING: Secular growth monopoly (sole EUV supplier). Do NOT p
 CRITICAL — ENB SCORING: Dividend compounder / toll-road infrastructure — NOT an oil producer. Do NOT penalize 52w proximity or RSI 55-70 (normal for yield stock). P/E 18-24x is NORMAL. The #1 signal is yield spread vs US 10Y (>300bps = buy, <150bps = rich). ENB is a hold-forever income name — trim is rare and mainly opportunity cost. Search for: ENB dividend yield vs 10Y spread, rate outlook, LNG Canada buildout, WCS-WTI spread, pipeline permitting, dividend growth guidance. Gas volumes and LNG export buildout are real earnings drivers (not just "noise").
 ` : "";
 
+  // ── NEW: AMKBY guidance (abbreviated for web search path) ──
+  const amkbyGuidance = isAMKBY ? `
+CRITICAL — AMKBY SCORING: Cyclical trade bellwether (world's largest container shipping). INVERTED P/E applies — high PE = trough = BUY, low PE = peak = TRIM. Shipping cycles are more extreme than commodities: PE 2-5x = peak, PE 50+ = trough. P/B matters (asset-heavy fleet): P/B <0.7 = below replacement cost = strong buy. Search for: WCI/SCFI container freight rates (THE primary signal), BDI, global trade volumes, Red Sea/Suez disruptions, Maersk logistics vs DSV/Kuehne+Nagel valuation gap, tariff/trade war impacts. Scores can be ±15 to ±25 during active freight markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -303,7 +352,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -513,13 +562,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.4 — ENB yield compounder model (yield spread, rate regime, gas/LNG qualitative)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.5 — AMKBY shipping model (freight PE, enhanced P/B, GSCPI integration)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.4");
+  console.log("Portfolio Strategy Signal Generator v6.5");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
