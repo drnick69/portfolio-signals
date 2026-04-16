@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// generate-signals.mjs v6.2 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v6.3 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v5.1: archetype-aware cyclical PE logic in both deterministic + LLM layers.
 // v6.0: calibration feedback, confidence bands, accuracy tracking integration.
 // v6.1: SPY weight fix (20/40/40), SPY-specific prompt guidance, breadth data.
 // v6.2: IBIT-specific prompt guidance (no mechanical cycle trim, flows > timing).
+// v6.3: ASML secular_growth_monopoly (dampened RSI/52w, compounder thesis, 15/30/55 weights).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -22,7 +23,7 @@ console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} da
 
 const HOLDINGS = [
   { symbol: "MOS",   name: "Mosaic",          sector: "Ag Inputs",         archetype: "cyclical_commodity",           weights: { t:.25, p:.35, s:.40 } },
-  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.15, p:.30, s:.55 } },  // ← CHANGED from 20/35/45
   { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",    archetype: "sector_beta",                  weights: { t:.30, p:.35, s:.35 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",  archetype: "dividend_compounder",          weights: { t:.15, p:.35, s:.50 } },
   { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.25, p:.35, s:.40 } },
@@ -42,9 +43,7 @@ const CYCLICAL_ARCHETYPES = new Set([
   "em_state_oil_dividend",
 ]);
 
-// ─── HALVING PHASE HELPER (for IBIT prompt context) ─────────────────────────  ← NEW
-// Mirrors the logic in score-engine.mjs. Used to tell the LLM where we are in
-// the cycle so it can reason about flow/cycle dynamics qualitatively.
+// ─── HALVING PHASE HELPER (for IBIT prompt context) ─────────────────────────
 function getIBITPhaseContext() {
   const halvingDate = new Date("2024-04-20");
   const now = new Date();
@@ -59,10 +58,6 @@ function getIBITPhaseContext() {
 }
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
-// The LLM's job is now QUALITATIVE: interpret context, assess catalysts/risks,
-// and provide the "judgment" half of the score. The deterministic engine
-// already handles the math — the LLM should add what numbers can't capture.
-
 const JSON_TEMPLATE = (sym) => `{"tactical":{"score":0,"rationale":""},"positional":{"score":0,"rationale":""},"strategic":{"score":0,"rationale":""},"composite":{"score":0,"summary":""},"key_metric":{"name":"","value":""},"risks":["",""],"catalysts":["",""]}`;
 
 function buildPrompt(h, detScores) {
@@ -70,7 +65,8 @@ function buildPrompt(h, detScores) {
   const macro = MARKET_DATA._macro || {};
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isSPY = h.archetype === "beta_sizing";
-  const isIBIT = h.archetype === "momentum_store_of_value";  // ← NEW
+  const isIBIT = h.archetype === "momentum_store_of_value";
+  const isASML = h.archetype === "secular_growth_monopoly";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -79,7 +75,7 @@ function buildPrompt(h, detScores) {
     ? +(macro.fed_funds - macro.tips10y).toFixed(2)
     : null;
 
-  // ── IBIT-specific: compute BTC-vs-200DMA extension for the prompt ──  ← NEW
+  // IBIT-specific extension line
   let ibitExtensionLine = null;
   if (isIBIT && md.price?.current && md.technicals?.sma200) {
     const pct = ((md.price.current - md.technicals.sma200) / md.technicals.sma200) * 100;
@@ -92,8 +88,8 @@ function buildPrompt(h, detScores) {
     md.price?.week52_high ? `52-Week: High $${md.price.week52_high} | Low $${md.price.week52_low} | Position: ${md.price.week52_position_pct}%` : null,
     md.technicals?.rsi14 != null ? `RSI(14): ${md.technicals.rsi14}` : null,
     md.technicals?.sma50 ? `SMA 50: $${md.technicals.sma50} | SMA 200: $${md.technicals.sma200 ?? "N/A"} | Signal: ${md.technicals.ma_signal}` : null,
-    ibitExtensionLine,  // ← NEW (null-filtered below)
-    md.valuation?.trailingPE ? `P/E: ${md.valuation.trailingPE}` : null,
+    ibitExtensionLine,
+    md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
@@ -101,7 +97,6 @@ function buildPrompt(h, detScores) {
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
     macro.hy_oas ? `HY OAS credit spread: ${macro.hy_oas}bps` : null,
     (isSPY && md.breadth) ? `Breadth (RSP/SPY): RSP ${md.breadth.rsp_change_pct >= 0 ? "+" : ""}${md.breadth.rsp_change_pct}% vs SPY ${md.breadth.spy_change_pct >= 0 ? "+" : ""}${md.breadth.spy_change_pct}% | Spread: ${md.breadth.rsp_spy_spread_pp >= 0 ? "+" : ""}${md.breadth.rsp_spy_spread_pp}pp (${md.breadth.rsp_spy_spread_pp > 0 ? "broad/healthy" : md.breadth.rsp_spy_spread_pp < 0 ? "narrow/top-heavy" : "inline"})` : null,
-    // ── NEW: IBIT cycle phase line ──
     isIBIT ? (() => {
       const p = getIBITPhaseContext();
       return `Halving cycle: month ${p.months} post-halving (phase: ${p.phase})`;
@@ -132,7 +127,6 @@ SPY is the broad US market. It is the most efficient instrument in the world —
 • When in doubt on SPY, return closer to 0. NEUTRAL is the most common correct answer.
 ` : "";
 
-  // ── NEW: IBIT-specific guidance ───────────────────────────────────────────
   const ibitGuidance = isIBIT ? `
 CRITICAL — IBIT-SPECIFIC SCORING GUIDANCE:
 IBIT is a spot Bitcoin ETF. Bitcoin is momentum-dominant, flow-driven, and trades in regimes — NOT like equities. Your role here reflects a specific philosophy:
@@ -172,6 +166,49 @@ YOUR VALUE-ADD FOR IBIT:
 • Qualitative read on whether THIS cycle is breaking from the 4-year pattern
 ` : "";
 
+  // ── NEW: ASML-specific guidance ───────────────────────────────────────────
+  const asmlGuidance = isASML ? `
+CRITICAL — ASML-SPECIFIC SCORING GUIDANCE:
+ASML is a SECULAR GROWTH MONOPOLY — the sole supplier of EUV lithography to the world's leading-edge fabs. This stock compounds up-and-to-the-right over time. Your scoring must reflect this.
+
+WHAT NOT TO PENALIZE:
+• Proximity to 52-week highs = NORMAL for a compounder. ASML spends ~70% of trading days in the upper third of its 52w range. This is NOT overbought. The deterministic engine scores this as 0 (neutral). Do not reintroduce trim bias.
+• RSI 65-75 = normal uptrend momentum for a compounder. NOT a sell signal. Only RSI >85 suggests genuine exhaustion.
+• Trailing P/E 30-42x = normal compounder range. ASML's trailing P/E lags the semi cycle. Do NOT treat 35-40x as "expensive" — it's the base case for a company with ~90% gross margins on EUV and 3-year backlog visibility.
+• P/B is meaningless for an asset-light IP monopoly. Ignore it entirely.
+• "above_both_golden" MA signal = the DEFAULT state for a compounder in a healthy trend. This is 0, not +15. Do not add trim bias just because the stock is in an uptrend.
+
+WHAT EARNS REAL TRIM BIAS (rare — maybe 5-10% of days):
+• Forward P/E >45x (if you can find consensus NTM earnings) — genuine valuation stretch
+• Book-to-bill ratio breaking below 1.0 — backlog shrinking, cycle peaking
+• TSMC/Samsung/Intel ALL cutting capex simultaneously — demand destruction
+• China revenue collapsing faster than replaced by other customers — structural revenue hole
+• Multiple of these signals combining — that's real trim territory, earned through fundamentals
+
+WHAT EARNS BUY BIAS (also rare — the alpha is here):
+• Drawdown >15% from 52w highs — ASML rarely sells off this much. When it does (spring 2019, COVID crash, late 2022, spring 2025), these are high-conviction buy opportunities. The model should lean in HARD here.
+• Forward P/E <25x — historically rare and powerful
+• TSMC monthly revenue accelerating + ASML backlog growing — WFE cycle inflection
+• Big single-day drops (5%+) driven by non-fundamental news (China export headlines, geopolitical) — the thesis hasn't changed, only the price
+• Real rates falling (accommodative monetary policy) — long-duration asset benefits
+
+STRUCTURAL ADVANTAGES TO KEEP IN MIND:
+• ASML buys back ~3-5% of shares annually — a "sneaky buyback monster." This provides persistent intrinsic compounding whether the price moves or not. During drawdowns, buybacks retire more shares per dollar spent.
+• Revenue per EUV tool is structurally increasing as High-NA EUV ramps (~$350M+ per tool vs $150M for EUV). This makes the growth trajectory steeper than it looks from unit volumes alone.
+• Backlog visibility is 2-3 years. This is the single most important strategic signal — if backlog is growing, the business is accelerating regardless of quarterly noise.
+
+YOUR VALUE-ADD FOR ASML:
+• Forward P/E assessment (the deterministic engine only has trailing P/E — your qualitative read on forward earnings power is the #1 contribution)
+• TSMC/Samsung/Intel capex commentary from recent earnings calls
+• China export control developments and revenue substitution
+• EUV → High-NA transition timeline and customer adoption
+• Semi cycle positioning: are we in early/mid/late WFE cycle?
+• Backlog and book-to-bill trajectory if recently reported
+
+MOST DAYS SHOULD BE NEUTRAL:
+ASML should produce composite scores between -10 and +10 roughly 80% of trading days. It's a hold-and-compound stock. Meaningful scores (beyond ±15) should only appear during genuine drawdowns (buy) or genuine valuation/cycle peaks (trim). If you're scoring ±20+ on an ordinary day, something is wrong.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -192,7 +229,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -219,7 +256,8 @@ Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.r
 function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isSPY = h.archetype === "beta_sizing";
-  const isIBIT = h.archetype === "momentum_store_of_value";  // ← NEW
+  const isIBIT = h.archetype === "momentum_store_of_value";
+  const isASML = h.archetype === "secular_growth_monopoly";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -230,9 +268,13 @@ CRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High traili
 CRITICAL — SPY SCORING: SPY is the broad market, structurally efficient. Do NOT penalize proximity to 52w highs (momentum-positive for indexes). Focus on event risk, policy catalysts, and regime context. Scores beyond ±30 require genuine dislocations. When in doubt, return NEUTRAL (0).
 ` : "";
 
-  // ── NEW: IBIT guidance (abbreviated for web search path) ──
   const ibitGuidance = isIBIT ? `
 CRITICAL — IBIT SCORING: Bitcoin is momentum-dominant and flow-driven. Cycle phase is context, NOT a trim trigger. Do NOT penalize proximity to 52w highs or "late-cycle" timing. Real trim signals come from FLOW DIVERGENCE (inflows decelerating while price rises), LTH distribution, or extreme extension (>2x 200DMA). RSI 70-80 is normal BTC momentum. Upside is uncapped — a parabolic move is not automatically a top. Buy weakness harder deeper in the cycle (potential cycle-bottom territory).
+` : "";
+
+  // ── NEW: ASML guidance (abbreviated for web search path) ──
+  const asmlGuidance = isASML ? `
+CRITICAL — ASML SCORING: ASML is a secular growth monopoly (sole EUV supplier). Do NOT penalize proximity to 52w highs or RSI 65-75 (normal compounder momentum). Trailing P/E 30-42x is NORMAL for ASML. Real buy signals: drawdowns >15% from highs (rare, high-conviction). Real trim signals: forward P/E >45x, book-to-bill <1.0, simultaneous customer capex cuts. Most days should score near NEUTRAL (0). ASML also buys back ~3-5% of shares annually — buybacks are more efficient during drawdowns. Search for: forward P/E, TSMC revenue trends, backlog/book-to-bill, China export control developments.
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -250,7 +292,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -460,13 +502,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.2 — IBIT model refinement (cycle phase as modifier, not trigger)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.3 — ASML compounder model (dampened RSI/52w, forward PE focus, buyback awareness)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.2");
+  console.log("Portfolio Strategy Signal Generator v6.3");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
