@@ -14,14 +14,13 @@
 //   - CYCLICAL archetypes: inverted P/E logic (high PE = trough = buy)
 //   - BETA_SIZING (SPY): VIX+RSI combo tactical, inverted 52w positional,
 //     HY OAS + yield curve + real rate strategic scoring
-//   - MOMENTUM_STORE_OF_VALUE (IBIT): softened RSI + wider daily bands tactical,
-//     inverted 52w + 200DMA-extension positional, phase-modified (not phase-triggered)
-//     strategic. Cycle phase is a MODIFIER on extension signals, not a standalone
-//     trim trigger. Deeper into cycle → more aggressive buying of weakness.
-//   - SECULAR_GROWTH_MONOPOLY (ASML): dampened high-RSI (compounders sustain
-//     momentum), inverted 52w (drawdowns are rare alpha), above_both_golden = 0
-//     (normal state for compounder), dampened trailing P/E (cycle-lagging),
-//     P/B and yield ignored (asset-light / non-income asset).
+//   - MOMENTUM_STORE_OF_VALUE (IBIT): softened RSI + wider daily bands,
+//     inverted 52w + 200DMA-extension positional, phase-modified strategic
+//   - SECULAR_GROWTH_MONOPOLY (ASML): dampened high-RSI, inverted 52w,
+//     above_both_golden = 0, dampened trailing P/E, P/B and yield ignored
+//   - DIVIDEND_COMPOUNDER (ENB): heavily dampened RSI (yield stock barely moves),
+//     inverted 52w, yield-spread-vs-10Y as primary positional signal,
+//     enhanced real yield + rate regime strategic scoring, P/B skipped
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -52,7 +51,8 @@ export function scoreTactical(data, macro) {
   const archetype = data._archetype || "";
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
-  const isASML = archetype === "secular_growth_monopoly";  // ← NEW
+  const isASML = archetype === "secular_growth_monopoly";
+  const isENB = archetype === "dividend_compounder";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -128,24 +128,15 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── ASML-SPECIFIC: COMPOUNDER RSI + BIG-DROP-AS-ALPHA ───────────────────  ← NEW
-  // Secular compounders sustain high RSI for extended periods during uptrends.
-  // RSI 65-75 is normal momentum for ASML, not a reversal signal. Only RSI >85
-  // meaningfully suggests exhaustion. Conversely, oversold conditions are rarer
-  // and more powerful — a compounder at RSI <30 is a meaningful opportunity.
-  // Big intraday drops (5%+) are often the real tactical alpha (China headlines,
-  // earnings reactions) — these are BUY signals, not noise.
+  // ─── ASML-SPECIFIC: COMPOUNDER RSI + BIG-DROP-AS-ALPHA ───────────────────
   if (isASML) {
     if (rsi != null) {
-      // Buy zones — oversold in a compounder is rare and valuable
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: ASML severe oversold — rare compounder opportunity`); }
       else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: ASML deeply oversold — compounder on sale`); }
       else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: ASML oversold`); }
       else if (rsi < 35) { score += -12; notes.push(`RSI ${rsi}: ASML mildly oversold`); }
       else if (rsi < 45) { score += -3;  notes.push(`RSI ${rsi}: ASML slight softness`); }
-      // Neutral — compounders trend. 45-70 is the normal range, NOT overbought.
       else if (rsi <= 65) { score += 0;  notes.push(`RSI ${rsi}: ASML normal trending range`); }
-      // Overbought zones — DAMPENED. Compounders sustain momentum for weeks.
       else if (rsi < 70) { score += 3;   notes.push(`RSI ${rsi}: ASML normal uptrend momentum`); }
       else if (rsi < 75) { score += 8;   notes.push(`RSI ${rsi}: ASML healthy momentum — not a trim signal`); }
       else if (rsi < 80) { score += 15;  notes.push(`RSI ${rsi}: ASML extended momentum`); }
@@ -153,7 +144,6 @@ export function scoreTactical(data, macro) {
       else               { score += 40;  notes.push(`RSI ${rsi}: ASML extreme — trim bias`); }
     }
 
-    // Daily change — big drops on a compounder are the real alpha
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -7)      { score += -22; notes.push(`ASML daily ${chg}%: rare big drop — aggressive buy`); }
@@ -161,6 +151,40 @@ export function scoreTactical(data, macro) {
       else if (chg < -3) { score += -7;  notes.push(`ASML daily ${chg}%: notable drop`); }
       else if (chg > 5)  { score += 8;   notes.push(`ASML daily +${chg}%: sharp rally`); }
       else if (chg > 3)  { score += 3;   notes.push(`ASML daily +${chg}%: notable rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── ENB-SPECIFIC: YIELD STOCK — BARELY MOVES ────────────────────────────  ← NEW
+  // ENB's daily moves are typically 0.3-0.8%. RSI for a yield stock is almost
+  // always between 40-65. The generic RSI bands are way too aggressive.
+  // Only extreme RSI readings (<25 or >80) are meaningful.
+  // The one real tactical setup: 10Y yield spike → ENB drops sympathetically →
+  // rate overreaction buy. This shows up as a -2%+ daily drop (which is big for ENB).
+  if (isENB) {
+    if (rsi != null) {
+      // Buy zones — rare for a yield stock
+      if (rsi < 20)      { score += -40; notes.push(`RSI ${rsi}: ENB severely oversold — very rare`); }
+      else if (rsi < 25) { score += -25; notes.push(`RSI ${rsi}: ENB deeply oversold`); }
+      else if (rsi < 30) { score += -12; notes.push(`RSI ${rsi}: ENB oversold`); }
+      else if (rsi < 35) { score += -5;  notes.push(`RSI ${rsi}: ENB mildly soft`); }
+      // Massive neutral zone — 35-75 is normal for a yield stock
+      else if (rsi <= 70) { score += 0;  notes.push(`RSI ${rsi}: ENB normal range`); }
+      // Overbought — very dampened. Yield stocks can run warm for months on rate cuts.
+      else if (rsi < 75) { score += 3;   notes.push(`RSI ${rsi}: ENB mildly warm`); }
+      else if (rsi < 80) { score += 8;   notes.push(`RSI ${rsi}: ENB warm — rate cut rally?`); }
+      else               { score += 18;  notes.push(`RSI ${rsi}: ENB overbought — unusual`); }
+    }
+
+    // Daily change — ENB-specific bands (moves <1% are routine, -2% is notable)
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -4)      { score += -20; notes.push(`ENB daily ${chg}%: sharp drop — rate overreaction buy?`); }
+      else if (chg < -2) { score += -10; notes.push(`ENB daily ${chg}%: notable decline — unusual for ENB`); }
+      else if (chg < -1.5){ score += -4; notes.push(`ENB daily ${chg}%: mild softness`); }
+      else if (chg > 3)  { score += 8;   notes.push(`ENB daily +${chg}%: sharp rally — unusual`); }
+      else if (chg > 2)  { score += 3;   notes.push(`ENB daily +${chg}%: notable rally`); }
     }
 
     return { score: clamp(score), notes };
@@ -200,7 +224,8 @@ export function scorePositional(data, macro) {
   const archetype = data._archetype || "";
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
-  const isASML = archetype === "secular_growth_monopoly";  // ← NEW
+  const isASML = archetype === "secular_growth_monopoly";
+  const isENB = archetype === "dividend_compounder";  // ← NEW
 
   // Moving average signal — archetype-aware
   const ma = data.technicals?.ma_signal;
@@ -226,21 +251,30 @@ export function scorePositional(data, macro) {
         notes.push(`IBIT MA: ${ma} (${ibitMaScores[ma] !== 0 ? (ibitMaScores[ma] > 0 ? "+" : "") + ibitMaScores[ma] : "bull regime — neutral"})`);
       }
     } else if (isASML) {
-      // ── ASML: above_both_golden is NORMAL for a compounder ─────────  ← NEW
-      // A secular compounder in an uptrend with 50>200 is the default state.
-      // It's not an "overextended" signal. Only breaks below 200DMA matter
-      // (these are rare and typically high-conviction buy opportunities).
       const asmlMaScores = {
-        "above_both_golden": 0,       // default compounder state — NEUTRAL
-        "above_both": 0,              // default — NEUTRAL
-        "above_50_below_200": -10,    // meaningful pullback through long MA — buy
-        "above_200_below_50": -5,     // soft momentum, long trend intact — mild buy
-        "below_both": -25,            // real drawdown — rare, high-conviction buy
-        "below_both_death": -40,      // catastrophic break — very rare, max buy
+        "above_both_golden": 0, "above_both": 0,
+        "above_50_below_200": -10, "above_200_below_50": -5,
+        "below_both": -25, "below_both_death": -40,
       };
       if (asmlMaScores[ma] != null) {
         score += asmlMaScores[ma];
         notes.push(`ASML MA: ${ma} (${asmlMaScores[ma] !== 0 ? (asmlMaScores[ma] > 0 ? "+" : "") + asmlMaScores[ma] : "normal compounder trend"})`);
+      }
+    } else if (isENB) {
+      // ── ENB: above_both is NORMAL for a dividend compounder ────────  ← NEW
+      // ENB in a healthy uptrend with golden cross is the default state.
+      // Below both MAs is a genuine distress signal (rare for ENB) — strong buy.
+      const enbMaScores = {
+        "above_both_golden": 0,       // normal yield compounder state
+        "above_both": 0,              // normal
+        "above_50_below_200": -8,     // pullback through long MA — buy signal
+        "above_200_below_50": -3,     // weakening but long trend intact — mild buy
+        "below_both": -20,            // distress — rare for a pipeline company, buy
+        "below_both_death": -30,      // severe distress — max buy (2020, 2022 type event)
+      };
+      if (enbMaScores[ma] != null) {
+        score += enbMaScores[ma];
+        notes.push(`ENB MA: ${ma} (${enbMaScores[ma] !== 0 ? (enbMaScores[ma] > 0 ? "+" : "") + enbMaScores[ma] : "normal yield compounder trend"})`);
       }
     } else {
       const maScores = {
@@ -275,11 +309,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 10) { score += -35; notes.push(`IBIT 52w: ${w52}% — significant drawdown, strong buy`); }
       else               { score += -50; notes.push(`IBIT 52w: ${w52}% — deep drawdown, max conviction buy`); }
     } else if (isASML) {
-      // ── ASML: INVERTED 52-WEEK ─────────────────────────────────────  ← NEW
-      // Secular compounders spend ~70% of days in the upper third of their
-      // 52-week range. That's normal, not overbought. Real buy signals come
-      // from meaningful drawdowns (spring 2019, COVID, late 2022, spring 2025).
-      // These are RARE and the score should reflect their quality.
       if (w52 > 95)      { score += 0;   notes.push(`ASML 52w: ${w52}% — at highs, normal for compounder`); }
       else if (w52 > 85) { score += 0;   notes.push(`ASML 52w: ${w52}% — normal trading range`); }
       else if (w52 > 70) { score += -3;  notes.push(`ASML 52w: ${w52}% — mild pullback`); }
@@ -287,6 +316,20 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -28; notes.push(`ASML 52w: ${w52}% — real drawdown, compounder on sale`); }
       else if (w52 > 15) { score += -45; notes.push(`ASML 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -60; notes.push(`ASML 52w: ${w52}% — catastrophic drawdown — max conviction (very rare)`); }
+    } else if (isENB) {
+      // ── ENB: INVERTED 52-WEEK (yield compounder) ──────────────────  ← NEW
+      // ENB near highs = yield compressed = less attractive but normal.
+      // ENB deep in drawdown = yield expanded = better income buy.
+      // Magnitude is moderate (not as extreme as ASML) because ENB's upside
+      // is bounded by yield — you're buying for income + 3-5% dividend growth,
+      // not for 3-5x capital appreciation.
+      if (w52 > 95)      { score += 0;   notes.push(`ENB 52w: ${w52}% — at highs, yield compressed — normal`); }
+      else if (w52 > 85) { score += 0;   notes.push(`ENB 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`ENB 52w: ${w52}% — mild pullback, yield expanding`); }
+      else if (w52 > 50) { score += -10; notes.push(`ENB 52w: ${w52}% — pullback, attractive yield territory`); }
+      else if (w52 > 30) { score += -22; notes.push(`ENB 52w: ${w52}% — significant drawdown, high yield buy`); }
+      else if (w52 > 15) { score += -35; notes.push(`ENB 52w: ${w52}% — major drawdown, strong buy (rare)`); }
+      else               { score += -45; notes.push(`ENB 52w: ${w52}% — distressed — max conviction buy`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -347,10 +390,9 @@ export function scorePositional(data, macro) {
       score += base + bonus;
       notes.push(`BTC >2x 200DMA — extreme extension [${phase}: +${bonus}]`);
     }
-
     notes.push(`Halving cycle: month ${phaseInfo.months}, phase=${phase}`);
   }
-  // Non-IBIT: standard SMA50 distance
+  // Non-IBIT SMA distance
   else if (price && sma50) {
     const pctFromSMA = ((price - sma50) / sma50) * 100;
     if (isSPY) {
@@ -359,12 +401,16 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA > 10)  { score += 8;   notes.push(`SPY ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 6)   { score += 4;   }
     } else if (isASML) {
-      // ── ASML: compounders can run above SMA50 for extended periods ──  ← NEW
-      // Don't punish moderate extension. Big deviations in either direction matter.
       if (pctFromSMA < -12)      { score += -15; notes.push(`ASML ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
       else if (pctFromSMA < -6)  { score += -8;  notes.push(`ASML ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 18)  { score += 6;   notes.push(`ASML ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 10)  { score += 2;   notes.push(`ASML ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isENB) {
+      // ── ENB: narrow SMA bands (yield stocks move slowly) ───────────  ← NEW
+      if (pctFromSMA < -8)       { score += -12; notes.push(`ENB ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down`); }
+      else if (pctFromSMA < -4)  { score += -5;  notes.push(`ENB ${pctFromSMA.toFixed(1)}% below SMA50`); }
+      else if (pctFromSMA > 8)   { score += 5;   notes.push(`ENB ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 5)   { score += 2;   }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -373,7 +419,35 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── SPY ONLY: RSP/SPY breadth ratio ───────────────────────────────────────
+  // ── ENB ONLY: Yield spread vs US 10Y — THE primary positional signal ─────  ← NEW
+  // This is computed from data we already have: ENB's dividend yield (Finnhub)
+  // and the US 10Y yield (FRED). The spread tells you how much premium ENB
+  // pays over risk-free income. Wider = more attractive. Narrower = rich.
+  if (isENB && macro?.us10y != null) {
+    const divYield = data.valuation?.dividendYield;
+    if (divYield != null && divYield > 0) {
+      const spreadPct = divYield - macro.us10y; // in percentage points
+      const spreadBps = Math.round(spreadPct * 100);
+
+      if (spreadBps > 400) {
+        score += -25; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — deep value, historically strong buy`);
+      } else if (spreadBps > 300) {
+        score += -15; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — attractive`);
+      } else if (spreadBps > 200) {
+        score += -5;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — fair`);
+      } else if (spreadBps > 150) {
+        score += 0;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — normal`);
+      } else if (spreadBps > 100) {
+        score += 8;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — getting rich`);
+      } else if (spreadBps > 50) {
+        score += 15;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — expensive`);
+      } else {
+        score += 22;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — historically expensive`);
+      }
+    }
+  }
+
+  // SPY ONLY: RSP/SPY breadth ratio
   if (isSPY && data.breadth) {
     const rspChange = data.breadth.rsp_change_pct;
     const spyChange = data.price?.change_pct;
@@ -389,7 +463,7 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── SPY ONLY: HY OAS credit spread ───────────────────────────────────────
+  // SPY ONLY: HY OAS credit spread
   if (isSPY && macro?.hy_oas != null) {
     const oas = macro.hy_oas;
     if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight spreads, risk-on`); }
@@ -411,9 +485,10 @@ export function scoreStrategic(data, macro) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(archetype);
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
-  const isASML = archetype === "secular_growth_monopoly";  // ← NEW
+  const isASML = archetype === "secular_growth_monopoly";
+  const isENB = archetype === "dividend_compounder";  // ← NEW
 
-  // ─── IBIT STRATEGIC (phase as context, not trigger) ──────────────────────
+  // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
     const phase = phaseInfo.phase;
@@ -444,6 +519,72 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── ENB STRATEGIC ────────────────────────────────────────────────────────  ← NEW
+  // Three pillars: (1) rate regime, (2) dividend sustainability, (3) real yields.
+  // Gas volumes and LNG buildout are handled qualitatively by the LLM layer
+  // since we don't have Henry Hub or pipeline utilization data deterministically.
+  if (isENB) {
+    // P/E — dampened for a utility/infrastructure company
+    // ENB normally trades 18-24x. Only score extremes.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe < 14)       { score += -10; notes.push(`ENB P/E ${pe.toFixed(1)}x: cheap for infrastructure`); }
+      else if (pe < 18)  { score += -5;  notes.push(`ENB P/E ${pe.toFixed(1)}x: below normal`); }
+      else if (pe <= 24) { score += 0;   notes.push(`ENB P/E ${pe.toFixed(1)}x: normal range`); }
+      else if (pe < 28)  { score += 3;   notes.push(`ENB P/E ${pe.toFixed(1)}x: slightly rich`); }
+      else               { score += 8;   notes.push(`ENB P/E ${pe.toFixed(1)}x: rich for infrastructure`); }
+    }
+
+    // Dividend yield — the core strategic anchor for ENB
+    // Higher yield = stock is cheaper (price down, same dividend) = buy signal
+    // Lower yield = stock is expensive = trim territory
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 8)       { score += -15; notes.push(`ENB yield ${dy}%: very high — deeply discounted`); }
+      else if (dy > 7.5) { score += -10; notes.push(`ENB yield ${dy}%: high — historically attractive`); }
+      else if (dy > 7)  { score += -5;  notes.push(`ENB yield ${dy}%: above average`); }
+      else if (dy > 6)  { score += 0;   notes.push(`ENB yield ${dy}%: normal range`); }
+      else if (dy > 5.5) { score += 3;  notes.push(`ENB yield ${dy}%: below average — getting rich`); }
+      else if (dy > 5)  { score += 8;   notes.push(`ENB yield ${dy}%: low — yield compression`); }
+      else              { score += 12;  notes.push(`ENB yield ${dy}%: historically low — expensive`); }
+    }
+
+    // Real yields (TIPS) — ENHANCED weight for ENB vs generic
+    // ENB is a long-duration income asset that directly competes with bonds.
+    // Higher real rates = genuine headwind (capital flows to risk-free income).
+    // Lower real rates = ENB's 6%+ yield is very attractive on relative basis.
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)       { score += 10;  notes.push(`TIPS ${tips}%: very restrictive — strong headwind for yield stocks`); }
+      else if (tips > 2.5){ score += 6;   notes.push(`TIPS ${tips}%: restrictive — yield stock headwind`); }
+      else if (tips > 2)  { score += 3;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)  { score += -10; notes.push(`TIPS ${tips}%: accommodative — yield stocks shine`); }
+      else if (tips < 0.5){ score += -5;  notes.push(`TIPS ${tips}%: very low real rates — ENB yield attractive`); }
+      else if (tips < 1)  { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // 2s10s yield curve — rate regime matters for bond proxies
+    // Steepening / rate cuts = tailwind (ENB yield more attractive vs falling 10Y)
+    // Inverting / rate hikes = headwind (bonds compete harder)
+    if (macro?.spread_2s10s != null) {
+      const spread = macro.spread_2s10s;
+      if (spread > 100)       { score += -5; notes.push(`2s10s +${spread}bps: steep curve — rate cut regime, ENB tailwind`); }
+      else if (spread > 50)   { score += -3; notes.push(`2s10s +${spread}bps: steepening — mildly positive for ENB`); }
+      else if (spread > -30)  { score += 0;  notes.push(`2s10s ${spread}bps: normal range`); }
+      else if (spread > -75)  { score += 5;  notes.push(`2s10s ${spread}bps: inverted — rate risk headwind`); }
+      else                    { score += 8;  notes.push(`2s10s ${spread}bps: deeply inverted — yield stocks under pressure`); }
+    }
+
+    // VIX — mild overlay (ENB is defensive, less affected by equity vol)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — ENB defensive quality, mild buy`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — ENB as safe haven`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // P/E valuation — ARCHETYPE AWARE
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -462,12 +603,6 @@ export function scoreStrategic(data, macro) {
       else if (pe < 35)  { score += 10;  notes.push(`S&P P/E ${pe.toFixed(1)}x: rich`); }
       else               { score += 18;  notes.push(`S&P P/E ${pe.toFixed(1)}x: extreme — late cycle`); }
     } else if (isASML) {
-      // ── ASML: DAMPENED TRAILING P/E ─────────────────────────────────  ← NEW
-      // ASML's trailing P/E lags the semi cycle significantly. The stock normally
-      // trades 30-42x trailing during healthy cycle expansions — that's the
-      // base case, not "expensive." Forward P/E would be more informative
-      // (LLM layer should fetch it) but trailing is what we have deterministically.
-      // Cheap = <25x (rare), extreme = >50x (peak hype).
       if (pe < 18)       { score += -15; notes.push(`ASML P/E ${pe.toFixed(1)}x: deep value — very rare`); }
       else if (pe < 25)  { score += -10; notes.push(`ASML P/E ${pe.toFixed(1)}x: cheap for ASML`); }
       else if (pe < 32)  { score += -3;  notes.push(`ASML P/E ${pe.toFixed(1)}x: below normal compounder range`); }
@@ -485,8 +620,8 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // P/B valuation — skip for SPY (index) and ASML (asset-light compounder)  ← CHANGED
-  if (!isSPY && !isASML) {
+  // P/B — skip for SPY, ASML, and ENB
+  if (!isSPY && !isASML && !isENB) {  // ← CHANGED: added isENB
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.8)      { score += -10; notes.push(`P/B ${pb}: below book`); }
@@ -496,14 +631,14 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // Dividend yield — ASML yield (~1%) doesn't trigger any bonus band anyway
+  // Dividend yield (handled inside ENB branch above, skip here for ENB)
   const dy = data.valuation?.dividendYield;
-  if (dy != null && dy > 0) {
+  if (dy != null && dy > 0 && !isENB) {  // ← CHANGED: added !isENB
     if (isSPY) {
       if (dy > 2.5)     { score += -5; notes.push(`S&P yield ${dy}%: elevated — market is cheap`); }
       else if (dy < 1)  { score += 3;  notes.push(`S&P yield ${dy}%: compressed — market is rich`); }
     } else if (isASML) {
-      // ASML yield around 1% — not a primary signal. Skip. (~NEW, explicit)
+      // ASML yield ~1% — skip
     } else {
       if (dy > 8)       { score += -10; notes.push(`Yield ${dy}%: very high`); }
       else if (dy > 5)  { score += -5;  notes.push(`Yield ${dy}%: attractive`); }
@@ -511,9 +646,9 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // VIX overlay
+  // VIX (handled inside ENB branch above, skip here for ENB)
   const vix = macro?.vix;
-  if (vix != null) {
+  if (vix != null && !isENB) {  // ← CHANGED: added !isENB
     if (isSPY) {
       if (vix > 40)      { score += -15; notes.push(`VIX ${vix}: panic — strong contrarian buy`); }
       else if (vix > 30) { score += -10; notes.push(`VIX ${vix}: high fear — contrarian buy`); }
@@ -521,8 +656,6 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 8;   notes.push(`VIX ${vix}: extreme complacency — risk elevated`); }
       else if (vix < 14) { score += 4;   notes.push(`VIX ${vix}: low vol complacency`); }
     } else if (isASML) {
-      // ── ASML: VIX matters (high-multiple stock, compression risk) ──  ← NEW
-      // But less than SPY since compounders ride through vol better.
       if (vix > 35)      { score += -10; notes.push(`VIX ${vix}: panic — ASML contrarian buy`); }
       else if (vix > 25) { score += -4;  notes.push(`VIX ${vix}: elevated fear — mild ASML buy bias`); }
       else if (vix < 12) { score += 3;   notes.push(`VIX ${vix}: complacency — marginal caution`); }
@@ -533,11 +666,10 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // Real yields — ASML is long-duration, so real rates matter
+  // Real yields (handled inside ENB branch above, skip here for ENB)
   const tips = macro?.tips10y;
-  if (tips != null) {
+  if (tips != null && !isENB) {  // ← CHANGED: added !isENB
     if (isASML) {
-      // ── ASML: real rates directly impact discount rate on long-duration cash flows ──  ← NEW
       if (tips > 3)       { score += 8;   notes.push(`TIPS ${tips}%: very restrictive — long-duration headwind`); }
       else if (tips > 2.5){ score += 4;   notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips < 0)  { score += -8;  notes.push(`TIPS ${tips}%: accommodative — long-duration tailwind`); }
@@ -549,7 +681,7 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // SPY ONLY: yield curve
+  // SPY ONLY: yield curve (ENB has its own 2s10s logic inside its branch above)
   if (isSPY && macro?.spread_2s10s != null) {
     const spread = macro.spread_2s10s;
     if (spread > 100)       { score += -8; notes.push(`2s10s +${spread}bps: steep curve — bullish macro`); }
