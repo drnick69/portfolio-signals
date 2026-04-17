@@ -8,6 +8,7 @@
 // v6.3: ASML secular_growth_monopoly (dampened RSI/52w, compounder thesis, 15/30/55).
 // v6.4: ENB dividend_compounder (yield spread primary, rate regime, gas/LNG qualitative, 10/45/45).
 // v6.5: AMKBY cyclical_trade_bellwether (shipping PE, enhanced P/B, GSCPI, freight cycle guidance, 25/35/40).
+// v6.6: ETHA high_beta_crypto (wider RSI/daily bands, inverted 52w, 200DMA extension, ETHA/IBIT alt-season ratio, 30/35/35).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -27,7 +28,7 @@ const HOLDINGS = [
   { symbol: "ASML",  name: "ASML",            sector: "Semis (Litho)",     archetype: "secular_growth_monopoly",      weights: { t:.15, p:.30, s:.55 } },
   { symbol: "SMH",   name: "VanEck Semis",    sector: "Semiconductors",    archetype: "sector_beta",                  weights: { t:.30, p:.35, s:.35 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",  archetype: "dividend_compounder",          weights: { t:.10, p:.45, s:.45 } },  // ← CHANGED from 15/35/50
-  { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.30, p:.35, s:.35 } },  // ← CHANGED from 25/35/40
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader", weights: { t:.20, p:.35, s:.45 } },
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",      archetype: "momentum_store_of_value",      weights: { t:.30, p:.35, s:.35 } },
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
@@ -69,7 +70,8 @@ function buildPrompt(h, detScores) {
   const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
-  const isAMKBY = h.archetype === "cyclical_trade_bellwether";  // ← NEW
+  const isAMKBY = h.archetype === "cyclical_trade_bellwether";
+  const isETHA = h.archetype === "high_beta_crypto";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -101,6 +103,20 @@ function buildPrompt(h, detScores) {
     amkbyGscpiLine = `GSCPI (supply chain pressure): ${g} (${regime}) — date: ${macro.gscpi_date || "latest"}`;
   }
 
+  // ── NEW: ETHA alt-season line + 200DMA extension ──────────────────────────
+  let ethaAltSeasonLine = null;
+  if (isETHA && md.alt_season) {
+    const s = md.alt_season;
+    const dir = s.relative_spread_pp > 0.5 ? "ALT-SEASON (ETHA outperforming)" :
+                s.relative_spread_pp < -0.5 ? "BTC DOMINANCE (IBIT outperforming)" : "INLINE";
+    ethaAltSeasonLine = `ETHA/IBIT ratio: ${s.etha_ibit_ratio ?? "—"} | Spread: ${s.relative_spread_pp != null ? (s.relative_spread_pp >= 0 ? "+" : "") + s.relative_spread_pp + "pp" : "—"} (${dir})`;
+  }
+  let ethaExtensionLine = null;
+  if (isETHA && md.price?.current && md.technicals?.sma200) {
+    const pct = ((md.price.current - md.technicals.sma200) / md.technicals.sma200) * 100;
+    ethaExtensionLine = `ETH vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -108,11 +124,13 @@ function buildPrompt(h, detScores) {
     md.technicals?.rsi14 != null ? `RSI(14): ${md.technicals.rsi14}` : null,
     md.technicals?.sma50 ? `SMA 50: $${md.technicals.sma50} | SMA 200: $${md.technicals.sma200 ?? "N/A"} | Signal: ${md.technicals.ma_signal}` : null,
     ibitExtensionLine,
+    ethaExtensionLine,   // ← NEW (null-filtered for non-ETHA)
     md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
     enbYieldSpreadLine,  // ← NEW (null-filtered for non-ENB)
     amkbyGscpiLine,     // ← NEW (null-filtered for non-AMKBY)
+    ethaAltSeasonLine,  // ← NEW (null-filtered for non-ETHA)
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -258,6 +276,30 @@ SCORES CAN BE MORE VOLATILE:
 Unlike compounders where ±5 is normal, AMKBY legitimately scores ±15 to ±25 during active freight markets. Ground scores in CURRENT freight conditions, not just technicals.
 ` : "";
 
+  // ── NEW: ETHA-specific guidance ───────────────────────────────────────────
+  const ethaGuidance = isETHA ? `
+CRITICAL — ETHA-SPECIFIC SCORING GUIDANCE:
+ETHA is a spot Ethereum ETF. ETH trades at ~1.3-1.5x BTC's daily volatility and sits further out on the risk curve. It has NO halving cycle, NO "digital gold" thesis, and NO meaningful valuation metrics.
+
+WHAT ACTUALLY DRIVES ETHA'S PRICE (in order of magnitude):
+1. BTC DIRECTION: ETH correlation with BTC is 0.85-0.95. When BTC moves, ETH follows — harder in both directions. The engine already scores this via RSI and 200DMA extension.
+2. RISK APPETITE: ETH is more sensitive to VIX, HY OAS, and real rates than BTC. In risk-off, ETH drops 1.3-1.5x what BTC drops. The engine scores this with enhanced macro weights.
+3. ETH/BTC RATIO (ALT-SEASON): When capital rotates from BTC into alts, ETH outperforms ("alt season"). When BTC dominance rises, ETH underperforms. The engine computes this as ETHA/IBIT daily performance spread. Your job: assess whether a rotation is starting, peaking, or fading.
+
+DO NOT PENALIZE: RSI 70-80 (normal ETH momentum), proximity to 52w highs (momentum-positive), P/E or P/B (meaningless for crypto ETF), golden cross MA (normal trending state).
+
+WHAT THE ENGINE CANNOT CAPTURE (YOUR VALUE-ADD):
+• DeFi/L2 ecosystem health: is TVL growing? Are L2s (Arbitrum, Optimism, Base) gaining traction?
+• Regulatory catalysts: SEC stance on ETH as commodity vs security, staking ETF approvals
+• Network upgrades: Pectra, Dencun impacts on gas fees and throughput
+• Competitive L1 threats: is Solana stealing mindshare/volume from ETH?
+• Whether the BTC→ETH rotation has legs or is already exhausted
+• ETF flow dynamics: are ETHA inflows accelerating, decelerating, or going negative?
+
+SCORING CALIBRATION:
+ETH is more volatile than BTC, so scores can be slightly wider. ±15-20 during active crypto markets is reasonable. But most days should still be close to neutral if BTC is flat and macro is stable.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -278,7 +320,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -308,7 +350,8 @@ function buildSearchPrompt(h) {
   const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
-  const isAMKBY = h.archetype === "cyclical_trade_bellwether";  // ← NEW
+  const isAMKBY = h.archetype === "cyclical_trade_bellwether";
+  const isETHA = h.archetype === "high_beta_crypto";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -337,6 +380,11 @@ CRITICAL — ENB SCORING: Dividend compounder / toll-road infrastructure — NOT
 CRITICAL — AMKBY SCORING: Cyclical trade bellwether (world's largest container shipping). INVERTED P/E applies — high PE = trough = BUY, low PE = peak = TRIM. Shipping cycles are more extreme than commodities: PE 2-5x = peak, PE 50+ = trough. P/B matters (asset-heavy fleet): P/B <0.7 = below replacement cost = strong buy. Search for: WCI/SCFI container freight rates (THE primary signal), BDI, global trade volumes, Red Sea/Suez disruptions, Maersk logistics vs DSV/Kuehne+Nagel valuation gap, tariff/trade war impacts. Scores can be ±15 to ±25 during active freight markets.
 ` : "";
 
+  // ── NEW: ETHA guidance (abbreviated for web search path) ──
+  const ethaGuidance = isETHA ? `
+CRITICAL — ETHA SCORING: Spot Ethereum ETF. ETH runs at 1.3-1.5x BTC's volatility, further out on risk curve. Do NOT penalize RSI 70-80 or 52w proximity. P/E, P/B, yield are all MEANINGLESS for crypto. Key drivers: BTC direction (0.85-0.95 correlation), risk appetite (VIX/HY OAS), and ETH/BTC ratio (alt-season indicator). Search for: ETH/BTC ratio trend, ETF flow data, DeFi TVL trends, L2 ecosystem growth, regulatory stance on ETH, network upgrades, competitive L1 threats (Solana). Scores can be ±15-20 during active crypto markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -352,7 +400,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -562,13 +610,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.5 — AMKBY shipping model (freight PE, enhanced P/B, GSCPI integration)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.6 — ETHA high-beta crypto model (alt-season ratio, enhanced macro sensitivity)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.5");
+  console.log("Portfolio Strategy Signal Generator v6.6");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
