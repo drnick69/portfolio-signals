@@ -24,6 +24,9 @@
 //   - CYCLICAL_TRADE_BELLWETHER (AMKBY): shipping-specific PE thresholds (more
 //     extreme cycles), enhanced P/B (asset-heavy fleet), dampened MA golden cross,
 //     dampened 52w at highs, GSCPI + HY OAS as strategic overlays
+//   - HIGH_BETA_CRYPTO (ETHA): wider RSI/daily bands than IBIT (1.3-1.5x vol),
+//     inverted 52w + 200DMA extension (no phase amplification), ETHA/IBIT alt-season
+//     ratio as positional signal, all valuation skipped, enhanced macro sensitivity
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -55,7 +58,8 @@ export function scoreTactical(data, macro) {
   const isSPY = archetype === "beta_sizing";
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";  // ← NEW
+  const isENB = archetype === "dividend_compounder";
+  const isETHA = archetype === "high_beta_crypto";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -193,6 +197,40 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── ETHA-SPECIFIC: WIDER BANDS THAN IBIT (1.3-1.5x BTC VOL) ────────────
+  // ETH runs at higher beta than BTC — RSI 80+ is where trim starts (vs 75 IBIT).
+  // Daily ±8% is a normal volatile day for ETH. Only extreme moves matter.
+  if (isETHA) {
+    if (rsi != null) {
+      if (rsi < 15)      { score += -65; notes.push(`RSI ${rsi}: ETH severely oversold — capitulation`); }
+      else if (rsi < 20) { score += -55; notes.push(`RSI ${rsi}: ETH deeply oversold`); }
+      else if (rsi < 25) { score += -40; notes.push(`RSI ${rsi}: ETH oversold`); }
+      else if (rsi < 30) { score += -25; notes.push(`RSI ${rsi}: ETH mildly oversold`); }
+      else if (rsi < 40) { score += -8;  notes.push(`RSI ${rsi}: ETH slightly soft`); }
+      else if (rsi <= 65) { score += 0;  notes.push(`RSI ${rsi}: ETH neutral/trending`); }
+      else if (rsi < 70) { score += 3;   notes.push(`RSI ${rsi}: ETH trending up — healthy`); }
+      else if (rsi < 75) { score += 5;   notes.push(`RSI ${rsi}: ETH strong momentum`); }
+      else if (rsi < 80) { score += 10;  notes.push(`RSI ${rsi}: ETH momentum — not yet overbought`); }
+      else if (rsi < 85) { score += 22;  notes.push(`RSI ${rsi}: ETH overbought — trim bias`); }
+      else if (rsi < 90) { score += 35;  notes.push(`RSI ${rsi}: ETH deeply overbought`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: ETH extreme — parabolic exhaustion`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -12)      { score += -22; notes.push(`ETH daily ${chg}%: capitulation-style decline`); }
+      else if (chg < -8)  { score += -14; notes.push(`ETH daily ${chg}%: sharp decline`); }
+      else if (chg < -5)  { score += -8;  notes.push(`ETH daily ${chg}%: notable decline`); }
+      else if (chg < -3)  { score += -3;  notes.push(`ETH daily ${chg}%: mild decline`); }
+      else if (chg > 12)  { score += 18;  notes.push(`ETH daily +${chg}%: parabolic spike`); }
+      else if (chg > 8)   { score += 10;  notes.push(`ETH daily +${chg}%: sharp rally`); }
+      else if (chg > 5)   { score += 5;   notes.push(`ETH daily +${chg}%: notable rally`); }
+      else if (chg > 3)   { score += 2;   notes.push(`ETH daily +${chg}%: mild rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -229,7 +267,8 @@ export function scorePositional(data, macro) {
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
-  const isAMKBY = archetype === "cyclical_trade_bellwether";  // ← NEW — archetype-aware
+  const isAMKBY = archetype === "cyclical_trade_bellwether";
+  const isETHA = archetype === "high_beta_crypto";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -292,6 +331,21 @@ export function scorePositional(data, macro) {
       if (amkbyMaScores[ma] != null) {
         score += amkbyMaScores[ma];
         notes.push(`AMKBY MA: ${ma} (${amkbyMaScores[ma] > 0 ? "+" : ""}${amkbyMaScores[ma]})`);
+      }
+    } else if (isETHA) {
+      // ── ETHA: same philosophy as IBIT (above both = normal crypto bull regime)
+      // but death cross signals are slightly less aggressive (ETH whipsaws more)
+      const ethaMaScores = {
+        "above_both_golden": 0,       // bull regime — neutral
+        "above_both": 0,              // trending — neutral
+        "above_50_below_200": -5,     // recovering
+        "above_200_below_50": -8,     // pullback, long trend intact
+        "below_both": -18,            // downtrend — buy
+        "below_both_death": -28,      // deep downtrend — strong buy
+      };
+      if (ethaMaScores[ma] != null) {
+        score += ethaMaScores[ma];
+        notes.push(`ETHA MA: ${ma} (${ethaMaScores[ma] !== 0 ? (ethaMaScores[ma] > 0 ? "+" : "") + ethaMaScores[ma] : "bull regime — neutral"})`);
       }
     } else {
       const maScores = {
@@ -360,6 +414,17 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -20; notes.push(`AMKBY 52w: ${w52}% — lower range, freight trough buy`); }
       else if (w52 > 5)  { score += -30; notes.push(`AMKBY 52w: ${w52}% — near lows, deep cyclical buy`); }
       else               { score += -35; notes.push(`AMKBY 52w: ${w52}% — extreme low, max conviction`); }
+    } else if (isETHA) {
+      // ── ETHA: INVERTED 52-WEEK (like IBIT but with steeper drawdown buys)
+      // ETH drops harder than BTC in corrections (1.3-1.5x beta), so drawdowns
+      // are deeper and the buy signals should be more aggressive at lows.
+      if (w52 > 95)      { score += 0;   notes.push(`ETHA 52w: ${w52}% — at highs, momentum positive`); }
+      else if (w52 > 85) { score += 0;   notes.push(`ETHA 52w: ${w52}% — near highs, healthy trend`); }
+      else if (w52 > 60) { score += -3;  notes.push(`ETHA 52w: ${w52}% — upper range`); }
+      else if (w52 > 40) { score += -12; notes.push(`ETHA 52w: ${w52}% — mid range, buy interest`); }
+      else if (w52 > 25) { score += -25; notes.push(`ETHA 52w: ${w52}% — lower range, buy`); }
+      else if (w52 > 10) { score += -40; notes.push(`ETHA 52w: ${w52}% — significant drawdown, strong buy`); }
+      else               { score += -55; notes.push(`ETHA 52w: ${w52}% — deep drawdown, max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -421,6 +486,26 @@ export function scorePositional(data, macro) {
       notes.push(`BTC >2x 200DMA — extreme extension [${phase}: +${bonus}]`);
     }
     notes.push(`Halving cycle: month ${phaseInfo.months}, phase=${phase}`);
+  }
+  // ETHA: 200DMA extension (like IBIT but NO phase amplification — ETH has no halving)
+  // ETH runs at ~1.3-1.5x BTC's volatility, so extension bands are slightly wider.
+  else if (isETHA && price && sma200) {
+    const pctFrom200 = ((price - sma200) / sma200) * 100;
+
+    if (pctFrom200 < -40)      { score += -50; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — extreme drawdown, max buy`); }
+    else if (pctFrom200 < -25) { score += -35; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — deep correction, strong buy`); }
+    else if (pctFrom200 < -10) { score += -18; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — correction, buy`); }
+    else if (pctFrom200 < -5)  { score += -8;  notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — testing regime`); }
+    else if (pctFrom200 < 30)  {
+      if (pctFrom200 > 10) {
+        score += -3; notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — trending bull regime`);
+      } else {
+        notes.push(`ETH ${pctFrom200.toFixed(1)}% vs 200DMA — regime healthy`);
+      }
+    }
+    else if (pctFrom200 < 60)  { score += 10;  notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — extended`); }
+    else if (pctFrom200 < 100) { score += 22;  notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — parabolic extension`); }
+    else                       { score += 35;  notes.push(`ETH >2x 200DMA — extreme extension`); }
   }
   // Non-IBIT SMA distance
   else if (price && sma50) {
@@ -519,6 +604,22 @@ export function scorePositional(data, macro) {
     else               { score += 10;  notes.push(`GSCPI ${g}: very calm — freight trough territory`); }
   }
 
+  // ── ETHA ONLY: ETHA/IBIT ratio (alt-season indicator) ────────────────────
+  // When ETHA outperforms IBIT, capital is rotating down the risk curve ("alt season").
+  // When IBIT outperforms ETHA, BTC dominance is rising (risk-off within crypto).
+  // Computed in fetch-market-data.mjs from prices we already have.
+  if (isETHA && data.alt_season) {
+    const spread = data.alt_season.relative_spread_pp;
+    if (spread != null) {
+      if (spread > 3)       { score += -8; notes.push(`ETHA outperforming IBIT by ${spread}pp — strong alt-season rotation`); }
+      else if (spread > 1)  { score += -4; notes.push(`ETHA outperforming IBIT by ${spread}pp — alt rotation`); }
+      else if (spread > 0.3){ score += -2; notes.push(`ETHA mildly outperforming IBIT (${spread}pp)`); }
+      else if (spread < -3) { score += 8;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance, ETH headwind`); }
+      else if (spread < -1) { score += 4;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance`); }
+      else                  { notes.push(`ETHA/IBIT spread: ${spread}pp — inline`); }
+    }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -533,7 +634,8 @@ export function scoreStrategic(data, macro) {
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
-  const isAMKBY = archetype === "cyclical_trade_bellwether";  // ← NEW
+  const isAMKBY = archetype === "cyclical_trade_bellwether";
+  const isETHA = archetype === "high_beta_crypto";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -705,6 +807,43 @@ export function scoreStrategic(data, macro) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — global trade fear, contrarian buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── ETHA STRATEGIC ──────────────────────────────────────────────────────  ← NEW
+  // All valuation metrics (PE, PB, yield) are meaningless for a crypto ETF.
+  // Strategic layer is purely macro regime: VIX, real rates, credit conditions.
+  // ETH is MORE sensitive to risk appetite than BTC — enhanced weights.
+  if (isETHA) {
+    // VIX — enhanced sensitivity (ETH is further out on risk curve than BTC)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 40)      { score += -12; notes.push(`VIX ${vix}: panic — ETH contrarian buy (high-beta)`); }
+      else if (vix > 30) { score += -8;  notes.push(`VIX ${vix}: high fear — ETH buy bias`); }
+      else if (vix > 25) { score += -3;  notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 5;   notes.push(`VIX ${vix}: extreme complacency — ETH vulnerable`); }
+      else if (vix < 14) { score += 3;   notes.push(`VIX ${vix}: low vol complacency`); }
+    }
+
+    // TIPS — enhanced sensitivity (ETH is a long-duration risk asset)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 2.5)    { score += 6;   notes.push(`TIPS ${tips}%: restrictive — ETH headwind`); }
+      else if (tips > 2) { score += 3;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0) { score += -8;  notes.push(`TIPS ${tips}%: accommodative — ETH tailwind`); }
+      else if (tips < 0.5){ score += -4; notes.push(`TIPS ${tips}%: low real rates — risk assets favored`); }
+    }
+
+    // HY OAS — risk appetite proxy (ETH more sensitive than BTC to credit conditions)
+    if (macro?.hy_oas != null) {
+      const oas = macro.hy_oas;
+      if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight — risk-on, ETH tailwind`); }
+      else if (oas < 400) { score += 0;  notes.push(`HY OAS ${oas}bps: normal`); }
+      else if (oas < 500) { score += 8;  notes.push(`HY OAS ${oas}bps: widening — ETH headwind`); }
+      else if (oas < 700) { score += 15; notes.push(`HY OAS ${oas}bps: stressed — ETH at risk`); }
+      else                { score += 22; notes.push(`HY OAS ${oas}bps: crisis — ETH high-beta pain`); }
     }
 
     return { score: clamp(score), notes };
