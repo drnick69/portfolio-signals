@@ -12,6 +12,7 @@
 // v6.7: KOF em_dividend_growth (dampened RSI, mildly inverted 52w, MXN/USD FX regime, narrowed PE, 15/35/50).
 // v6.8: GLNCY diversified_commodity_trader (COPX ratio, GSCPI+HY OAS, PE with trading arm floor, enhanced P/B, 20/35/45).
 // v6.9: PBR.A em_state_oil_dividend (WTI+BRL/USD regime, enhanced dividend yield 8-15%+, political risk LLM focus, 20/35/45).
+// v7.0: MOS cyclical_commodity (CORN ratio, seasonal modifier, BRL/USD mild, dampened RSI/MA/52w, 25/35/40).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -77,7 +78,8 @@ function buildPrompt(h, detScores) {
   const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
-  const isPBRA = h.archetype === "em_state_oil_dividend";  // ← NEW
+  const isPBRA = h.archetype === "em_state_oil_dividend";
+  const isMOS = h.archetype === "cyclical_commodity";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -158,6 +160,8 @@ function buildPrompt(h, detScores) {
     glncyCopxLine,      // ← NEW (null-filtered for non-GLNCY)
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
+    (isMOS && md.ag_demand) ? `MOS/CORN: ratio ${md.ag_demand.mos_corn_ratio ?? "—"} | CORN $${md.ag_demand.corn_price ?? "—"} (${md.ag_demand.corn_change_pct >= 0 ? "+" : ""}${md.ag_demand.corn_change_pct}%) | Spread: ${md.ag_demand.relative_spread_pp != null ? (md.ag_demand.relative_spread_pp >= 0 ? "+" : "") + md.ag_demand.relative_spread_pp + "pp" : "—"}` : null,
+    (isMOS && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (mild MOS overlay — Mosaic Fertilizantes)` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -410,6 +414,31 @@ YOUR VALUE-ADD:
 SCORING: PBR.A can produce ±15-25 during active oil/political markets. Political crisis + oil crash can produce genuine STRONG_BUY territory (-40+). Political stability + strong oil + compressed yield can produce genuine TRIM (+25+).
 ` : "";
 
+  // ── NEW: MOS-specific guidance ────────────────────────────────────────────
+  const mosGuidance = isMOS ? `
+CRITICAL — MOS-SPECIFIC SCORING GUIDANCE:
+MOS is The Mosaic Company — world's largest producer of finished phosphate and potash fertilizers. CYCLICAL COMMODITY — inverted PE applies (high PE = trough = BUY).
+
+WHAT DRIVES MOS'S PRICE:
+1. FERTILIZER PRICES — Potash > Phosphate > Nitrogen (in order of MOS exposure). The engine has NO direct fertilizer price data. THIS IS YOUR #1 VALUE-ADD. Search for current potash and DAP/MAP spot prices.
+2. CORN/AG PRICES — When corn is high ($6-7+/bu), farmers buy more fertilizer. When corn is low ($4/bu), they cut applications. The engine scores CORN ETF as a proxy.
+3. SEASONAL CYCLES — The engine applies a seasonal modifier: spring planting (Mar-May) = peak demand bias, fall (Sep-Nov) = LatAm planting pulse, winter (Dec-Feb) = weakest period.
+4. BRL/USD — Mild overlay. Mosaic Fertilizantes (Brazil operations) is significant.
+
+YOUR PRIMARY VALUE-ADD — FERTILIZER PRICING:
+• Current potash spot prices (MOP, granular) — MOS's highest-margin product
+• Current DAP/MAP phosphate prices
+• Chinese/Indian potash contract negotiations — these set global benchmarks
+• Belarus/Russia supply disruption status (potash supply concentration)
+• Channel inventory levels — are distributors stocking or destocking?
+• Sulfur and ammonia input costs — margin compression or expansion?
+• Planted acres outlook (USDA) and crop condition reports
+
+DO NOT PENALIZE: RSI 62-75 during fertilizer rallies (MOS runs extended in potash shortages).
+
+SCORING: MOS is more volatile than consumer staples but less extreme than shipping. ±10-20 during active fertilizer markets. Seasonal modifier adds ±3 per layer.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -430,7 +459,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -464,7 +493,8 @@ function buildSearchPrompt(h) {
   const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
-  const isPBRA = h.archetype === "em_state_oil_dividend";  // ← NEW
+  const isPBRA = h.archetype === "em_state_oil_dividend";
+  const isMOS = h.archetype === "cyclical_commodity";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -513,6 +543,11 @@ CRITICAL — GLNCY SCORING: Diversified commodity trader (mining: copper 30%, co
 CRITICAL — PBR.A SCORING: Petrobras, Brazil state-controlled oil. INVERTED P/E (oil producer cyclical). Three forces: oil price (WTI/Brent), BRL/USD, and POLITICAL RISK (the #1 idiosyncratic factor). Yield 10-15% is NORMAL — the thesis IS the massive yield as compensation for state risk. Search for: WTI/Brent price and OPEC outlook, Lula government interference (CEO changes, fuel pricing, dividend pressure), BRL/USD direction, pre-salt production, dividend sustainability, refining margins. Political crisis + oil crash = potential STRONG_BUY. Scores ±15-25 during active oil/political markets.
 ` : "";
 
+  // ── NEW: MOS guidance (abbreviated for web search path) ──
+  const mosGuidance = isMOS ? `
+CRITICAL — MOS SCORING: The Mosaic Company, world's largest finished phosphate and potash producer. INVERTED P/E (cyclical commodity). Key drivers: potash/DAP/MAP fertilizer prices (THE #1 signal — no API data, search for current spot prices), CORN ETF as ag demand proxy, seasonal planting cycles (spring Mar-May = peak demand, winter = weakest). BRL/USD mild overlay (Mosaic Fertilizantes). Search for: potash spot prices, DAP/MAP prices, Chinese/Indian potash contracts, Belarus/Russia supply, channel inventories, sulfur input costs, USDA planted acres. RSI 62-75 is normal during potash rallies. Scores ±10-20 during active fertilizer markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -528,7 +563,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -738,13 +773,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.9 — PBR.A EM state oil model (WTI+BRL regime, enhanced dividend yield, political risk LLM focus)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.0 — All 10 archetype models complete (MOS cyclical commodity with CORN ratio + seasonal)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.9");
+  console.log("Portfolio Strategy Signal Generator v7.0");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
