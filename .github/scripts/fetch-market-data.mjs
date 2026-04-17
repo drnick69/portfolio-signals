@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.2 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
+// fetch-market-data.mjs v4.3 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
+// v4.3: ETHA/IBIT alt-season ratio for ETHA positional layer
 
 import { writeFileSync } from "fs";
 
@@ -48,6 +49,8 @@ async function fetchJSON(url, label) {
 }
 
 // ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 11 symbols) ────────
+// Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
+// Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range
 async function fetchQuotes() {
   if (!FK) return {};
   const result = {};
@@ -92,13 +95,14 @@ async function fetchQuotes() {
     const p = result[sym.symbol];
     console.log(`  [FH] ✓ ${sym.symbol}: $${p.price ?? "—"} (${p.change_pct >= 0 ? "+" : ""}${p.change_pct}%) 52w:${p.week52_position_pct ?? "—"}%`);
 
-    await sleep(1100);
+    await sleep(1100); // Finnhub free = 60/min, so ~1 call/sec is safe
   }
 
   return result;
 }
 
 // ─── STAGE 1b: AUXILIARY QUOTES (RSP for SPY breadth) ───────────────────────
+// Quote-only (no metrics needed). Used downstream as breadth indicator.
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
@@ -129,6 +133,8 @@ async function fetchAuxQuotes() {
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
+// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 33 total.
+// Pacing: 8s between each set of 3, so ~8 calls/min.
 async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
   const result = {};
@@ -190,6 +196,8 @@ async function fetchTechnicals(quotes) {
 }
 
 // ─── STAGE 2b: ALPACA CANDLE FALLBACK ────────────────────────────────────────
+// For symbols TwelveData can't handle, get historical bars from Alpaca and compute locally.
+// Alpaca covers ALL US-exchange-listed securities including ADRs.
 const ALPACA_KEY    = process.env.ALPK;
 const ALPACA_SECRET = process.env.ALPS;
 
@@ -232,7 +240,9 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
   const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0];
 
   for (const sym of gaps) {
-    const alpacaSymbol = sym.symbol.replace(".", "/");
+    // Alpaca uses the base ticker without class suffix for some ADRs
+    // PBR-A on Finnhub → PBR.A on Alpaca (they support dot notation)
+    const alpacaSymbol = sym.symbol.replace(".", "/"); // PBR.A → PBR/A for Alpaca
 
     try {
       const resp = await fetch(
@@ -258,7 +268,7 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
         continue;
       }
 
-      const closes = bars.map(b => b.c);
+      const closes = bars.map(b => b.c); // close prices, oldest first
       const rsi = computeRSI(closes);
       const sma50 = computeSMA(closes, 50);
       const sma200 = computeSMA(closes, 200);
@@ -291,6 +301,7 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
 }
 
 // ─── STAGE 2c: ALPACA 52-WEEK FIX ───────────────────────────────────────────
+// Finnhub's 52w data is wrong for ADRs. Compute actual 52w high/low from Alpaca bars.
 async function fix52WeekFromAlpaca(quotes) {
   if (!ALPACA_KEY || !ALPACA_SECRET) { console.log("  [ALPACA] No keys — skipping 52w fix"); return; }
 
@@ -445,7 +456,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.2");
+  console.log("Market Data Pre-Fetch v4.3");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -480,6 +491,7 @@ async function main() {
   Object.assign(macro, gscpiData);
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
+  // Aggressive quality checks: bad data gets nulled out and symbol routed to web search.
   const output = {};
   const needsWebSearch = [];
 
@@ -495,6 +507,7 @@ async function main() {
     if (!hasPrice) issues.push("NO PRICE");
 
     // ── 52-week validation ──
+    // Finnhub returns garbage for ADRs (negative percentages, impossible ranges).
     let w52High = q.week52_high ?? null;
     let w52Low = q.week52_low ?? null;
     let w52Pct = null;
@@ -525,7 +538,7 @@ async function main() {
     const hasRSI = t.rsi14 != null && t.rsi14 >= 0 && t.rsi14 <= 100;
     if (!hasRSI) issues.push("no RSI");
 
-    // ── SMA check ──
+    // ── SMA check ── (validate SMAs are in plausible range vs price)
     let sma50 = t.sma50, sma200 = t.sma200, maSignal = t.ma_signal;
     if (sma50 && hasPrice) {
       if (sma50 > q.price * 5 || sma50 < q.price * 0.1) {
@@ -543,6 +556,7 @@ async function main() {
     if (!hasSMA) issues.push("no SMA");
 
     // ── Route decision ──
+    // Web search if: no price, OR (bad 52w AND no RSI), OR no price AND no RSI
     const insufficient = !hasPrice || (!w52Valid && !hasRSI) || (issues.length >= 4);
     if (insufficient) needsWebSearch.push(sym.symbol);
 
@@ -582,6 +596,7 @@ async function main() {
   }
 
   // ── Attach SPY breadth data from RSP auxiliary quote ────────────────────
+  // The score-engine's positional layer reads data.breadth.* for SPY.
   if (output.SPY && auxQuotes.RSP) {
     const spyPrice = output.SPY.price?.current;
     const spyChange = output.SPY.price?.change_pct;
@@ -598,7 +613,7 @@ async function main() {
         rsp_change_pct: rspChange,
         spy_change_pct: spyChange,
         rsp_spy_ratio: ratio,
-        rsp_spy_spread_pp: spread,
+        rsp_spy_spread_pp: spread, // RSP return minus SPY return, in percentage points
       };
 
       const broadStr = spread == null ? "—"
@@ -611,6 +626,38 @@ async function main() {
     }
   } else if (output.SPY) {
     console.log(`  SPY breadth: skipped (no RSP quote available)`);
+  }
+
+  // ── Attach ETHA/IBIT ratio for alt-season detection ────────────────────
+  // When ETHA outperforms IBIT, capital is rotating down the risk curve ("alt season").
+  // When IBIT outperforms ETHA, BTC dominance is rising (risk-off within crypto).
+  // Same pattern as RSP/SPY breadth — computed from data we already have.
+  if (output.ETHA && output.IBIT) {
+    const ethaPrice = output.ETHA.price?.current;
+    const ibitPrice = output.IBIT.price?.current;
+    const ethaChange = output.ETHA.price?.change_pct;
+    const ibitChange = output.IBIT.price?.change_pct;
+
+    if (ethaPrice && ibitPrice) {
+      const ratio = +(ethaPrice / ibitPrice).toFixed(6);
+      const spread = (ethaChange != null && ibitChange != null)
+        ? +(ethaChange - ibitChange).toFixed(3) : null;
+
+      output.ETHA.alt_season = {
+        etha_ibit_ratio: ratio,
+        etha_change_pct: ethaChange,
+        ibit_change_pct: ibitChange,
+        relative_spread_pp: spread, // ETHA return minus IBIT return, in percentage points
+      };
+
+      const altStr = spread == null ? "—"
+        : spread > 0.5 ? `ETHA outperforming IBIT by ${spread}pp (alt-season rotation)`
+        : spread < -0.5 ? `IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp (BTC dominance)`
+        : "inline";
+      console.log(`  ETHA alt-season: ETHA/IBIT=${ratio} | ${altStr}`);
+    } else {
+      console.log(`  ETHA alt-season: skipped (missing price data)`);
+    }
   }
 
   output._macro = macro;
@@ -634,6 +681,7 @@ async function main() {
   }
   console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
   console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
+  console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
