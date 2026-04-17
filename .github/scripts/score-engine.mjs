@@ -3,9 +3,8 @@
 // The LLM handles qualitative interpretation; this handles the math.
 //
 // Architecture:
-//   deterministic_score (this file) = 50% of final composite
-//   llm_score (from Claude)         = 50% of final composite
-//   final_score = (deterministic * 0.5) + (llm * 0.5)
+//   deterministic_score (this file) blends with llm_score (from Claude)
+//   at per-timeframe weights — see BLEND_WEIGHTS in blendScores().
 //
 // Each layer (tactical/positional/strategic) gets a deterministic sub-score
 // that the LLM score is blended with at the layer level.
@@ -93,7 +92,7 @@ export function scoreTactical(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";  // ← NEW
+  const isSMH = archetype === "sector_beta";
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -197,28 +196,19 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── ENB-SPECIFIC: YIELD STOCK — BARELY MOVES ────────────────────────────  ← NEW
-  // ENB's daily moves are typically 0.3-0.8%. RSI for a yield stock is almost
-  // always between 40-65. The generic RSI bands are way too aggressive.
-  // Only extreme RSI readings (<25 or >80) are meaningful.
-  // The one real tactical setup: 10Y yield spike → ENB drops sympathetically →
-  // rate overreaction buy. This shows up as a -2%+ daily drop (which is big for ENB).
+  // ─── ENB-SPECIFIC: YIELD STOCK — BARELY MOVES ────────────────────────────
   if (isENB) {
     if (rsi != null) {
-      // Buy zones — rare for a yield stock
       if (rsi < 20)      { score += -40; notes.push(`RSI ${rsi}: ENB severely oversold — very rare`); }
       else if (rsi < 25) { score += -25; notes.push(`RSI ${rsi}: ENB deeply oversold`); }
       else if (rsi < 30) { score += -12; notes.push(`RSI ${rsi}: ENB oversold`); }
       else if (rsi < 35) { score += -5;  notes.push(`RSI ${rsi}: ENB mildly soft`); }
-      // Massive neutral zone — 35-75 is normal for a yield stock
       else if (rsi <= 70) { score += 0;  notes.push(`RSI ${rsi}: ENB normal range`); }
-      // Overbought — very dampened. Yield stocks can run warm for months on rate cuts.
       else if (rsi < 75) { score += 3;   notes.push(`RSI ${rsi}: ENB mildly warm`); }
       else if (rsi < 80) { score += 8;   notes.push(`RSI ${rsi}: ENB warm — rate cut rally?`); }
       else               { score += 18;  notes.push(`RSI ${rsi}: ENB overbought — unusual`); }
     }
 
-    // Daily change — ENB-specific bands (moves <1% are routine, -2% is notable)
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -4)      { score += -20; notes.push(`ENB daily ${chg}%: sharp drop — rate overreaction buy?`); }
@@ -232,8 +222,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── ETHA-SPECIFIC: WIDER BANDS THAN IBIT (1.3-1.5x BTC VOL) ────────────
-  // ETH runs at higher beta than BTC — RSI 80+ is where trim starts (vs 75 IBIT).
-  // Daily ±8% is a normal volatile day for ETH. Only extreme moves matter.
   if (isETHA) {
     if (rsi != null) {
       if (rsi < 15)      { score += -65; notes.push(`RSI ${rsi}: ETH severely oversold — capitulation`); }
@@ -266,9 +254,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── KOF-SPECIFIC: CONSUMER STAPLES — LOW VOL ────────────────────────────
-  // KOF is a LatAm consumer staples compounder. Daily moves are small (0.5-1.5%
-  // typically). RSI operates in a narrower meaningful range than most equities
-  // but wider than ENB (KOF is EM, so it gets more vol from FX).
   if (isKOF) {
     if (rsi != null) {
       if (rsi < 20)      { score += -45; notes.push(`RSI ${rsi}: KOF severely oversold — very rare`); }
@@ -295,9 +280,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── GLNCY-SPECIFIC: DIVERSIFIED COMMODITY — SLIGHTLY DAMPENED ───────────
-  // Glencore's diversification across copper/coal/zinc/nickel + trading arm
-  // buffers individual commodity spikes. Not as dampened as ENB/KOF (still a
-  // commodity name) but the generic RSI bands are slightly too aggressive.
   if (isGLNCY) {
     if (rsi != null) {
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: GLNCY severely oversold`); }
@@ -324,10 +306,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── PBR.A-SPECIFIC: EM OIL — VOLATILE BUT OIL-ANCHORED ─────────────────
-  // PBR.A gets vol from three sources: oil price, BRL, and political headlines.
-  // RSI is slightly dampened from generic because oil fundamentals anchor the
-  // stock — pure political volatility is noise that mean-reverts faster.
-  // Daily bands are wider than generic (±5% on political headlines is common).
   if (isPBRA) {
     if (rsi != null) {
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: PBR.A severely oversold`); }
@@ -356,9 +334,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── MOS-SPECIFIC: COMMODITY CYCLICAL — SLIGHTLY DAMPENED OVERBOUGHT ─────
-  // MOS can run extended during potash shortages / ag demand spikes.
-  // RSI 70-75 during a fertilizer rally is not a trim signal.
-  // Keep aggressive buy signals at oversold (cyclicals are mean-reverting).
   if (isMOS) {
     if (rsi != null) {
       if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: MOS severely oversold`); }
@@ -381,7 +356,6 @@ export function scoreTactical(data, macro) {
       else if (chg > 3)  { score += 6;   notes.push(`MOS daily +${chg}%: notable rally`); }
     }
 
-    // Seasonal modifier on tactical
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
@@ -390,9 +364,6 @@ export function scoreTactical(data, macro) {
   }
 
   // ─── SMH-SPECIFIC: SECTOR ETF — NVIDIA CONCENTRATION RISK ───────────────
-  // SMH is a sector ETF but heavily concentrated (~20% NVDA, ~12% TSM).
-  // RSI is mostly generic but daily change bands are wider (3-5% moves on
-  // NVDA earnings or AI sentiment shifts are common).
   if (isSMH) {
     if (rsi != null) {
       if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: SMH severely oversold`); }
@@ -460,7 +431,7 @@ export function scorePositional(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";  // ← NEW
+  const isSMH = archetype === "sector_beta";
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -494,102 +465,91 @@ export function scorePositional(data, macro) {
         notes.push(`ASML MA: ${ma} (${asmlMaScores[ma] !== 0 ? (asmlMaScores[ma] > 0 ? "+" : "") + asmlMaScores[ma] : "normal compounder trend"})`);
       }
     } else if (isENB) {
-      // ── ENB: above_both is NORMAL for a dividend compounder ────────  ← NEW
-      // ENB in a healthy uptrend with golden cross is the default state.
-      // Below both MAs is a genuine distress signal (rare for ENB) — strong buy.
       const enbMaScores = {
-        "above_both_golden": 0,       // normal yield compounder state
-        "above_both": 0,              // normal
-        "above_50_below_200": -8,     // pullback through long MA — buy signal
-        "above_200_below_50": -3,     // weakening but long trend intact — mild buy
-        "below_both": -20,            // distress — rare for a pipeline company, buy
-        "below_both_death": -30,      // severe distress — max buy (2020, 2022 type event)
+        "above_both_golden": 0,
+        "above_both": 0,
+        "above_50_below_200": -8,
+        "above_200_below_50": -3,
+        "below_both": -20,
+        "below_both_death": -30,
       };
       if (enbMaScores[ma] != null) {
         score += enbMaScores[ma];
         notes.push(`ENB MA: ${ma} (${enbMaScores[ma] !== 0 ? (enbMaScores[ma] > 0 ? "+" : "") + enbMaScores[ma] : "normal yield compounder trend"})`);
       }
     } else if (isAMKBY) {
-      // ── AMKBY: dampened golden cross (confirms up-cycle, doesn't predict end)
-      // Death cross is meaningful (cyclical downturn confirmed) — buy signal.
       const amkbyMaScores = {
-        "above_both_golden": 8,        // cyclical uptrend confirmed (dampened from +15)
-        "above_both": 5,               // uptrend
-        "above_50_below_200": -5,      // recovering from cyclical trough — buy
-        "above_200_below_50": 3,       // weakening
-        "below_both": -12,             // cyclical downturn — buy opportunity
-        "below_both_death": -18,       // deep cyclical trough — strong buy
+        "above_both_golden": 8,
+        "above_both": 5,
+        "above_50_below_200": -5,
+        "above_200_below_50": 3,
+        "below_both": -12,
+        "below_both_death": -18,
       };
       if (amkbyMaScores[ma] != null) {
         score += amkbyMaScores[ma];
         notes.push(`AMKBY MA: ${ma} (${amkbyMaScores[ma] > 0 ? "+" : ""}${amkbyMaScores[ma]})`);
       }
     } else if (isETHA) {
-      // ── ETHA: same philosophy as IBIT (above both = normal crypto bull regime)
-      // but death cross signals are slightly less aggressive (ETH whipsaws more)
       const ethaMaScores = {
-        "above_both_golden": 0,       // bull regime — neutral
-        "above_both": 0,              // trending — neutral
-        "above_50_below_200": -5,     // recovering
-        "above_200_below_50": -8,     // pullback, long trend intact
-        "below_both": -18,            // downtrend — buy
-        "below_both_death": -28,      // deep downtrend — strong buy
+        "above_both_golden": 0,
+        "above_both": 0,
+        "above_50_below_200": -5,
+        "above_200_below_50": -8,
+        "below_both": -18,
+        "below_both_death": -28,
       };
       if (ethaMaScores[ma] != null) {
         score += ethaMaScores[ma];
         notes.push(`ETHA MA: ${ma} (${ethaMaScores[ma] !== 0 ? (ethaMaScores[ma] > 0 ? "+" : "") + ethaMaScores[ma] : "bull regime — neutral"})`);
       }
     } else if (isKOF) {
-      // ── KOF: dampened golden cross (compounder tendency), death cross = buy
       const kofMaScores = {
-        "above_both_golden": 3,       // mild uptrend bias (not as strong as generic +15)
-        "above_both": 0,              // normal
-        "above_50_below_200": -5,     // pullback — mild buy
-        "above_200_below_50": 3,      // weakening
-        "below_both": -15,            // downtrend — buy opportunity
-        "below_both_death": -22,      // distress — strong buy (rare for staples)
+        "above_both_golden": 3,
+        "above_both": 0,
+        "above_50_below_200": -5,
+        "above_200_below_50": 3,
+        "below_both": -15,
+        "below_both_death": -22,
       };
       if (kofMaScores[ma] != null) {
         score += kofMaScores[ma];
         notes.push(`KOF MA: ${ma} (${kofMaScores[ma] !== 0 ? (kofMaScores[ma] > 0 ? "+" : "") + kofMaScores[ma] : "normal"})`);
       }
     } else if (isGLNCY) {
-      // ── GLNCY: similar to AMKBY — dampened golden cross, death cross = buy
       const glncyMaScores = {
-        "above_both_golden": 8,        // commodity uptrend confirmed
-        "above_both": 5,               // uptrend
-        "above_50_below_200": -5,      // pullback — buy
-        "above_200_below_50": 3,       // weakening
-        "below_both": -12,             // commodity downturn — buy
-        "below_both_death": -20,       // deep trough — strong buy
+        "above_both_golden": 8,
+        "above_both": 5,
+        "above_50_below_200": -5,
+        "above_200_below_50": 3,
+        "below_both": -12,
+        "below_both_death": -20,
       };
       if (glncyMaScores[ma] != null) {
         score += glncyMaScores[ma];
         notes.push(`GLNCY MA: ${ma} (${glncyMaScores[ma] > 0 ? "+" : ""}${glncyMaScores[ma]})`);
       }
     } else if (isPBRA) {
-      // ── PBR.A: dampened golden cross, death cross = buy (cyclical oil)
       const pbraMaScores = {
-        "above_both_golden": 8,        // oil uptrend confirmed
-        "above_both": 5,               // uptrend
-        "above_50_below_200": -5,      // pullback
-        "above_200_below_50": 3,       // weakening
-        "below_both": -12,             // oil downturn — buy
-        "below_both_death": -20,       // deep oil trough — strong buy
+        "above_both_golden": 8,
+        "above_both": 5,
+        "above_50_below_200": -5,
+        "above_200_below_50": 3,
+        "below_both": -12,
+        "below_both_death": -20,
       };
       if (pbraMaScores[ma] != null) {
         score += pbraMaScores[ma];
         notes.push(`PBR.A MA: ${ma} (${pbraMaScores[ma] > 0 ? "+" : ""}${pbraMaScores[ma]})`);
       }
     } else if (isMOS) {
-      // ── MOS: dampened golden cross (cyclical uptrend confirmed, not end signal)
       const mosMaScores = {
-        "above_both_golden": 8,        // fertilizer up-cycle confirmed
-        "above_both": 5,               // uptrend
-        "above_50_below_200": -5,      // pullback — buy opportunity
-        "above_200_below_50": 3,       // weakening
-        "below_both": -12,             // ag downturn — buy
-        "below_both_death": -18,       // deep cyclical trough — strong buy
+        "above_both_golden": 8,
+        "above_both": 5,
+        "above_50_below_200": -5,
+        "above_200_below_50": 3,
+        "below_both": -12,
+        "below_both_death": -18,
       };
       if (mosMaScores[ma] != null) {
         score += mosMaScores[ma];
@@ -636,12 +596,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -45; notes.push(`ASML 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -60; notes.push(`ASML 52w: ${w52}% — catastrophic drawdown — max conviction (very rare)`); }
     } else if (isENB) {
-      // ── ENB: INVERTED 52-WEEK (yield compounder) ──────────────────  ← NEW
-      // ENB near highs = yield compressed = less attractive but normal.
-      // ENB deep in drawdown = yield expanded = better income buy.
-      // Magnitude is moderate (not as extreme as ASML) because ENB's upside
-      // is bounded by yield — you're buying for income + 3-5% dividend growth,
-      // not for 3-5x capital appreciation.
       if (w52 > 95)      { score += 0;   notes.push(`ENB 52w: ${w52}% — at highs, yield compressed — normal`); }
       else if (w52 > 85) { score += 0;   notes.push(`ENB 52w: ${w52}% — near highs, healthy`); }
       else if (w52 > 70) { score += -3;  notes.push(`ENB 52w: ${w52}% — mild pullback, yield expanding`); }
@@ -650,10 +604,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -35; notes.push(`ENB 52w: ${w52}% — major drawdown, strong buy (rare)`); }
       else               { score += -45; notes.push(`ENB 52w: ${w52}% — distressed — max conviction buy`); }
     } else if (isAMKBY) {
-      // ── AMKBY: DAMPENED AT HIGHS (cyclical can be late-cycle at highs)
-      // Not inverted like compounders — cyclical at 52w highs genuinely CAN be
-      // late-cycle. But the generic +30 at 95%+ is too aggressive when combined
-      // with cyclical PE and RSI signals. Dampen highs, keep strong buy at lows.
       if (w52 > 95)      { score += 15;  notes.push(`AMKBY 52w: ${w52}% — near highs, possible late-cycle`); }
       else if (w52 > 85) { score += 8;   notes.push(`AMKBY 52w: ${w52}% — upper range`); }
       else if (w52 > 70) { score += 3;   notes.push(`AMKBY 52w: ${w52}% — above mid`); }
@@ -663,9 +613,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 5)  { score += -30; notes.push(`AMKBY 52w: ${w52}% — near lows, deep cyclical buy`); }
       else               { score += -35; notes.push(`AMKBY 52w: ${w52}% — extreme low, max conviction`); }
     } else if (isETHA) {
-      // ── ETHA: INVERTED 52-WEEK (like IBIT but with steeper drawdown buys)
-      // ETH drops harder than BTC in corrections (1.3-1.5x beta), so drawdowns
-      // are deeper and the buy signals should be more aggressive at lows.
       if (w52 > 95)      { score += 0;   notes.push(`ETHA 52w: ${w52}% — at highs, momentum positive`); }
       else if (w52 > 85) { score += 0;   notes.push(`ETHA 52w: ${w52}% — near highs, healthy trend`); }
       else if (w52 > 60) { score += -3;  notes.push(`ETHA 52w: ${w52}% — upper range`); }
@@ -674,10 +621,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 10) { score += -40; notes.push(`ETHA 52w: ${w52}% — significant drawdown, strong buy`); }
       else               { score += -55; notes.push(`ETHA 52w: ${w52}% — deep drawdown, max conviction`); }
     } else if (isKOF) {
-      // ── KOF: MILDLY INVERTED (consumer staples compounder tendency)
-      // Near highs = normal for a compounder, not a trim signal.
-      // Drawdowns = buying opportunity, but less aggressive than ASML since
-      // KOF's upside is bounded (EM consumer staples, not monopoly tech).
       if (w52 > 95)      { score += 0;   notes.push(`KOF 52w: ${w52}% — at highs, normal for compounder`); }
       else if (w52 > 85) { score += 0;   notes.push(`KOF 52w: ${w52}% — near highs, healthy`); }
       else if (w52 > 70) { score += -3;  notes.push(`KOF 52w: ${w52}% — mild pullback`); }
@@ -686,10 +629,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -28; notes.push(`KOF 52w: ${w52}% — major drawdown (rare for staples)`); }
       else               { score += -38; notes.push(`KOF 52w: ${w52}% — distressed — max conviction`); }
     } else if (isGLNCY) {
-      // ── GLNCY: DAMPENED AT HIGHS (similar to AMKBY — cyclical can be late-cycle)
-      // Commodity cyclical at 52w highs genuinely CAN be late-cycle.
-      // But Glencore's trading arm provides an earnings floor, so lows are
-      // slightly less extreme than for pure cyclicals.
       if (w52 > 95)      { score += 12;  notes.push(`GLNCY 52w: ${w52}% — near highs, possible late-cycle`); }
       else if (w52 > 85) { score += 6;   notes.push(`GLNCY 52w: ${w52}% — upper range`); }
       else if (w52 > 70) { score += 2;   notes.push(`GLNCY 52w: ${w52}% — above mid`); }
@@ -699,9 +638,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 5)  { score += -28; notes.push(`GLNCY 52w: ${w52}% — near lows, deep commodity buy`); }
       else               { score += -35; notes.push(`GLNCY 52w: ${w52}% — extreme low, max conviction`); }
     } else if (isPBRA) {
-      // ── PBR.A: DAMPENED AT HIGHS (cyclical oil + political risk at highs)
-      // Near highs = oil is strong but political risk peaks when govt sees profits.
-      // Deep drawdowns = either oil crash (buy) or political crisis (buy if temporary).
       if (w52 > 95)      { score += 15;  notes.push(`PBR.A 52w: ${w52}% — near highs, political/cycle risk`); }
       else if (w52 > 85) { score += 8;   notes.push(`PBR.A 52w: ${w52}% — upper range`); }
       else if (w52 > 70) { score += 3;   notes.push(`PBR.A 52w: ${w52}% — above mid`); }
@@ -711,8 +647,6 @@ export function scorePositional(data, macro) {
       else if (w52 > 5)  { score += -32; notes.push(`PBR.A 52w: ${w52}% — near lows, deep buy`); }
       else               { score += -40; notes.push(`PBR.A 52w: ${w52}% — extreme low, max conviction`); }
     } else if (isMOS) {
-      // ── MOS: DAMPENED AT HIGHS (cyclical can be late-cycle)
-      // Similar to AMKBY/GLNCY — commodity at 52w highs genuinely CAN be late-cycle.
       if (w52 > 95)      { score += 15;  notes.push(`MOS 52w: ${w52}% — near highs, possible late-cycle`); }
       else if (w52 > 85) { score += 8;   notes.push(`MOS 52w: ${w52}% — upper range`); }
       else if (w52 > 70) { score += 3;   notes.push(`MOS 52w: ${w52}% — above mid`); }
@@ -739,7 +673,6 @@ export function scorePositional(data, macro) {
   const sma50 = data.technicals?.sma50;
   const sma200 = data.technicals?.sma200;
 
-  // IBIT: distance from 200DMA is the core positional signal (phase-amplified)
   if (isIBIT && price && sma200) {
     const pctFrom200 = ((price - sma200) / sma200) * 100;
     const phaseInfo = getHalvingPhase();
@@ -783,8 +716,6 @@ export function scorePositional(data, macro) {
     }
     notes.push(`Halving cycle: month ${phaseInfo.months}, phase=${phase}`);
   }
-  // ETHA: 200DMA extension (like IBIT but NO phase amplification — ETH has no halving)
-  // ETH runs at ~1.3-1.5x BTC's volatility, so extension bands are slightly wider.
   else if (isETHA && price && sma200) {
     const pctFrom200 = ((price - sma200) / sma200) * 100;
 
@@ -803,7 +734,6 @@ export function scorePositional(data, macro) {
     else if (pctFrom200 < 100) { score += 22;  notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — parabolic extension`); }
     else                       { score += 35;  notes.push(`ETH >2x 200DMA — extreme extension`); }
   }
-  // Non-IBIT SMA distance
   else if (price && sma50) {
     const pctFromSMA = ((price - sma50) / sma50) * 100;
     if (isSPY) {
@@ -817,7 +747,6 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA > 18)  { score += 6;   notes.push(`ASML ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 10)  { score += 2;   notes.push(`ASML ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else if (isENB) {
-      // ── ENB: narrow SMA bands (yield stocks move slowly) ───────────  ← NEW
       if (pctFromSMA < -8)       { score += -12; notes.push(`ENB ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down`); }
       else if (pctFromSMA < -4)  { score += -5;  notes.push(`ENB ${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA > 8)   { score += 5;   notes.push(`ENB ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
@@ -830,14 +759,10 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── ENB ONLY: Yield spread vs US 10Y — THE primary positional signal ─────  ← NEW
-  // This is computed from data we already have: ENB's dividend yield (Finnhub)
-  // and the US 10Y yield (FRED). The spread tells you how much premium ENB
-  // pays over risk-free income. Wider = more attractive. Narrower = rich.
   if (isENB && macro?.us10y != null) {
     const divYield = data.valuation?.dividendYield;
     if (divYield != null && divYield > 0) {
-      const spreadPct = divYield - macro.us10y; // in percentage points
+      const spreadPct = divYield - macro.us10y;
       const spreadBps = Math.round(spreadPct * 100);
 
       if (spreadBps > 400) {
@@ -858,7 +783,6 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // SPY ONLY: RSP/SPY breadth ratio
   if (isSPY && data.breadth) {
     const rspChange = data.breadth.rsp_change_pct;
     const spyChange = data.price?.change_pct;
@@ -874,7 +798,6 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // SPY ONLY: HY OAS credit spread
   if (isSPY && macro?.hy_oas != null) {
     const oas = macro.hy_oas;
     if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight spreads, risk-on`); }
@@ -884,12 +807,6 @@ export function scorePositional(data, macro) {
     else                { score += 30; notes.push(`HY OAS ${oas}bps: crisis-level spreads`); }
   }
 
-  // ── AMKBY ONLY: GSCPI (Global Supply Chain Pressure Index) ────────────────
-  // Monthly composite from NY Fed incorporating BDI + container shipping + airfreight.
-  // Positive = above-average pressure (high freight rates, disruptions).
-  // For AMKBY: elevated GSCPI is short-term revenue positive (higher rates) but
-  // can signal trade disruption that eventually hurts volumes. The LLM disambiguates.
-  // At the deterministic level, we score the raw level as a regime indicator.
   if (isAMKBY && macro?.gscpi != null) {
     const g = macro.gscpi;
     if (g > 2.0)       { score += 5;   notes.push(`GSCPI ${g}: crisis-level pressure — rates high but trade disrupted`); }
@@ -900,10 +817,6 @@ export function scorePositional(data, macro) {
     else               { score += 10;  notes.push(`GSCPI ${g}: very calm — freight trough territory`); }
   }
 
-  // ── ETHA ONLY: ETHA/IBIT ratio (alt-season indicator) ────────────────────
-  // When ETHA outperforms IBIT, capital is rotating down the risk curve ("alt season").
-  // When IBIT outperforms ETHA, BTC dominance is rising (risk-off within crypto).
-  // Computed in fetch-market-data.mjs from prices we already have.
   if (isETHA && data.alt_season) {
     const spread = data.alt_season.relative_spread_pp;
     if (spread != null) {
@@ -916,9 +829,6 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── GLNCY ONLY: COPX ratio (copper regime indicator) ──────────────────────
-  // When GLNCY outperforms COPX, market values diversification + trading arm.
-  // When COPX outperforms GLNCY, pure copper is leading — Glencore may catch up.
   if (isGLNCY && data.copper_regime) {
     const spread = data.copper_regime.relative_spread_pp;
     if (spread != null) {
@@ -930,7 +840,6 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── GLNCY ONLY: HY OAS as commodity demand proxy ─────────────────────────
   if (isGLNCY && macro?.hy_oas != null) {
     const oas = macro.hy_oas;
     if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight — healthy commodity demand`); }
@@ -940,7 +849,6 @@ export function scorePositional(data, macro) {
     else                { score += 20; notes.push(`HY OAS ${oas}bps: crisis — industrial demand collapse`); }
   }
 
-  // ── GLNCY ONLY: GSCPI as supply chain / commodity regime ──────────────────
   if (isGLNCY && macro?.gscpi != null) {
     const g = macro.gscpi;
     if (g > 2.0)       { score += 3;   notes.push(`GSCPI ${g}: supply chain stress — commodity disruption`); }
@@ -950,9 +858,6 @@ export function scorePositional(data, macro) {
     else               { score += 8;   notes.push(`GSCPI ${g}: very calm — commodity demand trough`); }
   }
 
-  // ── PBR.A ONLY: WTI as positional regime ──────────────────────────────────
-  // Oil above $70 = healthy for Petrobras. Below $60 = margin pressure.
-  // This is a level-based regime indicator — the LLM handles direction.
   if (isPBRA && macro?.wti != null) {
     const wti = macro.wti;
     if (wti > 90)       { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A revenue tailwind`); }
@@ -964,9 +869,6 @@ export function scorePositional(data, macro) {
     else                { score += 22; notes.push(`WTI $${wti}: oil crisis — PBR.A under severe pressure`); }
   }
 
-  // ── MOS ONLY: CORN ratio (ag demand proxy) ────────────────────────────────
-  // When CORN outperforms MOS, agricultural demand is strong but MOS is lagging.
-  // When MOS outperforms CORN, MOS may be running ahead of fundamentals.
   if (isMOS && data.ag_demand) {
     const spread = data.ag_demand.relative_spread_pp;
     if (spread != null) {
@@ -978,16 +880,12 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // ── MOS ONLY: Seasonal modifier on positional ─────────────────────────────
   if (isMOS) {
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
   }
 
-  // ── SMH ONLY: MU ratio (DRAM cycle indicator) ─────────────────────────────
-  // When MU outperforms SMH, the commodity memory cycle is recovering/leading.
-  // When SMH outperforms MU, secular growth (AI/NVDA) is carrying the sector.
   if (isSMH && data.dram_cycle) {
     const spread = data.dram_cycle.relative_spread_pp;
     if (spread != null) {
@@ -1019,9 +917,8 @@ export function scoreStrategic(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";  // ← NEW
+  const isSMH = archetype === "sector_beta";
 
-  // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
     const phase = phaseInfo.phase;
@@ -1052,13 +949,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── ENB STRATEGIC ────────────────────────────────────────────────────────  ← NEW
-  // Three pillars: (1) rate regime, (2) dividend sustainability, (3) real yields.
-  // Gas volumes and LNG buildout are handled qualitatively by the LLM layer
-  // since we don't have Henry Hub or pipeline utilization data deterministically.
   if (isENB) {
-    // P/E — dampened for a utility/infrastructure company
-    // ENB normally trades 18-24x. Only score extremes.
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe < 14)       { score += -10; notes.push(`ENB P/E ${pe.toFixed(1)}x: cheap for infrastructure`); }
@@ -1068,9 +959,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 8;   notes.push(`ENB P/E ${pe.toFixed(1)}x: rich for infrastructure`); }
     }
 
-    // Dividend yield — the core strategic anchor for ENB
-    // Higher yield = stock is cheaper (price down, same dividend) = buy signal
-    // Lower yield = stock is expensive = trim territory
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 8)       { score += -15; notes.push(`ENB yield ${dy}%: very high — deeply discounted`); }
@@ -1082,10 +970,6 @@ export function scoreStrategic(data, macro) {
       else              { score += 12;  notes.push(`ENB yield ${dy}%: historically low — expensive`); }
     }
 
-    // Real yields (TIPS) — ENHANCED weight for ENB vs generic
-    // ENB is a long-duration income asset that directly competes with bonds.
-    // Higher real rates = genuine headwind (capital flows to risk-free income).
-    // Lower real rates = ENB's 6%+ yield is very attractive on relative basis.
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 3)       { score += 10;  notes.push(`TIPS ${tips}%: very restrictive — strong headwind for yield stocks`); }
@@ -1096,9 +980,6 @@ export function scoreStrategic(data, macro) {
       else if (tips < 1)  { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
     }
 
-    // 2s10s yield curve — rate regime matters for bond proxies
-    // Steepening / rate cuts = tailwind (ENB yield more attractive vs falling 10Y)
-    // Inverting / rate hikes = headwind (bonds compete harder)
     if (macro?.spread_2s10s != null) {
       const spread = macro.spread_2s10s;
       if (spread > 100)       { score += -5; notes.push(`2s10s +${spread}bps: steep curve — rate cut regime, ENB tailwind`); }
@@ -1108,7 +989,6 @@ export function scoreStrategic(data, macro) {
       else                    { score += 8;  notes.push(`2s10s ${spread}bps: deeply inverted — yield stocks under pressure`); }
     }
 
-    // VIX — mild overlay (ENB is defensive, less affected by equity vol)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — ENB defensive quality, mild buy`); }
@@ -1118,14 +998,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── AMKBY STRATEGIC ──────────────────────────────────────────────────────  ← NEW
-  // Three pillars: (1) shipping-specific PE cycle, (2) P/B (fleet value),
-  // (3) supply chain pressure (GSCPI) + credit conditions (HY OAS).
-  // Freight rates and trade volumes are handled qualitatively by the LLM.
   if (isAMKBY) {
-    // Shipping-specific PE — more extreme cycles than commodity cyclicals.
-    // Maersk at genuine peak can have PE 2-4x. PE 8x is arguably mid-cycle.
-    // PE 50+ is deep trough (earnings collapsed).
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe > 100)      { score += -25; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: deep trough — shipping buy`); }
@@ -1137,9 +1010,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 25;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
 
-    // P/B — ENHANCED for shipping (asset-heavy fleet of container ships).
-    // P/B <1.0 = market pricing fleet below replacement cost.
-    // P/B <0.6 = near scrap value, historically powerful buy signal.
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.5)      { score += -20; notes.push(`AMKBY P/B ${pb.toFixed(2)}: near scrap value — strong buy`); }
@@ -1151,7 +1021,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 10;  notes.push(`AMKBY P/B ${pb.toFixed(2)}: premium — late cycle risk`); }
     }
 
-    // Dividend yield
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 8)       { score += -8; notes.push(`AMKBY yield ${dy}%: very high — cyclical trough?`); }
@@ -1159,9 +1028,6 @@ export function scoreStrategic(data, macro) {
       else if (dy > 3)  { score += -2; notes.push(`AMKBY yield ${dy}%: moderate`); }
     }
 
-    // HY OAS — credit conditions as trade flow proxy.
-    // Tight credit = healthy trade flows = AMKBY demand.
-    // Wide credit = trade contraction risk = AMKBY headwind.
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy trade environment`); }
@@ -1171,10 +1037,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — shipping demand at risk`); }
     }
 
-    // GSCPI — supply chain pressure as strategic regime indicator.
-    // At the strategic level, extreme GSCPI values inform cycle positioning:
-    // Very negative = freight trough, potential bottom → contrarian buy if P/B confirms.
-    // Very positive = supply chain stress, rates high → Maersk revenue strong but unsustainable?
     if (macro?.gscpi != null) {
       const g = macro.gscpi;
       if (g > 2.5)       { score += 5;   notes.push(`GSCPI ${g}: extreme disruption — rate surge unsustainable?`); }
@@ -1185,7 +1047,6 @@ export function scoreStrategic(data, macro) {
       else               { score += -8;  notes.push(`GSCPI ${g}: deeply negative — freight trough, contrarian buy?`); }
     }
 
-    // VIX — mild overlay (shipping is globally exposed)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — global trade fear, contrarian buy`); }
@@ -1196,12 +1057,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── ETHA STRATEGIC ──────────────────────────────────────────────────────  ← NEW
-  // All valuation metrics (PE, PB, yield) are meaningless for a crypto ETF.
-  // Strategic layer is purely macro regime: VIX, real rates, credit conditions.
-  // ETH is MORE sensitive to risk appetite than BTC — enhanced weights.
   if (isETHA) {
-    // VIX — enhanced sensitivity (ETH is further out on risk curve than BTC)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 40)      { score += -12; notes.push(`VIX ${vix}: panic — ETH contrarian buy (high-beta)`); }
@@ -1211,7 +1067,6 @@ export function scoreStrategic(data, macro) {
       else if (vix < 14) { score += 3;   notes.push(`VIX ${vix}: low vol complacency`); }
     }
 
-    // TIPS — enhanced sensitivity (ETH is a long-duration risk asset)
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 6;   notes.push(`TIPS ${tips}%: restrictive — ETH headwind`); }
@@ -1220,7 +1075,6 @@ export function scoreStrategic(data, macro) {
       else if (tips < 0.5){ score += -4; notes.push(`TIPS ${tips}%: low real rates — risk assets favored`); }
     }
 
-    // HY OAS — risk appetite proxy (ETH more sensitive than BTC to credit conditions)
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight — risk-on, ETH tailwind`); }
@@ -1233,13 +1087,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── KOF STRATEGIC ────────────────────────────────────────────────────────  ← NEW
-  // Three pillars: (1) LatAm bottler valuation (narrower PE bands), (2) MXN/USD
-  // as FX regime signal (~60% of revenue is Mexico), (3) dividend quality.
-  // Mexican consumer spending trends and Banxico policy are LLM territory.
   if (isKOF) {
-    // P/E — narrowed bands for LatAm consumer staples bottler.
-    // KOF normally trades 15-22x. Much tighter range than generic.
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe < 10)       { score += -15; notes.push(`KOF P/E ${pe.toFixed(1)}x: deep value — rare for staples`); }
@@ -1251,7 +1099,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 15;  notes.push(`KOF P/E ${pe.toFixed(1)}x: expensive for staples`); }
     }
 
-    // P/B — moderate weight (consumer staples, not asset-heavy)
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 1.5)      { score += -5;  notes.push(`KOF P/B ${pb.toFixed(2)}: below book — unusual for staples`); }
@@ -1261,8 +1108,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 6;   notes.push(`KOF P/B ${pb.toFixed(2)}: premium`); }
     }
 
-    // Dividend yield — KOF typically yields 2-4%, growing 5-8% annually.
-    // Higher yield = cheaper stock = buy signal. Lower = rich.
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 5)        { score += -8;  notes.push(`KOF yield ${dy}%: very high — stock is cheap`); }
@@ -1273,9 +1118,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 6;   notes.push(`KOF yield ${dy}%: very low — expensive`); }
     }
 
-    // MXN/USD — THE primary KOF-specific strategic signal.
-    // KOF earns ~60% in MXN. Strong peso = ADR tailwind. Weak peso = headwind.
-    // DEXMXUS = pesos per dollar (lower = stronger peso).
     if (macro?.mxn_usd != null) {
       const mxn = macro.mxn_usd;
       if (mxn < 16)       { score += -10; notes.push(`MXN/USD ${mxn}: very strong peso — KOF tailwind`); }
@@ -1286,7 +1128,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 15;  notes.push(`MXN/USD ${mxn}: peso crisis — severe KOF headwind`); }
     }
 
-    // VIX — mild overlay (consumer staples are defensive)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — KOF defensive quality`); }
@@ -1294,7 +1135,6 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 2;  notes.push(`VIX ${vix}: complacency`); }
     }
 
-    // TIPS — mild overlay (staples are less rate-sensitive than growth)
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — mild headwind`); }
@@ -1304,14 +1144,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── GLNCY STRATEGIC ──────────────────────────────────────────────────────  ← NEW
-  // Three pillars: (1) commodity-specific PE (higher floor than pure cyclicals
-  // due to trading arm earnings floor), (2) enhanced P/B (mining assets have
-  // real replacement cost), (3) GSCPI + HY OAS + VIX as commodity demand regime.
   if (isGLNCY) {
-    // PE — cyclical inverted, but with higher floor than AMKBY/MOS.
-    // Glencore's trading arm generates $2-4B EBITDA even in commodity troughs,
-    // so PE never goes as extreme as pure-play miners or shippers.
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe > 80)       { score += -22; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: deep trough — commodity buy`); }
@@ -1323,9 +1156,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 22;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
 
-    // P/B — ENHANCED for mining (physical assets with replacement cost).
-    // P/B <1.0 = market pricing mines below replacement cost.
-    // Less extreme than AMKBY (ships depreciate faster than mines).
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.6)      { score += -15; notes.push(`GLNCY P/B ${pb.toFixed(2)}: well below replacement — strong buy`); }
@@ -1336,7 +1166,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 8;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
 
-    // Dividend yield
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 8)       { score += -8; notes.push(`GLNCY yield ${dy}%: very high — trough pricing?`); }
@@ -1344,7 +1173,6 @@ export function scoreStrategic(data, macro) {
       else if (dy > 3)  { score += -2; notes.push(`GLNCY yield ${dy}%: moderate`); }
     }
 
-    // HY OAS — commodity demand proxy (strategic level)
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy industrial demand`); }
@@ -1354,7 +1182,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — industrial collapse`); }
     }
 
-    // GSCPI — supply chain pressure as commodity demand regime
     if (macro?.gscpi != null) {
       const g = macro.gscpi;
       if (g > 2.0)       { score += 3;   notes.push(`GSCPI ${g}: extreme disruption — mixed for diversified miner`); }
@@ -1364,7 +1191,6 @@ export function scoreStrategic(data, macro) {
       else               { score += -6;  notes.push(`GSCPI ${g}: deeply negative — commodity trough`); }
     }
 
-    // VIX — moderate overlay (commodity stocks are cyclical, not defensive)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
@@ -1372,7 +1198,6 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
 
-    // TIPS — mild overlay
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
@@ -1382,14 +1207,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── PBR.A STRATEGIC ──────────────────────────────────────────────────────  ← NEW
-  // Four pillars: (1) oil producer PE (inverted cyclical), (2) WTI price regime,
-  // (3) BRL/USD FX regime, (4) enhanced dividend yield (8-15%+ range is normal).
-  // Political risk is the LLM's primary job — no data feed can score it.
   if (isPBRA) {
-    // PE — oil producer cyclical (inverted). Petrobras PE range is ~3-50x.
-    // Pre-salt production gives a cost floor (~$35/bbl breakeven) so even at
-    // trough, Petrobras is profitable — PE rarely goes above 50x.
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe > 50)       { score += -20; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: trough — oil cycle buy`); }
@@ -1401,7 +1219,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 22;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
 
-    // P/B — meaningful for oil producers (reserves have real value).
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.6)      { score += -12; notes.push(`PBR.A P/B ${pb.toFixed(2)}: well below book — reserves undervalued`); }
@@ -1412,10 +1229,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 8;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
 
-    // Dividend yield — ENHANCED bands. PBR.A routinely yields 10-15%.
-    // The massive yield IS the thesis — compensation for state control risk.
-    // When yield hits 15%+, either dividend cut is being priced in (LLM domain)
-    // or the stock is genuinely cheap.
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 18)      { score += -15; notes.push(`PBR.A yield ${dy}%: extreme — cut priced in or deeply cheap`); }
@@ -1426,7 +1239,6 @@ export function scoreStrategic(data, macro) {
       else              { score += 10;  notes.push(`PBR.A yield ${dy}%: low — stock is expensive`); }
     }
 
-    // WTI — THE primary commodity signal for PBR.A (strategic level = regime).
     if (macro?.wti != null) {
       const wti = macro.wti;
       if (wti > 90)       { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A tailwind`); }
@@ -1437,9 +1249,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 20; notes.push(`WTI $${wti}: oil crash — PBR.A under pressure`); }
     }
 
-    // BRL/USD — FX regime (less dominant than MXN for KOF because PBR prices
-    // oil in USD, but BRL still affects opex and domestic fuel pricing formula).
-    // DEXBZUS = BRL per dollar (lower = stronger BRL).
     if (macro?.brl_usd != null) {
       const brl = macro.brl_usd;
       if (brl < 4.5)      { score += -5; notes.push(`BRL/USD ${brl}: strong real — PBR.A ADR positive`); }
@@ -1450,7 +1259,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 12; notes.push(`BRL/USD ${brl}: BRL crisis — significant headwind`); }
     }
 
-    // VIX — moderate overlay (EM oil is risk-on)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — PBR.A contrarian buy`); }
@@ -1461,12 +1269,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── MOS STRATEGIC ────────────────────────────────────────────────────────  ← NEW
-  // Cyclical inverted PE (same as generic cyclical) + BRL/USD mild overlay
-  // (Mosaic Fertilizantes is significant Brazil exposure) + CORN regime +
-  // seasonal modifier + dividend yield for cyclical.
   if (isMOS) {
-    // PE — standard cyclical inverted (same thresholds as generic)
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe > 100)      { score += -20; notes.push(`MOS P/E ${pe.toFixed(0)}x: trough earnings — fertilizer buy`); }
@@ -1477,7 +1280,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 20;  notes.push(`MOS P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
     }
 
-    // P/B — moderate (MOS has phosphate/potash reserves with real value)
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.7)      { score += -10; notes.push(`MOS P/B ${pb.toFixed(2)}: well below book — asset value`); }
@@ -1488,7 +1290,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 10;  notes.push(`MOS P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
 
-    // Dividend yield — cyclical dividend (can be cut at trough)
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 6)       { score += -8; notes.push(`MOS yield ${dy}%: very high — trough pricing?`); }
@@ -1496,8 +1297,6 @@ export function scoreStrategic(data, macro) {
       else if (dy > 2)  { score += -1; notes.push(`MOS yield ${dy}%: moderate`); }
     }
 
-    // BRL/USD — mild overlay (Mosaic Fertilizantes exposure)
-    // Less dominant than PBR.A but still meaningful.
     if (macro?.brl_usd != null) {
       const brl = macro.brl_usd;
       if (brl < 4.5)      { score += -3; notes.push(`BRL/USD ${brl}: strong real — MOS Brazil ops positive`); }
@@ -1506,7 +1305,6 @@ export function scoreStrategic(data, macro) {
       else                { score += 5;  notes.push(`BRL/USD ${brl}: weak real — MOS Brazil cost pressure`); }
     }
 
-    // VIX — moderate overlay
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
@@ -1514,14 +1312,12 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
 
-    // TIPS — mild overlay
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
     }
 
-    // Seasonal modifier on strategic
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
@@ -1529,14 +1325,7 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── SMH STRATEGIC ────────────────────────────────────────────────────────  ← NEW
-  // Semiconductor sector ETF. Narrowed PE (semis command a growth premium),
-  // P/B and dividend yield skipped (meaningless for sector ETF of fabless cos).
-  // MU DRAM cycle as strategic regime indicator.
   if (isSMH) {
-    // PE — narrowed bands for semiconductor sector.
-    // 20-30x is normal mid-cycle for semis (growth premium). Generic would
-    // flag 28x as "getting rich" which is wrong for this sector.
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
       if (pe < 15)       { score += -10; notes.push(`SMH P/E ${pe.toFixed(1)}x: cheap for semis — trough or value`); }
@@ -1548,13 +1337,6 @@ export function scoreStrategic(data, macro) {
       else               { score += 20;  notes.push(`SMH P/E ${pe.toFixed(1)}x: very expensive for sector ETF`); }
     }
 
-    // P/B and dividend yield SKIPPED — meaningless for a sector ETF
-    // of mostly fabless semiconductor companies.
-
-    // MU DRAM cycle — strategic regime indicator.
-    // When MU outperforms SMH over time, memory cycle is healthy → broad-based.
-    // When SMH outperforms MU persistently, AI/secular is carrying everything
-    // while commodity semis weaken → concentration risk, narrowing breadth.
     if (data.dram_cycle) {
       const spread = data.dram_cycle.relative_spread_pp;
       if (spread != null) {
@@ -1566,7 +1348,6 @@ export function scoreStrategic(data, macro) {
       }
     }
 
-    // VIX — moderate overlay (semis are high-beta to market)
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -8; notes.push(`VIX ${vix}: panic — semi contrarian buy`); }
@@ -1574,7 +1355,6 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
 
-    // TIPS — moderate overlay (semis are long-duration growth, rate sensitive)
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 5;  notes.push(`TIPS ${tips}%: restrictive — semi headwind`); }
@@ -1585,7 +1365,6 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // P/E valuation — ARCHETYPE AWARE
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
     if (isCyclical) {
@@ -1620,8 +1399,7 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // P/B — skip for SPY, ASML, and ENB
-  if (!isSPY && !isASML && !isENB) {  // ← CHANGED: added isENB
+  if (!isSPY && !isASML && !isENB) {
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.8)      { score += -10; notes.push(`P/B ${pb}: below book`); }
@@ -1631,14 +1409,13 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // Dividend yield (handled inside ENB branch above, skip here for ENB)
   const dy = data.valuation?.dividendYield;
-  if (dy != null && dy > 0 && !isENB) {  // ← CHANGED: added !isENB
+  if (dy != null && dy > 0 && !isENB) {
     if (isSPY) {
       if (dy > 2.5)     { score += -5; notes.push(`S&P yield ${dy}%: elevated — market is cheap`); }
       else if (dy < 1)  { score += 3;  notes.push(`S&P yield ${dy}%: compressed — market is rich`); }
     } else if (isASML) {
-      // ASML yield ~1% — skip
+      // skip
     } else {
       if (dy > 8)       { score += -10; notes.push(`Yield ${dy}%: very high`); }
       else if (dy > 5)  { score += -5;  notes.push(`Yield ${dy}%: attractive`); }
@@ -1646,9 +1423,8 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // VIX (handled inside ENB branch above, skip here for ENB)
   const vix = macro?.vix;
-  if (vix != null && !isENB) {  // ← CHANGED: added !isENB
+  if (vix != null && !isENB) {
     if (isSPY) {
       if (vix > 40)      { score += -15; notes.push(`VIX ${vix}: panic — strong contrarian buy`); }
       else if (vix > 30) { score += -10; notes.push(`VIX ${vix}: high fear — contrarian buy`); }
@@ -1666,9 +1442,8 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // Real yields (handled inside ENB branch above, skip here for ENB)
   const tips = macro?.tips10y;
-  if (tips != null && !isENB) {  // ← CHANGED: added !isENB
+  if (tips != null && !isENB) {
     if (isASML) {
       if (tips > 3)       { score += 8;   notes.push(`TIPS ${tips}%: very restrictive — long-duration headwind`); }
       else if (tips > 2.5){ score += 4;   notes.push(`TIPS ${tips}%: restrictive`); }
@@ -1681,7 +1456,6 @@ export function scoreStrategic(data, macro) {
     }
   }
 
-  // SPY ONLY: yield curve (ENB has its own 2s10s logic inside its branch above)
   if (isSPY && macro?.spread_2s10s != null) {
     const spread = macro.spread_2s10s;
     if (spread > 100)       { score += -8; notes.push(`2s10s +${spread}bps: steep curve — bullish macro`); }
@@ -1692,7 +1466,6 @@ export function scoreStrategic(data, macro) {
     else                    { score += 15; notes.push(`2s10s ${spread}bps: deeply inverted — max caution`); }
   }
 
-  // SPY ONLY: real rate stance
   if (isSPY && macro?.fed_funds != null && tips != null) {
     const realRate = macro.fed_funds - tips;
     if (realRate > 3)       { score += 5;  notes.push(`Real rate ${realRate.toFixed(1)}%: very restrictive`); }
@@ -1727,12 +1500,25 @@ export function computeDeterministicScores(data, macro) {
 }
 
 // ─── BLEND deterministic + LLM scores ───────────────────────────────────────
-export function blendScores(deterministic, llm, weights) {
-  const blend = (detScore, llmScore) => Math.round(detScore * 0.5 + llmScore * 0.5);
+// Per-timeframe weights reflect where each component earns its keep:
+//   Tactical:   numerical signals dominate → lean deterministic (70/30)
+//   Positional: mixed → 50/50
+//   Strategic:  narrative/catalyst-heavy → lean LLM (30/70)
+const BLEND_WEIGHTS = {
+  tactical:   { det: 0.70, llm: 0.30 },
+  positional: { det: 0.50, llm: 0.50 },
+  strategic:  { det: 0.30, llm: 0.70 },
+};
 
-  const tactical  = blend(deterministic.tactical.score, llm.tactical?.score ?? 0);
-  const positional = blend(deterministic.positional.score, llm.positional?.score ?? 0);
-  const strategic = blend(deterministic.strategic.score, llm.strategic?.score ?? 0);
+export function blendScores(deterministic, llm, weights) {
+  const blend = (detScore, llmScore, tf) => {
+    const w = BLEND_WEIGHTS[tf];
+    return Math.round(detScore * w.det + llmScore * w.llm);
+  };
+
+  const tactical   = blend(deterministic.tactical.score,   llm.tactical?.score   ?? 0, "tactical");
+  const positional = blend(deterministic.positional.score, llm.positional?.score ?? 0, "positional");
+  const strategic  = blend(deterministic.strategic.score,  llm.strategic?.score  ?? 0, "strategic");
 
   const w = weights || { t: 0.25, p: 0.35, s: 0.40 };
   const composite = Math.round(tactical * w.t + positional * w.p + strategic * w.s);
