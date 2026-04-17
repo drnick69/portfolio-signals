@@ -10,6 +10,7 @@
 // v6.5: AMKBY cyclical_trade_bellwether (shipping PE, enhanced P/B, GSCPI, freight cycle guidance, 25/35/40).
 // v6.6: ETHA high_beta_crypto (wider RSI/daily bands, inverted 52w, 200DMA extension, ETHA/IBIT alt-season ratio, 30/35/35).
 // v6.7: KOF em_dividend_growth (dampened RSI, mildly inverted 52w, MXN/USD FX regime, narrowed PE, 15/35/50).
+// v6.8: GLNCY diversified_commodity_trader (COPX ratio, GSCPI+HY OAS, PE with trading arm floor, enhanced P/B, 20/35/45).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -73,7 +74,8 @@ function buildPrompt(h, detScores) {
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isETHA = h.archetype === "high_beta_crypto";
-  const isKOF = h.archetype === "em_dividend_growth";  // ← NEW
+  const isKOF = h.archetype === "em_dividend_growth";
+  const isGLNCY = h.archetype === "diversified_commodity_trader";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -127,6 +129,15 @@ function buildPrompt(h, detScores) {
     kofMxnLine = `MXN/USD: ${mxn} (${regime}) — KOF earns ~60% in MXN`;
   }
 
+  // ── NEW: GLNCY COPX line ──────────────────────────────────────────────────
+  let glncyCopxLine = null;
+  if (isGLNCY && md.copper_regime) {
+    const cr = md.copper_regime;
+    const dir = cr.relative_spread_pp > 0.5 ? "GLNCY OUTPERFORMING (diversification premium)" :
+                cr.relative_spread_pp < -0.5 ? "COPX LEADING (copper surging, GLNCY catch-up?)" : "INLINE";
+    glncyCopxLine = `GLNCY/COPX: ratio ${cr.glncy_copx_ratio ?? "—"} | COPX $${cr.copx_price ?? "—"} (${cr.copx_change_pct >= 0 ? "+" : ""}${cr.copx_change_pct}%) | Spread: ${cr.relative_spread_pp != null ? (cr.relative_spread_pp >= 0 ? "+" : "") + cr.relative_spread_pp + "pp" : "—"} (${dir})`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -142,6 +153,7 @@ function buildPrompt(h, detScores) {
     amkbyGscpiLine,     // ← NEW (null-filtered for non-AMKBY)
     ethaAltSeasonLine,  // ← NEW (null-filtered for non-ETHA)
     kofMxnLine,         // ← NEW (null-filtered for non-KOF)
+    glncyCopxLine,      // ← NEW (null-filtered for non-GLNCY)
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -335,6 +347,37 @@ MOST DAYS SHOULD BE NEUTRAL:
 KOF is a consumer staples name. Scores between -5 and +5 roughly 80% of trading days. Meaningful scores appear during: MXN regime shifts, EM selloffs, margin surprises, or Banxico policy pivots.
 ` : "";
 
+  // ── NEW: GLNCY-specific guidance ──────────────────────────────────────────
+  const glncyGuidance = isGLNCY ? `
+CRITICAL — GLNCY-SPECIFIC SCORING GUIDANCE:
+Glencore is a DIVERSIFIED COMMODITY TRADER — mining (copper ~30%, coal ~25%, zinc/nickel/cobalt) PLUS a massive commodity trading/marketing arm that profits from volatility regardless of price direction.
+
+CYCLICAL P/E — WITH TRADING ARM FLOOR:
+Inverted PE applies (high PE = trough = BUY). But Glencore's trading arm generates $2-4B EBITDA even in commodity troughs, so PE never goes as extreme as pure miners. PE 6-20x = mid-cycle, PE 40+ = trough buy, PE 3-6x = peak earnings trim.
+
+P/B MATTERS (mining assets = real replacement cost):
+P/B <0.8 = market pricing mines below replacement cost = strong buy. P/B <1.0 = below book = value. Mining assets don't depreciate like ships — this is a reliable signal.
+
+YOUR PRIMARY VALUE-ADD — COPPER AND COMMODITY PRICES:
+The engine has COPX (copper miners ETF) as a proxy but NO direct LME copper price. This is your most important contribution:
+• LME copper price level and trend (THE lead indicator for ~30% of mining EBITDA)
+• LME copper inventories (low = tight market = bullish, high = oversupply)
+• Chinese PMI and property sector (demand driver for base metals)
+• Zinc, nickel, cobalt price trends (the other 40% of mining EBITDA)
+• Coal price and ESG divestment pressure vs cash generation reality
+• DXY direction (strong dollar = broad commodity headwind)
+
+SUM-OF-PARTS (same dynamic as AMKBY logistics):
+• Market often values Glencore's trading arm at ZERO during commodity troughs
+• Trading arm generates $2-4B EBITDA with minimal capital — should trade at 8-12x
+• When total Glencore EV implies trading at <5x vs standalone 8-12x → structural undervaluation
+
+COPX RATIO CONTEXT:
+If COPX is outperforming GLNCY, pure copper is leading — Glencore may catch up (diversification discount). If GLNCY outperforms COPX, market is giving credit to the trading arm.
+
+SCORES: More volatile than compounders but less extreme than AMKBY. ±10-20 during active commodity markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -355,7 +398,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -387,7 +430,8 @@ function buildSearchPrompt(h) {
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isETHA = h.archetype === "high_beta_crypto";
-  const isKOF = h.archetype === "em_dividend_growth";  // ← NEW
+  const isKOF = h.archetype === "em_dividend_growth";
+  const isGLNCY = h.archetype === "diversified_commodity_trader";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -426,6 +470,11 @@ CRITICAL — ETHA SCORING: Spot Ethereum ETF. ETH runs at 1.3-1.5x BTC's volatil
 CRITICAL — KOF SCORING: Coca-Cola FEMSA, largest Coke bottler in LatAm. Consumer staples compounder. Do NOT penalize 52w proximity or RSI 50-65 (normal for staples). P/E 15-22x is NORMAL. The #1 non-fundamental driver is MXN/USD — KOF earns ~60% in MXN. Strong peso = ADR tailwind, weak peso = headwind. Search for: MXN/USD direction, Banxico rate decisions, Mexican consumer spending, retail sales, nearshoring impact on peso, sugar/PET resin costs, volume growth by geography, dividend growth trajectory. Most days = NEUTRAL.
 ` : "";
 
+  // ── NEW: GLNCY guidance (abbreviated for web search path) ──
+  const glncyGuidance = isGLNCY ? `
+CRITICAL — GLNCY SCORING: Diversified commodity trader (mining: copper 30%, coal 25%, zinc/nickel/cobalt + trading/marketing arm). INVERTED P/E applies but with higher floor than pure cyclicals (trading arm generates $2-4B EBITDA even in troughs). P/B matters (mining assets = replacement cost): P/B <0.8 = strong buy. Search for: LME copper price and trend (THE lead indicator), copper inventories, Chinese PMI/property, zinc/nickel/cobalt prices, coal price + ESG pressure, DXY direction, Glencore trading arm valuation (market often prices at zero). Scores ±10-20 during active commodity markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -441,7 +490,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -651,13 +700,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.7 — KOF EM dividend growth model (MXN/USD FX regime, narrowed PE, LatAm consumer)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.8 — GLNCY commodity trader model (COPX ratio, GSCPI, PE with trading arm floor)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.7");
+  console.log("Portfolio Strategy Signal Generator v6.8");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
