@@ -38,16 +38,52 @@ console.log(`Holdings: ${normalized.length}`);
 
 // ─── 1. CSV LOG ──────────────────────────────────────────────────────────────
 // One row per holding per day. Easy to analyze in Excel/Sheets/pandas.
+// Every column here is EITHER an input the score engine consumed OR an output
+// the engine produced — so the same row shows both what was seen and what was
+// decided from it.
 const CSV_HEADERS = [
-  "date", "symbol", "price", "change_pct",
+  // Identity
+  "date", "symbol",
+
+  // Price inputs
+  "price", "change_pct",
   "w52_high", "w52_low", "w52_pct",
+
+  // Technical inputs
   "rsi14", "sma50", "sma200", "ma_signal",
+
+  // Valuation inputs (engine reads data.valuation.*)
+  "trailing_pe", "price_to_book", "dividend_yield",
+
+  // Macro inputs (engine reads macro.*)
+  "vix", "us10y", "us2y", "tips10y", "spread_2s10s", "hy_oas", "fed_funds",
+  "wti", "mxn_usd", "brl_usd", "gscpi",
+
+  // Cross-asset ratio inputs (engine reads data.<feed>.relative_spread_pp)
+  "rsp_change_pct",           // SPY
+  "alt_season_spread_pp",     // ETHA (ETHA vs IBIT)
+  "copper_regime_spread_pp",  // GLNCY (GLNCY vs COPX)
+  "ag_demand_spread_pp",      // MOS (MOS vs CORN)
+  "dram_cycle_spread_pp",     // SMH (SMH vs MU)
+
+  // Deterministic sub-scores (pre-blend)
+  "det_tactical", "det_positional", "det_strategic", "det_composite",
+
+  // LLM sub-scores (pre-blend)
+  "llm_tactical", "llm_positional", "llm_strategic", "llm_composite",
+
+  // Blended final scores (det/llm already combined)
   "tactical_score", "positional_score", "strategic_score", "composite_score",
+
+  // Signals and recommendation
   "tactical_signal", "positional_signal", "strategic_signal", "recommendation",
+
+  // Role assignment + z-scores (as before)
   "role", "z_tactical", "z_positional", "z_strategic", "z_composite",
+
+  // Key metric + data quality
   "key_metric_name", "key_metric_value",
   "data_source",
-  "vix", "us10y", "hy_oas",
   "confidence_level", "confidence_score", "confidence_missing",
 ].join(",");
 
@@ -73,36 +109,83 @@ for (const s of normalized) {
   };
 
   const row = [
+    // Identity
     date,
     s.symbol,
+
+    // Price inputs
     s.price?.current ?? "",
     s.price?.change_pct ?? "",
     s.price?.week52_high ?? "",
     s.price?.week52_low ?? "",
     s.price?.week52_position_pct ?? "",
+
+    // Technical inputs
     md.technicals?.rsi14 ?? "",
     md.technicals?.sma50 ?? "",
     md.technicals?.sma200 ?? "",
     md.technicals?.ma_signal ?? "",
+
+    // Valuation inputs
+    md.valuation?.trailingPE ?? "",
+    md.valuation?.priceToBook ?? "",
+    md.valuation?.dividendYield ?? "",
+
+    // Macro inputs
+    macro.vix ?? "",
+    macro.us10y ?? "",
+    macro.us2y ?? "",
+    macro.tips10y ?? "",
+    macro.spread_2s10s ?? "",
+    macro.hy_oas ?? "",
+    macro.fed_funds ?? "",
+    macro.wti ?? "",
+    macro.mxn_usd ?? "",
+    macro.brl_usd ?? "",
+    macro.gscpi ?? "",
+
+    // Cross-asset spreads
+    md.breadth?.rsp_change_pct ?? "",
+    md.alt_season?.relative_spread_pp ?? "",
+    md.copper_regime?.relative_spread_pp ?? "",
+    md.ag_demand?.relative_spread_pp ?? "",
+    md.dram_cycle?.relative_spread_pp ?? "",
+
+    // Deterministic sub-scores
+    s.tactical?.det_score ?? "",
+    s.positional?.det_score ?? "",
+    s.strategic?.det_score ?? "",
+    s.composite?.det_score ?? "",
+
+    // LLM sub-scores
+    s.tactical?.llm_score ?? "",
+    s.positional?.llm_score ?? "",
+    s.strategic?.llm_score ?? "",
+    s.composite?.llm_score ?? "",
+
+    // Blended final scores
     s.tactical?.score ?? "",
     s.positional?.score ?? "",
     s.strategic?.score ?? "",
     s.composite?.score ?? "",
+
+    // Signals
     s.tactical?.signal ?? "",
     s.positional?.signal ?? "",
     s.strategic?.signal ?? "",
     s.composite?.recommendation ?? "",
+
+    // Role + z-scores
     role,
     s.z?.tactical?.toFixed(3) ?? "",
     s.z?.positional?.toFixed(3) ?? "",
     s.z?.strategic?.toFixed(3) ?? "",
     s.z?.composite?.toFixed(3) ?? "",
+
+    // Key metric + data quality
     esc(s.key_metric?.name ?? ""),
     esc(s.key_metric?.value ?? ""),
     md.completeness ?? "unknown",
-    macro.vix ?? "",
-    macro.us10y ?? "",
-    macro.hy_oas ?? "",
     s.confidence?.level ?? "",
     s.confidence?.score ?? "",
     esc((s.confidence?.missing || []).join(";")),
@@ -122,6 +205,7 @@ console.log(`✓ CSV: ${normalized.length} rows appended to ${CSV_PATH}`);
 
 // ─── 2. JSONL LOG ────────────────────────────────────────────────────────────
 // One complete JSON object per day — machine-readable, full fidelity.
+// Also expanded to include every input the engine consumed + det/llm split.
 const dailyEntry = {
   date,
   timestamp,
@@ -134,22 +218,67 @@ const dailyEntry = {
     spread_2s10s: macro.spread_2s10s ?? null,
     hy_oas: macro.hy_oas ?? null,
     fed_funds: macro.fed_funds ?? null,
+    wti: macro.wti ?? null,
+    mxn_usd: macro.mxn_usd ?? null,
+    brl_usd: macro.brl_usd ?? null,
+    gscpi: macro.gscpi ?? null,
   },
   holdings: normalized.map(s => {
     const md = marketData[s.symbol] || {};
     return {
       symbol: s.symbol,
+
+      // Price
       price: s.price?.current ?? null,
       change_pct: s.price?.change_pct ?? null,
       w52_pct: s.price?.week52_position_pct ?? null,
+      w52_high: s.price?.week52_high ?? null,
+      w52_low: s.price?.week52_low ?? null,
+
+      // Technical
       rsi14: md.technicals?.rsi14 ?? null,
       sma50: md.technicals?.sma50 ?? null,
       sma200: md.technicals?.sma200 ?? null,
       ma_signal: md.technicals?.ma_signal ?? null,
-      tactical: s.tactical?.score ?? null,
-      positional: s.positional?.score ?? null,
-      strategic: s.strategic?.score ?? null,
-      composite: s.composite?.score ?? null,
+
+      // Valuation
+      trailing_pe: md.valuation?.trailingPE ?? null,
+      price_to_book: md.valuation?.priceToBook ?? null,
+      dividend_yield: md.valuation?.dividendYield ?? null,
+
+      // Cross-asset spreads
+      rsp_change_pct: md.breadth?.rsp_change_pct ?? null,
+      alt_season_spread_pp: md.alt_season?.relative_spread_pp ?? null,
+      copper_regime_spread_pp: md.copper_regime?.relative_spread_pp ?? null,
+      ag_demand_spread_pp: md.ag_demand?.relative_spread_pp ?? null,
+      dram_cycle_spread_pp: md.dram_cycle?.relative_spread_pp ?? null,
+
+      // Det/LLM/blended scores per timeframe
+      tactical: {
+        det: s.tactical?.det_score ?? null,
+        llm: s.tactical?.llm_score ?? null,
+        blended: s.tactical?.score ?? null,
+        signal: s.tactical?.signal ?? null,
+      },
+      positional: {
+        det: s.positional?.det_score ?? null,
+        llm: s.positional?.llm_score ?? null,
+        blended: s.positional?.score ?? null,
+        signal: s.positional?.signal ?? null,
+      },
+      strategic: {
+        det: s.strategic?.det_score ?? null,
+        llm: s.strategic?.llm_score ?? null,
+        blended: s.strategic?.score ?? null,
+        signal: s.strategic?.signal ?? null,
+      },
+      composite: {
+        det: s.composite?.det_score ?? null,
+        llm: s.composite?.llm_score ?? null,
+        blended: s.composite?.score ?? null,
+        recommendation: s.composite?.recommendation ?? null,
+      },
+
       z_composite: s.z?.composite ?? null,
       role:
         s.symbol === assignments.tacticalBuy   ? "TACTICAL_BUY" :
@@ -183,7 +312,7 @@ if (existsSync(JSONL_PATH)) {
 }
 
 // ─── 3. ROLLING SUMMARY ─────────────────────────────────────────────────────
-// Tracks assignment history for streak/consistency analysis.
+// Tracks assignment history for streak/consistency analysis. Unchanged.
 let summary = { version: 1, firstDate: date, lastDate: date, totalDays: 0, assignments: {}, holdingStats: {} };
 if (existsSync(SUMMARY_PATH)) {
   try { summary = JSON.parse(readFileSync(SUMMARY_PATH, "utf-8")); } catch {}
