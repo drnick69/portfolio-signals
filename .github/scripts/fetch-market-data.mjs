@@ -8,6 +8,7 @@
 // v4.5: COPX auxiliary quote for GLNCY copper regime scoring
 // v4.6: WTI crude (DCOILWTICO) + BRL/USD (DEXBZUS) for PBR.A oil/FX regime
 // v4.7: CORN auxiliary quote for MOS agricultural demand regime
+// v4.8: MU auxiliary quote for SMH DRAM cycle regime
 
 import { writeFileSync } from "fs";
 
@@ -39,6 +40,7 @@ const AUX_SYMBOLS = [
   { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
   { symbol: "COPX", finnhub: "COPX", purpose: "glncy_copper" },  // Global X Copper Miners ETF
   { symbol: "CORN", finnhub: "CORN", purpose: "mos_ag_demand" },  // Teucrium Corn Fund ETF
+  { symbol: "MU", finnhub: "MU", purpose: "smh_dram_cycle" },     // Micron — DRAM cycle proxy
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -465,7 +467,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.7");
+  console.log("Market Data Pre-Fetch v4.8");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -735,6 +737,39 @@ async function main() {
     }
   }
 
+  // ── Attach SMH/MU ratio for DRAM/memory cycle detection ────────────────
+  // MU (Micron) is the purest DRAM proxy. When MU outperforms SMH, the
+  // commodity memory cycle is leading (early/mid cycle). When SMH outperforms
+  // MU, secular growth (AI/NVIDIA) is carrying the sector.
+  if (output.SMH && auxQuotes.MU) {
+    const smhPrice = output.SMH.price?.current;
+    const muPrice = auxQuotes.MU.price;
+    const smhChange = output.SMH.price?.change_pct;
+    const muChange = auxQuotes.MU.change_pct;
+
+    if (smhPrice && muPrice) {
+      const ratio = +(smhPrice / muPrice).toFixed(6);
+      const spread = (smhChange != null && muChange != null)
+        ? +(smhChange - muChange).toFixed(3) : null;
+
+      output.SMH.dram_cycle = {
+        smh_mu_ratio: ratio,
+        smh_change_pct: smhChange,
+        mu_change_pct: muChange,
+        mu_price: muPrice,
+        relative_spread_pp: spread, // SMH return minus MU return
+      };
+
+      const dramStr = spread == null ? "—"
+        : spread > 0.5 ? `SMH outperforming MU by ${spread}pp (secular/AI leading, DRAM lagging)`
+        : spread < -0.5 ? `MU outperforming SMH by ${(-spread).toFixed(2)}pp (DRAM cycle recovery leading)`
+        : "inline";
+      console.log(`  SMH DRAM-cycle: SMH/MU=${ratio} | MU $${muPrice} (${muChange >= 0 ? "+" : ""}${muChange}%) | ${dramStr}`);
+    } else {
+      console.log(`  SMH DRAM-cycle: skipped (missing price data)`);
+    }
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -759,6 +794,7 @@ async function main() {
   console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
+  console.log(`  SMH/MU:         ${output.SMH?.dram_cycle ? `ratio=${output.SMH.dram_cycle.smh_mu_ratio}, MU $${output.SMH.dram_cycle.mu_price}` : "unavailable"}`);
   console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
