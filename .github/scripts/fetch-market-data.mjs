@@ -4,6 +4,7 @@
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
 // v4.3: ETHA/IBIT alt-season ratio for ETHA positional layer
+// v4.4: MXN/USD (FRED DEXMXUS) for KOF FX regime scoring
 
 import { writeFileSync } from "fs";
 
@@ -363,6 +364,7 @@ async function fetchMacro() {
     fed_funds: "FEDFUNDS",
     vix: "VIXCLS",
     hy_oas: "BAMLH0A0HYM2",
+    mxn_usd: "DEXMXUS",           // MXN/USD exchange rate — KOF primary FX signal
   };
 
   const result = {};
@@ -380,7 +382,7 @@ async function fetchMacro() {
     result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0);
   }
 
-  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}`);
+  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}`);
   return result;
 }
 
@@ -456,7 +458,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.3");
+  console.log("Market Data Pre-Fetch v4.4");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
