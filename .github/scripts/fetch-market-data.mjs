@@ -6,6 +6,7 @@
 // v4.3: ETHA/IBIT alt-season ratio for ETHA positional layer
 // v4.4: MXN/USD (FRED DEXMXUS) for KOF FX regime scoring
 // v4.5: COPX auxiliary quote for GLNCY copper regime scoring
+// v4.6: WTI crude (DCOILWTICO) + BRL/USD (DEXBZUS) for PBR.A oil/FX regime
 
 import { writeFileSync } from "fs";
 
@@ -367,6 +368,8 @@ async function fetchMacro() {
     vix: "VIXCLS",
     hy_oas: "BAMLH0A0HYM2",
     mxn_usd: "DEXMXUS",           // MXN/USD exchange rate — KOF primary FX signal
+    wti: "DCOILWTICO",             // WTI crude oil — PBR.A primary commodity signal
+    brl_usd: "DEXBZUS",           // BRL/USD exchange rate — PBR.A FX signal
   };
 
   const result = {};
@@ -384,7 +387,7 @@ async function fetchMacro() {
     result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0);
   }
 
-  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}`);
+  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}, WTI=${result.wti ?? "—"}, BRL=${result.brl_usd ?? "—"}`);
   return result;
 }
 
@@ -460,7 +463,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.5");
+  console.log("Market Data Pre-Fetch v4.6");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
