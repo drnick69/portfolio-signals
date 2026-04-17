@@ -11,6 +11,7 @@
 // v6.6: ETHA high_beta_crypto (wider RSI/daily bands, inverted 52w, 200DMA extension, ETHA/IBIT alt-season ratio, 30/35/35).
 // v6.7: KOF em_dividend_growth (dampened RSI, mildly inverted 52w, MXN/USD FX regime, narrowed PE, 15/35/50).
 // v6.8: GLNCY diversified_commodity_trader (COPX ratio, GSCPI+HY OAS, PE with trading arm floor, enhanced P/B, 20/35/45).
+// v6.9: PBR.A em_state_oil_dividend (WTI+BRL/USD regime, enhanced dividend yield 8-15%+, political risk LLM focus, 20/35/45).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -75,7 +76,8 @@ function buildPrompt(h, detScores) {
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
-  const isGLNCY = h.archetype === "diversified_commodity_trader";  // ← NEW
+  const isGLNCY = h.archetype === "diversified_commodity_trader";
+  const isPBRA = h.archetype === "em_state_oil_dividend";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -154,6 +156,8 @@ function buildPrompt(h, detScores) {
     ethaAltSeasonLine,  // ← NEW (null-filtered for non-ETHA)
     kofMxnLine,         // ← NEW (null-filtered for non-KOF)
     glncyCopxLine,      // ← NEW (null-filtered for non-GLNCY)
+    (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
+    (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -378,6 +382,34 @@ If COPX is outperforming GLNCY, pure copper is leading — Glencore may catch up
 SCORES: More volatile than compounders but less extreme than AMKBY. ±10-20 during active commodity markets.
 ` : "";
 
+  // ── NEW: PBR.A-specific guidance ──────────────────────────────────────────
+  const pbraGuidance = isPBRA ? `
+CRITICAL — PBR.A-SPECIFIC SCORING GUIDANCE:
+PBR.A is Petrobras — Brazil's state-controlled oil giant. THREE forces pull simultaneously: oil price, BRL/USD, and political risk. They can conflict.
+
+WHAT DRIVES PBR.A'S PRICE (in order):
+1. OIL PRICE: WTI/Brent up = PBR.A up, with high beta. The engine scores WTI as a regime indicator in both positional and strategic layers. Your job: assess direction and sustainability (OPEC+ dynamics, demand outlook, inventory trends).
+2. POLITICAL RISK: THIS IS YOUR #1 VALUE-ADD. Lula government interference is the dominant idiosyncratic risk. Watch for: CEO changes, fuel pricing formula violations, forced capex into uneconomic refining, dividend policy pressure, strategic plan deviations. A single headline can move PBR.A 5-10%.
+3. BRL/USD: Strong BRL lifts the ADR, weak BRL drags it. The engine scores BRL level. Your job: assess Banxico/BCB policy, fiscal trajectory, carry trade dynamics.
+
+CYCLICAL P/E — OIL PRODUCER:
+Inverted PE applies. PE 3-5x = peak earnings = trim risk. PE 8-15x = mid-cycle. PE 25-50x = trough = buy. Pre-salt breakeven ~$35/bbl means Petrobras is profitable even in downturns.
+
+DIVIDEND YIELD — THE THESIS:
+PBR.A routinely yields 10-15%. This IS the investment thesis — massive yield as compensation for state control risk. The engine has enhanced bands (8-18%+ range). Your job: assess whether the current dividend is SUSTAINABLE given government pressure. When yield hits 15%+ AND you believe the dividend is safe, that's a strong buy.
+
+YOUR VALUE-ADD:
+• Government interference risk: CEO stability, fuel pricing compliance, capex discipline
+• Dividend policy sustainability: payout ratio, free cash flow, debt levels
+• Pre-salt production trajectory (the world-class asset)
+• Brent-WTI spread dynamics
+• Brazilian fiscal situation and its impact on Petrobras policy
+• Comparison to IOC peers (Shell, Total, Equinor) on valuation
+• Refining margin trends and domestic fuel pricing formula compliance
+
+SCORING: PBR.A can produce ±15-25 during active oil/political markets. Political crisis + oil crash can produce genuine STRONG_BUY territory (-40+). Political stability + strong oil + compressed yield can produce genuine TRIM (+25+).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -398,7 +430,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -431,7 +463,8 @@ function buildSearchPrompt(h) {
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
-  const isGLNCY = h.archetype === "diversified_commodity_trader";  // ← NEW
+  const isGLNCY = h.archetype === "diversified_commodity_trader";
+  const isPBRA = h.archetype === "em_state_oil_dividend";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -475,6 +508,11 @@ CRITICAL — KOF SCORING: Coca-Cola FEMSA, largest Coke bottler in LatAm. Consum
 CRITICAL — GLNCY SCORING: Diversified commodity trader (mining: copper 30%, coal 25%, zinc/nickel/cobalt + trading/marketing arm). INVERTED P/E applies but with higher floor than pure cyclicals (trading arm generates $2-4B EBITDA even in troughs). P/B matters (mining assets = replacement cost): P/B <0.8 = strong buy. Search for: LME copper price and trend (THE lead indicator), copper inventories, Chinese PMI/property, zinc/nickel/cobalt prices, coal price + ESG pressure, DXY direction, Glencore trading arm valuation (market often prices at zero). Scores ±10-20 during active commodity markets.
 ` : "";
 
+  // ── NEW: PBR.A guidance (abbreviated for web search path) ──
+  const pbraGuidance = isPBRA ? `
+CRITICAL — PBR.A SCORING: Petrobras, Brazil state-controlled oil. INVERTED P/E (oil producer cyclical). Three forces: oil price (WTI/Brent), BRL/USD, and POLITICAL RISK (the #1 idiosyncratic factor). Yield 10-15% is NORMAL — the thesis IS the massive yield as compensation for state risk. Search for: WTI/Brent price and OPEC outlook, Lula government interference (CEO changes, fuel pricing, dividend pressure), BRL/USD direction, pre-salt production, dividend sustainability, refining margins. Political crisis + oil crash = potential STRONG_BUY. Scores ±15-25 during active oil/political markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -490,7 +528,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -700,13 +738,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.8 — GLNCY commodity trader model (COPX ratio, GSCPI, PE with trading arm floor)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.9 — PBR.A EM state oil model (WTI+BRL regime, enhanced dividend yield, political risk LLM focus)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.8");
+  console.log("Portfolio Strategy Signal Generator v6.9");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
