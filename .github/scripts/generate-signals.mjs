@@ -13,6 +13,7 @@
 // v6.8: GLNCY diversified_commodity_trader (COPX ratio, GSCPI+HY OAS, PE with trading arm floor, enhanced P/B, 20/35/45).
 // v6.9: PBR.A em_state_oil_dividend (WTI+BRL/USD regime, enhanced dividend yield 8-15%+, political risk LLM focus, 20/35/45).
 // v7.0: MOS cyclical_commodity (CORN ratio, seasonal modifier, BRL/USD mild, dampened RSI/MA/52w, 25/35/40).
+// v7.1: SMH sector_beta (MU DRAM cycle ratio, narrowed PE 20-30x, GPU rental pricing LLM signal, 20/35/45).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -79,7 +80,8 @@ function buildPrompt(h, detScores) {
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
   const isPBRA = h.archetype === "em_state_oil_dividend";
-  const isMOS = h.archetype === "cyclical_commodity";  // ← NEW
+  const isMOS = h.archetype === "cyclical_commodity";
+  const isSMH = h.archetype === "sector_beta";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -162,6 +164,7 @@ function buildPrompt(h, detScores) {
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     (isMOS && md.ag_demand) ? `MOS/CORN: ratio ${md.ag_demand.mos_corn_ratio ?? "—"} | CORN $${md.ag_demand.corn_price ?? "—"} (${md.ag_demand.corn_change_pct >= 0 ? "+" : ""}${md.ag_demand.corn_change_pct}%) | Spread: ${md.ag_demand.relative_spread_pp != null ? (md.ag_demand.relative_spread_pp >= 0 ? "+" : "") + md.ag_demand.relative_spread_pp + "pp" : "—"}` : null,
     (isMOS && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (mild MOS overlay — Mosaic Fertilizantes)` : null,
+    (isSMH && md.dram_cycle) ? `SMH/MU: ratio ${md.dram_cycle.smh_mu_ratio ?? "—"} | MU $${md.dram_cycle.mu_price ?? "—"} (${md.dram_cycle.mu_change_pct >= 0 ? "+" : ""}${md.dram_cycle.mu_change_pct}%) | Spread: ${md.dram_cycle.relative_spread_pp != null ? (md.dram_cycle.relative_spread_pp >= 0 ? "+" : "") + md.dram_cycle.relative_spread_pp + "pp" : "—"} (${md.dram_cycle.relative_spread_pp > 0.5 ? "AI/secular leading" : md.dram_cycle.relative_spread_pp < -0.5 ? "DRAM cycle leading" : "balanced"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -439,6 +442,36 @@ DO NOT PENALIZE: RSI 62-75 during fertilizer rallies (MOS runs extended in potas
 SCORING: MOS is more volatile than consumer staples but less extreme than shipping. ±10-20 during active fertilizer markets. Seasonal modifier adds ±3 per layer.
 ` : "";
 
+  // ── NEW: SMH-specific guidance ────────────────────────────────────────────
+  const smhGuidance = isSMH ? `
+CRITICAL — SMH-SPECIFIC SCORING GUIDANCE:
+SMH is the VanEck Semiconductor ETF — 25 holdings, but heavily concentrated: NVIDIA (~20%), TSM (~12%), Broadcom (~8%). Both a secular growth play AND a commodity cyclical through the DRAM/memory cycle.
+
+THE DUAL NATURE OF SEMIS:
+The engine scores the commodity side via MU (Micron) as a DRAM cycle proxy. When MU outperforms SMH, the memory cycle is healthy → broad-based bullish. When SMH outperforms MU, it's a narrow AI-driven rally (NVIDIA concentration risk).
+
+YOUR #1 VALUE-ADD — GPU RENTAL PRICING:
+GPU rental rates (Blackwell, H100 hourly pricing from RunPod, Lambda, CoreWeave, SF Compute) are a real-time demand signal for AI compute. This directly impacts NVIDIA which is ~20% of SMH.
+• Rising rental rates / sold-out capacity → NVIDIA's next quarter will be strong
+• Falling rates → supply catching up or demand softening
+• Blackwell vs H100 spread → are customers paying up for latest silicon?
+Search for current GPU rental pricing and interpret the demand signal.
+
+WHAT ELSE THE ENGINE CANNOT CAPTURE:
+• NVIDIA concentration: is the rally broad (good) or NVDA-only (fragile)?
+• Semi inventory cycle: are channel inventories building or depleting?
+• Hyperscaler capex commentary: MSFT, GOOG, AMZN, META AI spending plans
+• TSMC utilization rates and pricing — leading indicator for the whole chain
+• China export controls / trade restrictions — structural headwind or priced in?
+• PC/smartphone refresh cycle status
+• Auto/industrial semi demand recovery
+
+PE BANDS (narrowed for semis):
+P/E 20-30x is NORMAL for the semiconductor sector (growth premium). Do NOT penalize 28x as "rich" — that's mid-cycle for semis. Below 20x is genuinely cheap; above 35x is getting expensive.
+
+SCORING: SMH is high-beta to the market. ±10-20 during active semi markets. AI sentiment shifts can produce ±5-10 in a single session due to NVDA concentration.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -459,7 +492,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${smhGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -494,7 +527,8 @@ function buildSearchPrompt(h) {
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
   const isPBRA = h.archetype === "em_state_oil_dividend";
-  const isMOS = h.archetype === "cyclical_commodity";  // ← NEW
+  const isMOS = h.archetype === "cyclical_commodity";
+  const isSMH = h.archetype === "sector_beta";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -548,6 +582,11 @@ CRITICAL — PBR.A SCORING: Petrobras, Brazil state-controlled oil. INVERTED P/E
 CRITICAL — MOS SCORING: The Mosaic Company, world's largest finished phosphate and potash producer. INVERTED P/E (cyclical commodity). Key drivers: potash/DAP/MAP fertilizer prices (THE #1 signal — no API data, search for current spot prices), CORN ETF as ag demand proxy, seasonal planting cycles (spring Mar-May = peak demand, winter = weakest). BRL/USD mild overlay (Mosaic Fertilizantes). Search for: potash spot prices, DAP/MAP prices, Chinese/Indian potash contracts, Belarus/Russia supply, channel inventories, sulfur input costs, USDA planted acres. RSI 62-75 is normal during potash rallies. Scores ±10-20 during active fertilizer markets.
 ` : "";
 
+  // ── NEW: SMH guidance (abbreviated for web search path) ──
+  const smhGuidance = isSMH ? `
+CRITICAL — SMH SCORING: VanEck Semiconductor ETF. Heavily concentrated (~20% NVDA, ~12% TSM). Both secular growth AND commodity cyclical through DRAM. PE 20-30x is NORMAL for semis — do NOT penalize. MU (Micron) is the DRAM cycle proxy: MU outperforming = broad-based recovery (bullish), SMH outperforming MU = narrow AI rally (concentration risk). Search for: GPU rental pricing (Blackwell/H100 hourly rates from RunPod, Lambda, CoreWeave — real-time AI demand signal), DRAM spot prices, semi inventory cycle, hyperscaler capex (MSFT/GOOG/AMZN AI spend), TSMC utilization, China export controls, PC/smartphone refresh cycle. Scores ±10-20 during active semi markets.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -563,7 +602,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${mosGuidance}${smhGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -773,13 +812,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.0 — All 10 archetype models complete (MOS cyclical commodity with CORN ratio + seasonal)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.1 — All 11 holdings optimized (SMH sector beta with MU DRAM cycle + GPU pricing LLM)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v7.0");
+  console.log("Portfolio Strategy Signal Generator v7.1");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
