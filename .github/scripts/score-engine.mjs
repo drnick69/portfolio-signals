@@ -39,6 +39,9 @@
 //   - CYCLICAL_COMMODITY (MOS): seasonal modifier (spring/fall planting cycles),
 //     CORN ratio as ag demand proxy, BRL/USD mild overlay (Brazil operations),
 //     dampened MA/52w at highs, cyclical inverted PE
+//   - SECTOR_BETA (SMH): mildly wider daily bands (NVDA concentration), narrowed
+//     PE (20-30x normal for semis), MU as DRAM cycle proxy, P/B and dividend
+//     yield skipped (meaningless for sector ETF of fabless companies)
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -89,7 +92,8 @@ export function scoreTactical(data, macro) {
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
-  const isMOS = archetype === "cyclical_commodity";  // ← NEW
+  const isMOS = archetype === "cyclical_commodity";
+  const isSMH = archetype === "sector_beta";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -385,6 +389,35 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── SMH-SPECIFIC: SECTOR ETF — NVIDIA CONCENTRATION RISK ───────────────
+  // SMH is a sector ETF but heavily concentrated (~20% NVDA, ~12% TSM).
+  // RSI is mostly generic but daily change bands are wider (3-5% moves on
+  // NVDA earnings or AI sentiment shifts are common).
+  if (isSMH) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: SMH severely oversold`); }
+      else if (rsi < 25) { score += -45; notes.push(`RSI ${rsi}: SMH deeply oversold`); }
+      else if (rsi < 30) { score += -35; notes.push(`RSI ${rsi}: SMH oversold`); }
+      else if (rsi < 35) { score += -20; notes.push(`RSI ${rsi}: SMH mildly oversold`); }
+      else if (rsi < 40) { score += -10; notes.push(`RSI ${rsi}: SMH approaching oversold`); }
+      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: SMH neutral`); }
+      else if (rsi < 68) { score += 8;   notes.push(`RSI ${rsi}: SMH mildly overbought`); }
+      else if (rsi < 75) { score += 18;  notes.push(`RSI ${rsi}: SMH overbought`); }
+      else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: SMH deeply overbought`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: SMH extreme`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -6)      { score += -15; notes.push(`SMH daily ${chg}%: sharp decline (NVDA drag?)`); }
+      else if (chg < -4) { score += -8;  notes.push(`SMH daily ${chg}%: notable decline`); }
+      else if (chg > 6)  { score += 12;  notes.push(`SMH daily +${chg}%: sharp rally`); }
+      else if (chg > 4)  { score += 6;   notes.push(`SMH daily +${chg}%: notable rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -426,7 +459,8 @@ export function scorePositional(data, macro) {
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
-  const isMOS = archetype === "cyclical_commodity";  // ← NEW
+  const isMOS = archetype === "cyclical_commodity";
+  const isSMH = archetype === "sector_beta";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -951,6 +985,20 @@ export function scorePositional(data, macro) {
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
   }
 
+  // ── SMH ONLY: MU ratio (DRAM cycle indicator) ─────────────────────────────
+  // When MU outperforms SMH, the commodity memory cycle is recovering/leading.
+  // When SMH outperforms MU, secular growth (AI/NVDA) is carrying the sector.
+  if (isSMH && data.dram_cycle) {
+    const spread = data.dram_cycle.relative_spread_pp;
+    if (spread != null) {
+      if (spread > 3)       { score += 3;  notes.push(`SMH outperforming MU by ${spread}pp — AI/secular leading, DRAM lagging`); }
+      else if (spread > 1)  { score += 1;  notes.push(`SMH mildly outperforming MU (${spread}pp)`); }
+      else if (spread < -3) { score += -5; notes.push(`MU outperforming SMH by ${(-spread).toFixed(2)}pp — DRAM cycle recovery, broad-based`); }
+      else if (spread < -1) { score += -2; notes.push(`MU mildly outperforming SMH (${(-spread).toFixed(2)}pp)`); }
+      else                  { notes.push(`SMH/MU spread: ${spread}pp — inline`); }
+    }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -970,7 +1018,8 @@ export function scoreStrategic(data, macro) {
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
-  const isMOS = archetype === "cyclical_commodity";  // ← NEW
+  const isMOS = archetype === "cyclical_commodity";
+  const isSMH = archetype === "sector_beta";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -1476,6 +1525,62 @@ export function scoreStrategic(data, macro) {
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── SMH STRATEGIC ────────────────────────────────────────────────────────  ← NEW
+  // Semiconductor sector ETF. Narrowed PE (semis command a growth premium),
+  // P/B and dividend yield skipped (meaningless for sector ETF of fabless cos).
+  // MU DRAM cycle as strategic regime indicator.
+  if (isSMH) {
+    // PE — narrowed bands for semiconductor sector.
+    // 20-30x is normal mid-cycle for semis (growth premium). Generic would
+    // flag 28x as "getting rich" which is wrong for this sector.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe < 15)       { score += -10; notes.push(`SMH P/E ${pe.toFixed(1)}x: cheap for semis — trough or value`); }
+      else if (pe < 20)  { score += -5;  notes.push(`SMH P/E ${pe.toFixed(1)}x: below normal — attractive`); }
+      else if (pe <= 30) { score += 0;   notes.push(`SMH P/E ${pe.toFixed(1)}x: normal semi range`); }
+      else if (pe < 35)  { score += 5;   notes.push(`SMH P/E ${pe.toFixed(1)}x: slightly rich`); }
+      else if (pe < 40)  { score += 10;  notes.push(`SMH P/E ${pe.toFixed(1)}x: rich`); }
+      else if (pe < 50)  { score += 15;  notes.push(`SMH P/E ${pe.toFixed(1)}x: expensive`); }
+      else               { score += 20;  notes.push(`SMH P/E ${pe.toFixed(1)}x: very expensive for sector ETF`); }
+    }
+
+    // P/B and dividend yield SKIPPED — meaningless for a sector ETF
+    // of mostly fabless semiconductor companies.
+
+    // MU DRAM cycle — strategic regime indicator.
+    // When MU outperforms SMH over time, memory cycle is healthy → broad-based.
+    // When SMH outperforms MU persistently, AI/secular is carrying everything
+    // while commodity semis weaken → concentration risk, narrowing breadth.
+    if (data.dram_cycle) {
+      const spread = data.dram_cycle.relative_spread_pp;
+      if (spread != null) {
+        if (spread > 3)       { score += 5;  notes.push(`SMH vs MU: SMH leading by ${spread}pp — narrow AI-driven rally`); }
+        else if (spread > 1)  { score += 2;  notes.push(`SMH mildly leading MU — secular growth premium`); }
+        else if (spread < -3) { score += -5; notes.push(`MU leading SMH by ${(-spread).toFixed(2)}pp — DRAM recovery, broad-based bullish`); }
+        else if (spread < -1) { score += -2; notes.push(`MU mildly leading — memory cycle strengthening`); }
+        else                  { notes.push(`SMH/MU spread: ${spread}pp — balanced`); }
+      }
+    }
+
+    // VIX — moderate overlay (semis are high-beta to market)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -8; notes.push(`VIX ${vix}: panic — semi contrarian buy`); }
+      else if (vix > 25) { score += -3; notes.push(`VIX ${vix}: elevated fear — semis oversold?`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
+    }
+
+    // TIPS — moderate overlay (semis are long-duration growth, rate sensitive)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 2.5)    { score += 5;  notes.push(`TIPS ${tips}%: restrictive — semi headwind`); }
+      else if (tips > 2) { score += 2;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0) { score += -5; notes.push(`TIPS ${tips}%: accommodative — growth tailwind`); }
+    }
 
     return { score: clamp(score), notes };
   }
