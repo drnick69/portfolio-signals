@@ -33,6 +33,9 @@
 //   - DIVERSIFIED_COMMODITY_TRADER (GLNCY): slightly dampened RSI (diversification
 //     buffers), dampened MA/52w, COPX ratio as copper regime, GSCPI + HY OAS as
 //     commodity demand proxies, PE with higher floor (trading arm), enhanced P/B
+//   - EM_STATE_OIL_DIVIDEND (PBR.A): slightly dampened RSI (volatile but oil-anchored),
+//     WTI as primary commodity signal, BRL/USD as FX regime, enhanced dividend yield
+//     bands (8-15%+ range), PE inverted (oil producer), P/B for reserves value
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -67,7 +70,8 @@ export function scoreTactical(data, macro) {
   const isENB = archetype === "dividend_compounder";
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
-  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
+  const isGLNCY = archetype === "diversified_commodity_trader";
+  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -297,6 +301,38 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── PBR.A-SPECIFIC: EM OIL — VOLATILE BUT OIL-ANCHORED ─────────────────
+  // PBR.A gets vol from three sources: oil price, BRL, and political headlines.
+  // RSI is slightly dampened from generic because oil fundamentals anchor the
+  // stock — pure political volatility is noise that mean-reverts faster.
+  // Daily bands are wider than generic (±5% on political headlines is common).
+  if (isPBRA) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: PBR.A severely oversold`); }
+      else if (rsi < 25) { score += -40; notes.push(`RSI ${rsi}: PBR.A deeply oversold`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: PBR.A oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: PBR.A mildly oversold`); }
+      else if (rsi < 40) { score += -5;  notes.push(`RSI ${rsi}: PBR.A approaching oversold`); }
+      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: PBR.A neutral`); }
+      else if (rsi < 68) { score += 8;   notes.push(`RSI ${rsi}: PBR.A mildly overbought`); }
+      else if (rsi < 75) { score += 20;  notes.push(`RSI ${rsi}: PBR.A overbought`); }
+      else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: PBR.A deeply overbought`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: PBR.A extreme`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -8)      { score += -18; notes.push(`PBR.A daily ${chg}%: capitulation (political?)`); }
+      else if (chg < -5) { score += -12; notes.push(`PBR.A daily ${chg}%: sharp decline`); }
+      else if (chg < -3) { score += -6;  notes.push(`PBR.A daily ${chg}%: notable decline`); }
+      else if (chg > 8)  { score += 15;  notes.push(`PBR.A daily +${chg}%: sharp rally`); }
+      else if (chg > 5)  { score += 8;   notes.push(`PBR.A daily +${chg}%: notable rally`); }
+      else if (chg > 3)  { score += 4;   notes.push(`PBR.A daily +${chg}%: mild rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -336,7 +372,8 @@ export function scorePositional(data, macro) {
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
-  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
+  const isGLNCY = archetype === "diversified_commodity_trader";
+  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -443,6 +480,20 @@ export function scorePositional(data, macro) {
         score += glncyMaScores[ma];
         notes.push(`GLNCY MA: ${ma} (${glncyMaScores[ma] > 0 ? "+" : ""}${glncyMaScores[ma]})`);
       }
+    } else if (isPBRA) {
+      // ── PBR.A: dampened golden cross, death cross = buy (cyclical oil)
+      const pbraMaScores = {
+        "above_both_golden": 8,        // oil uptrend confirmed
+        "above_both": 5,               // uptrend
+        "above_50_below_200": -5,      // pullback
+        "above_200_below_50": 3,       // weakening
+        "below_both": -12,             // oil downturn — buy
+        "below_both_death": -20,       // deep oil trough — strong buy
+      };
+      if (pbraMaScores[ma] != null) {
+        score += pbraMaScores[ma];
+        notes.push(`PBR.A MA: ${ma} (${pbraMaScores[ma] > 0 ? "+" : ""}${pbraMaScores[ma]})`);
+      }
     } else {
       const maScores = {
         "above_both_golden": 15, "above_both": 10,
@@ -546,6 +597,18 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -18; notes.push(`GLNCY 52w: ${w52}% — lower range, commodity trough buy`); }
       else if (w52 > 5)  { score += -28; notes.push(`GLNCY 52w: ${w52}% — near lows, deep commodity buy`); }
       else               { score += -35; notes.push(`GLNCY 52w: ${w52}% — extreme low, max conviction`); }
+    } else if (isPBRA) {
+      // ── PBR.A: DAMPENED AT HIGHS (cyclical oil + political risk at highs)
+      // Near highs = oil is strong but political risk peaks when govt sees profits.
+      // Deep drawdowns = either oil crash (buy) or political crisis (buy if temporary).
+      if (w52 > 95)      { score += 15;  notes.push(`PBR.A 52w: ${w52}% — near highs, political/cycle risk`); }
+      else if (w52 > 85) { score += 8;   notes.push(`PBR.A 52w: ${w52}% — upper range`); }
+      else if (w52 > 70) { score += 3;   notes.push(`PBR.A 52w: ${w52}% — above mid`); }
+      else if (w52 > 50) { score += 0;   notes.push(`PBR.A 52w: ${w52}% — mid range`); }
+      else if (w52 > 30) { score += -10; notes.push(`PBR.A 52w: ${w52}% — below mid, opportunity`); }
+      else if (w52 > 15) { score += -22; notes.push(`PBR.A 52w: ${w52}% — lower range, oil trough buy`); }
+      else if (w52 > 5)  { score += -32; notes.push(`PBR.A 52w: ${w52}% — near lows, deep buy`); }
+      else               { score += -40; notes.push(`PBR.A 52w: ${w52}% — extreme low, max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -775,6 +838,20 @@ export function scorePositional(data, macro) {
     else               { score += 8;   notes.push(`GSCPI ${g}: very calm — commodity demand trough`); }
   }
 
+  // ── PBR.A ONLY: WTI as positional regime ──────────────────────────────────
+  // Oil above $70 = healthy for Petrobras. Below $60 = margin pressure.
+  // This is a level-based regime indicator — the LLM handles direction.
+  if (isPBRA && macro?.wti != null) {
+    const wti = macro.wti;
+    if (wti > 90)       { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A revenue tailwind`); }
+    else if (wti > 80)  { score += -5; notes.push(`WTI $${wti}: healthy oil price`); }
+    else if (wti > 70)  { score += -2; notes.push(`WTI $${wti}: supportive`); }
+    else if (wti > 60)  { score += 0;  notes.push(`WTI $${wti}: normal range`); }
+    else if (wti > 50)  { score += 8;  notes.push(`WTI $${wti}: soft oil — PBR.A margin pressure`); }
+    else if (wti > 40)  { score += 15; notes.push(`WTI $${wti}: weak oil — PBR.A headwind`); }
+    else                { score += 22; notes.push(`WTI $${wti}: oil crisis — PBR.A under severe pressure`); }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -792,7 +869,8 @@ export function scoreStrategic(data, macro) {
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
-  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
+  const isGLNCY = archetype === "diversified_commodity_trader";
+  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -1150,6 +1228,85 @@ export function scoreStrategic(data, macro) {
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative — commodity tailwind`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── PBR.A STRATEGIC ──────────────────────────────────────────────────────  ← NEW
+  // Four pillars: (1) oil producer PE (inverted cyclical), (2) WTI price regime,
+  // (3) BRL/USD FX regime, (4) enhanced dividend yield (8-15%+ range is normal).
+  // Political risk is the LLM's primary job — no data feed can score it.
+  if (isPBRA) {
+    // PE — oil producer cyclical (inverted). Petrobras PE range is ~3-50x.
+    // Pre-salt production gives a cost floor (~$35/bbl breakeven) so even at
+    // trough, Petrobras is profitable — PE rarely goes above 50x.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe > 50)       { score += -20; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: trough — oil cycle buy`); }
+      else if (pe > 30)  { score += -12; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: depressed earnings`); }
+      else if (pe > 15)  { score += -3;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 8)   { score += 0;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 5)   { score += 8;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)   { score += 15;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
+      else               { score += 22;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+    }
+
+    // P/B — meaningful for oil producers (reserves have real value).
+    const pb = data.valuation?.priceToBook;
+    if (pb != null && pb > 0) {
+      if (pb < 0.6)      { score += -12; notes.push(`PBR.A P/B ${pb.toFixed(2)}: well below book — reserves undervalued`); }
+      else if (pb < 0.8) { score += -8;  notes.push(`PBR.A P/B ${pb.toFixed(2)}: below book — value`); }
+      else if (pb < 1.2) { score += -3;  notes.push(`PBR.A P/B ${pb.toFixed(2)}: near book`); }
+      else if (pb < 2.0) { score += 0;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: normal`); }
+      else if (pb < 3.0) { score += 3;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: above book`); }
+      else               { score += 8;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: premium — late cycle`); }
+    }
+
+    // Dividend yield — ENHANCED bands. PBR.A routinely yields 10-15%.
+    // The massive yield IS the thesis — compensation for state control risk.
+    // When yield hits 15%+, either dividend cut is being priced in (LLM domain)
+    // or the stock is genuinely cheap.
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 18)      { score += -15; notes.push(`PBR.A yield ${dy}%: extreme — cut priced in or deeply cheap`); }
+      else if (dy > 14) { score += -10; notes.push(`PBR.A yield ${dy}%: very high — historically attractive`); }
+      else if (dy > 10) { score += -5;  notes.push(`PBR.A yield ${dy}%: above normal — attractive`); }
+      else if (dy > 7)  { score += 0;   notes.push(`PBR.A yield ${dy}%: normal range`); }
+      else if (dy > 5)  { score += 5;   notes.push(`PBR.A yield ${dy}%: below normal — getting rich`); }
+      else              { score += 10;  notes.push(`PBR.A yield ${dy}%: low — stock is expensive`); }
+    }
+
+    // WTI — THE primary commodity signal for PBR.A (strategic level = regime).
+    if (macro?.wti != null) {
+      const wti = macro.wti;
+      if (wti > 90)       { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A tailwind`); }
+      else if (wti > 75)  { score += -3; notes.push(`WTI $${wti}: supportive`); }
+      else if (wti > 60)  { score += 0;  notes.push(`WTI $${wti}: normal`); }
+      else if (wti > 50)  { score += 5;  notes.push(`WTI $${wti}: soft — margin compression`); }
+      else if (wti > 40)  { score += 12; notes.push(`WTI $${wti}: weak — PBR.A earnings at risk`); }
+      else                { score += 20; notes.push(`WTI $${wti}: oil crash — PBR.A under pressure`); }
+    }
+
+    // BRL/USD — FX regime (less dominant than MXN for KOF because PBR prices
+    // oil in USD, but BRL still affects opex and domestic fuel pricing formula).
+    // DEXBZUS = BRL per dollar (lower = stronger BRL).
+    if (macro?.brl_usd != null) {
+      const brl = macro.brl_usd;
+      if (brl < 4.5)      { score += -5; notes.push(`BRL/USD ${brl}: strong real — PBR.A ADR positive`); }
+      else if (brl < 5.0) { score += -2; notes.push(`BRL/USD ${brl}: reasonably strong`); }
+      else if (brl < 5.5) { score += 0;  notes.push(`BRL/USD ${brl}: normal range`); }
+      else if (brl < 6.0) { score += 3;  notes.push(`BRL/USD ${brl}: weakening — mild headwind`); }
+      else if (brl < 7.0) { score += 8;  notes.push(`BRL/USD ${brl}: weak real — FX drag`); }
+      else                { score += 12; notes.push(`BRL/USD ${brl}: BRL crisis — significant headwind`); }
+    }
+
+    // VIX — moderate overlay (EM oil is risk-on)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — PBR.A contrarian buy`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
 
     return { score: clamp(score), notes };
