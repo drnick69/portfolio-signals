@@ -7,6 +7,7 @@
 // v4.4: MXN/USD (FRED DEXMXUS) for KOF FX regime scoring
 // v4.5: COPX auxiliary quote for GLNCY copper regime scoring
 // v4.6: WTI crude (DCOILWTICO) + BRL/USD (DEXBZUS) for PBR.A oil/FX regime
+// v4.7: CORN auxiliary quote for MOS agricultural demand regime
 
 import { writeFileSync } from "fs";
 
@@ -37,6 +38,7 @@ const SYMBOLS = [
 const AUX_SYMBOLS = [
   { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
   { symbol: "COPX", finnhub: "COPX", purpose: "glncy_copper" },  // Global X Copper Miners ETF
+  { symbol: "CORN", finnhub: "CORN", purpose: "mos_ag_demand" },  // Teucrium Corn Fund ETF
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -463,7 +465,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.6");
+  console.log("Market Data Pre-Fetch v4.7");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -700,6 +702,39 @@ async function main() {
     }
   }
 
+  // ── Attach MOS/CORN ratio for agricultural demand regime ───────────────
+  // CORN (Teucrium Corn Fund ETF) proxies farmer economics.
+  // When corn is rallying, farmers buy more fertilizer → MOS demand up.
+  // When CORN outperforms MOS, agricultural demand is strong but MOS is lagging.
+  if (output.MOS && auxQuotes.CORN) {
+    const mosPrice = output.MOS.price?.current;
+    const cornPrice = auxQuotes.CORN.price;
+    const mosChange = output.MOS.price?.change_pct;
+    const cornChange = auxQuotes.CORN.change_pct;
+
+    if (mosPrice && cornPrice) {
+      const ratio = +(mosPrice / cornPrice).toFixed(6);
+      const spread = (mosChange != null && cornChange != null)
+        ? +(mosChange - cornChange).toFixed(3) : null;
+
+      output.MOS.ag_demand = {
+        mos_corn_ratio: ratio,
+        mos_change_pct: mosChange,
+        corn_change_pct: cornChange,
+        corn_price: cornPrice,
+        relative_spread_pp: spread, // MOS return minus CORN return
+      };
+
+      const agStr = spread == null ? "—"
+        : spread > 0.5 ? `MOS outperforming CORN by ${spread}pp (MOS running ahead)`
+        : spread < -0.5 ? `CORN outperforming MOS by ${(-spread).toFixed(2)}pp (ag demand strong, MOS catch-up?)`
+        : "inline";
+      console.log(`  MOS ag-demand: MOS/CORN=${ratio} | CORN $${cornPrice} (${cornChange >= 0 ? "+" : ""}${cornChange}%) | ${agStr}`);
+    } else {
+      console.log(`  MOS ag-demand: skipped (missing price data)`);
+    }
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -723,6 +758,7 @@ async function main() {
   console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
   console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
+  console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
   console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
