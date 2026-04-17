@@ -5,6 +5,7 @@
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
 // v4.3: ETHA/IBIT alt-season ratio for ETHA positional layer
 // v4.4: MXN/USD (FRED DEXMXUS) for KOF FX regime scoring
+// v4.5: COPX auxiliary quote for GLNCY copper regime scoring
 
 import { writeFileSync } from "fs";
 
@@ -34,6 +35,7 @@ const SYMBOLS = [
 // RSP = Invesco S&P 500 Equal Weight ETF — used for SPY breadth measurement.
 const AUX_SYMBOLS = [
   { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
+  { symbol: "COPX", finnhub: "COPX", purpose: "glncy_copper" },  // Global X Copper Miners ETF
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -458,7 +460,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.4");
+  console.log("Market Data Pre-Fetch v4.5");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -662,6 +664,39 @@ async function main() {
     }
   }
 
+  // ── Attach GLNCY/COPX ratio for copper regime detection ────────────────
+  // COPX (Global X Copper Miners ETF) proxies for the copper/base metals complex.
+  // When GLNCY outperforms COPX, market is pricing in diversification + trading arm.
+  // When COPX outperforms GLNCY, pure copper is leading and Glencore lagging.
+  if (output.GLNCY && auxQuotes.COPX) {
+    const glncyPrice = output.GLNCY.price?.current;
+    const copxPrice = auxQuotes.COPX.price;
+    const glncyChange = output.GLNCY.price?.change_pct;
+    const copxChange = auxQuotes.COPX.change_pct;
+
+    if (glncyPrice && copxPrice) {
+      const ratio = +(glncyPrice / copxPrice).toFixed(6);
+      const spread = (glncyChange != null && copxChange != null)
+        ? +(glncyChange - copxChange).toFixed(3) : null;
+
+      output.GLNCY.copper_regime = {
+        glncy_copx_ratio: ratio,
+        glncy_change_pct: glncyChange,
+        copx_change_pct: copxChange,
+        copx_price: copxPrice,
+        relative_spread_pp: spread, // GLNCY return minus COPX return
+      };
+
+      const copperStr = spread == null ? "—"
+        : spread > 0.5 ? `GLNCY outperforming COPX by ${spread}pp (diversification premium)`
+        : spread < -0.5 ? `COPX outperforming GLNCY by ${(-spread).toFixed(2)}pp (pure copper leading)`
+        : "inline";
+      console.log(`  GLNCY copper: GLNCY/COPX=${ratio} | COPX $${copxPrice} (${copxChange >= 0 ? "+" : ""}${copxChange}%) | ${copperStr}`);
+    } else {
+      console.log(`  GLNCY copper: skipped (missing price data)`);
+    }
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -684,6 +719,7 @@ async function main() {
   console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
   console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
   console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
+  console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
   console.log(`═══════════════════════════════════`);
 
