@@ -30,6 +30,9 @@
 //   - EM_DIVIDEND_GROWTH (KOF): dampened RSI (consumer staples barely move),
 //     mildly inverted 52w, MXN/USD as FX regime signal, narrowed PE bands (15-22x
 //     normal for LatAm bottler), enhanced dividend yield scoring
+//   - DIVERSIFIED_COMMODITY_TRADER (GLNCY): slightly dampened RSI (diversification
+//     buffers), dampened MA/52w, COPX ratio as copper regime, GSCPI + HY OAS as
+//     commodity demand proxies, PE with higher floor (trading arm), enhanced P/B
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -63,7 +66,8 @@ export function scoreTactical(data, macro) {
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
   const isETHA = archetype === "high_beta_crypto";
-  const isKOF = archetype === "em_dividend_growth";  // ← NEW
+  const isKOF = archetype === "em_dividend_growth";
+  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -264,6 +268,35 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── GLNCY-SPECIFIC: DIVERSIFIED COMMODITY — SLIGHTLY DAMPENED ───────────
+  // Glencore's diversification across copper/coal/zinc/nickel + trading arm
+  // buffers individual commodity spikes. Not as dampened as ENB/KOF (still a
+  // commodity name) but the generic RSI bands are slightly too aggressive.
+  if (isGLNCY) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: GLNCY severely oversold`); }
+      else if (rsi < 25) { score += -40; notes.push(`RSI ${rsi}: GLNCY deeply oversold`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: GLNCY oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: GLNCY mildly oversold`); }
+      else if (rsi < 40) { score += -5;  notes.push(`RSI ${rsi}: GLNCY approaching oversold`); }
+      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: GLNCY neutral`); }
+      else if (rsi < 68) { score += 8;   notes.push(`RSI ${rsi}: GLNCY mildly overbought`); }
+      else if (rsi < 75) { score += 20;  notes.push(`RSI ${rsi}: GLNCY overbought`); }
+      else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: GLNCY deeply overbought`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: GLNCY extreme`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -6)      { score += -15; notes.push(`GLNCY daily ${chg}%: sharp decline`); }
+      else if (chg < -3) { score += -8;  notes.push(`GLNCY daily ${chg}%: notable decline`); }
+      else if (chg > 6)  { score += 12;  notes.push(`GLNCY daily +${chg}%: sharp rally`); }
+      else if (chg > 3)  { score += 6;   notes.push(`GLNCY daily +${chg}%: notable rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -302,7 +335,8 @@ export function scorePositional(data, macro) {
   const isENB = archetype === "dividend_compounder";
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
-  const isKOF = archetype === "em_dividend_growth";  // ← NEW
+  const isKOF = archetype === "em_dividend_growth";
+  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -395,6 +429,20 @@ export function scorePositional(data, macro) {
         score += kofMaScores[ma];
         notes.push(`KOF MA: ${ma} (${kofMaScores[ma] !== 0 ? (kofMaScores[ma] > 0 ? "+" : "") + kofMaScores[ma] : "normal"})`);
       }
+    } else if (isGLNCY) {
+      // ── GLNCY: similar to AMKBY — dampened golden cross, death cross = buy
+      const glncyMaScores = {
+        "above_both_golden": 8,        // commodity uptrend confirmed
+        "above_both": 5,               // uptrend
+        "above_50_below_200": -5,      // pullback — buy
+        "above_200_below_50": 3,       // weakening
+        "below_both": -12,             // commodity downturn — buy
+        "below_both_death": -20,       // deep trough — strong buy
+      };
+      if (glncyMaScores[ma] != null) {
+        score += glncyMaScores[ma];
+        notes.push(`GLNCY MA: ${ma} (${glncyMaScores[ma] > 0 ? "+" : ""}${glncyMaScores[ma]})`);
+      }
     } else {
       const maScores = {
         "above_both_golden": 15, "above_both": 10,
@@ -485,6 +533,19 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -18; notes.push(`KOF 52w: ${w52}% — significant drawdown, buy`); }
       else if (w52 > 15) { score += -28; notes.push(`KOF 52w: ${w52}% — major drawdown (rare for staples)`); }
       else               { score += -38; notes.push(`KOF 52w: ${w52}% — distressed — max conviction`); }
+    } else if (isGLNCY) {
+      // ── GLNCY: DAMPENED AT HIGHS (similar to AMKBY — cyclical can be late-cycle)
+      // Commodity cyclical at 52w highs genuinely CAN be late-cycle.
+      // But Glencore's trading arm provides an earnings floor, so lows are
+      // slightly less extreme than for pure cyclicals.
+      if (w52 > 95)      { score += 12;  notes.push(`GLNCY 52w: ${w52}% — near highs, possible late-cycle`); }
+      else if (w52 > 85) { score += 6;   notes.push(`GLNCY 52w: ${w52}% — upper range`); }
+      else if (w52 > 70) { score += 2;   notes.push(`GLNCY 52w: ${w52}% — above mid`); }
+      else if (w52 > 50) { score += 0;   notes.push(`GLNCY 52w: ${w52}% — mid range`); }
+      else if (w52 > 30) { score += -8;  notes.push(`GLNCY 52w: ${w52}% — below mid, commodity opportunity`); }
+      else if (w52 > 15) { score += -18; notes.push(`GLNCY 52w: ${w52}% — lower range, commodity trough buy`); }
+      else if (w52 > 5)  { score += -28; notes.push(`GLNCY 52w: ${w52}% — near lows, deep commodity buy`); }
+      else               { score += -35; notes.push(`GLNCY 52w: ${w52}% — extreme low, max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -680,6 +741,40 @@ export function scorePositional(data, macro) {
     }
   }
 
+  // ── GLNCY ONLY: COPX ratio (copper regime indicator) ──────────────────────
+  // When GLNCY outperforms COPX, market values diversification + trading arm.
+  // When COPX outperforms GLNCY, pure copper is leading — Glencore may catch up.
+  if (isGLNCY && data.copper_regime) {
+    const spread = data.copper_regime.relative_spread_pp;
+    if (spread != null) {
+      if (spread > 3)       { score += -5; notes.push(`GLNCY outperforming COPX by ${spread}pp — diversification premium`); }
+      else if (spread > 1)  { score += -2; notes.push(`GLNCY mildly outperforming COPX (${spread}pp)`); }
+      else if (spread < -3) { score += -8; notes.push(`COPX outperforming GLNCY by ${(-spread).toFixed(2)}pp — copper surging, GLNCY catch-up potential`); }
+      else if (spread < -1) { score += -3; notes.push(`COPX mildly outperforming GLNCY (${(-spread).toFixed(2)}pp)`); }
+      else                  { notes.push(`GLNCY/COPX spread: ${spread}pp — inline`); }
+    }
+  }
+
+  // ── GLNCY ONLY: HY OAS as commodity demand proxy ─────────────────────────
+  if (isGLNCY && macro?.hy_oas != null) {
+    const oas = macro.hy_oas;
+    if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight — healthy commodity demand`); }
+    else if (oas < 400) { score += 0;  notes.push(`HY OAS ${oas}bps: normal`); }
+    else if (oas < 500) { score += 5;  notes.push(`HY OAS ${oas}bps: widening — commodity demand risk`); }
+    else if (oas < 700) { score += 12; notes.push(`HY OAS ${oas}bps: stressed — commodity headwind`); }
+    else                { score += 20; notes.push(`HY OAS ${oas}bps: crisis — industrial demand collapse`); }
+  }
+
+  // ── GLNCY ONLY: GSCPI as supply chain / commodity regime ──────────────────
+  if (isGLNCY && macro?.gscpi != null) {
+    const g = macro.gscpi;
+    if (g > 2.0)       { score += 3;   notes.push(`GSCPI ${g}: supply chain stress — commodity disruption`); }
+    else if (g > 0.5)  { score += -3;  notes.push(`GSCPI ${g}: elevated — healthy industrial demand`); }
+    else if (g > -0.5) { score += 0;   notes.push(`GSCPI ${g}: normal`); }
+    else if (g > -1.0) { score += 3;   notes.push(`GSCPI ${g}: below average — industrial softness`); }
+    else               { score += 8;   notes.push(`GSCPI ${g}: very calm — commodity demand trough`); }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -696,7 +791,8 @@ export function scoreStrategic(data, macro) {
   const isENB = archetype === "dividend_compounder";
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
-  const isKOF = archetype === "em_dividend_growth";  // ← NEW
+  const isKOF = archetype === "em_dividend_growth";
+  const isGLNCY = archetype === "diversified_commodity_trader";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -976,6 +1072,84 @@ export function scoreStrategic(data, macro) {
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — mild headwind`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── GLNCY STRATEGIC ──────────────────────────────────────────────────────  ← NEW
+  // Three pillars: (1) commodity-specific PE (higher floor than pure cyclicals
+  // due to trading arm earnings floor), (2) enhanced P/B (mining assets have
+  // real replacement cost), (3) GSCPI + HY OAS + VIX as commodity demand regime.
+  if (isGLNCY) {
+    // PE — cyclical inverted, but with higher floor than AMKBY/MOS.
+    // Glencore's trading arm generates $2-4B EBITDA even in commodity troughs,
+    // so PE never goes as extreme as pure-play miners or shippers.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe > 80)       { score += -22; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: deep trough — commodity buy`); }
+      else if (pe > 40)  { score += -15; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 20)  { score += -5;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 10)  { score += 0;   notes.push(`GLNCY P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 6)   { score += 10;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)   { score += 18;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
+      else               { score += 22;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+    }
+
+    // P/B — ENHANCED for mining (physical assets with replacement cost).
+    // P/B <1.0 = market pricing mines below replacement cost.
+    // Less extreme than AMKBY (ships depreciate faster than mines).
+    const pb = data.valuation?.priceToBook;
+    if (pb != null && pb > 0) {
+      if (pb < 0.6)      { score += -15; notes.push(`GLNCY P/B ${pb.toFixed(2)}: well below replacement — strong buy`); }
+      else if (pb < 0.8) { score += -10; notes.push(`GLNCY P/B ${pb.toFixed(2)}: below replacement cost — buy`); }
+      else if (pb < 1.0) { score += -5;  notes.push(`GLNCY P/B ${pb.toFixed(2)}: below book`); }
+      else if (pb < 1.5) { score += 0;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: near book — normal`); }
+      else if (pb < 2.5) { score += 3;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: above book`); }
+      else               { score += 8;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: premium — late cycle`); }
+    }
+
+    // Dividend yield
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 8)       { score += -8; notes.push(`GLNCY yield ${dy}%: very high — trough pricing?`); }
+      else if (dy > 5)  { score += -4; notes.push(`GLNCY yield ${dy}%: attractive`); }
+      else if (dy > 3)  { score += -2; notes.push(`GLNCY yield ${dy}%: moderate`); }
+    }
+
+    // HY OAS — commodity demand proxy (strategic level)
+    if (macro?.hy_oas != null) {
+      const oas = macro.hy_oas;
+      if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy industrial demand`); }
+      else if (oas < 400) { score += 0;  notes.push(`HY OAS ${oas}bps: normal`); }
+      else if (oas < 500) { score += 5;  notes.push(`HY OAS ${oas}bps: widening — demand risk`); }
+      else if (oas < 700) { score += 10; notes.push(`HY OAS ${oas}bps: stressed — commodity headwind`); }
+      else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — industrial collapse`); }
+    }
+
+    // GSCPI — supply chain pressure as commodity demand regime
+    if (macro?.gscpi != null) {
+      const g = macro.gscpi;
+      if (g > 2.0)       { score += 3;   notes.push(`GSCPI ${g}: extreme disruption — mixed for diversified miner`); }
+      else if (g > 0.5)  { score += 0;   notes.push(`GSCPI ${g}: above average — healthy commodity demand`); }
+      else if (g > -0.5) { score += 0;   notes.push(`GSCPI ${g}: normal`); }
+      else if (g > -1.0) { score += -3;  notes.push(`GSCPI ${g}: below average — commodity softness`); }
+      else               { score += -6;  notes.push(`GSCPI ${g}: deeply negative — commodity trough`); }
+    }
+
+    // VIX — moderate overlay (commodity stocks are cyclical, not defensive)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
+    }
+
+    // TIPS — mild overlay
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative — commodity tailwind`); }
     }
 
     return { score: clamp(score), notes };
