@@ -27,6 +27,9 @@
 //   - HIGH_BETA_CRYPTO (ETHA): wider RSI/daily bands than IBIT (1.3-1.5x vol),
 //     inverted 52w + 200DMA extension (no phase amplification), ETHA/IBIT alt-season
 //     ratio as positional signal, all valuation skipped, enhanced macro sensitivity
+//   - EM_DIVIDEND_GROWTH (KOF): dampened RSI (consumer staples barely move),
+//     mildly inverted 52w, MXN/USD as FX regime signal, narrowed PE bands (15-22x
+//     normal for LatAm bottler), enhanced dividend yield scoring
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -59,7 +62,8 @@ export function scoreTactical(data, macro) {
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
-  const isETHA = archetype === "high_beta_crypto";  // ← NEW
+  const isETHA = archetype === "high_beta_crypto";
+  const isKOF = archetype === "em_dividend_growth";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -231,6 +235,35 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── KOF-SPECIFIC: CONSUMER STAPLES — LOW VOL ────────────────────────────
+  // KOF is a LatAm consumer staples compounder. Daily moves are small (0.5-1.5%
+  // typically). RSI operates in a narrower meaningful range than most equities
+  // but wider than ENB (KOF is EM, so it gets more vol from FX).
+  if (isKOF) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -45; notes.push(`RSI ${rsi}: KOF severely oversold — very rare`); }
+      else if (rsi < 25) { score += -30; notes.push(`RSI ${rsi}: KOF deeply oversold`); }
+      else if (rsi < 30) { score += -18; notes.push(`RSI ${rsi}: KOF oversold`); }
+      else if (rsi < 35) { score += -8;  notes.push(`RSI ${rsi}: KOF mildly soft`); }
+      else if (rsi <= 65) { score += 0;  notes.push(`RSI ${rsi}: KOF normal range`); }
+      else if (rsi < 70) { score += 5;   notes.push(`RSI ${rsi}: KOF mildly warm`); }
+      else if (rsi < 75) { score += 12;  notes.push(`RSI ${rsi}: KOF overbought`); }
+      else if (rsi < 80) { score += 22;  notes.push(`RSI ${rsi}: KOF extended`); }
+      else               { score += 35;  notes.push(`RSI ${rsi}: KOF extreme — unusual for staples`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -5)      { score += -15; notes.push(`KOF daily ${chg}%: sharp drop — rare for consumer staples`); }
+      else if (chg < -3) { score += -8;  notes.push(`KOF daily ${chg}%: notable decline`); }
+      else if (chg < -2) { score += -3;  notes.push(`KOF daily ${chg}%: mild softness`); }
+      else if (chg > 5)  { score += 10;  notes.push(`KOF daily +${chg}%: sharp rally — unusual`); }
+      else if (chg > 3)  { score += 5;   notes.push(`KOF daily +${chg}%: notable rally`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -268,7 +301,8 @@ export function scorePositional(data, macro) {
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
   const isAMKBY = archetype === "cyclical_trade_bellwether";
-  const isETHA = archetype === "high_beta_crypto";  // ← NEW
+  const isETHA = archetype === "high_beta_crypto";
+  const isKOF = archetype === "em_dividend_growth";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -346,6 +380,20 @@ export function scorePositional(data, macro) {
       if (ethaMaScores[ma] != null) {
         score += ethaMaScores[ma];
         notes.push(`ETHA MA: ${ma} (${ethaMaScores[ma] !== 0 ? (ethaMaScores[ma] > 0 ? "+" : "") + ethaMaScores[ma] : "bull regime — neutral"})`);
+      }
+    } else if (isKOF) {
+      // ── KOF: dampened golden cross (compounder tendency), death cross = buy
+      const kofMaScores = {
+        "above_both_golden": 3,       // mild uptrend bias (not as strong as generic +15)
+        "above_both": 0,              // normal
+        "above_50_below_200": -5,     // pullback — mild buy
+        "above_200_below_50": 3,      // weakening
+        "below_both": -15,            // downtrend — buy opportunity
+        "below_both_death": -22,      // distress — strong buy (rare for staples)
+      };
+      if (kofMaScores[ma] != null) {
+        score += kofMaScores[ma];
+        notes.push(`KOF MA: ${ma} (${kofMaScores[ma] !== 0 ? (kofMaScores[ma] > 0 ? "+" : "") + kofMaScores[ma] : "normal"})`);
       }
     } else {
       const maScores = {
@@ -425,6 +473,18 @@ export function scorePositional(data, macro) {
       else if (w52 > 25) { score += -25; notes.push(`ETHA 52w: ${w52}% — lower range, buy`); }
       else if (w52 > 10) { score += -40; notes.push(`ETHA 52w: ${w52}% — significant drawdown, strong buy`); }
       else               { score += -55; notes.push(`ETHA 52w: ${w52}% — deep drawdown, max conviction`); }
+    } else if (isKOF) {
+      // ── KOF: MILDLY INVERTED (consumer staples compounder tendency)
+      // Near highs = normal for a compounder, not a trim signal.
+      // Drawdowns = buying opportunity, but less aggressive than ASML since
+      // KOF's upside is bounded (EM consumer staples, not monopoly tech).
+      if (w52 > 95)      { score += 0;   notes.push(`KOF 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`KOF 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`KOF 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -8;  notes.push(`KOF 52w: ${w52}% — pullback, buy interest`); }
+      else if (w52 > 30) { score += -18; notes.push(`KOF 52w: ${w52}% — significant drawdown, buy`); }
+      else if (w52 > 15) { score += -28; notes.push(`KOF 52w: ${w52}% — major drawdown (rare for staples)`); }
+      else               { score += -38; notes.push(`KOF 52w: ${w52}% — distressed — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -635,7 +695,8 @@ export function scoreStrategic(data, macro) {
   const isASML = archetype === "secular_growth_monopoly";
   const isENB = archetype === "dividend_compounder";
   const isAMKBY = archetype === "cyclical_trade_bellwether";
-  const isETHA = archetype === "high_beta_crypto";  // ← NEW
+  const isETHA = archetype === "high_beta_crypto";
+  const isKOF = archetype === "em_dividend_growth";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -844,6 +905,77 @@ export function scoreStrategic(data, macro) {
       else if (oas < 500) { score += 8;  notes.push(`HY OAS ${oas}bps: widening — ETH headwind`); }
       else if (oas < 700) { score += 15; notes.push(`HY OAS ${oas}bps: stressed — ETH at risk`); }
       else                { score += 22; notes.push(`HY OAS ${oas}bps: crisis — ETH high-beta pain`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── KOF STRATEGIC ────────────────────────────────────────────────────────  ← NEW
+  // Three pillars: (1) LatAm bottler valuation (narrower PE bands), (2) MXN/USD
+  // as FX regime signal (~60% of revenue is Mexico), (3) dividend quality.
+  // Mexican consumer spending trends and Banxico policy are LLM territory.
+  if (isKOF) {
+    // P/E — narrowed bands for LatAm consumer staples bottler.
+    // KOF normally trades 15-22x. Much tighter range than generic.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe < 10)       { score += -15; notes.push(`KOF P/E ${pe.toFixed(1)}x: deep value — rare for staples`); }
+      else if (pe < 13)  { score += -8;  notes.push(`KOF P/E ${pe.toFixed(1)}x: value territory`); }
+      else if (pe < 15)  { score += -3;  notes.push(`KOF P/E ${pe.toFixed(1)}x: below normal`); }
+      else if (pe <= 22) { score += 0;   notes.push(`KOF P/E ${pe.toFixed(1)}x: normal LatAm bottler range`); }
+      else if (pe < 26)  { score += 5;   notes.push(`KOF P/E ${pe.toFixed(1)}x: slightly rich`); }
+      else if (pe < 30)  { score += 10;  notes.push(`KOF P/E ${pe.toFixed(1)}x: rich`); }
+      else               { score += 15;  notes.push(`KOF P/E ${pe.toFixed(1)}x: expensive for staples`); }
+    }
+
+    // P/B — moderate weight (consumer staples, not asset-heavy)
+    const pb = data.valuation?.priceToBook;
+    if (pb != null && pb > 0) {
+      if (pb < 1.5)      { score += -5;  notes.push(`KOF P/B ${pb.toFixed(2)}: below book — unusual for staples`); }
+      else if (pb < 2.5) { score += -2;  notes.push(`KOF P/B ${pb.toFixed(2)}: reasonable`); }
+      else if (pb < 4)   { score += 0;   notes.push(`KOF P/B ${pb.toFixed(2)}: normal`); }
+      else if (pb < 6)   { score += 3;   notes.push(`KOF P/B ${pb.toFixed(2)}: above average`); }
+      else               { score += 6;   notes.push(`KOF P/B ${pb.toFixed(2)}: premium`); }
+    }
+
+    // Dividend yield — KOF typically yields 2-4%, growing 5-8% annually.
+    // Higher yield = cheaper stock = buy signal. Lower = rich.
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 5)        { score += -8;  notes.push(`KOF yield ${dy}%: very high — stock is cheap`); }
+      else if (dy > 4)   { score += -5;  notes.push(`KOF yield ${dy}%: above average — attractive`); }
+      else if (dy > 3)   { score += -2;  notes.push(`KOF yield ${dy}%: normal range`); }
+      else if (dy > 2)   { score += 0;   notes.push(`KOF yield ${dy}%: normal`); }
+      else if (dy > 1.5) { score += 3;   notes.push(`KOF yield ${dy}%: compressed — stock is rich`); }
+      else               { score += 6;   notes.push(`KOF yield ${dy}%: very low — expensive`); }
+    }
+
+    // MXN/USD — THE primary KOF-specific strategic signal.
+    // KOF earns ~60% in MXN. Strong peso = ADR tailwind. Weak peso = headwind.
+    // DEXMXUS = pesos per dollar (lower = stronger peso).
+    if (macro?.mxn_usd != null) {
+      const mxn = macro.mxn_usd;
+      if (mxn < 16)       { score += -10; notes.push(`MXN/USD ${mxn}: very strong peso — KOF tailwind`); }
+      else if (mxn < 17)  { score += -5;  notes.push(`MXN/USD ${mxn}: strong peso — KOF positive`); }
+      else if (mxn < 18.5){ score += 0;   notes.push(`MXN/USD ${mxn}: normal range`); }
+      else if (mxn < 20)  { score += 5;   notes.push(`MXN/USD ${mxn}: weakening peso — KOF headwind`); }
+      else if (mxn < 22)  { score += 10;  notes.push(`MXN/USD ${mxn}: weak peso — KOF FX drag`); }
+      else                { score += 15;  notes.push(`MXN/USD ${mxn}: peso crisis — severe KOF headwind`); }
+    }
+
+    // VIX — mild overlay (consumer staples are defensive)
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — KOF defensive quality`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated — staples as safe haven`); }
+      else if (vix < 12) { score += 2;  notes.push(`VIX ${vix}: complacency`); }
+    }
+
+    // TIPS — mild overlay (staples are less rate-sensitive than growth)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — mild headwind`); }
+      else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
     }
 
     return { score: clamp(score), notes };
