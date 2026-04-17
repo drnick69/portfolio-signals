@@ -9,6 +9,7 @@
 // v6.4: ENB dividend_compounder (yield spread primary, rate regime, gas/LNG qualitative, 10/45/45).
 // v6.5: AMKBY cyclical_trade_bellwether (shipping PE, enhanced P/B, GSCPI, freight cycle guidance, 25/35/40).
 // v6.6: ETHA high_beta_crypto (wider RSI/daily bands, inverted 52w, 200DMA extension, ETHA/IBIT alt-season ratio, 30/35/35).
+// v6.7: KOF em_dividend_growth (dampened RSI, mildly inverted 52w, MXN/USD FX regime, narrowed PE, 15/35/50).
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -31,7 +32,7 @@ const HOLDINGS = [
   { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",      archetype: "high_beta_crypto",             weights: { t:.30, p:.35, s:.35 } },  // ← CHANGED from 25/35/40
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader", weights: { t:.20, p:.35, s:.45 } },
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",      archetype: "momentum_store_of_value",      weights: { t:.30, p:.35, s:.35 } },
-  { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.30, s:.55 } },
+  { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",    archetype: "em_dividend_growth",           weights: { t:.15, p:.35, s:.50 } },  // ← CHANGED from 15/30/55
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",         archetype: "em_state_oil_dividend",        weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",   archetype: "cyclical_trade_bellwether",    weights: { t:.25, p:.35, s:.40 } },  // ← CHANGED from 25/40/35
   { symbol: "SPY",   name: "S&P 500",         sector: "US Broad Beta",     archetype: "beta_sizing",                  weights: { t:.20, p:.40, s:.40 } },
@@ -71,7 +72,8 @@ function buildPrompt(h, detScores) {
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
-  const isETHA = h.archetype === "high_beta_crypto";  // ← NEW
+  const isETHA = h.archetype === "high_beta_crypto";
+  const isKOF = h.archetype === "em_dividend_growth";  // ← NEW
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -117,6 +119,14 @@ function buildPrompt(h, detScores) {
     ethaExtensionLine = `ETH vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
   }
 
+  // ── NEW: KOF MXN/USD line ─────────────────────────────────────────────────
+  let kofMxnLine = null;
+  if (isKOF && macro.mxn_usd != null) {
+    const mxn = macro.mxn_usd;
+    const regime = mxn < 16 ? "VERY STRONG PESO" : mxn < 17 ? "STRONG PESO" : mxn < 18.5 ? "NORMAL" : mxn < 20 ? "WEAKENING" : "WEAK PESO";
+    kofMxnLine = `MXN/USD: ${mxn} (${regime}) — KOF earns ~60% in MXN`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -131,6 +141,7 @@ function buildPrompt(h, detScores) {
     enbYieldSpreadLine,  // ← NEW (null-filtered for non-ENB)
     amkbyGscpiLine,     // ← NEW (null-filtered for non-AMKBY)
     ethaAltSeasonLine,  // ← NEW (null-filtered for non-ETHA)
+    kofMxnLine,         // ← NEW (null-filtered for non-KOF)
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -300,6 +311,30 @@ SCORING CALIBRATION:
 ETH is more volatile than BTC, so scores can be slightly wider. ±15-20 during active crypto markets is reasonable. But most days should still be close to neutral if BTC is flat and macro is stable.
 ` : "";
 
+  // ── NEW: KOF-specific guidance ────────────────────────────────────────────
+  const kofGuidance = isKOF ? `
+CRITICAL — KOF-SPECIFIC SCORING GUIDANCE:
+KOF is Coca-Cola FEMSA — largest Coke bottler in Latin America. Consumer staples compounder with ~60% of revenue from Mexico. The stock trades as an ADR in USD but earns in MXN/BRL/COP.
+
+THE #1 NON-FUNDAMENTAL DRIVER — FX:
+MXN/USD dominates KOF's ADR price action on a weekly/monthly basis. Strong peso = ADR rises (same earnings translate to more USD). Weak peso = ADR falls. The engine scores the MXN level as a regime indicator. Your job: assess the DIRECTION — is MXN strengthening or weakening, and why?
+
+DO NOT PENALIZE: proximity to 52w highs (normal for compounder), RSI 50-65 (normal for consumer staples), P/E 15-22x (normal range for LatAm bottler).
+
+WHAT THE ENGINE CANNOT CAPTURE (YOUR VALUE-ADD):
+• Mexican consumer spending trends: retail sales, consumer confidence, real wage growth
+• Banxico rate decisions and forward guidance — rate cuts weaken MXN but boost consumer spending
+• Nearshoring narrative impact on MXN strength (structural peso support?)
+• Sugar and PET resin input cost trends — margin pressure or tailwind?
+• Volume growth by geography: Mexico (60%), Brazil, Colombia, Central America
+• Coca-Cola parent company pricing guidance and raw material hedging
+• Competitive dynamics vs Arca Continental (KOFL.MX)
+• Dividend growth trajectory: is the 5-8% annual growth sustainable?
+
+MOST DAYS SHOULD BE NEUTRAL:
+KOF is a consumer staples name. Scores between -5 and +5 roughly 80% of trading days. Meaningful scores appear during: MXN regime shifts, EM selloffs, margin surprises, or Banxico policy pivots.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -320,7 +355,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -351,7 +386,8 @@ function buildSearchPrompt(h) {
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
-  const isETHA = h.archetype === "high_beta_crypto";  // ← NEW
+  const isETHA = h.archetype === "high_beta_crypto";
+  const isKOF = h.archetype === "em_dividend_growth";  // ← NEW
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `
@@ -385,6 +421,11 @@ CRITICAL — AMKBY SCORING: Cyclical trade bellwether (world's largest container
 CRITICAL — ETHA SCORING: Spot Ethereum ETF. ETH runs at 1.3-1.5x BTC's volatility, further out on risk curve. Do NOT penalize RSI 70-80 or 52w proximity. P/E, P/B, yield are all MEANINGLESS for crypto. Key drivers: BTC direction (0.85-0.95 correlation), risk appetite (VIX/HY OAS), and ETH/BTC ratio (alt-season indicator). Search for: ETH/BTC ratio trend, ETF flow data, DeFi TVL trends, L2 ecosystem growth, regulatory stance on ETH, network upgrades, competitive L1 threats (Solana). Scores can be ±15-20 during active crypto markets.
 ` : "";
 
+  // ── NEW: KOF guidance (abbreviated for web search path) ──
+  const kofGuidance = isKOF ? `
+CRITICAL — KOF SCORING: Coca-Cola FEMSA, largest Coke bottler in LatAm. Consumer staples compounder. Do NOT penalize 52w proximity or RSI 50-65 (normal for staples). P/E 15-22x is NORMAL. The #1 non-fundamental driver is MXN/USD — KOF earns ~60% in MXN. Strong peso = ADR tailwind, weak peso = headwind. Search for: MXN/USD direction, Banxico rate decisions, Mexican consumer spending, retail sales, nearshoring impact on peso, sugar/PET resin costs, volume growth by geography, dividend growth trajectory. Most days = NEUTRAL.
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
   return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
@@ -400,7 +441,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${calibrationBlock}
+${cyclicalWarning}${spyGuidance}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -610,13 +651,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.6 — ETHA high-beta crypto model (alt-season ratio, enhanced macro sensitivity)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v6.7 — KOF EM dividend growth model (MXN/USD FX regime, narrowed PE, LatAm consumer)</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v6.6");
+  console.log("Portfolio Strategy Signal Generator v6.7");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
