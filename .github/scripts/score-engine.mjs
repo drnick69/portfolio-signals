@@ -36,6 +36,9 @@
 //   - EM_STATE_OIL_DIVIDEND (PBR.A): slightly dampened RSI (volatile but oil-anchored),
 //     WTI as primary commodity signal, BRL/USD as FX regime, enhanced dividend yield
 //     bands (8-15%+ range), PE inverted (oil producer), P/B for reserves value
+//   - CYCLICAL_COMMODITY (MOS): seasonal modifier (spring/fall planting cycles),
+//     CORN ratio as ag demand proxy, BRL/USD mild overlay (Brazil operations),
+//     dampened MA/52w at highs, cyclical inverted PE
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -58,6 +61,20 @@ function getHalvingPhase() {
   return { phase: "post_expansion", months: monthsSince };
 }
 
+// ─── FERTILIZER SEASONAL MODIFIER (MOS) ─────────────────────────────────────
+// North American spring planting (Mar-May) = peak fertilizer demand.
+// South American planting (Sep-Nov) = secondary demand pulse.
+// Dec-Feb = weakest period (post-fall application, pre-spring orders).
+// Returns a small score modifier that amplifies/dampens other signals.
+function getFertilizerSeason() {
+  const month = new Date().getMonth(); // 0-indexed
+  if (month >= 2 && month <= 4)  return { season: "spring_planting", modifier: -3, label: "Spring planting (peak demand)" };
+  if (month === 5)               return { season: "post_spring", modifier: 0, label: "Post-spring, pre-harvest" };
+  if (month >= 6 && month <= 7)  return { season: "summer", modifier: 2, label: "Summer lull" };
+  if (month >= 8 && month <= 10) return { season: "fall_planting", modifier: -2, label: "Fall/LatAm planting" };
+  return { season: "winter", modifier: 3, label: "Winter — weakest demand" };
+}
+
 // ─── TACTICAL LAYER (short-term mean reversion) ─────────────────────────────
 export function scoreTactical(data, macro) {
   let score = 0;
@@ -71,7 +88,8 @@ export function scoreTactical(data, macro) {
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
+  const isPBRA = archetype === "em_state_oil_dividend";
+  const isMOS = archetype === "cyclical_commodity";  // ← NEW
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -333,6 +351,40 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MOS-SPECIFIC: COMMODITY CYCLICAL — SLIGHTLY DAMPENED OVERBOUGHT ─────
+  // MOS can run extended during potash shortages / ag demand spikes.
+  // RSI 70-75 during a fertilizer rally is not a trim signal.
+  // Keep aggressive buy signals at oversold (cyclicals are mean-reverting).
+  if (isMOS) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: MOS severely oversold`); }
+      else if (rsi < 25) { score += -45; notes.push(`RSI ${rsi}: MOS deeply oversold`); }
+      else if (rsi < 30) { score += -35; notes.push(`RSI ${rsi}: MOS oversold`); }
+      else if (rsi < 35) { score += -20; notes.push(`RSI ${rsi}: MOS mildly oversold`); }
+      else if (rsi < 40) { score += -10; notes.push(`RSI ${rsi}: MOS approaching oversold`); }
+      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: MOS neutral`); }
+      else if (rsi < 68) { score += 8;   notes.push(`RSI ${rsi}: MOS mildly overbought`); }
+      else if (rsi < 75) { score += 18;  notes.push(`RSI ${rsi}: MOS overbought`); }
+      else if (rsi < 80) { score += 32;  notes.push(`RSI ${rsi}: MOS deeply overbought`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: MOS extreme`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -6)      { score += -15; notes.push(`MOS daily ${chg}%: sharp decline`); }
+      else if (chg < -3) { score += -8;  notes.push(`MOS daily ${chg}%: notable decline`); }
+      else if (chg > 6)  { score += 12;  notes.push(`MOS daily +${chg}%: sharp rally`); }
+      else if (chg > 3)  { score += 6;   notes.push(`MOS daily +${chg}%: notable rally`); }
+    }
+
+    // Seasonal modifier on tactical
+    const season = getFertilizerSeason();
+    score += season.modifier;
+    notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -373,7 +425,8 @@ export function scorePositional(data, macro) {
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
+  const isPBRA = archetype === "em_state_oil_dividend";
+  const isMOS = archetype === "cyclical_commodity";  // ← NEW
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -494,6 +547,20 @@ export function scorePositional(data, macro) {
         score += pbraMaScores[ma];
         notes.push(`PBR.A MA: ${ma} (${pbraMaScores[ma] > 0 ? "+" : ""}${pbraMaScores[ma]})`);
       }
+    } else if (isMOS) {
+      // ── MOS: dampened golden cross (cyclical uptrend confirmed, not end signal)
+      const mosMaScores = {
+        "above_both_golden": 8,        // fertilizer up-cycle confirmed
+        "above_both": 5,               // uptrend
+        "above_50_below_200": -5,      // pullback — buy opportunity
+        "above_200_below_50": 3,       // weakening
+        "below_both": -12,             // ag downturn — buy
+        "below_both_death": -18,       // deep cyclical trough — strong buy
+      };
+      if (mosMaScores[ma] != null) {
+        score += mosMaScores[ma];
+        notes.push(`MOS MA: ${ma} (${mosMaScores[ma] > 0 ? "+" : ""}${mosMaScores[ma]})`);
+      }
     } else {
       const maScores = {
         "above_both_golden": 15, "above_both": 10,
@@ -609,6 +676,17 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -22; notes.push(`PBR.A 52w: ${w52}% — lower range, oil trough buy`); }
       else if (w52 > 5)  { score += -32; notes.push(`PBR.A 52w: ${w52}% — near lows, deep buy`); }
       else               { score += -40; notes.push(`PBR.A 52w: ${w52}% — extreme low, max conviction`); }
+    } else if (isMOS) {
+      // ── MOS: DAMPENED AT HIGHS (cyclical can be late-cycle)
+      // Similar to AMKBY/GLNCY — commodity at 52w highs genuinely CAN be late-cycle.
+      if (w52 > 95)      { score += 15;  notes.push(`MOS 52w: ${w52}% — near highs, possible late-cycle`); }
+      else if (w52 > 85) { score += 8;   notes.push(`MOS 52w: ${w52}% — upper range`); }
+      else if (w52 > 70) { score += 3;   notes.push(`MOS 52w: ${w52}% — above mid`); }
+      else if (w52 > 50) { score += 0;   notes.push(`MOS 52w: ${w52}% — mid range`); }
+      else if (w52 > 30) { score += -8;  notes.push(`MOS 52w: ${w52}% — below mid, ag trough opportunity`); }
+      else if (w52 > 15) { score += -20; notes.push(`MOS 52w: ${w52}% — lower range, fertilizer trough buy`); }
+      else if (w52 > 5)  { score += -30; notes.push(`MOS 52w: ${w52}% — near lows, deep cyclical buy`); }
+      else               { score += -35; notes.push(`MOS 52w: ${w52}% — extreme low, max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -852,6 +930,27 @@ export function scorePositional(data, macro) {
     else                { score += 22; notes.push(`WTI $${wti}: oil crisis — PBR.A under severe pressure`); }
   }
 
+  // ── MOS ONLY: CORN ratio (ag demand proxy) ────────────────────────────────
+  // When CORN outperforms MOS, agricultural demand is strong but MOS is lagging.
+  // When MOS outperforms CORN, MOS may be running ahead of fundamentals.
+  if (isMOS && data.ag_demand) {
+    const spread = data.ag_demand.relative_spread_pp;
+    if (spread != null) {
+      if (spread > 3)       { score += 5;  notes.push(`MOS outperforming CORN by ${spread}pp — running ahead of ag demand`); }
+      else if (spread > 1)  { score += 2;  notes.push(`MOS mildly outperforming CORN (${spread}pp)`); }
+      else if (spread < -3) { score += -8; notes.push(`CORN outperforming MOS by ${(-spread).toFixed(2)}pp — ag demand strong, MOS catch-up`); }
+      else if (spread < -1) { score += -3; notes.push(`CORN mildly outperforming MOS (${(-spread).toFixed(2)}pp)`); }
+      else                  { notes.push(`MOS/CORN spread: ${spread}pp — inline`); }
+    }
+  }
+
+  // ── MOS ONLY: Seasonal modifier on positional ─────────────────────────────
+  if (isMOS) {
+    const season = getFertilizerSeason();
+    score += season.modifier;
+    notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -870,7 +969,8 @@ export function scoreStrategic(data, macro) {
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";  // ← NEW
+  const isPBRA = archetype === "em_state_oil_dividend";
+  const isMOS = archetype === "cyclical_commodity";  // ← NEW
 
   // ─── IBIT STRATEGIC ──────────────────────────────────────────────────────
   if (isIBIT) {
@@ -1308,6 +1408,74 @@ export function scoreStrategic(data, macro) {
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── MOS STRATEGIC ────────────────────────────────────────────────────────  ← NEW
+  // Cyclical inverted PE (same as generic cyclical) + BRL/USD mild overlay
+  // (Mosaic Fertilizantes is significant Brazil exposure) + CORN regime +
+  // seasonal modifier + dividend yield for cyclical.
+  if (isMOS) {
+    // PE — standard cyclical inverted (same thresholds as generic)
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      if (pe > 100)      { score += -20; notes.push(`MOS P/E ${pe.toFixed(0)}x: trough earnings — fertilizer buy`); }
+      else if (pe > 50)  { score += -12; notes.push(`MOS P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
+      else if (pe > 25)  { score += -5;  notes.push(`MOS P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 15)  { score += 0;   notes.push(`MOS P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 8)   { score += 10;  notes.push(`MOS P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
+      else               { score += 20;  notes.push(`MOS P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
+    }
+
+    // P/B — moderate (MOS has phosphate/potash reserves with real value)
+    const pb = data.valuation?.priceToBook;
+    if (pb != null && pb > 0) {
+      if (pb < 0.7)      { score += -10; notes.push(`MOS P/B ${pb.toFixed(2)}: well below book — asset value`); }
+      else if (pb < 1.0) { score += -5;  notes.push(`MOS P/B ${pb.toFixed(2)}: below book`); }
+      else if (pb < 1.5) { score += -2;  notes.push(`MOS P/B ${pb.toFixed(2)}: near book`); }
+      else if (pb < 2.5) { score += 0;   notes.push(`MOS P/B ${pb.toFixed(2)}: normal`); }
+      else if (pb < 4)   { score += 5;   notes.push(`MOS P/B ${pb.toFixed(2)}: above book`); }
+      else               { score += 10;  notes.push(`MOS P/B ${pb.toFixed(2)}: premium — late cycle`); }
+    }
+
+    // Dividend yield — cyclical dividend (can be cut at trough)
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 6)       { score += -8; notes.push(`MOS yield ${dy}%: very high — trough pricing?`); }
+      else if (dy > 4)  { score += -4; notes.push(`MOS yield ${dy}%: attractive`); }
+      else if (dy > 2)  { score += -1; notes.push(`MOS yield ${dy}%: moderate`); }
+    }
+
+    // BRL/USD — mild overlay (Mosaic Fertilizantes exposure)
+    // Less dominant than PBR.A but still meaningful.
+    if (macro?.brl_usd != null) {
+      const brl = macro.brl_usd;
+      if (brl < 4.5)      { score += -3; notes.push(`BRL/USD ${brl}: strong real — MOS Brazil ops positive`); }
+      else if (brl < 5.5) { score += 0;  notes.push(`BRL/USD ${brl}: normal range`); }
+      else if (brl < 6.5) { score += 2;  notes.push(`BRL/USD ${brl}: weakening — mild headwind`); }
+      else                { score += 5;  notes.push(`BRL/USD ${brl}: weak real — MOS Brazil cost pressure`); }
+    }
+
+    // VIX — moderate overlay
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
+    }
+
+    // TIPS — mild overlay
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
+    }
+
+    // Seasonal modifier on strategic
+    const season = getFertilizerSeason();
+    score += season.modifier;
+    notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
 
     return { score: clamp(score), notes };
   }
