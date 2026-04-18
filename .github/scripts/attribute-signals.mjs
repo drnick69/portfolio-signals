@@ -2,7 +2,8 @@
 // Forward-return attribution engine for the Portfolio Signals pipeline.
 //
 // What it does:
-//   1. Reads every logged signal from docs/history/signals.jsonl
+//   1. Reads every logged signal from docs/history/daily-log.jsonl
+//      (one line per DAY containing all 11 holdings; flattens to per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
 //   4. Computes forward returns at 1d, 3d, 5d, 10d, 20d, 40d, 60d, 120d
@@ -14,8 +15,9 @@
 // Design notes:
 //   • Idempotent — safe to run repeatedly. Partial attributions (where the
 //     forward horizon hasn't elapsed yet) are filled in on subsequent runs.
-//   • Defensive normalization — handles both the full hub payload shape AND
-//     flat logged rows, because log-signals.mjs has evolved over time.
+//   • Defensive normalization — handles BOTH the daily-log.jsonl shape
+//     (one entry per day with nested holdings[] array) AND flat per-signal
+//     rows, in case the log format changes again.
 //   • Uses Alpaca bar close on the entry date as the entry price when available
 //     (rather than the intra-day logged price) for clean daily alignment.
 //   • Rate-limited symbol fetches (200ms between calls) to stay well under
@@ -30,7 +32,7 @@ import path from "path";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const HISTORY_DIR  = process.env.HISTORY_DIR  || "docs/history";
-const SIGNALS_FILE = process.env.SIGNALS_FILE || path.join(HISTORY_DIR, "signals.jsonl");
+const SIGNALS_FILE = process.env.SIGNALS_FILE || path.join(HISTORY_DIR, "daily-log.jsonl");
 const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "signals_with_returns.jsonl");
 
 const ALPACA_KEY      = process.env.ALPK;
@@ -155,7 +157,36 @@ async function loadJsonl(file) {
   }
 }
 
-// Handles both the full hub payload shape and flat logged rows.
+// Flatten daily-log.jsonl entries into per-(symbol, date) signal records.
+// daily-log.jsonl shape (one line per day):
+//   { date, timestamp, assignments, macro, holdings: [ { symbol, price, tactical, ... } ] }
+// If the input is ALREADY flat (one line per symbol per day), we pass it
+// through untouched so this script stays compatible with older log formats.
+function flattenDailyLogEntries(rawEntries) {
+  const flat = [];
+  for (const entry of rawEntries) {
+    if (Array.isArray(entry.holdings) && entry.holdings.length > 0) {
+      // Full daily-log entry — flatten each holding into its own record
+      for (const h of entry.holdings) {
+        flat.push({
+          // Top-level date/timestamp from the parent entry
+          date:        entry.date,
+          timestamp:   entry.timestamp,
+          assignments: entry.assignments,
+          // Holding-level fields
+          ...h,
+        });
+      }
+    } else if (entry.symbol) {
+      // Already-flat signal row — pass through
+      flat.push(entry);
+    }
+    // else: malformed entry, skip silently
+  }
+  return flat;
+}
+
+// Handles both daily-log (flattened) shape and flat logged rows.
 function normalizeSignal(raw) {
   // Date: prefer explicit date field, else derive from timestamp
   const date = raw.date
@@ -164,18 +195,21 @@ function normalizeSignal(raw) {
 
   const symbol = raw.symbol;
 
-  // Price: try nested shapes first, then flat
-  const price = raw.price?.current
+  // Price: daily-log flattens to a flat `price` number field.
+  // Older hub payloads nest it under price.current. Support both.
+  const price = (typeof raw.price === "number" ? raw.price : null)
+             ?? raw.price?.current
              ?? raw.price?.current_usd
              ?? raw.entry_price
              ?? raw.logged_price
-             ?? (typeof raw.price === "number" ? raw.price : null);
+             ?? null;
 
-  // Scores: try nested layer objects first, then flat _score fields
-  const tacticalScore   = raw.tactical?.score   ?? raw.tactical_score   ?? null;
-  const positionalScore = raw.positional?.score ?? raw.positional_score ?? null;
-  const strategicScore  = raw.strategic?.score  ?? raw.strategic_score  ?? null;
-  const compositeScore  = raw.composite?.score  ?? raw.composite_score  ?? null;
+  // Scores: daily-log uses `blended` inside each layer object.
+  // Older hub shape used `score`. Flat rows use `<layer>_score`.
+  const tacticalScore   = raw.tactical?.blended   ?? raw.tactical?.score   ?? raw.tactical_score   ?? null;
+  const positionalScore = raw.positional?.blended ?? raw.positional?.score ?? raw.positional_score ?? null;
+  const strategicScore  = raw.strategic?.blended  ?? raw.strategic?.score  ?? raw.strategic_score  ?? null;
+  const compositeScore  = raw.composite?.blended  ?? raw.composite?.score  ?? raw.composite_score  ?? null;
 
   const recommendation  = raw.composite?.recommendation
                        ?? raw.recommendation
@@ -197,6 +231,7 @@ function normalizeSignal(raw) {
       strategic:  raw.strategic?.signal  ?? raw.strategic_signal  ?? null,
     },
     recommendation,
+    role:      raw.role      ?? null,
     archetype: raw.archetype ?? null,
     weights:   raw.weights   ?? null,
   };
@@ -265,16 +300,21 @@ async function main() {
   console.log(`  input:  ${SIGNALS_FILE}`);
   console.log(`  output: ${OUTPUT_FILE}`);
 
-  // 1. Load raw signals
-  const rawSignals = await loadJsonl(SIGNALS_FILE);
-  console.log(`  loaded ${rawSignals.length} raw signal records`);
+  // 1. Load raw log entries (one line per day in daily-log.jsonl)
+  const rawEntries = await loadJsonl(SIGNALS_FILE);
+  console.log(`  loaded ${rawEntries.length} raw log entries`);
 
-  if (rawSignals.length === 0) {
+  if (rawEntries.length === 0) {
     console.log("  no signals to attribute; exiting");
     return;
   }
 
-  // 2. Normalize + dedupe by (symbol, date); last write wins
+  // 2. Flatten daily-log entries (each entry has 11 holdings nested inside)
+  //    into per-(symbol, date) rows. Already-flat rows pass through.
+  const rawSignals = flattenDailyLogEntries(rawEntries);
+  console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
+
+  // 3. Normalize + dedupe by (symbol, date); last write wins
   const bucket = new Map();
   for (const raw of rawSignals) {
     const sig = normalizeSignal(raw);
@@ -284,14 +324,19 @@ async function main() {
   const signals = [...bucket.values()];
   console.log(`  ${signals.length} unique (symbol, date) signals after dedupe`);
 
-  // 3. Group by symbol and determine earliest entry date per symbol
+  if (signals.length === 0) {
+    console.log("  no valid signals after normalization; exiting");
+    return;
+  }
+
+  // 4. Group by symbol and determine earliest entry date per symbol
   const bySymbol = {};
   for (const sig of signals) {
     if (!bySymbol[sig.symbol]) bySymbol[sig.symbol] = [];
     bySymbol[sig.symbol].push(sig);
   }
 
-  // 4. Fetch Alpaca bars per symbol (batched per-ticker, not per-signal)
+  // 5. Fetch Alpaca bars per symbol (batched per-ticker, not per-signal)
   const priceIndices = {};
   for (const symbol of Object.keys(bySymbol).sort()) {
     const sigs = bySymbol[symbol];
@@ -307,7 +352,7 @@ async function main() {
     await new Promise(r => setTimeout(r, 200)); // gentle rate limit
   }
 
-  // 5. Compute forward returns + layer attribution for every signal
+  // 6. Compute forward returns + layer attribution for every signal
   const enriched = [];
   for (const sig of signals) {
     const priceIdx     = priceIndices[sig.symbol] || {};
@@ -325,6 +370,7 @@ async function main() {
     enriched.push({
       date:                sig.date,
       symbol:              sig.symbol,
+      role:                sig.role,
       archetype:           sig.archetype,
       weights:             sig.weights,
       entry_price:         entryPrice,
@@ -340,14 +386,14 @@ async function main() {
     });
   }
 
-  // 6. Sort (date asc, then symbol) and write
+  // 7. Sort (date asc, then symbol) and write
   enriched.sort((a, b) =>
     a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol)
   );
   await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
   await fs.writeFile(OUTPUT_FILE, enriched.map(r => JSON.stringify(r)).join("\n") + "\n");
 
-  // 7. Console summary — what the Actions log will show
+  // 8. Console summary — what the Actions log will show
   const complete = enriched.filter(e => e.attribution_status === "complete").length;
   const partial  = enriched.length - complete;
   console.log(`\n[attribute-signals] DONE`);
@@ -394,4 +440,4 @@ if (isEntryPoint) {
   });
 }
 
-export { main, normalizeSignal, computeForwardReturns, layerDirectionCorrect, addTradingDays };
+export { main, normalizeSignal, flattenDailyLogEntries, computeForwardReturns, layerDirectionCorrect, addTradingDays };
