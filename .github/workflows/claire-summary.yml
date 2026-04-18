@@ -31,7 +31,7 @@ jobs:
       - name: Run Claire summary
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: node claire-summary.mjs
+        run: node .github/scripts/claire-summary.mjs
 
       - name: Commit claire.json
         run: |
