@@ -1,0 +1,46 @@
+name: Claire Summary
+
+# Runs once per day after the main signal pipeline has finished, producing
+# plain-English one-liners per holding for the Claire tab on the hub.
+# Scheduled ~30min after the main signal workflow's typical finish time —
+# adjust as needed.
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"  # 21:30 UTC weekdays
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: claire-summary
+  cancel-in-progress: false
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run Claire summary
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node claire-summary.mjs
+
+      - name: Commit claire.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/history/claire.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(claire): daily summary [auto]"
+            git push
+          fi
