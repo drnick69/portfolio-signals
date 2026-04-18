@@ -106,16 +106,18 @@
     const pctColor = v => (v||0)>=0?"#4ecdc4":"#ff6b6b";
     const fmtMoney = v => v >= 1000000 ? `$${(v/1000000).toFixed(2)}M` : v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${v.toFixed(0)}`;
 
-    let DATA = null, PORTFOLIO = null, currentTab = "signals";
+    let DATA = null, PORTFOLIO = null, CLAIRE = null, currentTab = "signals";
 
     async function loadData() {
       try {
-        const [sigResp, ptResp] = await Promise.all([
+        const [sigResp, ptResp, claireResp] = await Promise.all([
           fetch("signal-data.json?" + Date.now()),
           fetch("history/paper-portfolio.json?" + Date.now()).catch(() => null),
+          fetch("history/claire.json?" + Date.now()).catch(() => null),
         ]);
         if (sigResp.ok) DATA = await sigResp.json();
         if (ptResp?.ok) PORTFOLIO = await ptResp.json();
+        if (claireResp?.ok) CLAIRE = await claireResp.json();
         render();
       } catch (e) {
         document.getElementById("app").innerHTML = `<div class="status"><div class="icon">⏳</div><div class="msg">No data yet</div><div class="detail">Run the workflow from the Actions tab, then refresh.</div></div>`;
@@ -133,10 +135,12 @@
         <div class="tabs">
           <div class="tab ${currentTab==='signals'?'active':''}" onclick="setTab('signals')">SIGNALS</div>
           <div class="tab ${currentTab==='trader'?'active':''}" onclick="setTab('trader')">PAPER TRADER</div>
+          <div class="tab ${currentTab==='claire'?'active':''}" onclick="setTab('claire')">CLAIRE</div>
         </div>`;
 
       if (currentTab === "signals") renderSignals(normalized, assignments, ts, tabsHTML);
-      else renderTrader(ts, tabsHTML);
+      else if (currentTab === "trader") renderTrader(ts, tabsHTML);
+      else renderClaire(ts, tabsHTML);
     }
 
     // ─── SIGNALS TAB ────────────────────────────────────────────────────────
@@ -320,6 +324,50 @@
           <table><thead><tr><th>DATE</th><th>ACTION</th><th>SYMBOL</th><th style="text-align:right">SHARES</th><th style="text-align:right">PRICE</th><th style="text-align:right">AMOUNT</th><th>SIGNAL</th></tr></thead>
           <tbody>${tradeRows}</tbody></table>
         </div>` : ""}`;
+    }
+
+    // ─── CLAIRE TAB ─────────────────────────────────────────────────────────
+    function renderClaire(ts, tabsHTML) {
+      if (!CLAIRE) {
+        document.getElementById("app").innerHTML = `
+          <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">TODAY IN THE PORTFOLIO</div></div>
+            <div class="meta"><div class="timestamp">Updated: ${ts}</div><button class="refresh-btn" onclick="loadData()">REFRESH</button></div></div>
+          ${tabsHTML}
+          <div class="status"><div class="icon">💬</div><div class="msg">No Claire update yet</div>
+            <div class="detail">The Claire summary runs once per day after signals are generated. Trigger the Claire Summary workflow from the Actions tab for an immediate update.</div></div>`;
+        return;
+      }
+
+      const generated = CLAIRE.generated_at ? new Date(CLAIRE.generated_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "—";
+
+      const pillStyle = rec => {
+        if (rec === "STRONG_BUY")  return "background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.25);color:#00ff88";
+        if (rec === "BUY")         return "background:rgba(78,205,196,0.08);border:1px solid rgba(78,205,196,0.25);color:#4ecdc4";
+        if (rec === "TRIM" || rec === "SELL")
+                                   return "background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);color:#ff6b6b";
+        if (rec === "STRONG_SELL") return "background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.25);color:#ff3355";
+        return "background:rgba(85,102,119,0.04);border:1px solid rgba(85,102,119,0.12);color:#556677";
+      };
+
+      const rows = (CLAIRE.portfolio || []).map(sym => {
+        const s = CLAIRE.summaries?.[sym] || {};
+        const h = HOLDINGS[sym] || {};
+        const rec = s.recommendation || "—";
+        const label = rec === "—" ? "—" : rec.replace("_", " ");
+        return `<tr>
+          <td style="width:90px"><div style="font-weight:800;font-size:14px;color:${h.accent||'#e0e8f0'}">${sym}</div><div style="font-size:10px;color:#556677">${h.name||""}</div></td>
+          <td style="width:130px"><span class="role-badge" style="${pillStyle(rec)}">${label}</span></td>
+          <td style="color:#b8c8d8;font-size:12px;line-height:1.6">${s.sentence || "No update today."}</td>
+        </tr>`;
+      }).join("");
+
+      document.getElementById("app").innerHTML = `
+        <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">TODAY IN THE PORTFOLIO — PLAIN ENGLISH UPDATE</div></div>
+          <div class="meta"><div class="timestamp">Updated: ${ts}</div><button class="refresh-btn" onclick="loadData()">REFRESH</button></div></div>
+        ${tabsHTML}
+        <div class="ranking"><div class="section-title">CLAIRE'S DAILY BRIEF</div>
+          <div class="section-sub">Generated ${generated}</div>
+          <table><tbody>${rows}</tbody></table></div>`;
     }
 
     // ─── DETAIL VIEW ────────────────────────────────────────────────────────
