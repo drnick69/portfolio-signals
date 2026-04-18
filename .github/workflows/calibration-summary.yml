@@ -1,0 +1,43 @@
+name: Calibration Summary
+
+# Runs after attribute-signals.mjs has updated forward returns.
+# Reads docs/history/signals_with_returns.jsonl and produces
+# docs/history/calibration.json for the Calibration dashboard tab.
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"  # 22:30 UTC weekdays — 30 min after attribute-signals
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: calibration-summary
+  cancel-in-progress: false
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run calibration summary
+        run: node .github/scripts/calibration-summary.mjs
+
+      - name: Commit calibration.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/history/calibration.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(calibration): update summary [auto]"
+            git push
+          fi
