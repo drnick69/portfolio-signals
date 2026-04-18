@@ -33,7 +33,7 @@ jobs:
         env:
           ALPK: ${{ secrets.ALPK }}
           ALPS: ${{ secrets.ALPS }}
-        run: node scripts/attribute-signals.mjs
+        run: node attribute-signals.mjs
 
       - name: Commit enriched log
         run: |
