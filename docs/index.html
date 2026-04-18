@@ -77,6 +77,15 @@
     .pt-stat .sub { font-size: 10px; margin-top: 4px; }
     .pt-chart { background: #0a0f18; border: 1px solid #1a2332; border-radius: 10px; padding: 24px; margin-bottom: 28px; }
     .pt-chart svg { width: 100%; }
+
+    /* Calibration */
+    .cal-controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .cal-select { background: #0a0f18; border: 1px solid #1a2332; color: #c8d6e5; font-family: inherit; font-size: 11px; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+    .cal-select:hover { border-color: #2a3a52; }
+    .cal-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+    @media (max-width: 800px) { .cal-summary-grid { grid-template-columns: repeat(2, 1fr); } }
+    .cal-chart { background: #0a0f18; border: 1px solid #1a2332; border-radius: 10px; padding: 24px; margin-bottom: 28px; }
+    .cal-chart svg { width: 100%; }
   </style>
 </head>
 <body>
@@ -106,18 +115,21 @@
     const pctColor = v => (v||0)>=0?"#4ecdc4":"#ff6b6b";
     const fmtMoney = v => v >= 1000000 ? `$${(v/1000000).toFixed(2)}M` : v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${v.toFixed(0)}`;
 
-    let DATA = null, PORTFOLIO = null, CLAIRE = null, currentTab = "signals";
+    let DATA = null, PORTFOLIO = null, CLAIRE = null, CALIBRATION = null, currentTab = "signals";
+    let calTicker = "SPY", calLayer = "tactical";
 
     async function loadData() {
       try {
-        const [sigResp, ptResp, claireResp] = await Promise.all([
+        const [sigResp, ptResp, claireResp, calResp] = await Promise.all([
           fetch("signal-data.json?" + Date.now()),
           fetch("history/paper-portfolio.json?" + Date.now()).catch(() => null),
           fetch("history/claire.json?" + Date.now()).catch(() => null),
+          fetch("history/calibration.json?" + Date.now()).catch(() => null),
         ]);
         if (sigResp.ok) DATA = await sigResp.json();
         if (ptResp?.ok) PORTFOLIO = await ptResp.json();
         if (claireResp?.ok) CLAIRE = await claireResp.json();
+        if (calResp?.ok) CALIBRATION = await calResp.json();
         render();
       } catch (e) {
         document.getElementById("app").innerHTML = `<div class="status"><div class="icon">⏳</div><div class="msg">No data yet</div><div class="detail">Run the workflow from the Actions tab, then refresh.</div></div>`;
@@ -125,6 +137,8 @@
     }
 
     function setTab(tab) { currentTab = tab; render(); }
+    function setCalTicker(t) { calTicker = t; render(); }
+    function setCalLayer(l) { calLayer = l; render(); }
 
     function render() {
       if (!DATA) { document.getElementById("app").innerHTML = `<div class="status"><div class="icon">⏳</div><div class="msg">No signal data</div></div>`; return; }
@@ -136,11 +150,13 @@
           <div class="tab ${currentTab==='signals'?'active':''}" onclick="setTab('signals')">SIGNALS</div>
           <div class="tab ${currentTab==='trader'?'active':''}" onclick="setTab('trader')">PAPER TRADER</div>
           <div class="tab ${currentTab==='claire'?'active':''}" onclick="setTab('claire')">CLAIRE</div>
+          <div class="tab ${currentTab==='calibration'?'active':''}" onclick="setTab('calibration')">CALIBRATION</div>
         </div>`;
 
       if (currentTab === "signals") renderSignals(normalized, assignments, ts, tabsHTML);
       else if (currentTab === "trader") renderTrader(ts, tabsHTML);
-      else renderClaire(ts, tabsHTML);
+      else if (currentTab === "claire") renderClaire(ts, tabsHTML);
+      else renderCalibration(ts, tabsHTML);
     }
 
     // ─── SIGNALS TAB ────────────────────────────────────────────────────────
@@ -207,7 +223,6 @@
       const pnl = latest?.pnl || 0;
       const pnlPct = latest?.pnl_pct || 0;
 
-      // ── Stat cards
       const stats = `
         <div class="pt-stats">
           <div class="pt-stat"><div class="label">PORTFOLIO VALUE</div><div class="value">${fmtMoney(totalVal)}</div><div class="sub" style="color:#556677">Day ${p.day_count}</div></div>
@@ -216,7 +231,6 @@
           <div class="pt-stat"><div class="label">CASH</div><div class="value">${fmtMoney(latest?.cash || 0)}</div><div class="sub" style="color:#556677">${((latest?.cash||0)/totalVal*100).toFixed(1)}% of portfolio</div></div>
         </div>`;
 
-      // ── Equity curve (SVG)
       const hist = p.history || [];
       let chartHTML = "";
       if (hist.length >= 2) {
@@ -231,20 +245,17 @@
         const valueLine = values.map((v, i) => `${i===0?'M':'L'}${scaleX(i).toFixed(1)},${scaleY(v).toFixed(1)}`).join(" ");
         const depositLine = deposits.map((v, i) => `${i===0?'M':'L'}${scaleX(i).toFixed(1)},${scaleY(v).toFixed(1)}`).join(" ");
 
-        // Y-axis labels
         const ySteps = 5;
         const yLabels = Array.from({length: ySteps + 1}, (_, i) => {
           const v = minV + (maxV - minV) * (i / ySteps);
           return `<text x="${PAD-4}" y="${scaleY(v).toFixed(1)}" text-anchor="end" fill="#334455" font-size="9">${fmtMoney(v)}</text>`;
         }).join("");
 
-        // X-axis labels (first, middle, last)
         const xLabels = [0, Math.floor(hist.length/2), hist.length-1].map(i => {
           if (!hist[i]) return "";
           return `<text x="${scaleX(i).toFixed(1)}" y="${H-8}" text-anchor="middle" fill="#334455" font-size="9">${hist[i].date?.slice(5)||""}</text>`;
         }).join("");
 
-        // Fill area between curves
         const areaAbove = values.map((v, i) => `${scaleX(i).toFixed(1)},${scaleY(v).toFixed(1)}`).join(" ");
         const areaBelow = [...deposits].reverse().map((v, i) => `${scaleX(deposits.length-1-i).toFixed(1)},${scaleY(v).toFixed(1)}`).join(" ");
 
@@ -264,7 +275,6 @@
         chartHTML = `<div class="pt-chart"><div class="section-title">EQUITY CURVE</div><div style="color:#334455;font-size:11px;padding:40px 0;text-align:center">Chart requires 2+ days of data</div></div>`;
       }
 
-      // ── Holdings breakdown
       const holdings = Object.entries(p.holdings || {}).map(([sym, h]) => {
         const price = DATA?.normalized?.find(s => s.symbol === sym)?.price?.current || 0;
         const mktVal = h.shares * price;
@@ -289,7 +299,6 @@
         </tr>`;
       }).join("");
 
-      // ── Recent trades (last 5 days)
       const recentDays = hist.slice(-5).reverse();
       const tradeRows = recentDays.flatMap(day =>
         (day.trades || []).map(t => {
@@ -369,6 +378,199 @@
           <div class="section-sub">Generated ${generated}</div>
           <table><tbody>${rows}</tbody></table></div>`;
     }
+
+    // ─── CALIBRATION TAB ────────────────────────────────────────────────────
+    function renderCalibration(ts, tabsHTML) {
+      if (!CALIBRATION || !CALIBRATION.per_ticker || Object.keys(CALIBRATION.per_ticker).length === 0) {
+        document.getElementById("app").innerHTML = `
+          <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">CALIBRATION — SIGNAL QUALITY</div></div>
+            <div class="meta"><div class="timestamp">Updated: ${ts}</div><button class="refresh-btn" onclick="loadData()">REFRESH</button></div></div>
+          ${tabsHTML}
+          <div class="status"><div class="icon">🎯</div><div class="msg">No calibration data yet</div>
+            <div class="detail">Calibration runs nightly after attribute-signals.mjs. It needs at least a few days of attributed signals to produce meaningful output. Trigger the workflow manually from the Actions tab for an immediate update.</div></div>`;
+        return;
+      }
+
+      const tickers = Object.keys(CALIBRATION.per_ticker).sort();
+      if (!tickers.includes(calTicker)) calTicker = tickers[0];
+
+      const fmtPctOrDash = v => v == null ? "—" : (v * 100).toFixed(0) + "%";
+      const fmtRetOrDash = v => v == null ? "—" : ((v * 100).toFixed(2) + "%");
+      const retColor = v => v == null ? "#556677" : v > 0 ? "#4ecdc4" : "#ff6b6b";
+
+      // Portfolio-level summary strip
+      const p = CALIBRATION.portfolio || {};
+      const summaryCards = ["tactical", "positional", "strategic"].map(layer => {
+        const s = p[layer] || {};
+        const hrColor = s.hit_rate == null ? "#8899aa" : s.hit_rate > 0.55 ? "#4ecdc4" : s.hit_rate < 0.45 ? "#ff6b6b" : "#f4a261";
+        return `<div class="pt-stat">
+          <div class="label">${layer.toUpperCase()} — PORTFOLIO</div>
+          <div class="value" style="color:${hrColor}">${fmtPctOrDash(s.hit_rate)}</div>
+          <div class="sub" style="color:#556677">n=${s.n||0} · mean ret: ${fmtRetOrDash(s.mean_return)}</div>
+        </div>`;
+      }).join("");
+      const signalCountCard = `<div class="pt-stat">
+        <div class="label">TOTAL SIGNALS LOGGED</div>
+        <div class="value">${CALIBRATION.signal_count || 0}</div>
+        <div class="sub" style="color:#556677">${CALIBRATION.date_range?.start || "—"} → ${CALIBRATION.date_range?.end || "—"}</div>
+      </div>`;
+
+      // Ticker / layer selector
+      const tickerOptions = tickers.map(t => `<option value="${t}" ${t===calTicker?"selected":""}>${t}</option>`).join("");
+      const layerOptions = ["tactical","positional","strategic"].map(l =>
+        `<option value="${l}" ${l===calLayer?"selected":""}>${l.toUpperCase()}</option>`).join("");
+      const controls = `
+        <div class="cal-controls">
+          <select class="cal-select" onchange="setCalTicker(this.value)">${tickerOptions}</select>
+          <select class="cal-select" onchange="setCalLayer(this.value)">${layerOptions}</select>
+        </div>`;
+
+      // Selected ticker/layer data
+      const t = CALIBRATION.per_ticker[calTicker] || {};
+      const layer = t.layers?.[calLayer] || {};
+
+      // Bucket table
+      const bucketRows = (layer.buckets || []).map(b => {
+        const hrColor = b.hit_rate == null ? "#556677" : b.hit_rate > 0.55 ? "#4ecdc4" : b.hit_rate < 0.45 ? "#ff6b6b" : "#f4a261";
+        const lowN = b.n < 3 ? "opacity:0.4" : "";
+        return `<tr style="${lowN}">
+          <td style="font-weight:600">${b.label}</td>
+          <td style="text-align:right">${b.n}</td>
+          <td style="text-align:right">${b.n_with_return}</td>
+          <td style="text-align:right;color:${retColor(b.mean_return)}">${fmtRetOrDash(b.mean_return)}</td>
+          <td style="text-align:right;color:${hrColor}">${fmtPctOrDash(b.hit_rate)}</td>
+        </tr>`;
+      }).join("");
+
+      const bucketTable = `
+        <div class="ranking" style="margin-top:0">
+          <div class="section-title">${calTicker} · ${calLayer.toUpperCase()} — SCORE BUCKETS</div>
+          <div class="section-sub">Native horizon: ${layer.native_horizon || "—"} trading days · faded rows have n<3 · hit rate within neutral band (|score|<5) not counted</div>
+          <table>
+            <thead><tr><th>SCORE RANGE</th><th style="text-align:right">N</th><th style="text-align:right">N W/RET</th><th style="text-align:right">MEAN RETURN</th><th style="text-align:right">HIT RATE</th></tr></thead>
+            <tbody>${bucketRows || '<tr><td colspan="5" style="text-align:center;color:#556677;padding:20px">No data</td></tr>'}</tbody>
+          </table>
+        </div>`;
+
+      // Scatter plot
+      const scatter = layer.scatter || [];
+      let scatterHTML = "";
+      if (scatter.length >= 2) {
+        const W = 800, H = 280, PAD = 50;
+        const minX = -100, maxX = 100;
+        const rets = scatter.map(d => d.return_);
+        const maxAbsR = Math.max(0.05, ...rets.map(r => Math.abs(r)));
+        const minY = -maxAbsR, maxY = maxAbsR;
+        const sx = v => PAD + ((v - minX) / (maxX - minX)) * (W - PAD * 2);
+        const sy = v => H - PAD - ((v - minY) / (maxY - minY)) * (H - PAD * 2);
+
+        const dots = scatter.map(d => {
+          const x = sx(d.score), y = sy(d.return_);
+          const c = (d.score < -NEUTRAL() && d.return_ > 0) || (d.score > NEUTRAL() && d.return_ < 0) ? "#4ecdc4" :
+                    (d.score < -NEUTRAL() && d.return_ < 0) || (d.score > NEUTRAL() && d.return_ > 0) ? "#ff6b6b" :
+                    "#556677";
+          return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${c}" opacity="0.75" />`;
+        }).join("");
+
+        const axisX = `<line x1="${PAD}" y1="${sy(0).toFixed(1)}" x2="${W-PAD}" y2="${sy(0).toFixed(1)}" stroke="#1a2332" stroke-width="1" />`;
+        const axisY = `<line x1="${sx(0).toFixed(1)}" y1="${PAD}" x2="${sx(0).toFixed(1)}" y2="${H-PAD}" stroke="#1a2332" stroke-width="1" />`;
+
+        const xTicks = [-100, -50, 0, 50, 100].map(v =>
+          `<text x="${sx(v).toFixed(1)}" y="${H-PAD+14}" text-anchor="middle" fill="#556677" font-size="9">${v}</text>`).join("");
+        const yTicks = [-maxAbsR, -maxAbsR/2, 0, maxAbsR/2, maxAbsR].map(v =>
+          `<text x="${PAD-6}" y="${sy(v).toFixed(1)+3}" text-anchor="end" fill="#556677" font-size="9">${(v*100).toFixed(1)}%</text>`).join("");
+
+        // Simple linear regression for trend line
+        const n = scatter.length;
+        const sumX = scatter.reduce((a,d)=>a+d.score,0);
+        const sumY = scatter.reduce((a,d)=>a+d.return_,0);
+        const sumXY = scatter.reduce((a,d)=>a+d.score*d.return_,0);
+        const sumX2 = scatter.reduce((a,d)=>a+d.score*d.score,0);
+        const slope = (n*sumXY - sumX*sumY) / Math.max(1e-9, (n*sumX2 - sumX*sumX));
+        const intercept = (sumY - slope*sumX) / n;
+        const regLine = `<line x1="${sx(-100)}" y1="${sy(intercept + slope*(-100))}" x2="${sx(100)}" y2="${sy(intercept + slope*100)}" stroke="#5b8dee" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.8" />`;
+
+        // R²
+        const meanY = sumY / n;
+        const ssTot = scatter.reduce((a,d)=>a+(d.return_-meanY)**2, 0);
+        const ssRes = scatter.reduce((a,d)=>a+(d.return_-(intercept+slope*d.score))**2, 0);
+        const r2 = ssTot > 0 ? 1 - ssRes/ssTot : 0;
+
+        scatterHTML = `
+          <div class="cal-chart">
+            <div class="section-title">${calTicker} · ${calLayer.toUpperCase()} — SCORE vs FORWARD RETURN (${layer.native_horizon || "—"})</div>
+            <div class="section-sub">Teal = correct direction · Red = wrong direction · Gray = within neutral band · Trend line R² = ${r2.toFixed(3)}</div>
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+              ${axisX}${axisY}${regLine}${dots}${xTicks}${yTicks}
+              <text x="${W-8}" y="${sy(0)-4}" text-anchor="end" fill="#445566" font-size="9">SCORE →</text>
+              <text x="${sx(0)+6}" y="${PAD-4}" fill="#445566" font-size="9">RETURN ↑</text>
+            </svg>
+          </div>`;
+      } else {
+        scatterHTML = `<div class="cal-chart"><div class="section-title">${calTicker} · ${calLayer.toUpperCase()} — SCATTER</div><div style="color:#334455;font-size:11px;padding:40px 0;text-align:center">Scatter requires 2+ attributed signals</div></div>`;
+      }
+
+      // Rolling hit rate line chart
+      const rolling = t.rolling || [];
+      let rollingHTML = "";
+      if (rolling.length >= 3) {
+        const W = 800, H = 220, PAD = 50;
+        const sx = i => PAD + (i / Math.max(1, rolling.length - 1)) * (W - PAD * 2);
+        const sy = v => H - PAD - (v) * (H - PAD * 2);
+
+        const line = (key, color) => {
+          const pts = rolling.map((r, i) => r[key] == null ? null : `${sx(i).toFixed(1)},${sy(r[key]).toFixed(1)}`);
+          const segments = [];
+          let current = [];
+          for (const p of pts) {
+            if (p) current.push(p);
+            else { if (current.length) segments.push(current); current = []; }
+          }
+          if (current.length) segments.push(current);
+          return segments.map(seg =>
+            `<polyline points="${seg.join(" ")}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.9" />`).join("");
+        };
+
+        const axisBase = `<line x1="${PAD}" y1="${sy(0.5).toFixed(1)}" x2="${W-PAD}" y2="${sy(0.5).toFixed(1)}" stroke="#1a2332" stroke-width="1" stroke-dasharray="3,3" />`;
+
+        const yTicks = [0, 0.25, 0.5, 0.75, 1].map(v =>
+          `<text x="${PAD-6}" y="${sy(v).toFixed(1)+3}" text-anchor="end" fill="#556677" font-size="9">${(v*100).toFixed(0)}%</text>`).join("");
+
+        const xLabels = [0, Math.floor(rolling.length/2), rolling.length-1].map(i =>
+          rolling[i] ? `<text x="${sx(i).toFixed(1)}" y="${H-PAD+14}" text-anchor="middle" fill="#556677" font-size="9">${rolling[i].date?.slice(5) || ""}</text>` : "").join("");
+
+        rollingHTML = `
+          <div class="cal-chart">
+            <div class="section-title">${calTicker} — ROLLING HIT RATE (${CALIBRATION.rolling_window_days}-day window)</div>
+            <div class="section-sub">Dashed 50% line is chance. Above = signal has edge in recent window.</div>
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+              ${axisBase}${yTicks}
+              ${line("tac_hit_rate", "#00ff88")}
+              ${line("pos_hit_rate", "#4ecdc4")}
+              ${line("str_hit_rate", "#5b8dee")}
+              ${xLabels}
+              <text x="${W-PAD}" y="20" text-anchor="end" fill="#00ff88" font-size="9">— Tactical</text>
+              <text x="${W-PAD}" y="32" text-anchor="end" fill="#4ecdc4" font-size="9">— Positional</text>
+              <text x="${W-PAD}" y="44" text-anchor="end" fill="#5b8dee" font-size="9">— Strategic</text>
+            </svg>
+          </div>`;
+      } else {
+        rollingHTML = `<div class="cal-chart"><div class="section-title">${calTicker} — ROLLING HIT RATE</div><div style="color:#334455;font-size:11px;padding:40px 0;text-align:center">Rolling view requires 3+ days of data</div></div>`;
+      }
+
+      document.getElementById("app").innerHTML = `
+        <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">CALIBRATION — IS THE SIGNAL ACTUALLY PREDICTIVE?</div></div>
+          <div class="meta"><div class="timestamp">Updated: ${ts}</div><button class="refresh-btn" onclick="loadData()">REFRESH</button></div></div>
+        ${tabsHTML}
+        <div class="pt-stats">${signalCountCard}${summaryCards}</div>
+        ${controls}
+        ${bucketTable}
+        <div style="margin-top:28px">${scatterHTML}</div>
+        ${rollingHTML}`;
+    }
+
+    // Helper used inside scatter plot above
+    function NEUTRAL() { return CALIBRATION?.neutral_band ?? 5; }
 
     // ─── DETAIL VIEW ────────────────────────────────────────────────────────
     function showDetail(sym) {
