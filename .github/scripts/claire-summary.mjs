@@ -1,7 +1,7 @@
 // ─── claire-summary.mjs ────────────────────────────────────────────────────────
 // Generates plain-English one-line summaries of each holding for the "Claire"
-// tab on the hub. Reads the most recent signal per ticker from the history log,
-// batches all 11 into one Claude call, writes docs/history/claire.json.
+// tab on the hub. Reads the latest entry from docs/history/daily-log.jsonl,
+// batches all 11 holdings into one Claude call, writes docs/history/claire.json.
 //
 // Voice: conversational but grounded, descriptive not prescriptive, assumes
 // intelligence but zero market vocabulary. One sentence each. No jargon, no
@@ -12,7 +12,7 @@ import fs from "fs/promises";
 import path from "path";
 
 const HISTORY_DIR  = process.env.HISTORY_DIR  || "docs/history";
-const SIGNALS_FILE = process.env.SIGNALS_FILE || path.join(HISTORY_DIR, "signals.jsonl");
+const LOG_FILE     = process.env.LOG_FILE     || path.join(HISTORY_DIR, "daily-log.jsonl");
 const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.json");
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -49,42 +49,39 @@ OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Ex
 Return ONLY the JSON object. No preamble, no markdown fences, no commentary.`;
 
 // ─── DATA LOADING ─────────────────────────────────────────────────────────────
-async function loadLatestSignals() {
-  const text = await fs.readFile(SIGNALS_FILE, "utf8");
-  const rows = text.split("\n").filter(l => l.trim()).map(l => {
-    try { return JSON.parse(l); } catch { return null; }
-  }).filter(Boolean);
-
-  // Latest signal per ticker
-  const latest = {};
-  for (const row of rows) {
-    const symbol = row.symbol;
-    if (!symbol) continue;
-    const ts = row.timestamp || row.logged_at || row.date;
-    if (!ts) continue;
-    if (!latest[symbol] || ts > latest[symbol]._ts) {
-      latest[symbol] = { ...row, _ts: ts };
-    }
+async function loadLatestDailyEntry() {
+  const text = await fs.readFile(LOG_FILE, "utf8");
+  const lines = text.split("\n").filter(l => l.trim());
+  if (lines.length === 0) return null;
+  // Latest entry is the last valid line
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try { return JSON.parse(lines[i]); } catch { /* skip malformed */ }
   }
-  return latest;
+  return null;
 }
 
-function buildInputForClaude(latestSignals) {
+function buildInputForClaude(dailyEntry) {
+  // daily-log.jsonl schema: { date, timestamp, assignments, macro, holdings: [...] }
+  const byHolding = {};
+  for (const h of (dailyEntry.holdings || [])) byHolding[h.symbol] = h;
+
   const rows = [];
   for (const symbol of PORTFOLIO) {
-    const sig = latestSignals[symbol];
-    if (!sig) {
-      rows.push({ symbol, note: "no recent signal data available" });
+    const h = byHolding[symbol];
+    if (!h) {
+      rows.push({ symbol, note: "no data for this holding today" });
       continue;
     }
     rows.push({
       symbol,
-      recommendation: sig.composite?.recommendation ?? sig.recommendation ?? "HOLD",
-      composite_score: sig.composite?.score ?? sig.composite_score ?? null,
-      summary: sig.composite?.summary ?? sig.summary ?? null,
-      price_change_pct: sig.price?.change_pct ?? null,
-      risks: sig.risks ?? [],
-      catalysts: sig.catalysts ?? [],
+      recommendation:    h.composite?.recommendation ?? "HOLD",
+      composite_score:   h.composite?.blended ?? null,
+      tactical_signal:   h.tactical?.signal ?? null,
+      positional_signal: h.positional?.signal ?? null,
+      strategic_signal:  h.strategic?.signal ?? null,
+      price_change_pct:  h.change_pct ?? null,
+      role:              h.role ?? null,
+      key_metric:        h.key_metric ?? null,
     });
   }
   return rows;
@@ -122,7 +119,6 @@ ${JSON.stringify(inputRows, null, 2)}`;
     .join("\n")
     .trim();
 
-  // Extract JSON (defensive — strip any stray fences if the model slips)
   const cleaned = text.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Could not extract JSON from Claude response: " + text.slice(0, 200));
@@ -136,12 +132,15 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("[claire-summary] loading latest signals...");
-  const latest = await loadLatestSignals();
-  const found = Object.keys(latest).filter(s => PORTFOLIO.includes(s));
-  console.log(`  found recent signals for ${found.length}/${PORTFOLIO.length} tickers`);
+  console.log("[claire-summary] loading latest daily entry...");
+  const daily = await loadLatestDailyEntry();
+  if (!daily) {
+    console.error(`[claire-summary] no entries in ${LOG_FILE}`);
+    process.exit(1);
+  }
+  console.log(`  latest entry: ${daily.date} with ${daily.holdings?.length ?? 0} holdings`);
 
-  const input = buildInputForClaude(latest);
+  const input = buildInputForClaude(daily);
 
   console.log("[claire-summary] calling Claude for batched translation...");
   let translations = {};
@@ -149,25 +148,29 @@ async function main() {
     translations = await callClaude(input);
   } catch (e) {
     console.error("[claire-summary] Claude call failed:", e.message);
-    // Fall through — we'll emit "No update today" for every ticker below
+    // Fall through — "No update today" per ticker below
   }
 
-  // Build final output with per-ticker fallback
+  // Build final output
+  const byHolding = {};
+  for (const h of (daily.holdings || [])) byHolding[h.symbol] = h;
+
   const summaries = {};
   for (const symbol of PORTFOLIO) {
-    const sig = latest[symbol];
+    const h = byHolding[symbol];
     const sentence = translations[symbol];
     summaries[symbol] = {
       sentence: (typeof sentence === "string" && sentence.trim()) ? sentence.trim() : "No update today.",
-      recommendation: sig?.composite?.recommendation ?? sig?.recommendation ?? null,
-      composite_score: sig?.composite?.score ?? sig?.composite_score ?? null,
-      signal_timestamp: sig?._ts ?? null,
+      recommendation:  h?.composite?.recommendation ?? null,
+      composite_score: h?.composite?.blended ?? null,
+      signal_date:     daily.date ?? null,
     };
   }
 
   const output = {
     generated_at: new Date().toISOString(),
-    portfolio: PORTFOLIO,
+    signal_date:  daily.date,
+    portfolio:    PORTFOLIO,
     summaries,
   };
 
