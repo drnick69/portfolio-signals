@@ -46,6 +46,15 @@ function isSellBucket(bucket) {
   return bucket === "SELL" || bucket === "STRONG_SELL";
 }
 
+// ─── NORMALIZE ROLE ──────────────────────────────────────────────────────────
+// CSV parser auto-converts numeric-looking cells to floats, so row.role
+// may come through as a number. Coerce to uppercase string so downstream
+// .includes() / === comparisons are always safe.
+function normalizeRole(v) {
+  if (v === null || v === undefined || v === "") return "HOLD";
+  return String(v).trim().toUpperCase();
+}
+
 // ─── PARSE CSV ───────────────────────────────────────────────────────────────
 function parseCSV(path) {
   if (!existsSync(path)) return [];
@@ -284,7 +293,7 @@ function getYesterdaySnapshot(rows, tradingDates) {
       strategic_score: typeof row.strategic_score === "number" ? row.strategic_score : parseFloat(row.strategic_score),
       composite_score: typeof row.composite_score === "number" ? row.composite_score : parseFloat(row.composite_score),
       recommendation: row.recommendation,
-      role: row.role,
+      role: normalizeRole(row.role),
     };
   }
 
@@ -303,15 +312,13 @@ function computeStreaks(rows, tradingDates) {
 
     if (symRows.length === 0) continue;
 
-    let currentRole = symRows[symRows.length - 1].role || "HOLD";
+    let currentRole = normalizeRole(symRows[symRows.length - 1].role);
     let streak = 0;
     let longestBuy = 0;
     let longestTrim = 0;
-    let buyStreak = 0;
-    let trimStreak = 0;
 
     for (let i = symRows.length - 1; i >= 0; i--) {
-      const role = symRows[i].role || "HOLD";
+      const role = normalizeRole(symRows[i].role);
       if (i === symRows.length - 1 || role === currentRole) {
         streak++;
       } else {
@@ -323,7 +330,7 @@ function computeStreaks(rows, tradingDates) {
     let prevRole = null;
     let runLen = 0;
     for (const r of symRows) {
-      const role = r.role || "HOLD";
+      const role = normalizeRole(r.role);
       if (role === prevRole) {
         runLen++;
       } else {
