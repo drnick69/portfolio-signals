@@ -19,10 +19,45 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
 const PORTFOLIO = ["MOS", "ASML", "SMH", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
 
+// ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
+// Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
+// LLMs to confuse with similar-sounding tickers. Keep this authoritative.
+const TICKER_IDENTITY = {
+  "MOS":   { name: "Mosaic Company",       business: "North American fertilizer producer (potash and phosphate)" },
+  "ASML":  { name: "ASML Holding",         business: "Dutch company that makes the lithography machines used to print advanced computer chips — the sole supplier of EUV machines worldwide" },
+  "SMH":   { name: "VanEck Semiconductor ETF", business: "basket of the world's biggest semiconductor companies (NVIDIA, TSMC, ASML, Broadcom, etc.)" },
+  "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
+  "ETHA":  { name: "iShares Ethereum ETF", business: "spot Ethereum exposure (ETHA tracks the price of ether, the second-largest cryptocurrency)" },
+  "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
+  "IBIT":  { name: "iShares Bitcoin ETF",  business: "spot Bitcoin exposure" },
+  "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
+  "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
+  "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
+  "SPY":   { name: "SPDR S&P 500 ETF",     business: "the broad US stock market — owning SPY is owning the 500 largest American companies" },
+};
+
 // ─── PROMPT ───────────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are translating quantitative portfolio analysis into plain English for Claire, an intelligent nursing leader at a children's hospital who has zero background in equities or markets. She's smart and curious — treat her like an adult, not a child. She just doesn't speak the vocabulary.
 
 Your job: rewrite each holding's analyst summary into ONE sentence she can understand over dinner.
+
+TICKER GLOSSARY — use these exact company identities, do not substitute or infer:
+- MOS     = Mosaic Company (North American fertilizer producer)
+- ASML    = ASML Holding (Dutch maker of EUV chipmaking machines)
+- SMH     = VanEck Semiconductor ETF (basket of the world's biggest chip companies)
+- ENB     = Enbridge (Canadian oil & gas pipeline operator)
+- ETHA    = iShares Ethereum ETF (spot Ethereum / ether exposure)
+- GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
+- IBIT    = iShares Bitcoin ETF (spot Bitcoin exposure)
+- KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
+- PBR.A   = Petrobras preferred shares (Brazilian state oil major)
+- AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
+- SPY     = SPDR S&P 500 ETF (broad US stock market)
+
+CRITICAL DISAMBIGUATION:
+- AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
+- GLNCY is Glencore, not Glencoe or anything else.
+- PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
 
 RULES:
 - One sentence per holding. Natural, conversational, not breezy.
@@ -38,6 +73,7 @@ EXAMPLES of the voice:
 - "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
 - "Bitcoin has been quiet, which after a big run-up is actually what you want to see."
 - "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
+- "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
 
 OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
 {
@@ -67,13 +103,21 @@ function buildInputForClaude(dailyEntry) {
 
   const rows = [];
   for (const symbol of PORTFOLIO) {
+    const identity = TICKER_IDENTITY[symbol] || { name: symbol, business: "" };
     const h = byHolding[symbol];
     if (!h) {
-      rows.push({ symbol, note: "no data for this holding today" });
+      rows.push({
+        symbol,
+        company_name: identity.name,
+        what_it_is:   identity.business,
+        note:         "no data for this holding today",
+      });
       continue;
     }
     rows.push({
       symbol,
+      company_name:      identity.name,
+      what_it_is:        identity.business,
       recommendation:    h.composite?.recommendation ?? "HOLD",
       composite_score:   h.composite?.blended ?? null,
       tactical_signal:   h.tactical?.signal ?? null,
@@ -89,7 +133,7 @@ function buildInputForClaude(dailyEntry) {
 
 // ─── CLAUDE CALL ──────────────────────────────────────────────────────────────
 async function callClaude(inputRows) {
-  const userMessage = `Here are today's analyst summaries for Claire's portfolio. Translate each into one plain-English sentence per the rules.
+  const userMessage = `Here are today's analyst summaries for Claire's portfolio. Each row includes the ticker, the exact company name, and what the business actually does — use those as the source of truth for identifying each holding. Translate each into one plain-English sentence per the rules.
 
 ${JSON.stringify(inputRows, null, 2)}`;
 
