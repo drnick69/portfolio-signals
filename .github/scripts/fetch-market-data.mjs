@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.9 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
+// fetch-market-data.mjs v4.10 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -18,6 +18,21 @@
 //       - macro.dxy (renamed from dxy_proxy — cleaner score-engine consumption)
 //       - macro.us_ism (FRED NAPM — US ISM Manufacturing PMI Composite) for LIN global PMI
 //       - SMH/MU retired (replaced by LIN's peer infrastructure)
+// v4.10: LIN v3 deep-upgrade fields (sources what's available from free APIs;
+//        explicit nulls for fields needing paid feeds or news aggregation):
+//        - macro.bbb_oas_bps + bbb_oas_1m_change_bps (FRED BAMLC0A4CBBB,
+//          stored in basis points, leads LIN backlog 6-12mo via capex-IRR math)
+//        - LIN.tactical_extras: spy_10d_drawdown_pct + lin_vs_spy_10d_pp
+//          (Alpaca bars, 10 trading days), iv_rv_ratio left null (needs options data)
+//        - LIN.factor_flow: qual_vs_spy_30d_pp (Alpaca bars on QUAL + SPY, 30 trading days)
+//        - LIN.peer_relative_aipa: daily return spread LIN vs AIQUY (mirrors APD)
+//        - LIN.fundamentals v3 fields explicit-null: asu_utilization_pct, price_mix_ex_fx_pct,
+//          eps_revisions_30d_pct, eps_revisions_90d_pct (need earnings disclosure / FactSet)
+//        - LIN.peer_valuation.premium_6m_delta_pp explicit-null (needs historical P/E)
+//        - LIN.h2_layer skeleton with explicit-null fields (need news aggregation /
+//          industry reports — IRA 45V tracker, EU H2 Bank, BNEF LCOE)
+//        All v3 LIN consumers degrade gracefully on null — score-engine computes
+//        partial scores, qualitative LLM block fills the gaps via web search.
 
 import { writeFileSync } from "fs";
 
@@ -381,6 +396,68 @@ async function fix52WeekFromAlpaca(quotes) {
   }
 }
 
+// ─── STAGE 3c: ALPACA HISTORICAL RETURNS (LIN v3 tactical extras + factor flow) ──
+// Pulls daily closes for LIN, SPY, QUAL and computes:
+//   - SPY 10-trading-day return → tactical_extras.spy_10d_drawdown_pct (negative if drawdown)
+//   - LIN 10d return - SPY 10d return → tactical_extras.lin_vs_spy_10d_pp
+//   - QUAL 30d return - SPY 30d return → factor_flow.qual_vs_spy_30d_pp
+// 60 calendar days back gives ~42 trading days, comfortably above the 30+ needed.
+async function fetchLINHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-LIN] No keys — skipping LIN historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-LIN] Fetching LIN/SPY/QUAL bars for v3 spreads...");
+  const symbols = ["LIN", "SPY", "QUAL"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  // Return over the last N trading days
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const linRet10 = retNDays(closes.LIN, 10);
+  const spyRet10 = retNDays(closes.SPY, 10);
+  const qualRet30 = retNDays(closes.QUAL, 30);
+  const spyRet30 = retNDays(closes.SPY, 30);
+
+  const result = {
+    spy_10d_drawdown_pct: spyRet10,
+    lin_vs_spy_10d_pp: (linRet10 != null && spyRet10 != null) ? +(linRet10 - spyRet10).toFixed(3) : null,
+    qual_vs_spy_30d_pp: (qualRet30 != null && spyRet30 != null) ? +(qualRet30 - spyRet30).toFixed(3) : null,
+    // For console / debug:
+    _debug: { linRet10, spyRet10, qualRet30, spyRet30 },
+  };
+
+  console.log(`  [ALPACA-LIN] ✓ SPY 10d=${spyRet10 != null ? (spyRet10 >= 0 ? "+" : "") + spyRet10 + "%" : "—"} | LIN-SPY 10d=${result.lin_vs_spy_10d_pp != null ? (result.lin_vs_spy_10d_pp >= 0 ? "+" : "") + result.lin_vs_spy_10d_pp + "pp" : "—"} | QUAL-SPY 30d=${result.qual_vs_spy_30d_pp != null ? (result.qual_vs_spy_30d_pp >= 0 ? "+" : "") + result.qual_vs_spy_30d_pp + "pp" : "—"}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -397,7 +474,7 @@ async function fetchMacro() {
     mxn_usd:  "DEXMXUS",
     wti:      "DCOILWTICO",
     brl_usd:  "DEXBZUS",
-    us_ism:   "NAPM",          // NEW v4.9: ISM Manufacturing PMI Composite — for LIN global PMI
+    us_ism:   "NAPM",          // ISM Manufacturing PMI Composite — LIN global PMI
   };
 
   const result = {};
@@ -415,7 +492,27 @@ async function fetchMacro() {
     result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0);
   }
 
-  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}, WTI=${result.wti ?? "—"}, BRL=${result.brl_usd ?? "—"}, DXY=${result.dxy ?? "—"}, ISM=${result.us_ism ?? "—"}`);
+  // ── V3: BBB OAS (BAMLC0A4CBBB) + 1m delta — leads LIN backlog 6-12mo ──
+  // FRED returns percent (e.g. 1.45 = 145 bps); we store in bps to match field name.
+  // limit=25 gets ~22 trading days = ~1 calendar month for delta computation.
+  const bbbHist = await fetchJSON(
+    `https://api.stlouisfed.org/fred/series/observations?series_id=BAMLC0A4CBBB&sort_order=desc&limit=25&api_key=${FRED_KEY}&file_type=json`,
+    `FRED bbb_oas history`
+  );
+  const bbbObs = (bbbHist?.observations || []).filter(o => o.value && o.value !== ".");
+  if (bbbObs.length >= 1) {
+    const latestBps = Math.round(parseFloat(bbbObs[0].value) * 100);
+    result.bbb_oas_bps = latestBps;
+    if (bbbObs.length >= 22) {
+      const monthAgoBps = Math.round(parseFloat(bbbObs[21].value) * 100);
+      result.bbb_oas_1m_change_bps = latestBps - monthAgoBps;
+    } else {
+      result.bbb_oas_1m_change_bps = null;
+    }
+  }
+  await sleep(200);
+
+  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, BBB OAS=${result.bbb_oas_bps ?? "—"}bps (1m Δ ${result.bbb_oas_1m_change_bps != null ? (result.bbb_oas_1m_change_bps >= 0 ? "+" : "") + result.bbb_oas_1m_change_bps : "—"}bps), MXN=${result.mxn_usd ?? "—"}, WTI=${result.wti ?? "—"}, BRL=${result.brl_usd ?? "—"}, DXY=${result.dxy ?? "—"}, ISM=${result.us_ism ?? "—"}`);
   return result;
 }
 
@@ -472,8 +569,8 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.9");
-  console.log("==========================");
+  console.log("Market Data Pre-Fetch v4.10");
+  console.log("===========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
 
@@ -505,6 +602,10 @@ async function main() {
   console.log("\n─── STAGE 3b: GSCPI (NY Fed) ───");
   const gscpiData = await fetchGSCPI();
   Object.assign(macro, gscpiData);
+
+  // Stage 3c: LIN historical returns (Alpaca — v3 tactical extras + factor flow)
+  console.log("\n─── STAGE 3c: LIN HISTORICAL RETURNS (Alpaca) ───");
+  const linHistReturns = await fetchLINHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -794,6 +895,77 @@ async function main() {
     } else {
       console.log(`  LIN fundamentals: unavailable from Finnhub metrics`);
     }
+
+    // ─── V3 LIN ATTACHMENTS ───────────────────────────────────────────────
+    // V3.1 peer_relative_aipa: daily return spread LIN vs AIQUY (Air Liquide).
+    //      Mirrors the existing LIN-vs-APD spread; peer-triangulation uses both.
+    const aiquyChange = auxQuotes.AIQUY?.change_pct;
+    const aiquyPrice = auxQuotes.AIQUY?.price;
+    if (linChange != null && aiquyChange != null) {
+      const spread = +(linChange - aiquyChange).toFixed(3);
+      output.LIN.peer_relative_aipa = {
+        lin_change_pct: linChange,
+        aipa_change_pct: aiquyChange,
+        aipa_price: aiquyPrice ?? null,
+        relative_spread_pp: spread,
+      };
+      const dir = spread > 0.5 ? `LIN outperforming AI.PA by ${spread}pp`
+        : spread < -0.5 ? `AI.PA outperforming LIN by ${(-spread).toFixed(2)}pp`
+        : "inline";
+      console.log(`  LIN peer-relative-aipa: ${dir}`);
+    } else {
+      console.log(`  LIN peer-relative-aipa: skipped (no AIQUY daily change)`);
+    }
+
+    // V3.2 tactical_extras: SPY 10d drawdown + LIN-vs-SPY 10d (from Alpaca bars).
+    //      iv_rv_ratio left null — IV requires options-chain data not in this stack.
+    output.LIN.tactical_extras = {
+      iv_rv_ratio: null,                                                  // needs options data (CBOE/Tradier)
+      spy_10d_drawdown_pct: linHistReturns?.spy_10d_drawdown_pct ?? null,
+      lin_vs_spy_10d_pp:    linHistReturns?.lin_vs_spy_10d_pp ?? null,
+    };
+
+    // V3.3 factor_flow: QUAL vs SPY 30d return spread (defensive-quality factor leadership).
+    output.LIN.factor_flow = {
+      qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
+    };
+
+    // V3.4 fundamentals additions — explicit nulls for fields needing earnings disclosure
+    //      or paid consensus feeds. Score-engine and qualitative LLM both degrade gracefully
+    //      on null; LLM web-search prompt for LIN explicitly lists these as fallback fetch targets.
+    output.LIN.fundamentals.asu_utilization_pct   = null;  // air separation unit utilization (earnings call disclosure)
+    output.LIN.fundamentals.price_mix_ex_fx_pct   = null;  // like-for-like price/mix delta ex-FX (segment reporting)
+    output.LIN.fundamentals.eps_revisions_30d_pct = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.LIN.fundamentals.eps_revisions_90d_pct = null;  // FactSet/Refinitiv consensus EPS delta 90d
+
+    // V3.5 peer_valuation 6M delta — needs historical P/E (LIN, APD, AIQUY) 6mo ago.
+    //      Computing this from free APIs would require historical EPS TTM at that date,
+    //      which Finnhub free tier doesn't expose. Left null for paid-feed wiring.
+    if (output.LIN.peer_valuation) {
+      output.LIN.peer_valuation.premium_6m_delta_pp = null;
+    }
+
+    // V3.6 h2_layer — concretized hydrogen pipeline metrics.
+    //      All four fields require external sourcing not available in this stack:
+    //        - contracts_90d_usd_m: news aggregation of LIN H2 contract announcements
+    //        - subsidy_regime: qualitative read on IRA 45V tax credits + EU H2 Bank
+    //        - lcoe_gap_usd_kg: BNEF / IEA green-vs-grey LCOE gap (industry reports)
+    //        - lcoe_gap_6m_delta: 6M change in that gap (negative = closing = green tailwind)
+    //      Score-engine's H2 layer is null-tolerant; the LLM block sources these via web search.
+    output.LIN.h2_layer = {
+      contracts_90d_usd_m: null,
+      subsidy_regime:      null,
+      lcoe_gap_usd_kg:     null,
+      lcoe_gap_6m_delta:   null,
+    };
+
+    const v3Coverage = [
+      output.LIN.peer_relative_aipa ? "AIPA" : null,
+      output.LIN.tactical_extras?.spy_10d_drawdown_pct != null ? "tac" : null,
+      output.LIN.factor_flow?.qual_vs_spy_30d_pp != null ? "QUAL" : null,
+      macro.bbb_oas_bps != null ? "BBB" : null,
+    ].filter(Boolean);
+    console.log(`  LIN v3 sourced: ${v3Coverage.length > 0 ? v3Coverage.join(", ") : "(none)"} | pending external data: ASU util, price/mix ex-FX, EPS revs, peer P/E 6m Δ, H2 layer`);
   }
 
   output._macro = macro;
@@ -821,6 +993,9 @@ async function main() {
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
   console.log(`  LIN peer P/E:   ${output.LIN?.peer_valuation ? `LIN ${output.LIN.peer_valuation.lin_pe}x vs ${output.LIN.peer_valuation.peer_count}-peer avg ${output.LIN.peer_valuation.peer_avg_pe}x = ${output.LIN.peer_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  LIN v3 BBB OAS: ${macro.bbb_oas_bps != null ? `${macro.bbb_oas_bps}bps (1m Δ ${macro.bbb_oas_1m_change_bps != null ? (macro.bbb_oas_1m_change_bps >= 0 ? "+" : "") + macro.bbb_oas_1m_change_bps + "bps" : "—"})` : "unavailable"}`);
+  console.log(`  LIN v3 returns: ${linHistReturns ? `SPY 10d=${linHistReturns.spy_10d_drawdown_pct}%, LIN-SPY 10d=${linHistReturns.lin_vs_spy_10d_pp}pp, QUAL-SPY 30d=${linHistReturns.qual_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  LIN AI.PA:      ${output.LIN?.peer_relative_aipa ? `spread=${output.LIN.peer_relative_aipa.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
