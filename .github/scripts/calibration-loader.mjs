@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// calibration-loader.mjs — Loads signal accuracy data and yesterday's snapshot
+// calibration-loader.mjs v1.1 — Loads signal accuracy data and yesterday's snapshot
 // for injection into the LLM qualitative prompt.
 //
 // Imported by generate-signals.mjs:
@@ -11,6 +11,17 @@
 //
 // This breaks the LLM's "always moderately bullish" tendency by giving it
 // concrete feedback on whether its previous calls were right or wrong.
+//
+// v1.1 additions (LIN v3 regime awareness — fully forward-compatible):
+// - Surfaces yesterday's regime / regime_pmi / weights when present in the
+//   accuracy.json yesterday snapshot. Lets the LLM see whether yesterday's
+//   composite score was generated under different macro weights than today's.
+// - When the upstream accuracy aggregator doesn't propagate regime fields
+//   (older builds), every check no-ops via optional chaining and the block
+//   degrades cleanly to v1.0 behavior.
+// - computeConfidence is intentionally unchanged — it scores cross-archetype
+//   data quality, and LIN's v3 fields (BBB OAS, ASU util, H2 layer) are
+//   archetype-specific extras, not core data quality indicators.
 
 import { readFileSync, existsSync } from "fs";
 
@@ -63,10 +74,30 @@ export function buildCalibrationBlock(symbol, calibration, currentPrice) {
     const priceChange = ((currentPrice - yest.price) / yest.price * 100).toFixed(2);
     const direction = priceChange > 0 ? "UP" : priceChange < 0 ? "DOWN" : "FLAT";
 
+    // V3: surface yesterday's regime context if present (LIN-only in v3, but
+    // the field can appear on any holding the upstream aggregator chooses to
+    // tag; render it whenever the data exists rather than hardcoding LIN).
+    const regimeBits = [];
+    if (yest.regime) {
+      regimeBits.push(`regime=${String(yest.regime).toUpperCase()}`);
+    }
+    if (yest.regime_pmi != null) {
+      regimeBits.push(`PMI=${(+yest.regime_pmi).toFixed(1)}`);
+    }
+    if (yest.weights && yest.weights.t != null && yest.weights.p != null && yest.weights.s != null) {
+      const t = Math.round(yest.weights.t * 100);
+      const p = Math.round(yest.weights.p * 100);
+      const s = Math.round(yest.weights.s * 100);
+      regimeBits.push(`composite weights ${t}/${p}/${s}`);
+    }
+    const regimeLine = regimeBits.length > 0
+      ? `\n  Regime context: ${regimeBits.join(" · ")} — if today's regime differs, weight your composite differently than yesterday's score implied.`
+      : "";
+
     parts.push(`YESTERDAY'S SCORES (${calibration.yesterday.date}):
   Price was $${yest.price.toFixed(2)} → now $${currentPrice.toFixed(2)} (${direction} ${priceChange}%)
   Your scores: Tactical=${yest.tactical_score ?? "?"}, Positional=${yest.positional_score ?? "?"}, Strategic=${yest.strategic_score ?? "?"}, Composite=${yest.composite_score ?? "?"}
-  Role assigned: ${yest.role || "HOLD"}
+  Role assigned: ${yest.role || "HOLD"}${regimeLine}
   ${parseFloat(priceChange) > 0 && (yest.composite_score ?? 0) < -10
     ? "→ Yesterday's BUY signal was CORRECT (price rose)."
     : parseFloat(priceChange) < 0 && (yest.composite_score ?? 0) > 10
