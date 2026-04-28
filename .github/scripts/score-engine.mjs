@@ -4,7 +4,7 @@
 //
 // Architecture:
 //   deterministic_score (this file) blends with llm_score (from Claude)
-//   at per-timeframe weights — see BLEND_WEIGHTS in blendScores().
+//   at per-timeframe weights — see BLEND_WEIGHTS / BLEND_WEIGHTS_BY_ARCHETYPE in blendScores().
 //
 // Each layer (tactical/positional/strategic) gets a deterministic sub-score
 // that the LLM score is blended with at the layer level.
@@ -38,19 +38,26 @@
 //   - CYCLICAL_COMMODITY (MOS): seasonal modifier (spring/fall planting cycles),
 //     CORN ratio as ag demand proxy, BRL/USD mild overlay (Brazil operations),
 //     dampened MA/52w at highs, cyclical inverted PE
-//   - OLIGOPOLY_QUALITY_COMPOUNDER (LIN): tightened RSI 35/70 (low-vol compounder),
-//     compounder MA + inverted 52w (no penalty at highs), P/E premium vs APD/AI.PA
-//     peer avg as primary valuation signal, narrowed yield band (1.1-1.7% aristocrat),
-//     ROCE + op-margin durability checks, DXY FX overlay (~70% non-US rev) on
-//     FRED DTWEXBGS scale (2006=100, ~120-130 typical), global PMI composite
-//     positional add, growth-scare amplifier (VIX>25 + drag-down day)
+//   - OLIGOPOLY_QUALITY_COMPOUNDER (LIN) — V3: tightened RSI 35/70 (low-vol compounder),
+//     compounder MA + inverted 52w (no penalty at highs), peer P/E premium vs APD/AI.PA
+//     as primary valuation signal AND 6M delta direction, narrowed yield band
+//     (1.1-1.7% aristocrat), ROCE + op-margin durability checks. NEW v3: ASU capacity
+//     utilization (THE core operational metric), like-for-like price/mix ex-FX
+//     (replaces categorical moat field), BBB OAS credit-spread overlay (leads backlog
+//     6-12mo via project-sanctioning IRR math), EPS estimate revisions trend (30/90d),
+//     geography-weighted PMI composite (40/30/30 Americas/EMEA/APAC), triangulated
+//     peer-relative (LIN vs APD AND AI.PA), IV/RV compression, QUAL factor flow,
+//     deterministic growth-scare (SPY 10D drawdown + LIN outperformance), H2 layer
+//     concretized (contracts $ value 90d + subsidy regime + green/grey LCOE delta).
+//     ARCHITECTURE: regime-conditional composite weights gated by global PMI
+//     (>55: 25/40/35 expansion · 48-55: 20/35/45 neutral · <48: 15/30/55 contraction).
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
-  "cyclical_commodity",          // MOS
-  "diversified_commodity_trader", // GLNCY
-  "cyclical_trade_bellwether",   // AMKBY
-  "em_state_oil_dividend",       // PBR.A
+  "cyclical_commodity",
+  "diversified_commodity_trader",
+  "cyclical_trade_bellwether",
+  "em_state_oil_dividend",
 ]);
 
 // ─── HALVING CYCLE PHASE DETECTION (IBIT) ───────────────────────────────────
@@ -67,17 +74,33 @@ function getHalvingPhase() {
 }
 
 // ─── FERTILIZER SEASONAL MODIFIER (MOS) ─────────────────────────────────────
-// North American spring planting (Mar-May) = peak fertilizer demand.
-// South American planting (Sep-Nov) = secondary demand pulse.
-// Dec-Feb = weakest period (post-fall application, pre-spring orders).
-// Returns a small score modifier that amplifies/dampens other signals.
 function getFertilizerSeason() {
-  const month = new Date().getMonth(); // 0-indexed
+  const month = new Date().getMonth();
   if (month >= 2 && month <= 4)  return { season: "spring_planting", modifier: -3, label: "Spring planting (peak demand)" };
   if (month === 5)               return { season: "post_spring", modifier: 0, label: "Post-spring, pre-harvest" };
   if (month >= 6 && month <= 7)  return { season: "summer", modifier: 2, label: "Summer lull" };
   if (month >= 8 && month <= 10) return { season: "fall_planting", modifier: -2, label: "Fall/LatAm planting" };
   return { season: "winter", modifier: 3, label: "Winter — weakest demand" };
+}
+
+// ─── LIN REGIME-CONDITIONAL WEIGHTS (V3) ────────────────────────────────────
+// Composite weights gated by global PMI composite (geo-weighted 40/30/30).
+//   PMI > 55  (expansion)    → 25/40/35  (operating leverage on tap)
+//   PMI 48-55 (neutral)      → 20/35/45  (default LIN compounder weights)
+//   PMI < 48  (contraction)  → 15/30/55  (defensive bid + valuation re-rating)
+function computeLINRegimeWeights(macro) {
+  const us = macro?.us_ism;
+  const eu = macro?.eu_pmi;
+  const cn = macro?.china_pmi;
+  const pmis = [[us, 0.40], [eu, 0.30], [cn, 0.30]].filter(([v]) => v != null);
+  if (pmis.length === 0) {
+    return { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", pmi: null };
+  }
+  const totalW = pmis.reduce((a, [, w]) => a + w, 0);
+  const wAvg = pmis.reduce((a, [v, w]) => a + v * w, 0) / totalW;
+  if (wAvg >= 55) return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "expansion",   pmi: wAvg };
+  if (wAvg < 48)  return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "contraction", pmi: wAvg };
+  return            { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     pmi: wAvg };
 }
 
 // ─── TACTICAL LAYER (short-term mean reversion) ─────────────────────────────
@@ -157,7 +180,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 85) { score += 30;  notes.push(`RSI ${rsi}: BTC extended — trim bias`); }
       else               { score += 45;  notes.push(`RSI ${rsi}: BTC extreme — parabolic exhaustion risk`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -8)       { score += -18; notes.push(`BTC daily ${chg}%: capitulation-style decline`); }
@@ -167,7 +189,6 @@ export function scoreTactical(data, macro) {
       else if (chg > 5)   { score += 8;   notes.push(`BTC daily +${chg}%: sharp rally`); }
       else if (chg > 3)   { score += 3;   notes.push(`BTC daily +${chg}%: notable rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
@@ -186,7 +207,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 85) { score += 25;  notes.push(`RSI ${rsi}: ASML overbought — watch for pause`); }
       else               { score += 40;  notes.push(`RSI ${rsi}: ASML extreme — trim bias`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -7)      { score += -22; notes.push(`ASML daily ${chg}%: rare big drop — aggressive buy`); }
@@ -195,7 +215,6 @@ export function scoreTactical(data, macro) {
       else if (chg > 5)  { score += 8;   notes.push(`ASML daily +${chg}%: sharp rally`); }
       else if (chg > 3)  { score += 3;   notes.push(`ASML daily +${chg}%: notable rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
@@ -211,7 +230,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 80) { score += 8;   notes.push(`RSI ${rsi}: ENB warm — rate cut rally?`); }
       else               { score += 18;  notes.push(`RSI ${rsi}: ENB overbought — unusual`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -4)      { score += -20; notes.push(`ENB daily ${chg}%: sharp drop — rate overreaction buy?`); }
@@ -220,11 +238,10 @@ export function scoreTactical(data, macro) {
       else if (chg > 3)  { score += 8;   notes.push(`ENB daily +${chg}%: sharp rally — unusual`); }
       else if (chg > 2)  { score += 3;   notes.push(`ENB daily +${chg}%: notable rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
-  // ─── ETHA-SPECIFIC: WIDER BANDS THAN IBIT (1.3-1.5x BTC VOL) ────────────
+  // ─── ETHA-SPECIFIC: WIDER BANDS THAN IBIT ────────────────────────────────
   if (isETHA) {
     if (rsi != null) {
       if (rsi < 15)      { score += -65; notes.push(`RSI ${rsi}: ETH severely oversold — capitulation`); }
@@ -240,7 +257,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 90) { score += 35;  notes.push(`RSI ${rsi}: ETH deeply overbought`); }
       else               { score += 50;  notes.push(`RSI ${rsi}: ETH extreme — parabolic exhaustion`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -12)      { score += -22; notes.push(`ETH daily ${chg}%: capitulation-style decline`); }
@@ -252,11 +268,10 @@ export function scoreTactical(data, macro) {
       else if (chg > 5)   { score += 5;   notes.push(`ETH daily +${chg}%: notable rally`); }
       else if (chg > 3)   { score += 2;   notes.push(`ETH daily +${chg}%: mild rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
-  // ─── KOF-SPECIFIC: CONSUMER STAPLES — LOW VOL ────────────────────────────
+  // ─── KOF: CONSUMER STAPLES — LOW VOL ─────────────────────────────────────
   if (isKOF) {
     if (rsi != null) {
       if (rsi < 20)      { score += -45; notes.push(`RSI ${rsi}: KOF severely oversold — very rare`); }
@@ -269,7 +284,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 80) { score += 22;  notes.push(`RSI ${rsi}: KOF extended`); }
       else               { score += 35;  notes.push(`RSI ${rsi}: KOF extreme — unusual for staples`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -5)      { score += -15; notes.push(`KOF daily ${chg}%: sharp drop — rare for consumer staples`); }
@@ -278,11 +292,10 @@ export function scoreTactical(data, macro) {
       else if (chg > 5)  { score += 10;  notes.push(`KOF daily +${chg}%: sharp rally — unusual`); }
       else if (chg > 3)  { score += 5;   notes.push(`KOF daily +${chg}%: notable rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
-  // ─── GLNCY-SPECIFIC: DIVERSIFIED COMMODITY — SLIGHTLY DAMPENED ───────────
+  // ─── GLNCY: DIVERSIFIED COMMODITY ────────────────────────────────────────
   if (isGLNCY) {
     if (rsi != null) {
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: GLNCY severely oversold`); }
@@ -296,7 +309,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: GLNCY deeply overbought`); }
       else               { score += 50;  notes.push(`RSI ${rsi}: GLNCY extreme`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -6)      { score += -15; notes.push(`GLNCY daily ${chg}%: sharp decline`); }
@@ -304,11 +316,10 @@ export function scoreTactical(data, macro) {
       else if (chg > 6)  { score += 12;  notes.push(`GLNCY daily +${chg}%: sharp rally`); }
       else if (chg > 3)  { score += 6;   notes.push(`GLNCY daily +${chg}%: notable rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
-  // ─── PBR.A-SPECIFIC: EM OIL — VOLATILE BUT OIL-ANCHORED ─────────────────
+  // ─── PBR.A: EM OIL ───────────────────────────────────────────────────────
   if (isPBRA) {
     if (rsi != null) {
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: PBR.A severely oversold`); }
@@ -322,7 +333,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: PBR.A deeply overbought`); }
       else               { score += 50;  notes.push(`RSI ${rsi}: PBR.A extreme`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -8)      { score += -18; notes.push(`PBR.A daily ${chg}%: capitulation (political?)`); }
@@ -332,11 +342,10 @@ export function scoreTactical(data, macro) {
       else if (chg > 5)  { score += 8;   notes.push(`PBR.A daily +${chg}%: notable rally`); }
       else if (chg > 3)  { score += 4;   notes.push(`PBR.A daily +${chg}%: mild rally`); }
     }
-
     return { score: clamp(score), notes };
   }
 
-  // ─── MOS-SPECIFIC: COMMODITY CYCLICAL — SLIGHTLY DAMPENED OVERBOUGHT ─────
+  // ─── MOS: COMMODITY CYCLICAL ─────────────────────────────────────────────
   if (isMOS) {
     if (rsi != null) {
       if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: MOS severely oversold`); }
@@ -350,7 +359,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 80) { score += 32;  notes.push(`RSI ${rsi}: MOS deeply overbought`); }
       else               { score += 50;  notes.push(`RSI ${rsi}: MOS extreme`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -6)      { score += -15; notes.push(`MOS daily ${chg}%: sharp decline`); }
@@ -358,15 +366,13 @@ export function scoreTactical(data, macro) {
       else if (chg > 6)  { score += 12;  notes.push(`MOS daily +${chg}%: sharp rally`); }
       else if (chg > 3)  { score += 6;   notes.push(`MOS daily +${chg}%: notable rally`); }
     }
-
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
-
     return { score: clamp(score), notes };
   }
 
-  // ─── LIN-SPECIFIC: QUALITY COMPOUNDER — LOW VOL + DEFENSIVE BID ──────────
+  // ─── LIN-SPECIFIC (V3): QUALITY COMPOUNDER ──────────────────────────────
   if (isLIN) {
     if (rsi != null) {
       if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: LIN severe oversold — rare quality compounder opportunity`); }
@@ -381,7 +387,6 @@ export function scoreTactical(data, macro) {
       else if (rsi < 85) { score += 35;  notes.push(`RSI ${rsi}: LIN extreme — trim bias`); }
       else               { score += 50;  notes.push(`RSI ${rsi}: LIN parabolic — very rare`); }
     }
-
     const chg = data.price?.change_pct;
     if (chg != null) {
       if (chg < -5)      { score += -15; notes.push(`LIN daily ${chg}%: rare big drop — aggressive buy`); }
@@ -392,10 +397,52 @@ export function scoreTactical(data, macro) {
       else if (chg > 2)  { score += 2;   notes.push(`LIN daily +${chg}%: notable for low-vol`); }
     }
 
-    // Growth-scare amplifier: VIX elevated + LIN dragged down → defensive bid setup
-    if (vix != null && chg != null && vix > 25 && chg < -2) {
+    // V3: Triangulated peer-relative — vs AI.PA in addition to APD
+    if (data.peer_relative_aipa) {
+      const sp = data.peer_relative_aipa.relative_spread_pp;
+      if (sp != null) {
+        if (sp < -3)      { score += -3; notes.push(`AI.PA outperforming LIN by ${(-sp).toFixed(2)}pp (1m) — triangulation supports buy`); }
+        else if (sp < -1) { score += -1; }
+        else if (sp > 3)  { score += 2;  notes.push(`LIN outperforming AI.PA by ${sp}pp — quality premium`); }
+      }
+    }
+
+    // V3: IV/RV compression — catalyst hunt setup
+    if (data.tactical_extras?.iv_rv_ratio != null) {
+      const r = data.tactical_extras.iv_rv_ratio;
+      if (r < 0.85)      { score += -4; notes.push(`IV/RV ${r.toFixed(2)}: deeply compressed — catalyst hunt setup`); }
+      else if (r < 0.90) { score += -2; notes.push(`IV/RV ${r.toFixed(2)}: compressed`); }
+      else if (r > 1.20) { score += 2;  notes.push(`IV/RV ${r.toFixed(2)}: elevated — vol-crush risk`); }
+    }
+
+    // V3: QUAL factor flow — quality bid mechanical for LIN
+    if (data.factor_flow?.qual_vs_spy_30d_pp != null) {
+      const q = data.factor_flow.qual_vs_spy_30d_pp;
+      if (q > 2)       { score += -3; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): strong quality bid — LIN benefits`); }
+      else if (q > 1)  { score += -1; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): quality bid active`); }
+      else if (q < -2) { score += 3;  notes.push(`QUAL ${q.toFixed(1)}pp vs SPY (30d): quality factor under pressure`); }
+      else if (q < -1) { score += 1;  }
+    }
+
+    // V3: Deterministic growth-scare (precise) — preferred over VIX proxy below
+    let growthScareApplied = false;
+    if (data.tactical_extras?.spy_10d_drawdown_pct != null && data.tactical_extras?.lin_vs_spy_10d_pp != null) {
+      const dd = data.tactical_extras.spy_10d_drawdown_pct;
+      const linOver = data.tactical_extras.lin_vs_spy_10d_pp;
+      if (dd < -5 && linOver > 1) {
+        score += -8;
+        notes.push(`Growth-scare confirmed: SPY ${dd.toFixed(1)}% / 10d + LIN +${linOver.toFixed(1)}pp — defensive bid active`);
+        growthScareApplied = true;
+      } else if (dd < -3 && linOver > 0.5) {
+        score += -3;
+        notes.push(`Mild growth-scare setup: SPY ${dd.toFixed(1)}% / 10d, LIN +${linOver.toFixed(1)}pp`);
+        growthScareApplied = true;
+      }
+    }
+    // Fallback: VIX-based proxy when precise SPY/LIN 10D data unavailable
+    if (!growthScareApplied && vix != null && chg != null && vix > 25 && chg < -2) {
       score += -5;
-      notes.push(`Growth-scare setup: VIX ${vix} + LIN ${chg}% — defensive quality bid will return`);
+      notes.push(`Growth-scare proxy: VIX ${vix} + LIN ${chg}% — defensive quality bid will return`);
     }
 
     return { score: clamp(score), notes };
@@ -444,128 +491,45 @@ export function scorePositional(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
   const isLIN = archetype === "oligopoly_quality_compounder";
+
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
-      const spyMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -8, "above_200_below_50": 5,
-        "below_both": -15, "below_both_death": -25,
-      };
-      if (spyMaScores[ma] != null) {
-        score += spyMaScores[ma];
-        notes.push(`SPY MA: ${ma} (${spyMaScores[ma] !== 0 ? (spyMaScores[ma] > 0 ? "+" : "") + spyMaScores[ma] : "neutral — normal for SPY"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -8, "above_200_below_50": 5, "below_both": -15, "below_both_death": -25 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`SPY MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "neutral — normal for SPY"})`); }
     } else if (isIBIT) {
-      const ibitMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -5, "above_200_below_50": -8,
-        "below_both": -20, "below_both_death": -30,
-      };
-      if (ibitMaScores[ma] != null) {
-        score += ibitMaScores[ma];
-        notes.push(`IBIT MA: ${ma} (${ibitMaScores[ma] !== 0 ? (ibitMaScores[ma] > 0 ? "+" : "") + ibitMaScores[ma] : "bull regime — neutral"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -5, "above_200_below_50": -8, "below_both": -20, "below_both_death": -30 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`IBIT MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "bull regime — neutral"})`); }
     } else if (isASML) {
-      const asmlMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -10, "above_200_below_50": -5,
-        "below_both": -25, "below_both_death": -40,
-      };
-      if (asmlMaScores[ma] != null) {
-        score += asmlMaScores[ma];
-        notes.push(`ASML MA: ${ma} (${asmlMaScores[ma] !== 0 ? (asmlMaScores[ma] > 0 ? "+" : "") + asmlMaScores[ma] : "normal compounder trend"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`ASML MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else if (isENB) {
-      const enbMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -8, "above_200_below_50": -3,
-        "below_both": -20, "below_both_death": -30,
-      };
-      if (enbMaScores[ma] != null) {
-        score += enbMaScores[ma];
-        notes.push(`ENB MA: ${ma} (${enbMaScores[ma] !== 0 ? (enbMaScores[ma] > 0 ? "+" : "") + enbMaScores[ma] : "normal yield compounder trend"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -8, "above_200_below_50": -3, "below_both": -20, "below_both_death": -30 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`ENB MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal yield compounder trend"})`); }
     } else if (isAMKBY) {
-      const amkbyMaScores = {
-        "above_both_golden": 8, "above_both": 5,
-        "above_50_below_200": -5, "above_200_below_50": 3,
-        "below_both": -12, "below_both_death": -18,
-      };
-      if (amkbyMaScores[ma] != null) {
-        score += amkbyMaScores[ma];
-        notes.push(`AMKBY MA: ${ma} (${amkbyMaScores[ma] > 0 ? "+" : ""}${amkbyMaScores[ma]})`);
-      }
+      const m = { "above_both_golden": 8, "above_both": 5, "above_50_below_200": -5, "above_200_below_50": 3, "below_both": -12, "below_both_death": -18 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`AMKBY MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
     } else if (isETHA) {
-      const ethaMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -5, "above_200_below_50": -8,
-        "below_both": -18, "below_both_death": -28,
-      };
-      if (ethaMaScores[ma] != null) {
-        score += ethaMaScores[ma];
-        notes.push(`ETHA MA: ${ma} (${ethaMaScores[ma] !== 0 ? (ethaMaScores[ma] > 0 ? "+" : "") + ethaMaScores[ma] : "bull regime — neutral"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -5, "above_200_below_50": -8, "below_both": -18, "below_both_death": -28 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`ETHA MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "bull regime — neutral"})`); }
     } else if (isKOF) {
-      const kofMaScores = {
-        "above_both_golden": 3, "above_both": 0,
-        "above_50_below_200": -5, "above_200_below_50": 3,
-        "below_both": -15, "below_both_death": -22,
-      };
-      if (kofMaScores[ma] != null) {
-        score += kofMaScores[ma];
-        notes.push(`KOF MA: ${ma} (${kofMaScores[ma] !== 0 ? (kofMaScores[ma] > 0 ? "+" : "") + kofMaScores[ma] : "normal"})`);
-      }
+      const m = { "above_both_golden": 3, "above_both": 0, "above_50_below_200": -5, "above_200_below_50": 3, "below_both": -15, "below_both_death": -22 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`KOF MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal"})`); }
     } else if (isGLNCY) {
-      const glncyMaScores = {
-        "above_both_golden": 8, "above_both": 5,
-        "above_50_below_200": -5, "above_200_below_50": 3,
-        "below_both": -12, "below_both_death": -20,
-      };
-      if (glncyMaScores[ma] != null) {
-        score += glncyMaScores[ma];
-        notes.push(`GLNCY MA: ${ma} (${glncyMaScores[ma] > 0 ? "+" : ""}${glncyMaScores[ma]})`);
-      }
+      const m = { "above_both_golden": 8, "above_both": 5, "above_50_below_200": -5, "above_200_below_50": 3, "below_both": -12, "below_both_death": -20 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`GLNCY MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
     } else if (isPBRA) {
-      const pbraMaScores = {
-        "above_both_golden": 8, "above_both": 5,
-        "above_50_below_200": -5, "above_200_below_50": 3,
-        "below_both": -12, "below_both_death": -20,
-      };
-      if (pbraMaScores[ma] != null) {
-        score += pbraMaScores[ma];
-        notes.push(`PBR.A MA: ${ma} (${pbraMaScores[ma] > 0 ? "+" : ""}${pbraMaScores[ma]})`);
-      }
+      const m = { "above_both_golden": 8, "above_both": 5, "above_50_below_200": -5, "above_200_below_50": 3, "below_both": -12, "below_both_death": -20 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`PBR.A MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
     } else if (isMOS) {
-      const mosMaScores = {
-        "above_both_golden": 8, "above_both": 5,
-        "above_50_below_200": -5, "above_200_below_50": 3,
-        "below_both": -12, "below_both_death": -18,
-      };
-      if (mosMaScores[ma] != null) {
-        score += mosMaScores[ma];
-        notes.push(`MOS MA: ${ma} (${mosMaScores[ma] > 0 ? "+" : ""}${mosMaScores[ma]})`);
-      }
+      const m = { "above_both_golden": 8, "above_both": 5, "above_50_below_200": -5, "above_200_below_50": 3, "below_both": -12, "below_both_death": -18 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`MOS MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
     } else if (isLIN) {
-      const linMaScores = {
-        "above_both_golden": 0, "above_both": 0,
-        "above_50_below_200": -10, "above_200_below_50": -5,
-        "below_both": -25, "below_both_death": -40,
-      };
-      if (linMaScores[ma] != null) {
-        score += linMaScores[ma];
-        notes.push(`LIN MA: ${ma} (${linMaScores[ma] !== 0 ? (linMaScores[ma] > 0 ? "+" : "") + linMaScores[ma] : "normal compounder trend"})`);
-      }
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`LIN MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else {
-      const maScores = {
-        "above_both_golden": 15, "above_both": 10,
-        "above_50_below_200": -5, "above_200_below_50": 5,
-        "below_both": -10, "below_both_death": -15,
-      };
-      if (maScores[ma] != null) {
-        score += maScores[ma];
-        notes.push(`MA: ${ma} (${maScores[ma] > 0 ? "+" : ""}${maScores[ma]})`);
-      }
+      const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
     }
   }
 
@@ -727,17 +691,13 @@ export function scorePositional(data, macro) {
   }
   else if (isETHA && price && sma200) {
     const pctFrom200 = ((price - sma200) / sma200) * 100;
-
     if (pctFrom200 < -40)      { score += -50; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — extreme drawdown, max buy`); }
     else if (pctFrom200 < -25) { score += -35; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — deep correction, strong buy`); }
     else if (pctFrom200 < -10) { score += -18; notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — correction, buy`); }
     else if (pctFrom200 < -5)  { score += -8;  notes.push(`ETH ${pctFrom200.toFixed(1)}% below 200DMA — testing regime`); }
     else if (pctFrom200 < 30)  {
-      if (pctFrom200 > 10) {
-        score += -3; notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — trending bull regime`);
-      } else {
-        notes.push(`ETH ${pctFrom200.toFixed(1)}% vs 200DMA — regime healthy`);
-      }
+      if (pctFrom200 > 10) { score += -3; notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — trending bull regime`); }
+      else { notes.push(`ETH ${pctFrom200.toFixed(1)}% vs 200DMA — regime healthy`); }
     }
     else if (pctFrom200 < 60)  { score += 10;  notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — extended`); }
     else if (pctFrom200 < 100) { score += 22;  notes.push(`ETH ${pctFrom200.toFixed(1)}% above 200DMA — parabolic extension`); }
@@ -778,22 +738,13 @@ export function scorePositional(data, macro) {
     if (divYield != null && divYield > 0) {
       const spreadPct = divYield - macro.us10y;
       const spreadBps = Math.round(spreadPct * 100);
-
-      if (spreadBps > 400) {
-        score += -25; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — deep value, historically strong buy`);
-      } else if (spreadBps > 300) {
-        score += -15; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — attractive`);
-      } else if (spreadBps > 200) {
-        score += -5;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — fair`);
-      } else if (spreadBps > 150) {
-        score += 0;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — normal`);
-      } else if (spreadBps > 100) {
-        score += 8;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — getting rich`);
-      } else if (spreadBps > 50) {
-        score += 15;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — expensive`);
-      } else {
-        score += 22;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — historically expensive`);
-      }
+      if (spreadBps > 400)      { score += -25; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — deep value, historically strong buy`); }
+      else if (spreadBps > 300) { score += -15; notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — attractive`); }
+      else if (spreadBps > 200) { score += -5;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — fair`); }
+      else if (spreadBps > 150) { score += 0;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — normal`); }
+      else if (spreadBps > 100) { score += 8;   notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — getting rich`); }
+      else if (spreadBps > 50)  { score += 15;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — expensive`); }
+      else                      { score += 22;  notes.push(`ENB yield spread: ${spreadBps}bps over 10Y — historically expensive`); }
     }
   }
 
@@ -802,13 +753,9 @@ export function scorePositional(data, macro) {
     const spyChange = data.price?.change_pct;
     if (rspChange != null && spyChange != null) {
       const breadthSpread = rspChange - spyChange;
-      if (breadthSpread > 0.5) {
-        score += -5; notes.push(`RSP outperforming SPY by ${breadthSpread.toFixed(2)}pp — broad rally, healthy`);
-      } else if (breadthSpread < -0.5) {
-        score += 5; notes.push(`SPY outperforming RSP by ${(-breadthSpread).toFixed(2)}pp — narrow/top-heavy`);
-      } else {
-        notes.push(`RSP/SPY breadth spread: ${breadthSpread.toFixed(2)}pp — inline`);
-      }
+      if (breadthSpread > 0.5)       { score += -5; notes.push(`RSP outperforming SPY by ${breadthSpread.toFixed(2)}pp — broad rally, healthy`); }
+      else if (breadthSpread < -0.5) { score += 5;  notes.push(`SPY outperforming RSP by ${(-breadthSpread).toFixed(2)}pp — narrow/top-heavy`); }
+      else                           { notes.push(`RSP/SPY breadth spread: ${breadthSpread.toFixed(2)}pp — inline`); }
     }
   }
 
@@ -834,23 +781,23 @@ export function scorePositional(data, macro) {
   if (isETHA && data.alt_season) {
     const spread = data.alt_season.relative_spread_pp;
     if (spread != null) {
-      if (spread > 3)       { score += -8; notes.push(`ETHA outperforming IBIT by ${spread}pp — strong alt-season rotation`); }
-      else if (spread > 1)  { score += -4; notes.push(`ETHA outperforming IBIT by ${spread}pp — alt rotation`); }
-      else if (spread > 0.3){ score += -2; notes.push(`ETHA mildly outperforming IBIT (${spread}pp)`); }
-      else if (spread < -3) { score += 8;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance, ETH headwind`); }
-      else if (spread < -1) { score += 4;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance`); }
-      else                  { notes.push(`ETHA/IBIT spread: ${spread}pp — inline`); }
+      if (spread > 3)        { score += -8; notes.push(`ETHA outperforming IBIT by ${spread}pp — strong alt-season rotation`); }
+      else if (spread > 1)   { score += -4; notes.push(`ETHA outperforming IBIT by ${spread}pp — alt rotation`); }
+      else if (spread > 0.3) { score += -2; notes.push(`ETHA mildly outperforming IBIT (${spread}pp)`); }
+      else if (spread < -3)  { score += 8;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance, ETH headwind`); }
+      else if (spread < -1)  { score += 4;  notes.push(`IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp — BTC dominance`); }
+      else                   { notes.push(`ETHA/IBIT spread: ${spread}pp — inline`); }
     }
   }
 
   if (isGLNCY && data.copper_regime) {
     const spread = data.copper_regime.relative_spread_pp;
     if (spread != null) {
-      if (spread > 3)       { score += -5; notes.push(`GLNCY outperforming COPX by ${spread}pp — diversification premium`); }
-      else if (spread > 1)  { score += -2; notes.push(`GLNCY mildly outperforming COPX (${spread}pp)`); }
-      else if (spread < -3) { score += -8; notes.push(`COPX outperforming GLNCY by ${(-spread).toFixed(2)}pp — copper surging, GLNCY catch-up potential`); }
-      else if (spread < -1) { score += -3; notes.push(`COPX mildly outperforming GLNCY (${(-spread).toFixed(2)}pp)`); }
-      else                  { notes.push(`GLNCY/COPX spread: ${spread}pp — inline`); }
+      if (spread > 3)        { score += -5; notes.push(`GLNCY outperforming COPX by ${spread}pp — diversification premium`); }
+      else if (spread > 1)   { score += -2; notes.push(`GLNCY mildly outperforming COPX (${spread}pp)`); }
+      else if (spread < -3)  { score += -8; notes.push(`COPX outperforming GLNCY by ${(-spread).toFixed(2)}pp — copper surging, GLNCY catch-up potential`); }
+      else if (spread < -1)  { score += -3; notes.push(`COPX mildly outperforming GLNCY (${(-spread).toFixed(2)}pp)`); }
+      else                   { notes.push(`GLNCY/COPX spread: ${spread}pp — inline`); }
     }
   }
 
@@ -886,11 +833,11 @@ export function scorePositional(data, macro) {
   if (isMOS && data.ag_demand) {
     const spread = data.ag_demand.relative_spread_pp;
     if (spread != null) {
-      if (spread > 3)       { score += 5;  notes.push(`MOS outperforming CORN by ${spread}pp — running ahead of ag demand`); }
-      else if (spread > 1)  { score += 2;  notes.push(`MOS mildly outperforming CORN (${spread}pp)`); }
-      else if (spread < -3) { score += -8; notes.push(`CORN outperforming MOS by ${(-spread).toFixed(2)}pp — ag demand strong, MOS catch-up`); }
-      else if (spread < -1) { score += -3; notes.push(`CORN mildly outperforming MOS (${(-spread).toFixed(2)}pp)`); }
-      else                  { notes.push(`MOS/CORN spread: ${spread}pp — inline`); }
+      if (spread > 3)        { score += 5;  notes.push(`MOS outperforming CORN by ${spread}pp — running ahead of ag demand`); }
+      else if (spread > 1)   { score += 2;  notes.push(`MOS mildly outperforming CORN (${spread}pp)`); }
+      else if (spread < -3)  { score += -8; notes.push(`CORN outperforming MOS by ${(-spread).toFixed(2)}pp — ag demand strong, MOS catch-up`); }
+      else if (spread < -1)  { score += -3; notes.push(`CORN mildly outperforming MOS (${(-spread).toFixed(2)}pp)`); }
+      else                   { notes.push(`MOS/CORN spread: ${spread}pp — inline`); }
     }
   }
 
@@ -900,8 +847,7 @@ export function scorePositional(data, macro) {
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
   }
 
-  // ─── LIN-SPECIFIC POSITIONAL ADD-ONS ─────────────────────────────────────
-  // Peer relative vs APD (1-month spread)
+  // ─── LIN-SPECIFIC POSITIONAL ADD-ONS (V3) ────────────────────────────────
   if (isLIN && data.peer_relative) {
     const spread = data.peer_relative.relative_spread_pp;
     if (spread != null) {
@@ -913,17 +859,87 @@ export function scorePositional(data, macro) {
     }
   }
 
-  // Global PMI composite (US ISM + EU + China — gracefully handles missing fields)
+  // V3: Triangulated peer-relative — vs AI.PA (in addition to APD)
+  if (isLIN && data.peer_relative_aipa) {
+    const spread = data.peer_relative_aipa.relative_spread_pp;
+    if (spread != null) {
+      if (spread > 3)       { score += 2;  notes.push(`LIN outperforming AI.PA by ${spread}pp (1m) — leading both peers`); }
+      else if (spread > 1)  { score += 1;  }
+      else if (spread < -3) { score += -3; notes.push(`AI.PA outperforming LIN by ${(-spread).toFixed(2)}pp — triangulation supports buy`); }
+      else if (spread < -1) { score += -1; }
+    }
+  }
+
+  // V3: ASU capacity utilization — THE core operational metric for industrial gas
+  if (isLIN && data.fundamentals?.asu_utilization_pct != null) {
+    const u = data.fundamentals.asu_utilization_pct;
+    if (u > 90)      { score += -8; notes.push(`ASU util ${u.toFixed(1)}%: very tight — strong pricing power`); }
+    else if (u > 85) { score += -5; notes.push(`ASU util ${u.toFixed(1)}%: tight — pricing power`); }
+    else if (u > 80) { score += -2; notes.push(`ASU util ${u.toFixed(1)}%: healthy utilization`); }
+    else if (u > 75) { score += 0;  notes.push(`ASU util ${u.toFixed(1)}%: normal range`); }
+    else if (u > 70) { score += 4;  notes.push(`ASU util ${u.toFixed(1)}%: loose — margin compression risk`); }
+    else             { score += 8;  notes.push(`ASU util ${u.toFixed(1)}%: significant slack — margin pressure`); }
+  }
+
+  // V3: Like-for-like price/mix ex-FX — replaces categorical moat field
+  if (isLIN && data.fundamentals?.price_mix_ex_fx_pct != null) {
+    const px = data.fundamentals.price_mix_ex_fx_pct;
+    if (px > 3)       { score += -6; notes.push(`Price/mix ex-FX +${px.toFixed(1)}%: strong moat — pricing power durable`); }
+    else if (px > 2)  { score += -4; notes.push(`Price/mix ex-FX +${px.toFixed(1)}%: moat working`); }
+    else if (px > 1)  { score += -1; notes.push(`Price/mix ex-FX +${px.toFixed(1)}%: positive`); }
+    else if (px > 0)  { score += 1;  notes.push(`Price/mix ex-FX +${px.toFixed(1)}%: weak`); }
+    else if (px > -1) { score += 5;  notes.push(`Price/mix ex-FX ${px.toFixed(1)}%: flat-to-negative — moat eroding?`); }
+    else              { score += 10; notes.push(`Price/mix ex-FX ${px.toFixed(1)}%: negative — moat erosion warning`); }
+  }
+
+  // V3: BBB credit-spread overlay — leads backlog 6-12mo via project-sanctioning IRR math
+  if (isLIN && macro?.bbb_oas_bps != null) {
+    const oas = macro.bbb_oas_bps;
+    if (oas < 100)      { score += -3; notes.push(`BBB OAS ${oas}bps: tight — capital allocation tailwind`); }
+    else if (oas < 130) { score += -1; notes.push(`BBB OAS ${oas}bps: tight-normal`); }
+    else if (oas < 160) { score += 0;  notes.push(`BBB OAS ${oas}bps: normal`); }
+    else if (oas < 200) { score += 4;  notes.push(`BBB OAS ${oas}bps: widening — project sanctioning risk`); }
+    else                { score += 8;  notes.push(`BBB OAS ${oas}bps: wide — backlog headwind 6-12mo`); }
+
+    const change = macro.bbb_oas_1m_change_bps;
+    if (change != null) {
+      if (change > 30)       { score += 3;  notes.push(`BBB OAS +${change}bps/1m: rapidly widening — sanctioning slows`); }
+      else if (change > 15)  { score += 2;  notes.push(`BBB OAS +${change}bps/1m: widening`); }
+      else if (change < -20) { score += -2; notes.push(`BBB OAS ${change}bps/1m: tightening — capital cost falling`); }
+    }
+  }
+
+  // V3: EPS estimate revisions trend (FactSet/Refinitiv consensus delta)
+  if (isLIN && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -1) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -3) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isLIN && data.fundamentals?.eps_revisions_30d_pct != null) {
+    // 30d as a momentum tie-breaker on top of 90d
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 1.5)       { score += -2; }
+    else if (r30 < -1.5) { score += 2;  }
+  }
+
+  // V3: Geo-weighted PMI composite (40/30/30 Americas/EMEA/APAC) — replaces simple-avg
   if (isLIN) {
-    const pmis = [macro?.us_ism, macro?.eu_pmi, macro?.china_pmi].filter(p => p != null);
+    const us = macro?.us_ism;
+    const eu = macro?.eu_pmi;
+    const cn = macro?.china_pmi;
+    const pmis = [[us, 0.40], [eu, 0.30], [cn, 0.30]].filter(([v]) => v != null);
     if (pmis.length > 0) {
-      const avg = pmis.reduce((a, b) => a + b, 0) / pmis.length;
-      const avgFmt = avg.toFixed(1);
-      if (avg > 53)      { score += -3; notes.push(`Global PMI avg ${avgFmt} (n=${pmis.length}): broad expansion — industrial gas tailwind`); }
-      else if (avg > 51) { score += -1; notes.push(`Global PMI avg ${avgFmt}: mild expansion`); }
-      else if (avg > 49) { score += 0;  notes.push(`Global PMI avg ${avgFmt}: neutral`); }
-      else if (avg > 47) { score += 3;  notes.push(`Global PMI avg ${avgFmt}: mild contraction — modest headwind`); }
-      else               { score += 6;  notes.push(`Global PMI avg ${avgFmt}: broad contraction — demand headwind`); }
+      const totalW = pmis.reduce((a, [, w]) => a + w, 0);
+      const wAvg = pmis.reduce((a, [v, w]) => a + v * w, 0) / totalW;
+      const wAvgFmt = wAvg.toFixed(1);
+      if (wAvg > 53)      { score += -3; notes.push(`Geo-wgt PMI ${wAvgFmt} (n=${pmis.length}, 40/30/30): broad expansion — industrial gas tailwind`); }
+      else if (wAvg > 51) { score += -1; notes.push(`Geo-wgt PMI ${wAvgFmt}: mild expansion`); }
+      else if (wAvg > 49) { score += 0;  notes.push(`Geo-wgt PMI ${wAvgFmt}: neutral`); }
+      else if (wAvg > 47) { score += 3;  notes.push(`Geo-wgt PMI ${wAvgFmt}: mild contraction — modest headwind`); }
+      else                { score += 6;  notes.push(`Geo-wgt PMI ${wAvgFmt}: broad contraction — demand headwind`); }
     }
   }
 
@@ -952,16 +968,10 @@ export function scoreStrategic(data, macro) {
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
     const phase = phaseInfo.phase;
-
-    if (phase === "early_expansion") {
-      score += 0; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — no phase bias`);
-    } else if (phase === "mid_expansion") {
-      score += 0; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — no phase bias`);
-    } else if (phase === "extended_expansion") {
-      score += 3; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — mild maturity tilt`);
-    } else {
-      score += 5; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — maturity tilt`);
-    }
+    if (phase === "early_expansion")        { score += 0; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — no phase bias`); }
+    else if (phase === "mid_expansion")     { score += 0; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — no phase bias`); }
+    else if (phase === "extended_expansion") { score += 3; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — mild maturity tilt`); }
+    else                                    { score += 5; notes.push(`Cycle: month ${phaseInfo.months} (${phase}) — maturity tilt`); }
 
     const vix = macro?.vix;
     if (vix != null) {
@@ -969,13 +979,11 @@ export function scoreStrategic(data, macro) {
       else if (vix > 30) { score += -5;  notes.push(`VIX ${vix}: macro fear — BTC buy bias`); }
       else if (vix < 12) { score += 3;   notes.push(`VIX ${vix}: extreme complacency — marginal caution`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
-      if (tips < 0)      { score += -5; notes.push(`TIPS ${tips}%: accommodative — BTC tailwind`); }
-      else if (tips > 2.5) { score += 3; notes.push(`TIPS ${tips}%: restrictive — mild BTC headwind`); }
+      if (tips < 0)        { score += -5; notes.push(`TIPS ${tips}%: accommodative — BTC tailwind`); }
+      else if (tips > 2.5) { score += 3;  notes.push(`TIPS ${tips}%: restrictive — mild BTC headwind`); }
     }
-
     return { score: clamp(score), notes };
   }
 
@@ -988,58 +996,52 @@ export function scoreStrategic(data, macro) {
       else if (pe < 28)  { score += 3;   notes.push(`ENB P/E ${pe.toFixed(1)}x: slightly rich`); }
       else               { score += 8;   notes.push(`ENB P/E ${pe.toFixed(1)}x: rich for infrastructure`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
-      if (dy > 8)       { score += -15; notes.push(`ENB yield ${dy}%: very high — deeply discounted`); }
+      if (dy > 8)        { score += -15; notes.push(`ENB yield ${dy}%: very high — deeply discounted`); }
       else if (dy > 7.5) { score += -10; notes.push(`ENB yield ${dy}%: high — historically attractive`); }
-      else if (dy > 7)  { score += -5;  notes.push(`ENB yield ${dy}%: above average`); }
-      else if (dy > 6)  { score += 0;   notes.push(`ENB yield ${dy}%: normal range`); }
-      else if (dy > 5.5) { score += 3;  notes.push(`ENB yield ${dy}%: below average — getting rich`); }
-      else if (dy > 5)  { score += 8;   notes.push(`ENB yield ${dy}%: low — yield compression`); }
-      else              { score += 12;  notes.push(`ENB yield ${dy}%: historically low — expensive`); }
+      else if (dy > 7)   { score += -5;  notes.push(`ENB yield ${dy}%: above average`); }
+      else if (dy > 6)   { score += 0;   notes.push(`ENB yield ${dy}%: normal range`); }
+      else if (dy > 5.5) { score += 3;   notes.push(`ENB yield ${dy}%: below average — getting rich`); }
+      else if (dy > 5)   { score += 8;   notes.push(`ENB yield ${dy}%: low — yield compression`); }
+      else               { score += 12;  notes.push(`ENB yield ${dy}%: historically low — expensive`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
-      if (tips > 3)       { score += 10;  notes.push(`TIPS ${tips}%: very restrictive — strong headwind for yield stocks`); }
-      else if (tips > 2.5){ score += 6;   notes.push(`TIPS ${tips}%: restrictive — yield stock headwind`); }
-      else if (tips > 2)  { score += 3;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
-      else if (tips < 0)  { score += -10; notes.push(`TIPS ${tips}%: accommodative — yield stocks shine`); }
-      else if (tips < 0.5){ score += -5;  notes.push(`TIPS ${tips}%: very low real rates — ENB yield attractive`); }
-      else if (tips < 1)  { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
+      if (tips > 3)        { score += 10;  notes.push(`TIPS ${tips}%: very restrictive — strong headwind for yield stocks`); }
+      else if (tips > 2.5) { score += 6;   notes.push(`TIPS ${tips}%: restrictive — yield stock headwind`); }
+      else if (tips > 2)   { score += 3;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -10; notes.push(`TIPS ${tips}%: accommodative — yield stocks shine`); }
+      else if (tips < 0.5) { score += -5;  notes.push(`TIPS ${tips}%: very low real rates — ENB yield attractive`); }
+      else if (tips < 1)   { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
     }
-
     if (macro?.spread_2s10s != null) {
       const spread = macro.spread_2s10s;
-      if (spread > 100)       { score += -5; notes.push(`2s10s +${spread}bps: steep curve — rate cut regime, ENB tailwind`); }
-      else if (spread > 50)   { score += -3; notes.push(`2s10s +${spread}bps: steepening — mildly positive for ENB`); }
-      else if (spread > -30)  { score += 0;  notes.push(`2s10s ${spread}bps: normal range`); }
-      else if (spread > -75)  { score += 5;  notes.push(`2s10s ${spread}bps: inverted — rate risk headwind`); }
-      else                    { score += 8;  notes.push(`2s10s ${spread}bps: deeply inverted — yield stocks under pressure`); }
+      if (spread > 100)      { score += -5; notes.push(`2s10s +${spread}bps: steep curve — rate cut regime, ENB tailwind`); }
+      else if (spread > 50)  { score += -3; notes.push(`2s10s +${spread}bps: steepening — mildly positive for ENB`); }
+      else if (spread > -30) { score += 0;  notes.push(`2s10s ${spread}bps: normal range`); }
+      else if (spread > -75) { score += 5;  notes.push(`2s10s ${spread}bps: inverted — rate risk headwind`); }
+      else                   { score += 8;  notes.push(`2s10s ${spread}bps: deeply inverted — yield stocks under pressure`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — ENB defensive quality, mild buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — ENB as safe haven`); }
     }
-
     return { score: clamp(score), notes };
   }
 
   if (isAMKBY) {
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
-      if (pe > 100)      { score += -25; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: deep trough — shipping buy`); }
-      else if (pe > 50)  { score += -18; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
-      else if (pe > 25)  { score += -8;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: below-trend — recovery territory`); }
-      else if (pe > 12)  { score += 0;   notes.push(`AMKBY P/E ${pe.toFixed(0)}x: mid-cycle`); }
-      else if (pe > 6)   { score += 10;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
-      else if (pe > 3)   { score += 18;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: peak earnings — shipping trim`); }
-      else               { score += 25;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+      if (pe > 100)     { score += -25; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: deep trough — shipping buy`); }
+      else if (pe > 50) { score += -18; notes.push(`AMKBY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 25) { score += -8;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: below-trend — recovery territory`); }
+      else if (pe > 12) { score += 0;   notes.push(`AMKBY P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 6)  { score += 10;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)  { score += 18;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: peak earnings — shipping trim`); }
+      else              { score += 25;  notes.push(`AMKBY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
-
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.5)      { score += -20; notes.push(`AMKBY P/B ${pb.toFixed(2)}: near scrap value — strong buy`); }
@@ -1050,14 +1052,12 @@ export function scoreStrategic(data, macro) {
       else if (pb < 2.5) { score += 5;   notes.push(`AMKBY P/B ${pb.toFixed(2)}: above book — cycle pricing in`); }
       else               { score += 10;  notes.push(`AMKBY P/B ${pb.toFixed(2)}: premium — late cycle risk`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
-      if (dy > 8)       { score += -8; notes.push(`AMKBY yield ${dy}%: very high — cyclical trough?`); }
-      else if (dy > 5)  { score += -4; notes.push(`AMKBY yield ${dy}%: attractive`); }
-      else if (dy > 3)  { score += -2; notes.push(`AMKBY yield ${dy}%: moderate`); }
+      if (dy > 8)      { score += -8; notes.push(`AMKBY yield ${dy}%: very high — cyclical trough?`); }
+      else if (dy > 5) { score += -4; notes.push(`AMKBY yield ${dy}%: attractive`); }
+      else if (dy > 3) { score += -2; notes.push(`AMKBY yield ${dy}%: moderate`); }
     }
-
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy trade environment`); }
@@ -1066,7 +1066,6 @@ export function scoreStrategic(data, macro) {
       else if (oas < 700) { score += 10; notes.push(`HY OAS ${oas}bps: stressed — trade headwind`); }
       else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — shipping demand at risk`); }
     }
-
     if (macro?.gscpi != null) {
       const g = macro.gscpi;
       if (g > 2.5)       { score += 5;   notes.push(`GSCPI ${g}: extreme disruption — rate surge unsustainable?`); }
@@ -1076,14 +1075,12 @@ export function scoreStrategic(data, macro) {
       else if (g > -1.0) { score += -3;  notes.push(`GSCPI ${g}: below average — freight weakness`); }
       else               { score += -8;  notes.push(`GSCPI ${g}: deeply negative — freight trough, contrarian buy?`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — global trade fear, contrarian buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
-
     return { score: clamp(score), notes };
   }
 
@@ -1096,15 +1093,13 @@ export function scoreStrategic(data, macro) {
       else if (vix < 12) { score += 5;   notes.push(`VIX ${vix}: extreme complacency — ETH vulnerable`); }
       else if (vix < 14) { score += 3;   notes.push(`VIX ${vix}: low vol complacency`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
-      if (tips > 2.5)    { score += 6;   notes.push(`TIPS ${tips}%: restrictive — ETH headwind`); }
-      else if (tips > 2) { score += 3;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
-      else if (tips < 0) { score += -8;  notes.push(`TIPS ${tips}%: accommodative — ETH tailwind`); }
-      else if (tips < 0.5){ score += -4; notes.push(`TIPS ${tips}%: low real rates — risk assets favored`); }
+      if (tips > 2.5)      { score += 6;  notes.push(`TIPS ${tips}%: restrictive — ETH headwind`); }
+      else if (tips > 2)   { score += 3;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -8; notes.push(`TIPS ${tips}%: accommodative — ETH tailwind`); }
+      else if (tips < 0.5) { score += -4; notes.push(`TIPS ${tips}%: low real rates — risk assets favored`); }
     }
-
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -5; notes.push(`HY OAS ${oas}bps: tight — risk-on, ETH tailwind`); }
@@ -1113,7 +1108,6 @@ export function scoreStrategic(data, macro) {
       else if (oas < 700) { score += 15; notes.push(`HY OAS ${oas}bps: stressed — ETH at risk`); }
       else                { score += 22; notes.push(`HY OAS ${oas}bps: crisis — ETH high-beta pain`); }
     }
-
     return { score: clamp(score), notes };
   }
 
@@ -1128,7 +1122,6 @@ export function scoreStrategic(data, macro) {
       else if (pe < 30)  { score += 10;  notes.push(`KOF P/E ${pe.toFixed(1)}x: rich`); }
       else               { score += 15;  notes.push(`KOF P/E ${pe.toFixed(1)}x: expensive for staples`); }
     }
-
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 1.5)      { score += -5;  notes.push(`KOF P/B ${pb.toFixed(2)}: below book — unusual for staples`); }
@@ -1137,7 +1130,6 @@ export function scoreStrategic(data, macro) {
       else if (pb < 6)   { score += 3;   notes.push(`KOF P/B ${pb.toFixed(2)}: above average`); }
       else               { score += 6;   notes.push(`KOF P/B ${pb.toFixed(2)}: premium`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 5)        { score += -8;  notes.push(`KOF yield ${dy}%: very high — stock is cheap`); }
@@ -1147,45 +1139,40 @@ export function scoreStrategic(data, macro) {
       else if (dy > 1.5) { score += 3;   notes.push(`KOF yield ${dy}%: compressed — stock is rich`); }
       else               { score += 6;   notes.push(`KOF yield ${dy}%: very low — expensive`); }
     }
-
     if (macro?.mxn_usd != null) {
       const mxn = macro.mxn_usd;
-      if (mxn < 16)       { score += -10; notes.push(`MXN/USD ${mxn}: very strong peso — KOF tailwind`); }
-      else if (mxn < 17)  { score += -5;  notes.push(`MXN/USD ${mxn}: strong peso — KOF positive`); }
-      else if (mxn < 18.5){ score += 0;   notes.push(`MXN/USD ${mxn}: normal range`); }
-      else if (mxn < 20)  { score += 5;   notes.push(`MXN/USD ${mxn}: weakening peso — KOF headwind`); }
-      else if (mxn < 22)  { score += 10;  notes.push(`MXN/USD ${mxn}: weak peso — KOF FX drag`); }
-      else                { score += 15;  notes.push(`MXN/USD ${mxn}: peso crisis — severe KOF headwind`); }
+      if (mxn < 16)        { score += -10; notes.push(`MXN/USD ${mxn}: very strong peso — KOF tailwind`); }
+      else if (mxn < 17)   { score += -5;  notes.push(`MXN/USD ${mxn}: strong peso — KOF positive`); }
+      else if (mxn < 18.5) { score += 0;   notes.push(`MXN/USD ${mxn}: normal range`); }
+      else if (mxn < 20)   { score += 5;   notes.push(`MXN/USD ${mxn}: weakening peso — KOF headwind`); }
+      else if (mxn < 22)   { score += 10;  notes.push(`MXN/USD ${mxn}: weak peso — KOF FX drag`); }
+      else                 { score += 15;  notes.push(`MXN/USD ${mxn}: peso crisis — severe KOF headwind`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — KOF defensive quality`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated — staples as safe haven`); }
       else if (vix < 12) { score += 2;  notes.push(`VIX ${vix}: complacency`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — mild headwind`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
     }
-
     return { score: clamp(score), notes };
   }
 
   if (isGLNCY) {
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
-      if (pe > 80)       { score += -22; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: deep trough — commodity buy`); }
-      else if (pe > 40)  { score += -15; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
-      else if (pe > 20)  { score += -5;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: below-trend`); }
-      else if (pe > 10)  { score += 0;   notes.push(`GLNCY P/E ${pe.toFixed(0)}x: mid-cycle`); }
-      else if (pe > 6)   { score += 10;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
-      else if (pe > 3)   { score += 18;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
-      else               { score += 22;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+      if (pe > 80)      { score += -22; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: deep trough — commodity buy`); }
+      else if (pe > 40) { score += -15; notes.push(`GLNCY P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 20) { score += -5;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 10) { score += 0;   notes.push(`GLNCY P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 6)  { score += 10;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)  { score += 18;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
+      else              { score += 22;  notes.push(`GLNCY P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
-
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.6)      { score += -15; notes.push(`GLNCY P/B ${pb.toFixed(2)}: well below replacement — strong buy`); }
@@ -1195,14 +1182,12 @@ export function scoreStrategic(data, macro) {
       else if (pb < 2.5) { score += 3;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: above book`); }
       else               { score += 8;   notes.push(`GLNCY P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
-      if (dy > 8)       { score += -8; notes.push(`GLNCY yield ${dy}%: very high — trough pricing?`); }
-      else if (dy > 5)  { score += -4; notes.push(`GLNCY yield ${dy}%: attractive`); }
-      else if (dy > 3)  { score += -2; notes.push(`GLNCY yield ${dy}%: moderate`); }
+      if (dy > 8)      { score += -8; notes.push(`GLNCY yield ${dy}%: very high — trough pricing?`); }
+      else if (dy > 5) { score += -4; notes.push(`GLNCY yield ${dy}%: attractive`); }
+      else if (dy > 3) { score += -2; notes.push(`GLNCY yield ${dy}%: moderate`); }
     }
-
     if (macro?.hy_oas != null) {
       const oas = macro.hy_oas;
       if (oas < 300)      { score += -3; notes.push(`HY OAS ${oas}bps: tight — healthy industrial demand`); }
@@ -1211,7 +1196,6 @@ export function scoreStrategic(data, macro) {
       else if (oas < 700) { score += 10; notes.push(`HY OAS ${oas}bps: stressed — commodity headwind`); }
       else                { score += 15; notes.push(`HY OAS ${oas}bps: crisis — industrial collapse`); }
     }
-
     if (macro?.gscpi != null) {
       const g = macro.gscpi;
       if (g > 2.0)       { score += 3;   notes.push(`GSCPI ${g}: extreme disruption — mixed for diversified miner`); }
@@ -1220,35 +1204,31 @@ export function scoreStrategic(data, macro) {
       else if (g > -1.0) { score += -3;  notes.push(`GSCPI ${g}: below average — commodity softness`); }
       else               { score += -6;  notes.push(`GSCPI ${g}: deeply negative — commodity trough`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative — commodity tailwind`); }
     }
-
     return { score: clamp(score), notes };
   }
 
   if (isPBRA) {
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
-      if (pe > 50)       { score += -20; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: trough — oil cycle buy`); }
-      else if (pe > 30)  { score += -12; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: depressed earnings`); }
-      else if (pe > 15)  { score += -3;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: below-trend`); }
-      else if (pe > 8)   { score += 0;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: mid-cycle`); }
-      else if (pe > 5)   { score += 8;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
-      else if (pe > 3)   { score += 15;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
-      else               { score += 22;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
+      if (pe > 50)      { score += -20; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: trough — oil cycle buy`); }
+      else if (pe > 30) { score += -12; notes.push(`PBR.A P/E ${pe.toFixed(0)}x: depressed earnings`); }
+      else if (pe > 15) { score += -3;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 8)  { score += 0;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 5)  { score += 8;   notes.push(`PBR.A P/E ${pe.toFixed(0)}x: above-trend — peak risk`); }
+      else if (pe > 3)  { score += 15;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: peak earnings — trim`); }
+      else              { score += 22;  notes.push(`PBR.A P/E ${pe.toFixed(0)}x: super-peak — max trim`); }
     }
-
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.6)      { score += -12; notes.push(`PBR.A P/B ${pb.toFixed(2)}: well below book — reserves undervalued`); }
@@ -1258,7 +1238,6 @@ export function scoreStrategic(data, macro) {
       else if (pb < 3.0) { score += 3;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: above book`); }
       else               { score += 8;   notes.push(`PBR.A P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
       if (dy > 18)      { score += -15; notes.push(`PBR.A yield ${dy}%: extreme — cut priced in or deeply cheap`); }
@@ -1268,17 +1247,15 @@ export function scoreStrategic(data, macro) {
       else if (dy > 5)  { score += 5;   notes.push(`PBR.A yield ${dy}%: below normal — getting rich`); }
       else              { score += 10;  notes.push(`PBR.A yield ${dy}%: low — stock is expensive`); }
     }
-
     if (macro?.wti != null) {
       const wti = macro.wti;
-      if (wti > 90)       { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A tailwind`); }
-      else if (wti > 75)  { score += -3; notes.push(`WTI $${wti}: supportive`); }
-      else if (wti > 60)  { score += 0;  notes.push(`WTI $${wti}: normal`); }
-      else if (wti > 50)  { score += 5;  notes.push(`WTI $${wti}: soft — margin compression`); }
-      else if (wti > 40)  { score += 12; notes.push(`WTI $${wti}: weak — PBR.A earnings at risk`); }
-      else                { score += 20; notes.push(`WTI $${wti}: oil crash — PBR.A under pressure`); }
+      if (wti > 90)      { score += -8; notes.push(`WTI $${wti}: strong oil — PBR.A tailwind`); }
+      else if (wti > 75) { score += -3; notes.push(`WTI $${wti}: supportive`); }
+      else if (wti > 60) { score += 0;  notes.push(`WTI $${wti}: normal`); }
+      else if (wti > 50) { score += 5;  notes.push(`WTI $${wti}: soft — margin compression`); }
+      else if (wti > 40) { score += 12; notes.push(`WTI $${wti}: weak — PBR.A earnings at risk`); }
+      else               { score += 20; notes.push(`WTI $${wti}: oil crash — PBR.A under pressure`); }
     }
-
     if (macro?.brl_usd != null) {
       const brl = macro.brl_usd;
       if (brl < 4.5)      { score += -5; notes.push(`BRL/USD ${brl}: strong real — PBR.A ADR positive`); }
@@ -1288,28 +1265,25 @@ export function scoreStrategic(data, macro) {
       else if (brl < 7.0) { score += 8;  notes.push(`BRL/USD ${brl}: weak real — FX drag`); }
       else                { score += 12; notes.push(`BRL/USD ${brl}: BRL crisis — significant headwind`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — PBR.A contrarian buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
-
     return { score: clamp(score), notes };
   }
 
   if (isMOS) {
     const pe = data.valuation?.trailingPE;
     if (pe != null && pe > 0) {
-      if (pe > 100)      { score += -20; notes.push(`MOS P/E ${pe.toFixed(0)}x: trough earnings — fertilizer buy`); }
-      else if (pe > 50)  { score += -12; notes.push(`MOS P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
-      else if (pe > 25)  { score += -5;  notes.push(`MOS P/E ${pe.toFixed(0)}x: below-trend`); }
-      else if (pe > 15)  { score += 0;   notes.push(`MOS P/E ${pe.toFixed(0)}x: mid-cycle`); }
-      else if (pe > 8)   { score += 10;  notes.push(`MOS P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
-      else               { score += 20;  notes.push(`MOS P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
+      if (pe > 100)     { score += -20; notes.push(`MOS P/E ${pe.toFixed(0)}x: trough earnings — fertilizer buy`); }
+      else if (pe > 50) { score += -12; notes.push(`MOS P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
+      else if (pe > 25) { score += -5;  notes.push(`MOS P/E ${pe.toFixed(0)}x: below-trend`); }
+      else if (pe > 15) { score += 0;   notes.push(`MOS P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 8)  { score += 10;  notes.push(`MOS P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
+      else              { score += 20;  notes.push(`MOS P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
     }
-
     const pb = data.valuation?.priceToBook;
     if (pb != null && pb > 0) {
       if (pb < 0.7)      { score += -10; notes.push(`MOS P/B ${pb.toFixed(2)}: well below book — asset value`); }
@@ -1319,14 +1293,12 @@ export function scoreStrategic(data, macro) {
       else if (pb < 4)   { score += 5;   notes.push(`MOS P/B ${pb.toFixed(2)}: above book`); }
       else               { score += 10;  notes.push(`MOS P/B ${pb.toFixed(2)}: premium — late cycle`); }
     }
-
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
-      if (dy > 6)       { score += -8; notes.push(`MOS yield ${dy}%: very high — trough pricing?`); }
-      else if (dy > 4)  { score += -4; notes.push(`MOS yield ${dy}%: attractive`); }
-      else if (dy > 2)  { score += -1; notes.push(`MOS yield ${dy}%: moderate`); }
+      if (dy > 6)      { score += -8; notes.push(`MOS yield ${dy}%: very high — trough pricing?`); }
+      else if (dy > 4) { score += -4; notes.push(`MOS yield ${dy}%: attractive`); }
+      else if (dy > 2) { score += -1; notes.push(`MOS yield ${dy}%: moderate`); }
     }
-
     if (macro?.brl_usd != null) {
       const brl = macro.brl_usd;
       if (brl < 4.5)      { score += -3; notes.push(`BRL/USD ${brl}: strong real — MOS Brazil ops positive`); }
@@ -1334,42 +1306,38 @@ export function scoreStrategic(data, macro) {
       else if (brl < 6.5) { score += 2;  notes.push(`BRL/USD ${brl}: weakening — mild headwind`); }
       else                { score += 5;  notes.push(`BRL/USD ${brl}: weak real — MOS Brazil cost pressure`); }
     }
-
     const vix = macro?.vix;
     if (vix != null) {
       if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — commodity contrarian buy`); }
       else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
       else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
     }
-
     const tips = macro?.tips10y;
     if (tips != null) {
       if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative`); }
     }
-
     const season = getFertilizerSeason();
     score += season.modifier;
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
-
     return { score: clamp(score), notes };
   }
 
+  // ─── LIN STRATEGIC (V3) ──────────────────────────────────────────────────
   if (isLIN) {
     // Peer P/E premium is the cleanest valuation signal for LIN
-    // data.peer_valuation = { lin_pe, apd_pe, ai_pa_pe, peer_avg_pe, premium_pct }
+    // data.peer_valuation = { lin_pe, apd_pe, ai_pa_pe, peer_avg_pe, premium_pct, premium_6m_delta_pp }
     if (data.peer_valuation && data.peer_valuation.premium_pct != null) {
       const prem = data.peer_valuation.premium_pct;
-      if (prem < -5)      { score += -30; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: discount — exceptional quality buy (very rare)`); }
-      else if (prem < 0)  { score += -22; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: at parity — rare opportunity`); }
-      else if (prem < 5)  { score += -15; notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: tight premium — buy`); }
-      else if (prem < 10) { score += -7;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: below normal premium`); }
-      else if (prem <= 15){ score += 0;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: deserved premium (normal)`); }
-      else if (prem < 18) { score += 3;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: stretched`); }
-      else if (prem < 22) { score += 10;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: rich premium — trim bias`); }
-      else                { score += 18;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: extreme premium — trim`); }
+      if (prem < -5)       { score += -30; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: discount — exceptional quality buy (very rare)`); }
+      else if (prem < 0)   { score += -22; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: at parity — rare opportunity`); }
+      else if (prem < 5)   { score += -15; notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: tight premium — buy`); }
+      else if (prem < 10)  { score += -7;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: below normal premium`); }
+      else if (prem <= 15) { score += 0;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: deserved premium (normal)`); }
+      else if (prem < 18)  { score += 3;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: stretched`); }
+      else if (prem < 22)  { score += 10;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: rich premium — trim bias`); }
+      else                 { score += 18;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: extreme premium — trim`); }
     } else {
-      // Fallback to absolute P/E if peer data unavailable
       const pe = data.valuation?.trailingPE;
       if (pe != null && pe > 0) {
         if (pe < 22)       { score += -10; notes.push(`LIN P/E ${pe.toFixed(1)}x: cheap (peer data unavailable)`); }
@@ -1380,18 +1348,30 @@ export function scoreStrategic(data, macro) {
       }
     }
 
+    // V3: Premium 6M delta — direction matters more than level
+    if (data.peer_valuation?.premium_6m_delta_pp != null) {
+      const d = data.peer_valuation.premium_6m_delta_pp;
+      if (d < -5)      { score += -10; notes.push(`Premium 6M Δ ${d.toFixed(1)}pp: rapidly compressing — strong buy bias (direction wins)`); }
+      else if (d < -3) { score += -6;  notes.push(`Premium 6M Δ ${d.toFixed(1)}pp: compressing — buy bias`); }
+      else if (d < -1) { score += -2;  notes.push(`Premium 6M Δ ${d.toFixed(1)}pp: mildly compressing`); }
+      else if (d <= 1) { score += 0;   notes.push(`Premium 6M Δ ${d.toFixed(1)}pp: stable`); }
+      else if (d <= 3) { score += 2;   notes.push(`Premium 6M Δ +${d.toFixed(1)}pp: mildly expanding`); }
+      else if (d <= 5) { score += 6;   notes.push(`Premium 6M Δ +${d.toFixed(1)}pp: expanding — trim bias`); }
+      else             { score += 10;  notes.push(`Premium 6M Δ +${d.toFixed(1)}pp: rapidly expanding — strong trim bias`); }
+    }
+
     // Dividend yield aristocrat band (1.1-1.7% normal, narrow)
     const dy = data.valuation?.dividendYield;
     if (dy != null && dy > 0) {
-      if (dy > 1.9)       { score += -10; notes.push(`LIN yield ${dy}%: top of historical range — aristocrat-grade buy`); }
-      else if (dy > 1.7)  { score += -5;  notes.push(`LIN yield ${dy}%: above normal — attractive`); }
-      else if (dy > 1.3)  { score += 0;   notes.push(`LIN yield ${dy}%: normal range`); }
-      else if (dy > 1.1)  { score += 3;   notes.push(`LIN yield ${dy}%: slightly stretched`); }
-      else                { score += 8;   notes.push(`LIN yield ${dy}%: stretched — yield compression`); }
+      if (dy > 1.9)      { score += -10; notes.push(`LIN yield ${dy}%: top of historical range — aristocrat-grade buy`); }
+      else if (dy > 1.7) { score += -5;  notes.push(`LIN yield ${dy}%: above normal — attractive`); }
+      else if (dy > 1.3) { score += 0;   notes.push(`LIN yield ${dy}%: normal range`); }
+      else if (dy > 1.1) { score += 3;   notes.push(`LIN yield ${dy}%: slightly stretched`); }
+      else               { score += 8;   notes.push(`LIN yield ${dy}%: stretched — yield compression`); }
     }
 
-    // ROCE durability check (best-in-class >25% — LIN's signature metric)
-    if (data.fundamentals && data.fundamentals.roce_pct != null) {
+    // ROCE durability check (best-in-class >25%)
+    if (data.fundamentals?.roce_pct != null) {
       const roce = data.fundamentals.roce_pct;
       if (roce > 28)      { score += -5; notes.push(`LIN ROCE ${roce}%: exceptional — moat strengthening`); }
       else if (roce > 25) { score += 0;  notes.push(`LIN ROCE ${roce}%: best-in-class normal`); }
@@ -1401,16 +1381,44 @@ export function scoreStrategic(data, macro) {
     }
 
     // Operating margin durability (best-in-class >30%)
-    if (data.fundamentals && data.fundamentals.operating_margin_pct != null) {
+    if (data.fundamentals?.operating_margin_pct != null) {
       const om = data.fundamentals.operating_margin_pct;
-      if (om > 32)       { score += -2; notes.push(`LIN op margin ${om}%: peak pricing power`); }
-      else if (om > 30)  { score += 0;  notes.push(`LIN op margin ${om}%: best-in-class`); }
-      else if (om > 28)  { score += 3;  notes.push(`LIN op margin ${om}%: compressing`); }
-      else               { score += 8;  notes.push(`LIN op margin ${om}%: significant compression`); }
+      if (om > 32)      { score += -2; notes.push(`LIN op margin ${om}%: peak pricing power`); }
+      else if (om > 30) { score += 0;  notes.push(`LIN op margin ${om}%: best-in-class`); }
+      else if (om > 28) { score += 3;  notes.push(`LIN op margin ${om}%: compressing`); }
+      else              { score += 8;  notes.push(`LIN op margin ${om}%: significant compression`); }
+    }
+
+    // V3: H2 contract dollar value (90d trailing) — replaces categorical proxy
+    if (data.h2_layer?.contracts_90d_usd_m != null) {
+      const c = data.h2_layer.contracts_90d_usd_m;
+      if (c > 1000)     { score += -8; notes.push(`H2 contracts $${c.toFixed(0)}M (90d): exceptional — H2 thesis activating`); }
+      else if (c > 500) { score += -5; notes.push(`H2 contracts $${c.toFixed(0)}M (90d): strong pipeline`); }
+      else if (c > 250) { score += -2; notes.push(`H2 contracts $${c.toFixed(0)}M (90d): healthy`); }
+      else if (c > 100) { score += 0;  notes.push(`H2 contracts $${c.toFixed(0)}M (90d): normal`); }
+      else if (c > 50)  { score += 3;  notes.push(`H2 contracts $${c.toFixed(0)}M (90d): slow pipeline`); }
+      else              { score += 6;  notes.push(`H2 contracts $${c.toFixed(0)}M (90d): pipeline weakening`); }
+    }
+
+    // V3: H2 subsidy regime — 45V / EU H2 Bank / JP-KR CfDs
+    if (data.h2_layer?.subsidy_regime) {
+      const r = data.h2_layer.subsidy_regime;
+      if (r === "strengthening")  { score += -4; notes.push(`H2 subsidy regime: strengthening — 45V/EU H2 Bank/JP-KR supportive`); }
+      else if (r === "weakening") { score += 5;  notes.push(`H2 subsidy regime: weakening — policy headwind`); }
+      else                        { notes.push(`H2 subsidy regime: stable`); }
+    }
+
+    // V3: Green/grey LCOE gap direction (closing = green H2 commercially viable)
+    if (data.h2_layer?.lcoe_gap_6m_delta != null) {
+      const d = data.h2_layer.lcoe_gap_6m_delta;
+      if (d < -1.0)      { score += -6; notes.push(`Green/grey LCOE Δ ${d.toFixed(2)}/kg (6m): rapidly closing — green H2 commercial`); }
+      else if (d < -0.5) { score += -3; notes.push(`Green/grey LCOE Δ ${d.toFixed(2)}/kg (6m): closing — H2 thesis activating`); }
+      else if (d < 0.5)  { score += 0;  notes.push(`Green/grey LCOE Δ ${d.toFixed(2)}/kg (6m): stable`); }
+      else if (d < 1.0)  { score += 2;  notes.push(`Green/grey LCOE Δ +${d.toFixed(2)}/kg (6m): widening — H2 thesis stalled`); }
+      else               { score += 5;  notes.push(`Green/grey LCOE Δ +${d.toFixed(2)}/kg (6m): rapidly widening — H2 thesis broken`); }
     }
 
     // DXY / FX overlay (~70% non-US revenue)
-    // Note: macro.dxy is FRED DTWEXBGS (trade-weighted broad USD, 2006=100 base, ~120-130 typical)
     if (macro?.dxy != null) {
       const dxy = macro.dxy;
       if (dxy > 130)      { score += 5;  notes.push(`DXY ${dxy}: very strong USD — significant FX headwind`); }
@@ -1431,24 +1439,25 @@ export function scoreStrategic(data, macro) {
     // TIPS overlay — long-duration compounder rate sensitivity
     const tips = macro?.tips10y;
     if (tips != null) {
-      if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — quality compounder headwind`); }
-      else if (tips > 2) { score += 1;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
-      else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative — compounder tailwind`); }
-      else if (tips < 0.5){ score += -1; notes.push(`TIPS ${tips}%: low real rates`); }
+      if (tips > 2.5)      { score += 3;  notes.push(`TIPS ${tips}%: restrictive — quality compounder headwind`); }
+      else if (tips > 2)   { score += 1;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -3; notes.push(`TIPS ${tips}%: accommodative — compounder tailwind`); }
+      else if (tips < 0.5) { score += -1; notes.push(`TIPS ${tips}%: low real rates`); }
     }
 
     return { score: clamp(score), notes };
   }
 
+  // ─── GENERIC STRATEGIC ───────────────────────────────────────────────────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
     if (isCyclical) {
-      if (pe > 100)      { score += -20; notes.push(`P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
-      else if (pe > 50)  { score += -12; notes.push(`P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
-      else if (pe > 25)  { score += -5;  notes.push(`P/E ${pe.toFixed(0)}x: below-trend earnings`); }
-      else if (pe > 15)  { score += 0;   notes.push(`P/E ${pe.toFixed(0)}x: mid-cycle`); }
-      else if (pe > 8)   { score += 10;  notes.push(`P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
-      else               { score += 20;  notes.push(`P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
+      if (pe > 100)     { score += -20; notes.push(`P/E ${pe.toFixed(0)}x: trough earnings — cyclical buy`); }
+      else if (pe > 50) { score += -12; notes.push(`P/E ${pe.toFixed(0)}x: depressed earnings — cyclical buy`); }
+      else if (pe > 25) { score += -5;  notes.push(`P/E ${pe.toFixed(0)}x: below-trend earnings`); }
+      else if (pe > 15) { score += 0;   notes.push(`P/E ${pe.toFixed(0)}x: mid-cycle`); }
+      else if (pe > 8)  { score += 10;  notes.push(`P/E ${pe.toFixed(0)}x: peak earnings — cyclical caution`); }
+      else              { score += 20;  notes.push(`P/E ${pe.toFixed(0)}x: super-peak — cyclical trim`); }
     } else if (isSPY) {
       if (pe < 14)       { score += -12; notes.push(`S&P P/E ${pe.toFixed(1)}x: historically cheap`); }
       else if (pe < 18)  { score += -5;  notes.push(`S&P P/E ${pe.toFixed(1)}x: below-average value`); }
@@ -1487,14 +1496,14 @@ export function scoreStrategic(data, macro) {
   const dy = data.valuation?.dividendYield;
   if (dy != null && dy > 0 && !isENB) {
     if (isSPY) {
-      if (dy > 2.5)     { score += -5; notes.push(`S&P yield ${dy}%: elevated — market is cheap`); }
-      else if (dy < 1)  { score += 3;  notes.push(`S&P yield ${dy}%: compressed — market is rich`); }
+      if (dy > 2.5)    { score += -5; notes.push(`S&P yield ${dy}%: elevated — market is cheap`); }
+      else if (dy < 1) { score += 3;  notes.push(`S&P yield ${dy}%: compressed — market is rich`); }
     } else if (isASML) {
-      // skip
+      // skip for ASML
     } else {
-      if (dy > 8)       { score += -10; notes.push(`Yield ${dy}%: very high`); }
-      else if (dy > 5)  { score += -5;  notes.push(`Yield ${dy}%: attractive`); }
-      else if (dy > 3)  { score += -2;  notes.push(`Yield ${dy}%: moderate`); }
+      if (dy > 8)      { score += -10; notes.push(`Yield ${dy}%: very high`); }
+      else if (dy > 5) { score += -5;  notes.push(`Yield ${dy}%: attractive`); }
+      else if (dy > 3) { score += -2;  notes.push(`Yield ${dy}%: moderate`); }
     }
   }
 
@@ -1520,10 +1529,10 @@ export function scoreStrategic(data, macro) {
   const tips = macro?.tips10y;
   if (tips != null && !isENB) {
     if (isASML) {
-      if (tips > 3)       { score += 8;   notes.push(`TIPS ${tips}%: very restrictive — long-duration headwind`); }
-      else if (tips > 2.5){ score += 4;   notes.push(`TIPS ${tips}%: restrictive`); }
-      else if (tips < 0)  { score += -8;  notes.push(`TIPS ${tips}%: accommodative — long-duration tailwind`); }
-      else if (tips < 1)  { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
+      if (tips > 3)        { score += 8;   notes.push(`TIPS ${tips}%: very restrictive — long-duration headwind`); }
+      else if (tips > 2.5) { score += 4;   notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips < 0)   { score += -8;  notes.push(`TIPS ${tips}%: accommodative — long-duration tailwind`); }
+      else if (tips < 1)   { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
     } else {
       if (tips > 2.5)     { score += 5;  notes.push(`TIPS ${tips}%: restrictive`); }
       else if (tips > 2)  { score += 2;  }
@@ -1533,20 +1542,20 @@ export function scoreStrategic(data, macro) {
 
   if (isSPY && macro?.spread_2s10s != null) {
     const spread = macro.spread_2s10s;
-    if (spread > 100)       { score += -8; notes.push(`2s10s +${spread}bps: steep curve — bullish macro`); }
-    else if (spread > 50)   { score += -5; notes.push(`2s10s +${spread}bps: healthy steepening`); }
-    else if (spread > 0)    { score += -2; notes.push(`2s10s +${spread}bps: mildly positive`); }
-    else if (spread > -30)  { score += 3;  notes.push(`2s10s ${spread}bps: flat/mildly inverted`); }
-    else if (spread > -75)  { score += 8;  notes.push(`2s10s ${spread}bps: inverted — recession signal`); }
-    else                    { score += 15; notes.push(`2s10s ${spread}bps: deeply inverted — max caution`); }
+    if (spread > 100)      { score += -8; notes.push(`2s10s +${spread}bps: steep curve — bullish macro`); }
+    else if (spread > 50)  { score += -5; notes.push(`2s10s +${spread}bps: healthy steepening`); }
+    else if (spread > 0)   { score += -2; notes.push(`2s10s +${spread}bps: mildly positive`); }
+    else if (spread > -30) { score += 3;  notes.push(`2s10s ${spread}bps: flat/mildly inverted`); }
+    else if (spread > -75) { score += 8;  notes.push(`2s10s ${spread}bps: inverted — recession signal`); }
+    else                   { score += 15; notes.push(`2s10s ${spread}bps: deeply inverted — max caution`); }
   }
 
   if (isSPY && macro?.fed_funds != null && tips != null) {
     const realRate = macro.fed_funds - tips;
-    if (realRate > 3)       { score += 5;  notes.push(`Real rate ${realRate.toFixed(1)}%: very restrictive`); }
-    else if (realRate > 2)  { score += 3;  notes.push(`Real rate ${realRate.toFixed(1)}%: restrictive`); }
-    else if (realRate > 0)  { score += 0;  notes.push(`Real rate ${realRate.toFixed(1)}%: neutral`); }
-    else                    { score += -5; notes.push(`Real rate ${realRate.toFixed(1)}%: accommodative`); }
+    if (realRate > 3)      { score += 5;  notes.push(`Real rate ${realRate.toFixed(1)}%: very restrictive`); }
+    else if (realRate > 2) { score += 3;  notes.push(`Real rate ${realRate.toFixed(1)}%: restrictive`); }
+    else if (realRate > 0) { score += 0;  notes.push(`Real rate ${realRate.toFixed(1)}%: neutral`); }
+    else                   { score += -5; notes.push(`Real rate ${realRate.toFixed(1)}%: accommodative`); }
   }
 
   return { score: clamp(score), notes };
@@ -1558,7 +1567,18 @@ export function computeDeterministicScores(data, macro) {
   const positional = scorePositional(data, macro);
   const strategic = scoreStrategic(data, macro);
 
-  const weights = data._weights || { t: 0.25, p: 0.35, s: 0.40 };
+  // V3: LIN regime-conditional weights override based on global PMI.
+  // Other archetypes use their pre-set _weights, or the default 25/35/40.
+  let weights = data._weights || { t: 0.25, p: 0.35, s: 0.40 };
+  let regime = null;
+  let regimePmi = null;
+  if (data._archetype === "oligopoly_quality_compounder") {
+    const r = computeLINRegimeWeights(macro);
+    weights = r.weights;
+    regime = r.regime;
+    regimePmi = r.pmi;
+  }
+
   const composite = Math.round(
     tactical.score * weights.t +
     positional.score * weights.p +
@@ -1570,6 +1590,9 @@ export function computeDeterministicScores(data, macro) {
     positional,
     strategic,
     composite: { score: clamp(composite) },
+    weights,
+    regime,    // null for non-LIN, "expansion" | "neutral" | "contraction" for LIN
+    regimePmi, // numeric geo-weighted PMI used to choose regime (LIN only)
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
@@ -1585,9 +1608,22 @@ const BLEND_WEIGHTS = {
   strategic:  { det: 0.30, llm: 0.70 },
 };
 
-export function blendScores(deterministic, llm, weights) {
+// V3: Per-archetype blend overrides.
+// LIN's positional and strategic now have many more deterministic inputs
+// (ASU util, price/mix, BBB OAS, EPS revisions, premium delta, H2 layer),
+// so we lean a bit more on deterministic for those layers.
+const BLEND_WEIGHTS_BY_ARCHETYPE = {
+  oligopoly_quality_compounder: {
+    tactical:   { det: 0.65, llm: 0.35 }, // slightly more LLM for narrative tactical inputs
+    positional: { det: 0.60, llm: 0.40 }, // ASU/price-mix/credit/revisions are all numeric
+    strategic:  { det: 0.40, llm: 0.60 }, // peer P/E premium with delta is highly deterministic
+  },
+};
+
+export function blendScores(deterministic, llm, weights, archetype) {
+  const archBlend = archetype ? BLEND_WEIGHTS_BY_ARCHETYPE[archetype] : null;
   const blend = (detScore, llmScore, tf) => {
-    const w = BLEND_WEIGHTS[tf];
+    const w = (archBlend && archBlend[tf]) || BLEND_WEIGHTS[tf];
     return Math.round(detScore * w.det + llmScore * w.llm);
   };
 
@@ -1595,7 +1631,8 @@ export function blendScores(deterministic, llm, weights) {
   const positional = blend(deterministic.positional.score, llm.positional?.score ?? 0, "positional");
   const strategic  = blend(deterministic.strategic.score,  llm.strategic?.score  ?? 0, "strategic");
 
-  const w = weights || { t: 0.25, p: 0.35, s: 0.40 };
+  // Use deterministic.weights if provided (for LIN regime-conditional weights)
+  const w = weights || deterministic.weights || { t: 0.25, p: 0.35, s: 0.40 };
   const composite = Math.round(tactical * w.t + positional * w.p + strategic * w.s);
 
   const toSignal = (s) =>
@@ -1604,10 +1641,10 @@ export function blendScores(deterministic, llm, weights) {
     s <= -60 ? "STRONG_BUY" : s <= -25 ? "BUY" : s <= 24 ? "HOLD" : s <= 59 ? "TRIM" : "STRONG_SELL";
 
   return {
-    tactical:   { score: tactical,   signal: toSignal(tactical),   rationale: llm.tactical?.rationale || "", det_score: deterministic.tactical.score, llm_score: llm.tactical?.score ?? 0, det_notes: deterministic.tactical.notes },
+    tactical:   { score: tactical,   signal: toSignal(tactical),   rationale: llm.tactical?.rationale || "",   det_score: deterministic.tactical.score,   llm_score: llm.tactical?.score   ?? 0, det_notes: deterministic.tactical.notes },
     positional: { score: positional, signal: toSignal(positional), rationale: llm.positional?.rationale || "", det_score: deterministic.positional.score, llm_score: llm.positional?.score ?? 0, det_notes: deterministic.positional.notes },
-    strategic:  { score: strategic,  signal: toSignal(strategic),  rationale: llm.strategic?.rationale || "", det_score: deterministic.strategic.score, llm_score: llm.strategic?.score ?? 0, det_notes: deterministic.strategic.notes },
-    composite:  { score: composite,  recommendation: toRec(composite), summary: llm.composite?.summary || "", det_score: deterministic.composite.score, llm_score: llm.composite?.score ?? 0 },
+    strategic:  { score: strategic,  signal: toSignal(strategic),  rationale: llm.strategic?.rationale || "",  det_score: deterministic.strategic.score,  llm_score: llm.strategic?.score  ?? 0, det_notes: deterministic.strategic.notes },
+    composite:  { score: composite,  recommendation: toRec(composite), summary: llm.composite?.summary || "", det_score: deterministic.composite.score, llm_score: llm.composite?.score ?? 0, weights: w, regime: deterministic.regime ?? null },
   };
 }
 
