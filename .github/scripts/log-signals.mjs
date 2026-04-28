@@ -6,6 +6,12 @@
 //   docs/history/daily-log.jsonl — one JSON object per day with full signal + assignment data
 //   docs/history/summary.json    — rolling stats (streak counts, hit rates, etc.)
 //
+// V3 additions: BBB OAS macro pair, IV/RV + QUAL + SPY-drawdown tactical extras,
+// ASU utilization + price/mix + EPS revisions LIN fundamentals, AI.PA peer
+// triangulation, peer P/E premium 6M delta, H2 layer (contracts $ + subsidy +
+// LCOE gap), and per-holding regime/regime_pmi/weights (LIN-only, propagated
+// from the score-engine).
+//
 // This runs AFTER generate-signals.mjs and BEFORE the git commit step.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
@@ -16,6 +22,17 @@ const JSONL_PATH = `${HISTORY_DIR}/daily-log.jsonl`;
 const SUMMARY_PATH = `${HISTORY_DIR}/summary.json`;
 
 mkdirSync(HISTORY_DIR, { recursive: true });
+
+// ── V3: Resolve regime / regime_pmi / weights from the normalized holding.
+// Tolerates either shape — top-level (s.regime) if generate-signals lifts it,
+// or nested in composite (s.composite.regime) if it doesn't.
+function resolveRegime(s) {
+  return {
+    regime: s.regime ?? s.composite?.regime ?? null,
+    regime_pmi: s.regime_pmi ?? s.composite?.regime_pmi ?? null,
+    weights: s.weights ?? s.composite?.weights ?? null,
+  };
+}
 
 // ─── LOAD TODAY'S DATA ───────────────────────────────────────────────────────
 let signalData, marketData;
@@ -95,6 +112,30 @@ const CSV_HEADERS = [
   "lin_peer_relative_spread_pp", // LIN vs APD 1m spread
   "roce_pct",                  // LIN's signature metric (best-in-class >25%)
   "operating_margin_pct",      // LIN op margin (best-in-class >30%)
+
+  // ─── V3 additions (appended for CSV back-compat) ────────────────────────
+  // V3 macro pair — BBB credit spread (leads LIN backlog 6-12mo)
+  "bbb_oas_bps", "bbb_oas_1m_change_bps",
+  // V3 tactical extras — catalyst hunt + growth-scare
+  "iv_rv_ratio",               // 30d implied / 30d realized vol
+  "qual_vs_spy_30d_pp",        // QUAL ETF return - SPY return over 30d
+  "spy_10d_drawdown_pct",      // SPY total return / 10 trading days
+  "lin_vs_spy_10d_pp",         // LIN total return - SPY total return / 10 trading days
+  // V3 LIN fundamentals
+  "asu_utilization_pct",       // air separation unit capacity utilization
+  "price_mix_ex_fx_pct",       // like-for-like price/mix delta ex-FX
+  "eps_revisions_30d_pct",     // FactSet/Refinitiv consensus EPS delta 30d
+  "eps_revisions_90d_pct",
+  // V3 LIN peer triangulation + P/E delta
+  "lin_peer_aipa_spread_pp",   // LIN vs AI.PA 1m spread (mirrors APD)
+  "peer_pe_premium_6m_delta_pp", // 6M change in LIN's peer P/E premium
+  // V3 H2 layer (concretized from prior categorical "expanding/steady/weakening")
+  "h2_contracts_90d_usd_m",    // USD millions of new H2 contracts trailing 90d
+  "h2_subsidy_regime",         // strengthening | stable | weakening
+  "h2_lcoe_gap_usd_kg",        // green H2 LCOE - grey H2 LCOE (USD/kg)
+  "h2_lcoe_gap_6m_delta",      // 6M change in LCOE gap (negative = closing)
+  // V3 per-holding regime context (LIN only — null elsewhere)
+  "regime", "regime_pmi", "weight_t", "weight_p", "weight_s",
 ].join(",");
 
 const csvExists = existsSync(CSV_PATH);
@@ -212,6 +253,37 @@ for (const s of normalized) {
     md.peer_relative?.relative_spread_pp ?? "",
     md.fundamentals?.roce_pct ?? "",
     md.fundamentals?.operating_margin_pct ?? "",
+
+    // ─── V3 additions ────────────────────────────────────────────────────
+    // V3 macro pair (populated for every row)
+    macro.bbb_oas_bps ?? "",
+    macro.bbb_oas_1m_change_bps ?? "",
+    // V3 tactical extras (LIN row only, blank for others)
+    md.tactical_extras?.iv_rv_ratio ?? "",
+    md.factor_flow?.qual_vs_spy_30d_pp ?? "",
+    md.tactical_extras?.spy_10d_drawdown_pct ?? "",
+    md.tactical_extras?.lin_vs_spy_10d_pp ?? "",
+    // V3 LIN fundamentals additions
+    md.fundamentals?.asu_utilization_pct ?? "",
+    md.fundamentals?.price_mix_ex_fx_pct ?? "",
+    md.fundamentals?.eps_revisions_30d_pct ?? "",
+    md.fundamentals?.eps_revisions_90d_pct ?? "",
+    // V3 LIN peer triangulation + P/E delta
+    md.peer_relative_aipa?.relative_spread_pp ?? "",
+    md.peer_valuation?.premium_6m_delta_pp ?? "",
+    // V3 H2 layer
+    md.h2_layer?.contracts_90d_usd_m ?? "",
+    esc(md.h2_layer?.subsidy_regime ?? ""),
+    md.h2_layer?.lcoe_gap_usd_kg ?? "",
+    md.h2_layer?.lcoe_gap_6m_delta ?? "",
+    // V3 per-holding regime context (LIN only)
+    (() => { const r = resolveRegime(s); return [
+      r.regime ?? "",
+      r.regime_pmi != null ? r.regime_pmi.toFixed(2) : "",
+      r.weights?.t ?? "",
+      r.weights?.p ?? "",
+      r.weights?.s ?? "",
+    ].join(","); })(),
   ].join(",");
 
   csvContent += row + "\n";
@@ -250,6 +322,9 @@ const dailyEntry = {
     us_ism: macro.us_ism ?? null,
     eu_pmi: macro.eu_pmi ?? null,
     china_pmi: macro.china_pmi ?? null,
+    // V3 macro additions — BBB credit spread (leads LIN backlog 6-12mo)
+    bbb_oas_bps: macro.bbb_oas_bps ?? null,
+    bbb_oas_1m_change_bps: macro.bbb_oas_1m_change_bps ?? null,
   },
   holdings: normalized.map(s => {
     const md = marketData[s.symbol] || {};
@@ -288,6 +363,26 @@ const dailyEntry = {
       roce_pct: md.fundamentals?.roce_pct ?? null,
       operating_margin_pct: md.fundamentals?.operating_margin_pct ?? null,
 
+      // ─── V3 additions ─────────────────────────────────────────────────
+      // V3 LIN tactical extras (catalyst hunt + growth-scare)
+      iv_rv_ratio:           md.tactical_extras?.iv_rv_ratio ?? null,
+      qual_vs_spy_30d_pp:    md.factor_flow?.qual_vs_spy_30d_pp ?? null,
+      spy_10d_drawdown_pct:  md.tactical_extras?.spy_10d_drawdown_pct ?? null,
+      lin_vs_spy_10d_pp:     md.tactical_extras?.lin_vs_spy_10d_pp ?? null,
+      // V3 LIN fundamentals additions
+      asu_utilization_pct:    md.fundamentals?.asu_utilization_pct ?? null,
+      price_mix_ex_fx_pct:    md.fundamentals?.price_mix_ex_fx_pct ?? null,
+      eps_revisions_30d_pct:  md.fundamentals?.eps_revisions_30d_pct ?? null,
+      eps_revisions_90d_pct:  md.fundamentals?.eps_revisions_90d_pct ?? null,
+      // V3 LIN peer triangulation + P/E delta
+      lin_peer_aipa_spread_pp:     md.peer_relative_aipa?.relative_spread_pp ?? null,
+      peer_pe_premium_6m_delta_pp: md.peer_valuation?.premium_6m_delta_pp ?? null,
+      // V3 LIN H2 layer (concretized)
+      h2_contracts_90d_usd_m: md.h2_layer?.contracts_90d_usd_m ?? null,
+      h2_subsidy_regime:      md.h2_layer?.subsidy_regime ?? null,
+      h2_lcoe_gap_usd_kg:     md.h2_layer?.lcoe_gap_usd_kg ?? null,
+      h2_lcoe_gap_6m_delta:   md.h2_layer?.lcoe_gap_6m_delta ?? null,
+
       // Det/LLM/blended scores per timeframe
       tactical: {
         det: s.tactical?.det_score ?? null,
@@ -313,6 +408,13 @@ const dailyEntry = {
         blended: s.composite?.score ?? null,
         recommendation: s.composite?.recommendation ?? null,
       },
+
+      // V3: regime context (LIN-only, null elsewhere — propagated from score-engine)
+      ...(() => { const r = resolveRegime(s); return {
+        regime:     r.regime,
+        regime_pmi: r.regime_pmi,
+        weights:    r.weights,
+      }; })(),
 
       z_composite: s.z?.composite ?? null,
       role:
