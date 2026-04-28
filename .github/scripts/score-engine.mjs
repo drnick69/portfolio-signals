@@ -41,9 +41,9 @@
 //   - OLIGOPOLY_QUALITY_COMPOUNDER (LIN): tightened RSI 35/70 (low-vol compounder),
 //     compounder MA + inverted 52w (no penalty at highs), P/E premium vs APD/AI.PA
 //     peer avg as primary valuation signal, narrowed yield band (1.1-1.7% aristocrat),
-//     ROCE + op-margin durability checks, DXY FX overlay (~70% non-US rev), backlog
-//     YoY + global PMI composite as positional adds, growth-scare amplifier
-//     (VIX>25 + drag-down day = defensive bid setup)
+//     ROCE + op-margin durability checks, DXY FX overlay (~70% non-US rev) on
+//     FRED DTWEXBGS scale (2006=100, ~120-130 typical), backlog YoY + global PMI
+//     composite as positional adds, growth-scare amplifier (VIX>25 + drag-down day)
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -1425,12 +1425,13 @@ export function scoreStrategic(data, macro) {
     }
 
     // DXY / FX overlay (~70% non-US revenue)
+    // Note: macro.dxy is FRED DTWEXBGS (trade-weighted broad USD, 2006=100 base, ~120-130 typical)
     if (macro?.dxy != null) {
       const dxy = macro.dxy;
-      if (dxy > 110)      { score += 5;  notes.push(`DXY ${dxy}: very strong USD — significant FX headwind`); }
-      else if (dxy > 105) { score += 2;  notes.push(`DXY ${dxy}: strong USD — FX headwind`); }
-      else if (dxy > 100) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
-      else if (dxy > 95)  { score += -2; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
+      if (dxy > 130)      { score += 5;  notes.push(`DXY ${dxy}: very strong USD — significant FX headwind`); }
+      else if (dxy > 125) { score += 2;  notes.push(`DXY ${dxy}: strong USD — FX headwind`); }
+      else if (dxy > 120) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
+      else if (dxy > 115) { score += -2; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
       else                { score += -5; notes.push(`DXY ${dxy}: weak USD — strong FX tailwind`); }
     }
 
