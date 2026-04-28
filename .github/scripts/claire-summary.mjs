@@ -17,7 +17,7 @@ const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PORTFOLIO = ["MOS", "ASML", "SMH", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
+const PORTFOLIO = ["MOS", "ASML", "LIN", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -25,7 +25,7 @@ const PORTFOLIO = ["MOS", "ASML", "SMH", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", 
 const TICKER_IDENTITY = {
   "MOS":   { name: "Mosaic Company",       business: "North American fertilizer producer (potash and phosphate)" },
   "ASML":  { name: "ASML Holding",         business: "Dutch company that makes the lithography machines used to print advanced computer chips — the sole supplier of EUV machines worldwide" },
-  "SMH":   { name: "VanEck Semiconductor ETF", business: "basket of the world's biggest semiconductor companies (NVIDIA, TSMC, ASML, Broadcom, etc.)" },
+  "LIN":   { name: "Linde plc",            business: "world's largest industrial gas company — supplies oxygen, nitrogen, hydrogen, helium, and argon to hospitals, factories, and electronics manufacturers under long-term contracts" },
   "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
   "ETHA":  { name: "iShares Ethereum ETF", business: "spot Ethereum exposure (ETHA tracks the price of ether, the second-largest cryptocurrency)" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
@@ -44,7 +44,7 @@ Your job: rewrite each holding's analyst summary into ONE sentence she can under
 TICKER GLOSSARY — use these exact company identities, do not substitute or infer:
 - MOS     = Mosaic Company (North American fertilizer producer)
 - ASML    = ASML Holding (Dutch maker of EUV chipmaking machines)
-- SMH     = VanEck Semiconductor ETF (basket of the world's biggest chip companies)
+- LIN     = Linde plc (world's largest industrial gas supplier — oxygen, nitrogen, hydrogen, etc.)
 - ENB     = Enbridge (Canadian oil & gas pipeline operator)
 - ETHA    = iShares Ethereum ETF (spot Ethereum / ether exposure)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
@@ -58,10 +58,11 @@ CRITICAL DISAMBIGUATION:
 - AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
 - GLNCY is Glencore, not Glencoe or anything else.
 - PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
+- LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
 
 RULES:
 - One sentence per holding. Natural, conversational, not breezy.
-- No jargon: avoid "P/E", "RSI", "yield spread", "forward multiple", "oversold", "basis points", "beta", "composite score", "backlog", "EBITDA", etc.
+- No jargon: avoid "P/E", "RSI", "yield spread", "forward multiple", "oversold", "basis points", "beta", "composite score", "EBITDA", etc.
 - Describe what's happening, don't tell her what to do. "Looks cheap here" not "buy more." "Holding steady" not "hold."
 - No numbers unless a specific number aids understanding. "Down about 8%" is fine; "trading at 32.4x forward earnings" is not.
 - Vary the sentence structure across the 11 holdings — don't start every line with "X is..."
@@ -71,6 +72,7 @@ RULES:
 EXAMPLES of the voice:
 - "MOS is down a bit, but fertilizer prices are steady, so nothing is really wrong with the business."
 - "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
+- "Linde is having a quiet week — industrial gas demand is steady and they keep raising prices a little each quarter, which is the whole story with this one."
 - "Bitcoin has been quiet, which after a big run-up is actually what you want to see."
 - "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
 - "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
