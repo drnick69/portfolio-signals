@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.3 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
+// fetch-market-data.mjs v4.9 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -9,8 +9,18 @@
 // v4.6: WTI crude (DCOILWTICO) + BRL/USD (DEXBZUS) for PBR.A oil/FX regime
 // v4.7: CORN auxiliary quote for MOS agricultural demand regime
 // v4.8: MU auxiliary quote for SMH DRAM cycle regime
+// v4.9: LIN oligopoly_quality_compounder additions:
+//       - APD + AIQUY (Air Liquide ADR) auxiliary quotes WITH metrics for peer P/E comparison
+//       - peer_valuation (LIN P/E premium vs APD/AIQUY average)
+//       - peer_relative (daily return spread LIN vs APD)
+//       - fundamentals (ROI as ROCE proxy + operating margin) added per-symbol from
+//         existing Finnhub metrics call (zero extra API cost)
+//       - data.LIN.backlog loaded from data/lin-backlog.json (manually maintained quarterly)
+//       - macro.dxy (renamed from dxy_proxy — cleaner score-engine consumption)
+//       - macro.us_ism (FRED NAPM — US ISM Manufacturing PMI Composite) for LIN global PMI
+//       - SMH/MU retired (replaced by LIN's peer infrastructure)
 
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync, existsSync } from "fs";
 
 const FK      = process.env.FK;         // Finnhub
 const TD_KEY  = process.env.TD_KEY;     // TwelveData
@@ -23,7 +33,7 @@ if (!FRED_KEY) console.warn("⚠ Missing FRED_KEY — macro data unavailable");
 const SYMBOLS = [
   { symbol: "MOS",   finnhub: "MOS",   td: "MOS" },
   { symbol: "ASML",  finnhub: "ASML",  td: "ASML" },
-  { symbol: "SMH",   finnhub: "SMH",   td: "SMH" },
+  { symbol: "LIN",   finnhub: "LIN",   td: "LIN" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
@@ -35,12 +45,13 @@ const SYMBOLS = [
 ];
 
 // ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
-// RSP = Invesco S&P 500 Equal Weight ETF — used for SPY breadth measurement.
+// needsMetrics: true → also fetch /stock/metric for P/E (used by LIN peer valuation).
 const AUX_SYMBOLS = [
-  { symbol: "RSP", finnhub: "RSP", purpose: "spy_breadth" },
-  { symbol: "COPX", finnhub: "COPX", purpose: "glncy_copper" },  // Global X Copper Miners ETF
-  { symbol: "CORN", finnhub: "CORN", purpose: "mos_ag_demand" },  // Teucrium Corn Fund ETF
-  { symbol: "MU", finnhub: "MU", purpose: "smh_dram_cycle" },     // Micron — DRAM cycle proxy
+  { symbol: "RSP",   finnhub: "RSP",   purpose: "spy_breadth" },
+  { symbol: "COPX",  finnhub: "COPX",  purpose: "glncy_copper" },
+  { symbol: "CORN",  finnhub: "CORN",  purpose: "mos_ag_demand" },
+  { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer", needsMetrics: true },  // Air Products
+  { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer", needsMetrics: true },  // Air Liquide ADR
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -58,7 +69,7 @@ async function fetchJSON(url, label) {
 
 // ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 11 symbols) ────────
 // Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
-// Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range
+// Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range, ROI, op margin.
 async function fetchQuotes() {
   if (!FK) return {};
   const result = {};
@@ -98,6 +109,10 @@ async function fetchQuotes() {
       dividend_yield: metrics["dividendYieldIndicatedAnnual"] ?? null,
       beta: metrics["beta"] ?? null,
       market_cap: metrics["marketCapitalization"] ?? null,
+      // ── NEW v4.9: fundamentals for LIN strategic layer (also collected for all symbols) ──
+      // ROI is closest Finnhub proxy for ROCE (no direct ROCE field).
+      roi: metrics["roiTTM"] ?? metrics["roiAnnual"] ?? null,
+      operating_margin: metrics["operatingMarginTTM"] ?? metrics["operatingMarginAnnual"] ?? null,
     };
 
     const p = result[sym.symbol];
@@ -109,14 +124,16 @@ async function fetchQuotes() {
   return result;
 }
 
-// ─── STAGE 1b: AUXILIARY QUOTES (RSP for SPY breadth) ───────────────────────
-// Quote-only (no metrics needed). Used downstream as breadth indicator.
+// ─── STAGE 1b: AUXILIARY QUOTES ─────────────────────────────────────────────
+// Quote-only by default. Symbols with needsMetrics: true also fetch P/E
+// (used by LIN peer valuation — APD and AIQUY).
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
 
   for (const sym of AUX_SYMBOLS) {
-    console.log(`  [FH-AUX] ${sym.symbol} (${sym.purpose}): quote...`);
+    const wantMetrics = sym.needsMetrics === true;
+    console.log(`  [FH-AUX] ${sym.symbol} (${sym.purpose}): quote${wantMetrics ? " + metrics" : ""}...`);
 
     const q = await fetchJSON(
       `https://finnhub.io/api/v1/quote?symbol=${sym.finnhub}&token=${FK}`,
@@ -129,7 +146,19 @@ async function fetchAuxQuotes() {
         change_pct: q.dp != null ? +q.dp.toFixed(2) : 0,
         previous_close: q.pc ?? null,
       };
-      console.log(`  [FH-AUX] ✓ ${sym.symbol}: $${q.c} (${q.dp >= 0 ? "+" : ""}${q.dp?.toFixed(2)}%)`);
+
+      if (wantMetrics) {
+        await sleep(1100);
+        const m = await fetchJSON(
+          `https://finnhub.io/api/v1/stock/metric?symbol=${sym.finnhub}&metric=all&token=${FK}`,
+          `FH aux-metrics ${sym.symbol}`
+        );
+        const metrics = m?.metric || {};
+        result[sym.symbol].pe = metrics["peBasicExclExtraTTM"] ?? metrics["peTTM"] ?? null;
+      }
+
+      const peStr = result[sym.symbol].pe ? ` PE=${result[sym.symbol].pe}x` : "";
+      console.log(`  [FH-AUX] ✓ ${sym.symbol}: $${q.c} (${q.dp >= 0 ? "+" : ""}${q.dp?.toFixed(2)}%)${peStr}`);
     } else {
       console.log(`  [FH-AUX] ✗ ${sym.symbol}: no quote returned`);
     }
@@ -248,10 +277,6 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
   const start = new Date(Date.now() - 86400000 * 365).toISOString().split("T")[0];
 
   for (const sym of gaps) {
-    // Alpaca uses the base ticker without class suffix for some ADRs
-    // PBR-A on Finnhub → PBR.A on Alpaca (they support dot notation)
-    const alpacaSymbol = sym.symbol.replace(".", "/"); // PBR.A → PBR/A for Alpaca
-
     try {
       const resp = await fetch(
         `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`,
@@ -276,7 +301,7 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
         continue;
       }
 
-      const closes = bars.map(b => b.c); // close prices, oldest first
+      const closes = bars.map(b => b.c);
       const rsi = computeRSI(closes);
       const sma50 = computeSMA(closes, 50);
       const sma200 = computeSMA(closes, 200);
@@ -288,7 +313,6 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
       if (sma50 != null && t.sma50 == null) t.sma50 = sma50;
       if (sma200 != null && t.sma200 == null) t.sma200 = sma200;
 
-      // Recompute MA signal
       const price = quotes[sym.symbol]?.price;
       if (price && t.sma50 && t.sma200) {
         if (price > t.sma50 && price > t.sma200 && t.sma50 > t.sma200) t.ma_signal = "above_both_golden";
@@ -364,16 +388,17 @@ async function fetchMacro() {
   console.log("  [FRED] Fetching macro indicators...");
 
   const series = {
-    dxy_proxy: "DTWEXBGS",
-    us10y: "DGS10",
-    us2y: "DGS2",
-    tips10y: "DFII10",
+    dxy:      "DTWEXBGS",      // Trade-weighted broad USD index (renamed from dxy_proxy in v4.9)
+    us10y:    "DGS10",
+    us2y:     "DGS2",
+    tips10y:  "DFII10",
     fed_funds: "FEDFUNDS",
-    vix: "VIXCLS",
-    hy_oas: "BAMLH0A0HYM2",
-    mxn_usd: "DEXMXUS",           // MXN/USD exchange rate — KOF primary FX signal
-    wti: "DCOILWTICO",             // WTI crude oil — PBR.A primary commodity signal
-    brl_usd: "DEXBZUS",           // BRL/USD exchange rate — PBR.A FX signal
+    vix:      "VIXCLS",
+    hy_oas:   "BAMLH0A0HYM2",
+    mxn_usd:  "DEXMXUS",
+    wti:      "DCOILWTICO",
+    brl_usd:  "DEXBZUS",
+    us_ism:   "NAPM",          // NEW v4.9: ISM Manufacturing PMI Composite — for LIN global PMI
   };
 
   const result = {};
@@ -391,24 +416,12 @@ async function fetchMacro() {
     result.spread_2s10s = +((result.us10y - result.us2y) * 100).toFixed(0);
   }
 
-  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}, WTI=${result.wti ?? "—"}, BRL=${result.brl_usd ?? "—"}`);
+  console.log(`  [FRED] ✓ ${Object.keys(result).length} indicators: VIX=${result.vix ?? "—"}, 10Y=${result.us10y ?? "—"}, HY OAS=${result.hy_oas ?? "—"}, MXN=${result.mxn_usd ?? "—"}, WTI=${result.wti ?? "—"}, BRL=${result.brl_usd ?? "—"}, DXY=${result.dxy ?? "—"}, ISM=${result.us_ism ?? "—"}`);
   return result;
 }
 
 // ─── STAGE 3b: NY FED GSCPI (Global Supply Chain Pressure Index) ────────────
-// Monthly composite of BDI + Harpex (container shipping) + airfreight + PMI
-// supply chain components. Free, no API key needed.
-// Source: https://www.newyorkfed.org/research/policy/gscpi
-//
-// GSCPI interpretation:
-//   0    = historical average
-//   >0   = above-average supply chain pressure (disruptions, high freight rates)
-//   <0   = below-average pressure (calm shipping, low freight rates)
-//   >1.5 = stressed (2021-2022 crisis peaked at ~4.3)
-//   <-1  = unusually calm
-//
-// Attached to _macro.gscpi and _macro.gscpi_date.
-// Used by score-engine.mjs for AMKBY positional + strategic layers.
+// Monthly composite for AMKBY positional + strategic layers.
 async function fetchGSCPI() {
   console.log("  [GSCPI] Fetching NY Fed Global Supply Chain Pressure Index...");
   try {
@@ -418,8 +431,6 @@ async function fetchGSCPI() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
 
     const buffer = Buffer.from(await resp.arrayBuffer());
-
-    // Dynamic import — xlsx must be installed (package.json dependency)
     const XLSX = await import("xlsx");
     const wb = XLSX.read(buffer, { type: "buffer" });
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -427,11 +438,8 @@ async function fetchGSCPI() {
 
     if (!rows || rows.length === 0) throw new Error("Empty spreadsheet");
 
-    // Find the latest row with a GSCPI value
     const lastRow = rows[rows.length - 1];
     const keys = Object.keys(lastRow);
-
-    // Try to find the GSCPI column (flexible matching)
     const gscpiKey = keys.find(k => /gscpi/i.test(k)) || keys[keys.length - 1];
     const dateKey = keys.find(k => /date/i.test(k)) || keys[0];
 
@@ -440,10 +448,8 @@ async function fetchGSCPI() {
 
     if (isNaN(value)) throw new Error(`Could not parse GSCPI value from column "${gscpiKey}"`);
 
-    // Format date (could be Excel serial number or string)
     let dateStr;
     if (typeof dateRaw === "number") {
-      // Excel serial date → JS date
       const excelEpoch = new Date(1899, 11, 30);
       const jsDate = new Date(excelEpoch.getTime() + dateRaw * 86400000);
       dateStr = jsDate.toISOString().split("T")[0];
@@ -465,9 +471,53 @@ async function fetchGSCPI() {
   }
 }
 
+// ─── STAGE 3c: LIN BACKLOG (cached JSON) ────────────────────────────────────
+// LIN reports backlog (sale-of-gas + on-site project pipeline) quarterly in
+// earnings releases — not available via any free API. Manually maintained at
+// data/lin-backlog.json after each earnings call (4×/year). The file format:
+//
+//   {
+//     "yoy_growth_pct": 7.2,
+//     "last_reported_quarter": "Q3 2025",
+//     "value_usd_billions": 8.5,
+//     "report_date": "2025-10-30"
+//   }
+//
+// If the file is missing or older than 100 days, we log a warning and pass
+// through what we have. The score-engine handles missing backlog gracefully —
+// LIN's positional layer will simply skip the backlog signal.
+async function loadLINBacklog() {
+  const path = "data/lin-backlog.json";
+  console.log(`  [LIN-BACKLOG] Loading ${path}...`);
+
+  if (!existsSync(path)) {
+    console.log(`  [LIN-BACKLOG] ⚠ File not found — backlog signal will be unavailable`);
+    console.log(`  [LIN-BACKLOG]   Create ${path} after each LIN earnings (quarterly).`);
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(readFileSync(path, "utf-8"));
+
+    if (data.report_date) {
+      const ageDays = Math.round((Date.now() - new Date(data.report_date).getTime()) / 86400000);
+      data.age_days = ageDays;
+      if (ageDays > 100) {
+        console.log(`  [LIN-BACKLOG] ⚠ STALE: ${ageDays} days since ${data.report_date} (max 100). Update after next earnings.`);
+      }
+    }
+
+    console.log(`  [LIN-BACKLOG] ✓ ${data.yoy_growth_pct >= 0 ? "+" : ""}${data.yoy_growth_pct}% YoY (${data.last_reported_quarter}) — ${data.age_days ?? "?"} days old`);
+    return data;
+  } catch (e) {
+    console.log(`  [LIN-BACKLOG] ✗ Failed to parse: ${e.message}`);
+    return null;
+  }
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.8");
+  console.log("Market Data Pre-Fetch v4.9");
   console.log("==========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -476,7 +526,7 @@ async function main() {
   console.log("─── STAGE 1: QUOTES (Finnhub) ───");
   const quotes = await fetchQuotes();
 
-  // Stage 1b: Auxiliary quotes (RSP for SPY breadth)
+  // Stage 1b: Auxiliary quotes
   console.log("\n─── STAGE 1b: AUXILIARY QUOTES (Finnhub) ───");
   const auxQuotes = await fetchAuxQuotes();
 
@@ -501,8 +551,11 @@ async function main() {
   const gscpiData = await fetchGSCPI();
   Object.assign(macro, gscpiData);
 
+  // Stage 3c: LIN backlog (cached JSON — manually maintained quarterly)
+  console.log("\n─── STAGE 3c: LIN BACKLOG (cached) ───");
+  const linBacklog = await loadLINBacklog();
+
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
-  // Aggressive quality checks: bad data gets nulled out and symbol routed to web search.
   const output = {};
   const needsWebSearch = [];
 
@@ -518,7 +571,6 @@ async function main() {
     if (!hasPrice) issues.push("NO PRICE");
 
     // ── 52-week validation ──
-    // Finnhub returns garbage for ADRs (negative percentages, impossible ranges).
     let w52High = q.week52_high ?? null;
     let w52Low = q.week52_low ?? null;
     let w52Pct = null;
@@ -549,7 +601,7 @@ async function main() {
     const hasRSI = t.rsi14 != null && t.rsi14 >= 0 && t.rsi14 <= 100;
     if (!hasRSI) issues.push("no RSI");
 
-    // ── SMA check ── (validate SMAs are in plausible range vs price)
+    // ── SMA check ──
     let sma50 = t.sma50, sma200 = t.sma200, maSignal = t.ma_signal;
     if (sma50 && hasPrice) {
       if (sma50 > q.price * 5 || sma50 < q.price * 0.1) {
@@ -567,11 +619,9 @@ async function main() {
     if (!hasSMA) issues.push("no SMA");
 
     // ── Route decision ──
-    // Web search if: no price, OR (bad 52w AND no RSI), OR no price AND no RSI
     const insufficient = !hasPrice || (!w52Valid && !hasRSI) || (issues.length >= 4);
     if (insufficient) needsWebSearch.push(sym.symbol);
 
-    // Log
     const grade = issues.length === 0 ? "✓ FULL" : insufficient ? "✗ → WEB SEARCH" : `⚠ PARTIAL (${issues.length} issues)`;
     console.log(`  ${sym.symbol.padEnd(6)} ${grade}`);
     if (issues.length > 0) console.log(`         ${issues.join(" | ")}`);
@@ -601,13 +651,19 @@ async function main() {
         beta: q.beta ?? null,
         marketCap: q.market_cap ?? null,
       },
+      // ── NEW v4.9: fundamentals (per-symbol, primarily for LIN strategic layer) ──
+      // ROI is closest Finnhub proxy for ROCE — LIN's signature durability metric.
+      // Other archetypes ignore this field; LIN's strategic block reads it.
+      fundamentals: {
+        roce_pct: q.roi ?? null,
+        operating_margin_pct: q.operating_margin ?? null,
+      },
       volume: {},
       type: sym.type || "equity",
     };
   }
 
   // ── Attach SPY breadth data from RSP auxiliary quote ────────────────────
-  // The score-engine's positional layer reads data.breadth.* for SPY.
   if (output.SPY && auxQuotes.RSP) {
     const spyPrice = output.SPY.price?.current;
     const spyChange = output.SPY.price?.change_pct;
@@ -624,7 +680,7 @@ async function main() {
         rsp_change_pct: rspChange,
         spy_change_pct: spyChange,
         rsp_spy_ratio: ratio,
-        rsp_spy_spread_pp: spread, // RSP return minus SPY return, in percentage points
+        rsp_spy_spread_pp: spread,
       };
 
       const broadStr = spread == null ? "—"
@@ -640,9 +696,6 @@ async function main() {
   }
 
   // ── Attach ETHA/IBIT ratio for alt-season detection ────────────────────
-  // When ETHA outperforms IBIT, capital is rotating down the risk curve ("alt season").
-  // When IBIT outperforms ETHA, BTC dominance is rising (risk-off within crypto).
-  // Same pattern as RSP/SPY breadth — computed from data we already have.
   if (output.ETHA && output.IBIT) {
     const ethaPrice = output.ETHA.price?.current;
     const ibitPrice = output.IBIT.price?.current;
@@ -658,7 +711,7 @@ async function main() {
         etha_ibit_ratio: ratio,
         etha_change_pct: ethaChange,
         ibit_change_pct: ibitChange,
-        relative_spread_pp: spread, // ETHA return minus IBIT return, in percentage points
+        relative_spread_pp: spread,
       };
 
       const altStr = spread == null ? "—"
@@ -672,9 +725,6 @@ async function main() {
   }
 
   // ── Attach GLNCY/COPX ratio for copper regime detection ────────────────
-  // COPX (Global X Copper Miners ETF) proxies for the copper/base metals complex.
-  // When GLNCY outperforms COPX, market is pricing in diversification + trading arm.
-  // When COPX outperforms GLNCY, pure copper is leading and Glencore lagging.
   if (output.GLNCY && auxQuotes.COPX) {
     const glncyPrice = output.GLNCY.price?.current;
     const copxPrice = auxQuotes.COPX.price;
@@ -691,7 +741,7 @@ async function main() {
         glncy_change_pct: glncyChange,
         copx_change_pct: copxChange,
         copx_price: copxPrice,
-        relative_spread_pp: spread, // GLNCY return minus COPX return
+        relative_spread_pp: spread,
       };
 
       const copperStr = spread == null ? "—"
@@ -705,9 +755,6 @@ async function main() {
   }
 
   // ── Attach MOS/CORN ratio for agricultural demand regime ───────────────
-  // CORN (Teucrium Corn Fund ETF) proxies farmer economics.
-  // When corn is rallying, farmers buy more fertilizer → MOS demand up.
-  // When CORN outperforms MOS, agricultural demand is strong but MOS is lagging.
   if (output.MOS && auxQuotes.CORN) {
     const mosPrice = output.MOS.price?.current;
     const cornPrice = auxQuotes.CORN.price;
@@ -724,7 +771,7 @@ async function main() {
         mos_change_pct: mosChange,
         corn_change_pct: cornChange,
         corn_price: cornPrice,
-        relative_spread_pp: spread, // MOS return minus CORN return
+        relative_spread_pp: spread,
       };
 
       const agStr = spread == null ? "—"
@@ -737,36 +784,80 @@ async function main() {
     }
   }
 
-  // ── Attach SMH/MU ratio for DRAM/memory cycle detection ────────────────
-  // MU (Micron) is the purest DRAM proxy. When MU outperforms SMH, the
-  // commodity memory cycle is leading (early/mid cycle). When SMH outperforms
-  // MU, secular growth (AI/NVIDIA) is carrying the sector.
-  if (output.SMH && auxQuotes.MU) {
-    const smhPrice = output.SMH.price?.current;
-    const muPrice = auxQuotes.MU.price;
-    const smhChange = output.SMH.price?.change_pct;
-    const muChange = auxQuotes.MU.change_pct;
+  // ── NEW v4.9: Attach LIN peer valuation (vs APD + AIQUY) ──────────────
+  // The cleanest valuation signal for LIN is the P/E premium vs APD/AI.PA.
+  // Historical normal range: 5-15%. <5% = exceptional buy. >18% = trim.
+  if (output.LIN) {
+    const linPE = output.LIN.valuation?.trailingPE;
+    const apdPE = auxQuotes.APD?.pe;
+    const aiquyPE = auxQuotes.AIQUY?.pe;
+    const peerPEs = [apdPE, aiquyPE].filter(p => p != null && p > 0);
 
-    if (smhPrice && muPrice) {
-      const ratio = +(smhPrice / muPrice).toFixed(6);
-      const spread = (smhChange != null && muChange != null)
-        ? +(smhChange - muChange).toFixed(3) : null;
+    if (linPE && peerPEs.length > 0) {
+      const peerAvg = peerPEs.reduce((a, b) => a + b, 0) / peerPEs.length;
+      const premiumPct = +(((linPE - peerAvg) / peerAvg) * 100).toFixed(2);
 
-      output.SMH.dram_cycle = {
-        smh_mu_ratio: ratio,
-        smh_change_pct: smhChange,
-        mu_change_pct: muChange,
-        mu_price: muPrice,
-        relative_spread_pp: spread, // SMH return minus MU return
+      output.LIN.peer_valuation = {
+        lin_pe: linPE,
+        apd_pe: apdPE ?? null,
+        ai_pa_pe: aiquyPE ?? null,  // key matches score-engine field expectation
+        peer_avg_pe: +peerAvg.toFixed(2),
+        premium_pct: premiumPct,
+        peer_count: peerPEs.length,
       };
 
-      const dramStr = spread == null ? "—"
-        : spread > 0.5 ? `SMH outperforming MU by ${spread}pp (secular/AI leading, DRAM lagging)`
-        : spread < -0.5 ? `MU outperforming SMH by ${(-spread).toFixed(2)}pp (DRAM cycle recovery leading)`
-        : "inline";
-      console.log(`  SMH DRAM-cycle: SMH/MU=${ratio} | MU $${muPrice} (${muChange >= 0 ? "+" : ""}${muChange}%) | ${dramStr}`);
+      const zone = premiumPct < 5 ? "TIGHT (BUY)" : premiumPct < 15 ? "DESERVED PREMIUM" : premiumPct < 18 ? "STRETCHED" : "RICH (TRIM)";
+      console.log(`  LIN peer-valuation: LIN ${linPE}x | APD ${apdPE ?? "—"}x | AIQUY ${aiquyPE ?? "—"}x | peer avg ${peerAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
     } else {
-      console.log(`  SMH DRAM-cycle: skipped (missing price data)`);
+      const reason = !linPE ? "no LIN P/E" : "no peer P/E (APD/AIQUY unavailable)";
+      console.log(`  LIN peer-valuation: skipped (${reason})`);
+    }
+
+    // ── LIN peer relative (daily return spread vs APD) ─────────────────
+    const linChange = output.LIN.price?.change_pct;
+    const apdChange = auxQuotes.APD?.change_pct;
+    const apdPrice = auxQuotes.APD?.price;
+
+    if (linChange != null && apdChange != null) {
+      const spread = +(linChange - apdChange).toFixed(3);
+
+      output.LIN.peer_relative = {
+        lin_change_pct: linChange,
+        apd_change_pct: apdChange,
+        apd_price: apdPrice ?? null,
+        relative_spread_pp: spread,
+      };
+
+      const peerStr = spread > 0.5 ? `LIN outperforming APD by ${spread}pp (quality premium extending)`
+        : spread < -0.5 ? `APD outperforming LIN by ${(-spread).toFixed(2)}pp (LIN catch-up potential)`
+        : "inline";
+      console.log(`  LIN peer-relative: ${peerStr}`);
+    } else {
+      console.log(`  LIN peer-relative: skipped (no APD daily change)`);
+    }
+
+    // ── LIN backlog (from cached JSON) ─────────────────────────────────
+    if (linBacklog) {
+      output.LIN.backlog = {
+        yoy_growth_pct: linBacklog.yoy_growth_pct ?? null,
+        last_reported_quarter: linBacklog.last_reported_quarter ?? null,
+        value_usd_billions: linBacklog.value_usd_billions ?? null,
+        report_date: linBacklog.report_date ?? null,
+        age_days: linBacklog.age_days ?? null,
+        stale: (linBacklog.age_days ?? 0) > 100,
+      };
+      const staleFlag = output.LIN.backlog.stale ? " ⚠ STALE" : "";
+      console.log(`  LIN backlog: ${linBacklog.yoy_growth_pct >= 0 ? "+" : ""}${linBacklog.yoy_growth_pct}% YoY (${linBacklog.last_reported_quarter})${staleFlag}`);
+    } else {
+      console.log(`  LIN backlog: unavailable — score-engine will skip backlog signal`);
+    }
+
+    // ── LIN fundamentals already attached via per-symbol roi/operating_margin ──
+    const f = output.LIN.fundamentals;
+    if (f.roce_pct != null || f.operating_margin_pct != null) {
+      console.log(`  LIN fundamentals: ROCE(proxy/ROI)=${f.roce_pct ?? "—"}% | Op margin=${f.operating_margin_pct ?? "—"}%`);
+    } else {
+      console.log(`  LIN fundamentals: unavailable from Finnhub metrics`);
     }
   }
 
@@ -774,7 +865,7 @@ async function main() {
   output._meta = {
     needsWebSearch,
     timestamp: new Date().toISOString(),
-    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", gscpi: "nyfed", aux: "finnhub" },
+    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", gscpi: "nyfed", aux: "finnhub", lin_backlog: "data/lin-backlog.json" },
     aux_symbols: Object.keys(auxQuotes),
   };
 
@@ -794,8 +885,9 @@ async function main() {
   console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
-  console.log(`  SMH/MU:         ${output.SMH?.dram_cycle ? `ratio=${output.SMH.dram_cycle.smh_mu_ratio}, MU $${output.SMH.dram_cycle.mu_price}` : "unavailable"}`);
-  console.log(`  Aux (breadth):  ${Object.keys(auxQuotes).length} symbols`);
+  console.log(`  LIN peer P/E:   ${output.LIN?.peer_valuation ? `LIN ${output.LIN.peer_valuation.lin_pe}x vs ${output.LIN.peer_valuation.peer_count}-peer avg ${output.LIN.peer_valuation.peer_avg_pe}x = ${output.LIN.peer_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  LIN backlog:    ${output.LIN?.backlog ? `${output.LIN.backlog.yoy_growth_pct}% YoY (${output.LIN.backlog.last_reported_quarter})${output.LIN.backlog.stale ? " STALE" : ""}` : "unavailable"}`);
+  console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
   writeFileSync("/tmp/market-data.json", JSON.stringify(output, null, 2));
