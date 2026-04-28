@@ -38,9 +38,12 @@
 //   - CYCLICAL_COMMODITY (MOS): seasonal modifier (spring/fall planting cycles),
 //     CORN ratio as ag demand proxy, BRL/USD mild overlay (Brazil operations),
 //     dampened MA/52w at highs, cyclical inverted PE
-//   - SECTOR_BETA (SMH): mildly wider daily bands (NVDA concentration), narrowed
-//     PE (20-30x normal for semis), MU as DRAM cycle proxy, P/B and dividend
-//     yield skipped (meaningless for sector ETF of fabless companies)
+//   - OLIGOPOLY_QUALITY_COMPOUNDER (LIN): tightened RSI 35/70 (low-vol compounder),
+//     compounder MA + inverted 52w (no penalty at highs), P/E premium vs APD/AI.PA
+//     peer avg as primary valuation signal, narrowed yield band (1.1-1.7% aristocrat),
+//     ROCE + op-margin durability checks, DXY FX overlay (~70% non-US rev), backlog
+//     YoY + global PMI composite as positional adds, growth-scare amplifier
+//     (VIX>25 + drag-down day = defensive bid setup)
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -92,7 +95,7 @@ export function scoreTactical(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";
+  const isLIN = archetype === "oligopoly_quality_compounder";
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -363,27 +366,36 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  // ─── SMH-SPECIFIC: SECTOR ETF — NVIDIA CONCENTRATION RISK ───────────────
-  if (isSMH) {
+  // ─── LIN-SPECIFIC: QUALITY COMPOUNDER — LOW VOL + DEFENSIVE BID ──────────
+  if (isLIN) {
     if (rsi != null) {
-      if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: SMH severely oversold`); }
-      else if (rsi < 25) { score += -45; notes.push(`RSI ${rsi}: SMH deeply oversold`); }
-      else if (rsi < 30) { score += -35; notes.push(`RSI ${rsi}: SMH oversold`); }
-      else if (rsi < 35) { score += -20; notes.push(`RSI ${rsi}: SMH mildly oversold`); }
-      else if (rsi < 40) { score += -10; notes.push(`RSI ${rsi}: SMH approaching oversold`); }
-      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: SMH neutral`); }
-      else if (rsi < 68) { score += 8;   notes.push(`RSI ${rsi}: SMH mildly overbought`); }
-      else if (rsi < 75) { score += 18;  notes.push(`RSI ${rsi}: SMH overbought`); }
-      else if (rsi < 80) { score += 35;  notes.push(`RSI ${rsi}: SMH deeply overbought`); }
-      else               { score += 50;  notes.push(`RSI ${rsi}: SMH extreme`); }
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: LIN severe oversold — rare quality compounder opportunity`); }
+      else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: LIN deeply oversold — compounder on sale`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: LIN oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: LIN mildly oversold (tightened band)`); }
+      else if (rsi < 45) { score += -3;  notes.push(`RSI ${rsi}: LIN slight softness`); }
+      else if (rsi <= 65) { score += 0;  notes.push(`RSI ${rsi}: LIN normal trending range`); }
+      else if (rsi < 70) { score += 5;   notes.push(`RSI ${rsi}: LIN healthy momentum`); }
+      else if (rsi < 75) { score += 15;  notes.push(`RSI ${rsi}: LIN overbought (tightened — low vol)`); }
+      else if (rsi < 80) { score += 25;  notes.push(`RSI ${rsi}: LIN deeply overbought`); }
+      else if (rsi < 85) { score += 35;  notes.push(`RSI ${rsi}: LIN extreme — trim bias`); }
+      else               { score += 50;  notes.push(`RSI ${rsi}: LIN parabolic — very rare`); }
     }
 
     const chg = data.price?.change_pct;
     if (chg != null) {
-      if (chg < -6)      { score += -15; notes.push(`SMH daily ${chg}%: sharp decline (NVDA drag?)`); }
-      else if (chg < -4) { score += -8;  notes.push(`SMH daily ${chg}%: notable decline`); }
-      else if (chg > 6)  { score += 12;  notes.push(`SMH daily +${chg}%: sharp rally`); }
-      else if (chg > 4)  { score += 6;   notes.push(`SMH daily +${chg}%: notable rally`); }
+      if (chg < -5)      { score += -15; notes.push(`LIN daily ${chg}%: rare big drop — aggressive buy`); }
+      else if (chg < -3) { score += -8;  notes.push(`LIN daily ${chg}%: sharp drop — buy opportunity`); }
+      else if (chg < -2) { score += -3;  notes.push(`LIN daily ${chg}%: notable for low-vol compounder`); }
+      else if (chg > 5)  { score += 10;  notes.push(`LIN daily +${chg}%: rare sharp rally`); }
+      else if (chg > 3)  { score += 5;   notes.push(`LIN daily +${chg}%: notable rally`); }
+      else if (chg > 2)  { score += 2;   notes.push(`LIN daily +${chg}%: notable for low-vol`); }
+    }
+
+    // Growth-scare amplifier: VIX elevated + LIN dragged down → defensive bid setup
+    if (vix != null && chg != null && vix > 25 && chg < -2) {
+      score += -5;
+      notes.push(`Growth-scare setup: VIX ${vix} + LIN ${chg}% — defensive quality bid will return`);
     }
 
     return { score: clamp(score), notes };
@@ -431,7 +443,7 @@ export function scorePositional(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";
+  const isLIN = archetype === "oligopoly_quality_compounder";
   const ma = data.technicals?.ma_signal;
   if (ma) {
     if (isSPY) {
@@ -466,12 +478,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isENB) {
       const enbMaScores = {
-        "above_both_golden": 0,
-        "above_both": 0,
-        "above_50_below_200": -8,
-        "above_200_below_50": -3,
-        "below_both": -20,
-        "below_both_death": -30,
+        "above_both_golden": 0, "above_both": 0,
+        "above_50_below_200": -8, "above_200_below_50": -3,
+        "below_both": -20, "below_both_death": -30,
       };
       if (enbMaScores[ma] != null) {
         score += enbMaScores[ma];
@@ -479,12 +488,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isAMKBY) {
       const amkbyMaScores = {
-        "above_both_golden": 8,
-        "above_both": 5,
-        "above_50_below_200": -5,
-        "above_200_below_50": 3,
-        "below_both": -12,
-        "below_both_death": -18,
+        "above_both_golden": 8, "above_both": 5,
+        "above_50_below_200": -5, "above_200_below_50": 3,
+        "below_both": -12, "below_both_death": -18,
       };
       if (amkbyMaScores[ma] != null) {
         score += amkbyMaScores[ma];
@@ -492,12 +498,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isETHA) {
       const ethaMaScores = {
-        "above_both_golden": 0,
-        "above_both": 0,
-        "above_50_below_200": -5,
-        "above_200_below_50": -8,
-        "below_both": -18,
-        "below_both_death": -28,
+        "above_both_golden": 0, "above_both": 0,
+        "above_50_below_200": -5, "above_200_below_50": -8,
+        "below_both": -18, "below_both_death": -28,
       };
       if (ethaMaScores[ma] != null) {
         score += ethaMaScores[ma];
@@ -505,12 +508,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isKOF) {
       const kofMaScores = {
-        "above_both_golden": 3,
-        "above_both": 0,
-        "above_50_below_200": -5,
-        "above_200_below_50": 3,
-        "below_both": -15,
-        "below_both_death": -22,
+        "above_both_golden": 3, "above_both": 0,
+        "above_50_below_200": -5, "above_200_below_50": 3,
+        "below_both": -15, "below_both_death": -22,
       };
       if (kofMaScores[ma] != null) {
         score += kofMaScores[ma];
@@ -518,12 +518,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isGLNCY) {
       const glncyMaScores = {
-        "above_both_golden": 8,
-        "above_both": 5,
-        "above_50_below_200": -5,
-        "above_200_below_50": 3,
-        "below_both": -12,
-        "below_both_death": -20,
+        "above_both_golden": 8, "above_both": 5,
+        "above_50_below_200": -5, "above_200_below_50": 3,
+        "below_both": -12, "below_both_death": -20,
       };
       if (glncyMaScores[ma] != null) {
         score += glncyMaScores[ma];
@@ -531,12 +528,9 @@ export function scorePositional(data, macro) {
       }
     } else if (isPBRA) {
       const pbraMaScores = {
-        "above_both_golden": 8,
-        "above_both": 5,
-        "above_50_below_200": -5,
-        "above_200_below_50": 3,
-        "below_both": -12,
-        "below_both_death": -20,
+        "above_both_golden": 8, "above_both": 5,
+        "above_50_below_200": -5, "above_200_below_50": 3,
+        "below_both": -12, "below_both_death": -20,
       };
       if (pbraMaScores[ma] != null) {
         score += pbraMaScores[ma];
@@ -544,16 +538,23 @@ export function scorePositional(data, macro) {
       }
     } else if (isMOS) {
       const mosMaScores = {
-        "above_both_golden": 8,
-        "above_both": 5,
-        "above_50_below_200": -5,
-        "above_200_below_50": 3,
-        "below_both": -12,
-        "below_both_death": -18,
+        "above_both_golden": 8, "above_both": 5,
+        "above_50_below_200": -5, "above_200_below_50": 3,
+        "below_both": -12, "below_both_death": -18,
       };
       if (mosMaScores[ma] != null) {
         score += mosMaScores[ma];
         notes.push(`MOS MA: ${ma} (${mosMaScores[ma] > 0 ? "+" : ""}${mosMaScores[ma]})`);
+      }
+    } else if (isLIN) {
+      const linMaScores = {
+        "above_both_golden": 0, "above_both": 0,
+        "above_50_below_200": -10, "above_200_below_50": -5,
+        "below_both": -25, "below_both_death": -40,
+      };
+      if (linMaScores[ma] != null) {
+        score += linMaScores[ma];
+        notes.push(`LIN MA: ${ma} (${linMaScores[ma] !== 0 ? (linMaScores[ma] > 0 ? "+" : "") + linMaScores[ma] : "normal compounder trend"})`);
       }
     } else {
       const maScores = {
@@ -655,6 +656,14 @@ export function scorePositional(data, macro) {
       else if (w52 > 15) { score += -20; notes.push(`MOS 52w: ${w52}% — lower range, fertilizer trough buy`); }
       else if (w52 > 5)  { score += -30; notes.push(`MOS 52w: ${w52}% — near lows, deep cyclical buy`); }
       else               { score += -35; notes.push(`MOS 52w: ${w52}% — extreme low, max conviction`); }
+    } else if (isLIN) {
+      if (w52 > 95)      { score += 0;   notes.push(`LIN 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`LIN 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`LIN 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`LIN 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`LIN 52w: ${w52}% — real drawdown, compounder on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`LIN 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`LIN 52w: ${w52}% — catastrophic drawdown — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -751,6 +760,11 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -4)  { score += -5;  notes.push(`ENB ${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA > 8)   { score += 5;   notes.push(`ENB ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 5)   { score += 2;   }
+    } else if (isLIN) {
+      if (pctFromSMA < -10)      { score += -15; notes.push(`LIN ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -5)  { score += -8;  notes.push(`LIN ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 15)  { score += 6;   notes.push(`LIN ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`LIN ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -886,14 +900,45 @@ export function scorePositional(data, macro) {
     notes.push(`Season: ${season.label} (${season.modifier >= 0 ? "+" : ""}${season.modifier})`);
   }
 
-  if (isSMH && data.dram_cycle) {
-    const spread = data.dram_cycle.relative_spread_pp;
+  // ─── LIN-SPECIFIC POSITIONAL ADD-ONS ─────────────────────────────────────
+  // Backlog growth (sale-of-gas + on-site project pipeline) — leading indicator,
+  // earnings lag 2-4 quarters. Reported quarterly; pipeline should cache the
+  // most recent figure between reports.
+  if (isLIN && data.backlog) {
+    const yoy = data.backlog.yoy_growth_pct;
+    if (yoy != null) {
+      if (yoy > 12)       { score += -12; notes.push(`LIN backlog +${yoy}% YoY: accelerating — strong forward visibility`); }
+      else if (yoy > 8)   { score += -7;  notes.push(`LIN backlog +${yoy}% YoY: strong growth`); }
+      else if (yoy > 3)   { score += -2;  notes.push(`LIN backlog +${yoy}% YoY: healthy growth`); }
+      else if (yoy > 0)   { score += 0;   notes.push(`LIN backlog +${yoy}% YoY: stable`); }
+      else if (yoy > -5)  { score += 5;   notes.push(`LIN backlog ${yoy}% YoY: decelerating — caution`); }
+      else                { score += 12;  notes.push(`LIN backlog ${yoy}% YoY: contracting — concerning`); }
+    }
+  }
+
+  // Peer relative vs APD (1-month spread)
+  if (isLIN && data.peer_relative) {
+    const spread = data.peer_relative.relative_spread_pp;
     if (spread != null) {
-      if (spread > 3)       { score += 3;  notes.push(`SMH outperforming MU by ${spread}pp — AI/secular leading, DRAM lagging`); }
-      else if (spread > 1)  { score += 1;  notes.push(`SMH mildly outperforming MU (${spread}pp)`); }
-      else if (spread < -3) { score += -5; notes.push(`MU outperforming SMH by ${(-spread).toFixed(2)}pp — DRAM cycle recovery, broad-based`); }
-      else if (spread < -1) { score += -2; notes.push(`MU mildly outperforming SMH (${(-spread).toFixed(2)}pp)`); }
-      else                  { notes.push(`SMH/MU spread: ${spread}pp — inline`); }
+      if (spread > 3)       { score += 3;  notes.push(`LIN outperforming APD by ${spread}pp (1m) — quality premium extending`); }
+      else if (spread > 1)  { score += 1;  notes.push(`LIN mildly outperforming APD (${spread}pp)`); }
+      else if (spread < -3) { score += -5; notes.push(`APD outperforming LIN by ${(-spread).toFixed(2)}pp — LIN catch-up potential`); }
+      else if (spread < -1) { score += -2; notes.push(`APD mildly outperforming LIN (${(-spread).toFixed(2)}pp)`); }
+      else                  { notes.push(`LIN/APD spread: ${spread}pp — inline`); }
+    }
+  }
+
+  // Global PMI composite (US ISM + EU + China — gracefully handles missing fields)
+  if (isLIN) {
+    const pmis = [macro?.us_ism, macro?.eu_pmi, macro?.china_pmi].filter(p => p != null);
+    if (pmis.length > 0) {
+      const avg = pmis.reduce((a, b) => a + b, 0) / pmis.length;
+      const avgFmt = avg.toFixed(1);
+      if (avg > 53)      { score += -3; notes.push(`Global PMI avg ${avgFmt} (n=${pmis.length}): broad expansion — industrial gas tailwind`); }
+      else if (avg > 51) { score += -1; notes.push(`Global PMI avg ${avgFmt}: mild expansion`); }
+      else if (avg > 49) { score += 0;  notes.push(`Global PMI avg ${avgFmt}: neutral`); }
+      else if (avg > 47) { score += 3;  notes.push(`Global PMI avg ${avgFmt}: mild contraction — modest headwind`); }
+      else               { score += 6;  notes.push(`Global PMI avg ${avgFmt}: broad contraction — demand headwind`); }
     }
   }
 
@@ -917,7 +962,7 @@ export function scoreStrategic(data, macro) {
   const isGLNCY = archetype === "diversified_commodity_trader";
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
-  const isSMH = archetype === "sector_beta";
+  const isLIN = archetype === "oligopoly_quality_compounder";
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -1325,41 +1370,85 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
-  if (isSMH) {
-    const pe = data.valuation?.trailingPE;
-    if (pe != null && pe > 0) {
-      if (pe < 15)       { score += -10; notes.push(`SMH P/E ${pe.toFixed(1)}x: cheap for semis — trough or value`); }
-      else if (pe < 20)  { score += -5;  notes.push(`SMH P/E ${pe.toFixed(1)}x: below normal — attractive`); }
-      else if (pe <= 30) { score += 0;   notes.push(`SMH P/E ${pe.toFixed(1)}x: normal semi range`); }
-      else if (pe < 35)  { score += 5;   notes.push(`SMH P/E ${pe.toFixed(1)}x: slightly rich`); }
-      else if (pe < 40)  { score += 10;  notes.push(`SMH P/E ${pe.toFixed(1)}x: rich`); }
-      else if (pe < 50)  { score += 15;  notes.push(`SMH P/E ${pe.toFixed(1)}x: expensive`); }
-      else               { score += 20;  notes.push(`SMH P/E ${pe.toFixed(1)}x: very expensive for sector ETF`); }
-    }
-
-    if (data.dram_cycle) {
-      const spread = data.dram_cycle.relative_spread_pp;
-      if (spread != null) {
-        if (spread > 3)       { score += 5;  notes.push(`SMH vs MU: SMH leading by ${spread}pp — narrow AI-driven rally`); }
-        else if (spread > 1)  { score += 2;  notes.push(`SMH mildly leading MU — secular growth premium`); }
-        else if (spread < -3) { score += -5; notes.push(`MU leading SMH by ${(-spread).toFixed(2)}pp — DRAM recovery, broad-based bullish`); }
-        else if (spread < -1) { score += -2; notes.push(`MU mildly leading — memory cycle strengthening`); }
-        else                  { notes.push(`SMH/MU spread: ${spread}pp — balanced`); }
+  if (isLIN) {
+    // Peer P/E premium is the cleanest valuation signal for LIN
+    // data.peer_valuation = { lin_pe, apd_pe, ai_pa_pe, peer_avg_pe, premium_pct }
+    if (data.peer_valuation && data.peer_valuation.premium_pct != null) {
+      const prem = data.peer_valuation.premium_pct;
+      if (prem < -5)      { score += -30; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: discount — exceptional quality buy (very rare)`); }
+      else if (prem < 0)  { score += -22; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: at parity — rare opportunity`); }
+      else if (prem < 5)  { score += -15; notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: tight premium — buy`); }
+      else if (prem < 10) { score += -7;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: below normal premium`); }
+      else if (prem <= 15){ score += 0;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: deserved premium (normal)`); }
+      else if (prem < 18) { score += 3;   notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: stretched`); }
+      else if (prem < 22) { score += 10;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: rich premium — trim bias`); }
+      else                { score += 18;  notes.push(`LIN P/E +${prem.toFixed(1)}% vs peers: extreme premium — trim`); }
+    } else {
+      // Fallback to absolute P/E if peer data unavailable
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 22)       { score += -10; notes.push(`LIN P/E ${pe.toFixed(1)}x: cheap (peer data unavailable)`); }
+        else if (pe < 26)  { score += -5;  notes.push(`LIN P/E ${pe.toFixed(1)}x: below normal compounder range`); }
+        else if (pe <= 32) { score += 0;   notes.push(`LIN P/E ${pe.toFixed(1)}x: normal compounder range`); }
+        else if (pe < 36)  { score += 5;   notes.push(`LIN P/E ${pe.toFixed(1)}x: rich`); }
+        else               { score += 12;  notes.push(`LIN P/E ${pe.toFixed(1)}x: extreme`); }
       }
     }
 
-    const vix = macro?.vix;
-    if (vix != null) {
-      if (vix > 35)      { score += -8; notes.push(`VIX ${vix}: panic — semi contrarian buy`); }
-      else if (vix > 25) { score += -3; notes.push(`VIX ${vix}: elevated fear — semis oversold?`); }
-      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency`); }
+    // Dividend yield aristocrat band (1.1-1.7% normal, narrow)
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 1.9)       { score += -10; notes.push(`LIN yield ${dy}%: top of historical range — aristocrat-grade buy`); }
+      else if (dy > 1.7)  { score += -5;  notes.push(`LIN yield ${dy}%: above normal — attractive`); }
+      else if (dy > 1.3)  { score += 0;   notes.push(`LIN yield ${dy}%: normal range`); }
+      else if (dy > 1.1)  { score += 3;   notes.push(`LIN yield ${dy}%: slightly stretched`); }
+      else                { score += 8;   notes.push(`LIN yield ${dy}%: stretched — yield compression`); }
     }
 
+    // ROCE durability check (best-in-class >25% — LIN's signature metric)
+    if (data.fundamentals && data.fundamentals.roce_pct != null) {
+      const roce = data.fundamentals.roce_pct;
+      if (roce > 28)      { score += -5; notes.push(`LIN ROCE ${roce}%: exceptional — moat strengthening`); }
+      else if (roce > 25) { score += 0;  notes.push(`LIN ROCE ${roce}%: best-in-class normal`); }
+      else if (roce > 22) { score += 3;  notes.push(`LIN ROCE ${roce}%: slipping below historical`); }
+      else if (roce > 20) { score += 6;  notes.push(`LIN ROCE ${roce}%: concerning for LIN`); }
+      else                { score += 12; notes.push(`LIN ROCE ${roce}%: moat erosion risk`); }
+    }
+
+    // Operating margin durability (best-in-class >30%)
+    if (data.fundamentals && data.fundamentals.operating_margin_pct != null) {
+      const om = data.fundamentals.operating_margin_pct;
+      if (om > 32)       { score += -2; notes.push(`LIN op margin ${om}%: peak pricing power`); }
+      else if (om > 30)  { score += 0;  notes.push(`LIN op margin ${om}%: best-in-class`); }
+      else if (om > 28)  { score += 3;  notes.push(`LIN op margin ${om}%: compressing`); }
+      else               { score += 8;  notes.push(`LIN op margin ${om}%: significant compression`); }
+    }
+
+    // DXY / FX overlay (~70% non-US revenue)
+    if (macro?.dxy != null) {
+      const dxy = macro.dxy;
+      if (dxy > 110)      { score += 5;  notes.push(`DXY ${dxy}: very strong USD — significant FX headwind`); }
+      else if (dxy > 105) { score += 2;  notes.push(`DXY ${dxy}: strong USD — FX headwind`); }
+      else if (dxy > 100) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
+      else if (dxy > 95)  { score += -2; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
+      else                { score += -5; notes.push(`DXY ${dxy}: weak USD — strong FX tailwind`); }
+    }
+
+    // VIX overlay — quality compounder catches defensive bid
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — LIN defensive quality bid`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — LIN as safe haven`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — LIN vulnerable to rotation`); }
+    }
+
+    // TIPS overlay — long-duration compounder rate sensitivity
     const tips = macro?.tips10y;
     if (tips != null) {
-      if (tips > 2.5)    { score += 5;  notes.push(`TIPS ${tips}%: restrictive — semi headwind`); }
-      else if (tips > 2) { score += 2;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
-      else if (tips < 0) { score += -5; notes.push(`TIPS ${tips}%: accommodative — growth tailwind`); }
+      if (tips > 2.5)    { score += 3;  notes.push(`TIPS ${tips}%: restrictive — quality compounder headwind`); }
+      else if (tips > 2) { score += 1;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0) { score += -3; notes.push(`TIPS ${tips}%: accommodative — compounder tailwind`); }
+      else if (tips < 0.5){ score += -1; notes.push(`TIPS ${tips}%: low real rates`); }
     }
 
     return { score: clamp(score), notes };
