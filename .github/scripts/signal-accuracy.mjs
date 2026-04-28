@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.1 — Forward-looking signal accuracy tracker.
 //
 // Reads the signal history CSV, computes N-day forward returns for each
 // past signal, and generates accuracy statistics per holding, per layer,
@@ -17,6 +17,14 @@
 //   Tactical:   1-day, 3-day, 5-day
 //   Positional:  5-day, 10-day, 20-day
 //   Strategic:  20-day, 40-day, 60-day
+//
+// v1.1 — LIN v3 regime propagation:
+// Yesterday-snapshot now propagates regime / regime_pmi / weights from the
+// CSV (columns added in log-signals v3 — currently LIN-only, blank elsewhere)
+// into accuracy.json so calibration-loader v1.1 can surface them in the
+// LLM prompt's CALIBRATION FEEDBACK block. Forward-compatible: if the CSV
+// header doesn't include those columns yet (older history mid-upgrade),
+// every check no-ops and behavior matches v1.0.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -275,6 +283,12 @@ function aggregateStats(forwardReturns) {
 // ─── GENERATE YESTERDAY'S SNAPSHOT ───────────────────────────────────────────
 // For calibration injection: what did each holding score yesterday, and what
 // happened to the price since?
+//
+// v1.1: Also propagates v3 regime context (regime, regime_pmi, weights{t,p,s})
+// when the CSV row carries those columns. They were added by log-signals v3
+// and are LIN-only in current builds — blank cells elsewhere produce empty
+// strings from the CSV parser, which the helpers below convert to null and
+// then omit from the output object so non-LIN holdings stay clean.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -283,10 +297,21 @@ function getYesterdaySnapshot(rows, tradingDates) {
 
   if (yesterdayRows.length === 0) return null;
 
+  const numOrNull = (v) => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+  const strOrNull = (v) => {
+    if (v === null || v === undefined || v === "") return null;
+    const s = String(v).trim();
+    return s ? s : null;
+  };
+
   const snapshot = { date: yesterday, holdings: {} };
 
   for (const row of yesterdayRows) {
-    snapshot.holdings[row.symbol] = {
+    const holding = {
       price: typeof row.price === "number" ? row.price : parseFloat(row.price),
       tactical_score: typeof row.tactical_score === "number" ? row.tactical_score : parseFloat(row.tactical_score),
       positional_score: typeof row.positional_score === "number" ? row.positional_score : parseFloat(row.positional_score),
@@ -295,6 +320,24 @@ function getYesterdaySnapshot(rows, tradingDates) {
       recommendation: row.recommendation,
       role: normalizeRole(row.role),
     };
+
+    // v1.1: v3 regime context — only attached when CSV cells are populated.
+    // Older CSV rows (pre-v3 log-signals) don't have these columns; the
+    // parser leaves row.regime / row.regime_pmi / row.weight_* undefined,
+    // and the helpers + conditional attachments make this a no-op.
+    const regime = strOrNull(row.regime);
+    const regimePmi = numOrNull(row.regime_pmi);
+    const wt = numOrNull(row.weight_t);
+    const wp = numOrNull(row.weight_p);
+    const ws = numOrNull(row.weight_s);
+
+    if (regime != null) holding.regime = regime;
+    if (regimePmi != null) holding.regime_pmi = regimePmi;
+    if (wt != null && wp != null && ws != null) {
+      holding.weights = { t: wt, p: wp, s: ws };
+    }
+
+    snapshot.holdings[row.symbol] = holding;
   }
 
   return snapshot;
