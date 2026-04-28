@@ -15,12 +15,11 @@
 //       - peer_relative (daily return spread LIN vs APD)
 //       - fundamentals (ROI as ROCE proxy + operating margin) added per-symbol from
 //         existing Finnhub metrics call (zero extra API cost)
-//       - data.LIN.backlog loaded from data/lin-backlog.json (manually maintained quarterly)
 //       - macro.dxy (renamed from dxy_proxy — cleaner score-engine consumption)
 //       - macro.us_ism (FRED NAPM — US ISM Manufacturing PMI Composite) for LIN global PMI
 //       - SMH/MU retired (replaced by LIN's peer infrastructure)
 
-import { writeFileSync, readFileSync, existsSync } from "fs";
+import { writeFileSync } from "fs";
 
 const FK      = process.env.FK;         // Finnhub
 const TD_KEY  = process.env.TD_KEY;     // TwelveData
@@ -471,50 +470,6 @@ async function fetchGSCPI() {
   }
 }
 
-// ─── STAGE 3c: LIN BACKLOG (cached JSON) ────────────────────────────────────
-// LIN reports backlog (sale-of-gas + on-site project pipeline) quarterly in
-// earnings releases — not available via any free API. Manually maintained at
-// data/lin-backlog.json after each earnings call (4×/year). The file format:
-//
-//   {
-//     "yoy_growth_pct": 7.2,
-//     "last_reported_quarter": "Q3 2025",
-//     "value_usd_billions": 8.5,
-//     "report_date": "2025-10-30"
-//   }
-//
-// If the file is missing or older than 100 days, we log a warning and pass
-// through what we have. The score-engine handles missing backlog gracefully —
-// LIN's positional layer will simply skip the backlog signal.
-async function loadLINBacklog() {
-  const path = "data/lin-backlog.json";
-  console.log(`  [LIN-BACKLOG] Loading ${path}...`);
-
-  if (!existsSync(path)) {
-    console.log(`  [LIN-BACKLOG] ⚠ File not found — backlog signal will be unavailable`);
-    console.log(`  [LIN-BACKLOG]   Create ${path} after each LIN earnings (quarterly).`);
-    return null;
-  }
-
-  try {
-    const data = JSON.parse(readFileSync(path, "utf-8"));
-
-    if (data.report_date) {
-      const ageDays = Math.round((Date.now() - new Date(data.report_date).getTime()) / 86400000);
-      data.age_days = ageDays;
-      if (ageDays > 100) {
-        console.log(`  [LIN-BACKLOG] ⚠ STALE: ${ageDays} days since ${data.report_date} (max 100). Update after next earnings.`);
-      }
-    }
-
-    console.log(`  [LIN-BACKLOG] ✓ ${data.yoy_growth_pct >= 0 ? "+" : ""}${data.yoy_growth_pct}% YoY (${data.last_reported_quarter}) — ${data.age_days ?? "?"} days old`);
-    return data;
-  } catch (e) {
-    console.log(`  [LIN-BACKLOG] ✗ Failed to parse: ${e.message}`);
-    return null;
-  }
-}
-
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("Market Data Pre-Fetch v4.9");
@@ -550,10 +505,6 @@ async function main() {
   console.log("\n─── STAGE 3b: GSCPI (NY Fed) ───");
   const gscpiData = await fetchGSCPI();
   Object.assign(macro, gscpiData);
-
-  // Stage 3c: LIN backlog (cached JSON — manually maintained quarterly)
-  console.log("\n─── STAGE 3c: LIN BACKLOG (cached) ───");
-  const linBacklog = await loadLINBacklog();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -836,22 +787,6 @@ async function main() {
       console.log(`  LIN peer-relative: skipped (no APD daily change)`);
     }
 
-    // ── LIN backlog (from cached JSON) ─────────────────────────────────
-    if (linBacklog) {
-      output.LIN.backlog = {
-        yoy_growth_pct: linBacklog.yoy_growth_pct ?? null,
-        last_reported_quarter: linBacklog.last_reported_quarter ?? null,
-        value_usd_billions: linBacklog.value_usd_billions ?? null,
-        report_date: linBacklog.report_date ?? null,
-        age_days: linBacklog.age_days ?? null,
-        stale: (linBacklog.age_days ?? 0) > 100,
-      };
-      const staleFlag = output.LIN.backlog.stale ? " ⚠ STALE" : "";
-      console.log(`  LIN backlog: ${linBacklog.yoy_growth_pct >= 0 ? "+" : ""}${linBacklog.yoy_growth_pct}% YoY (${linBacklog.last_reported_quarter})${staleFlag}`);
-    } else {
-      console.log(`  LIN backlog: unavailable — score-engine will skip backlog signal`);
-    }
-
     // ── LIN fundamentals already attached via per-symbol roi/operating_margin ──
     const f = output.LIN.fundamentals;
     if (f.roce_pct != null || f.operating_margin_pct != null) {
@@ -865,7 +800,7 @@ async function main() {
   output._meta = {
     needsWebSearch,
     timestamp: new Date().toISOString(),
-    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", gscpi: "nyfed", aux: "finnhub", lin_backlog: "data/lin-backlog.json" },
+    sources: { quotes: "finnhub", technicals: "twelvedata", macro: "fred", gscpi: "nyfed", aux: "finnhub" },
     aux_symbols: Object.keys(auxQuotes),
   };
 
@@ -886,7 +821,6 @@ async function main() {
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
   console.log(`  LIN peer P/E:   ${output.LIN?.peer_valuation ? `LIN ${output.LIN.peer_valuation.lin_pe}x vs ${output.LIN.peer_valuation.peer_count}-peer avg ${output.LIN.peer_valuation.peer_avg_pe}x = ${output.LIN.peer_valuation.premium_pct}% premium` : "unavailable"}`);
-  console.log(`  LIN backlog:    ${output.LIN?.backlog ? `${output.LIN.backlog.yoy_growth_pct}% YoY (${output.LIN.backlog.last_reported_quarter})${output.LIN.backlog.stale ? " STALE" : ""}` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
