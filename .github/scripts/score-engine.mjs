@@ -42,8 +42,8 @@
 //     compounder MA + inverted 52w (no penalty at highs), P/E premium vs APD/AI.PA
 //     peer avg as primary valuation signal, narrowed yield band (1.1-1.7% aristocrat),
 //     ROCE + op-margin durability checks, DXY FX overlay (~70% non-US rev) on
-//     FRED DTWEXBGS scale (2006=100, ~120-130 typical), backlog YoY + global PMI
-//     composite as positional adds, growth-scare amplifier (VIX>25 + drag-down day)
+//     FRED DTWEXBGS scale (2006=100, ~120-130 typical), global PMI composite
+//     positional add, growth-scare amplifier (VIX>25 + drag-down day)
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -901,21 +901,6 @@ export function scorePositional(data, macro) {
   }
 
   // ─── LIN-SPECIFIC POSITIONAL ADD-ONS ─────────────────────────────────────
-  // Backlog growth (sale-of-gas + on-site project pipeline) — leading indicator,
-  // earnings lag 2-4 quarters. Reported quarterly; pipeline should cache the
-  // most recent figure between reports.
-  if (isLIN && data.backlog) {
-    const yoy = data.backlog.yoy_growth_pct;
-    if (yoy != null) {
-      if (yoy > 12)       { score += -12; notes.push(`LIN backlog +${yoy}% YoY: accelerating — strong forward visibility`); }
-      else if (yoy > 8)   { score += -7;  notes.push(`LIN backlog +${yoy}% YoY: strong growth`); }
-      else if (yoy > 3)   { score += -2;  notes.push(`LIN backlog +${yoy}% YoY: healthy growth`); }
-      else if (yoy > 0)   { score += 0;   notes.push(`LIN backlog +${yoy}% YoY: stable`); }
-      else if (yoy > -5)  { score += 5;   notes.push(`LIN backlog ${yoy}% YoY: decelerating — caution`); }
-      else                { score += 12;  notes.push(`LIN backlog ${yoy}% YoY: contracting — concerning`); }
-    }
-  }
-
   // Peer relative vs APD (1-month spread)
   if (isLIN && data.peer_relative) {
     const spread = data.peer_relative.relative_spread_pp;
