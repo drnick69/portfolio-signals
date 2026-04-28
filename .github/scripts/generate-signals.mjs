@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v7.2 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v7.3 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0: calibration feedback, confidence bands, accuracy tracking integration.
@@ -17,6 +17,15 @@
 // v7.2: LIN oligopoly_quality_compounder (peer P/E premium vs APD/AI.PA as primary valuation, backlog YoY,
 //       ROCE + op-margin durability, DXY FX overlay, global PMI composite, growth-scare amplifier, 20/35/45).
 //       SMH retired — replaced by LIN.
+// v7.3: LIN v3 deep upgrade — adds ASU capacity utilization (the core ops metric), like-for-like price/mix
+//       ex-FX (replaces categorical moat field), BBB OAS credit-spread overlay (leads backlog 6-12mo via
+//       project-sanctioning IRR math), EPS estimate revisions trend (30d/90d), triangulated peer-relative
+//       (LIN vs APD AND AI.PA), peer P/E premium 6M delta (direction over level), IV/RV compression,
+//       QUAL factor flow, deterministic growth-scare (SPY 10D drawdown + LIN outperformance), H2 layer
+//       concretized (contracts $ + subsidy regime + green/grey LCOE delta), regime-conditional composite
+//       weights gated by geo-weighted PMI (>55: 25/40/35 expansion, 48-55: 20/35/45 neutral, <48:
+//       15/30/55 contraction). Per-archetype blend weights for LIN (65/60/40 vs default 70/50/30).
+//       Result hoists regime/regime_pmi/weights to top level for clean downstream consumption.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -189,6 +198,87 @@ function buildPrompt(h, detScores) {
     linPmiLine = `Global Mfg PMI: US ISM ${macro.us_ism ?? "—"} | EU ${macro.eu_pmi ?? "—"} | China ${macro.china_pmi ?? "—"} | Avg: ${avg ?? "—"} (${regime})`;
   }
 
+  // ── V3: BBB OAS — leads LIN backlog 6-12mo via project-sanctioning IRR math
+  let linBbbOasLine = null;
+  if (isLIN && macro.bbb_oas_bps != null) {
+    const oas = macro.bbb_oas_bps;
+    const change = macro.bbb_oas_1m_change_bps;
+    const regime = oas < 130 ? "TIGHT" : oas < 160 ? "NORMAL" : oas < 200 ? "WIDENING" : "WIDE";
+    const trend = change != null ? ` | 1m: ${change >= 0 ? "+" : ""}${change}bps` : "";
+    linBbbOasLine = `BBB OAS: ${oas}bps (${regime})${trend} — leads LIN backlog 6-12mo via capex-IRR math`;
+  }
+
+  // ── V3: ASU utilization + price/mix ex-FX (the operational core)
+  let linOpsLine = null;
+  if (isLIN && md.fundamentals && (md.fundamentals.asu_utilization_pct != null || md.fundamentals.price_mix_ex_fx_pct != null)) {
+    const u = md.fundamentals.asu_utilization_pct;
+    const px = md.fundamentals.price_mix_ex_fx_pct;
+    const uZone = u == null ? "" : u > 85 ? " (TIGHT — pricing power)" : u > 80 ? " (HEALTHY)" : u > 75 ? " (NORMAL)" : " (LOOSE — margin pressure)";
+    const pxZone = px == null ? "" : px > 2 ? " (MOAT WORKING)" : px > 0 ? " (POSITIVE)" : " (EROSION RISK)";
+    linOpsLine = `ASU util: ${u != null ? u.toFixed(1) + "%" + uZone : "—"} | Price/mix ex-FX: ${px != null ? (px >= 0 ? "+" : "") + px.toFixed(1) + "%" + pxZone : "—"}`;
+  }
+
+  // ── V3: EPS estimate revisions trend (FactSet/Refinitiv consensus delta)
+  let linEpsRevLine = null;
+  if (isLIN && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 1 ? " (UPWARD)" : r90 < -1 ? " (DOWNWARD)" : " (STABLE)";
+    linEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
+  // ── V3: Triangulated peer-relative — vs AI.PA (in addition to APD)
+  let linPeerAipaLine = null;
+  if (isLIN && md.peer_relative_aipa) {
+    const sp = md.peer_relative_aipa.relative_spread_pp;
+    const dir = sp == null ? "" : sp > 1 ? " (LIN leading)" : sp < -1 ? " (AI.PA leading — triangulation supports buy)" : " (inline)";
+    linPeerAipaLine = `LIN/AI.PA 1m spread: ${sp != null ? (sp >= 0 ? "+" : "") + sp + "pp" : "—"}${dir}`;
+  }
+
+  // ── V3: Premium 6M delta — direction matters more than level
+  let linPremiumDeltaLine = null;
+  if (isLIN && md.peer_valuation?.premium_6m_delta_pp != null) {
+    const d = md.peer_valuation.premium_6m_delta_pp;
+    const dir = d < -3 ? " (COMPRESSING — buy bias)" : d > 3 ? " (EXPANDING — trim bias)" : " (STABLE)";
+    linPremiumDeltaLine = `Peer P/E premium 6M Δ: ${d >= 0 ? "+" : ""}${d.toFixed(1)}pp${dir}`;
+  }
+
+  // ── V3: H2 layer — contracts $, subsidy regime, green/grey LCOE gap
+  let linH2Line = null;
+  if (isLIN && md.h2_layer) {
+    const h2 = md.h2_layer;
+    const c = h2.contracts_90d_usd_m;
+    const cZone = c == null ? "" : c > 500 ? " (STRONG)" : c > 100 ? " (NORMAL)" : " (SLOW)";
+    const reg = h2.subsidy_regime || "—";
+    const gap = h2.lcoe_gap_usd_kg;
+    const gapDelta = h2.lcoe_gap_6m_delta;
+    const gapDir = gapDelta == null ? "" : gapDelta < -0.5 ? " (CLOSING — H2 thesis activating)" : gapDelta > 0.5 ? " (WIDENING — H2 thesis stalled)" : "";
+    linH2Line = `H2 layer: contracts ${c != null ? "$" + c.toFixed(0) + "M/90d" + cZone : "—"} | Subsidy: ${reg} | Green/grey LCOE: ${gap != null ? "$" + gap.toFixed(2) + "/kg" : "—"}${gapDelta != null ? " (6m Δ " + (gapDelta >= 0 ? "+" : "") + gapDelta.toFixed(2) + ")" + gapDir : ""}`;
+  }
+
+  // ── V3: Tactical extras — IV/RV, QUAL factor flow, growth-scare context
+  let linTacticalExtrasLine = null;
+  if (isLIN && (md.tactical_extras || md.factor_flow)) {
+    const iv = md.tactical_extras?.iv_rv_ratio;
+    const q = md.factor_flow?.qual_vs_spy_30d_pp;
+    const dd = md.tactical_extras?.spy_10d_drawdown_pct;
+    const lo = md.tactical_extras?.lin_vs_spy_10d_pp;
+    const ivLabel = iv != null ? `IV/RV ${iv.toFixed(2)}${iv < 0.9 ? " (compressed — catalyst hunt)" : iv > 1.2 ? " (elevated)" : ""}` : null;
+    const qLabel = q != null ? `QUAL vs SPY (30d): ${q >= 0 ? "+" : ""}${q.toFixed(1)}pp${q > 1 ? " (quality bid active)" : q < -1 ? " (quality under pressure)" : ""}` : null;
+    const ddLabel = (dd != null && lo != null) ? `SPY 10d ${dd.toFixed(1)}% / LIN over SPY ${lo >= 0 ? "+" : ""}${lo.toFixed(1)}pp${dd < -3 && lo > 0.5 ? " (growth-scare setup)" : ""}` : null;
+    const parts = [ivLabel, qLabel, ddLabel].filter(Boolean);
+    if (parts.length > 0) linTacticalExtrasLine = parts.join(" | ");
+  }
+
+  // ── V3: Active regime + composite weights — engine output, useful context
+  let linRegimeLine = null;
+  if (isLIN && detScores.regime) {
+    const w = detScores.weights;
+    const wStr = w ? `T=${Math.round(w.t * 100)}% / P=${Math.round(w.p * 100)}% / S=${Math.round(w.s * 100)}%` : "—";
+    const pmi = detScores.regimePmi != null ? detScores.regimePmi.toFixed(1) : "—";
+    linRegimeLine = `Active regime: ${detScores.regime.toUpperCase()} (geo-wgt PMI ${pmi}) → composite weights: ${wStr}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -211,6 +301,14 @@ function buildPrompt(h, detScores) {
     linPeerRelativeLine,     // ← NEW
     linDxyLine,              // ← NEW
     linPmiLine,              // ← NEW
+    linBbbOasLine,           // ← V3
+    linOpsLine,              // ← V3 (ASU util + price/mix ex-FX)
+    linEpsRevLine,           // ← V3
+    linPeerAipaLine,         // ← V3 (AI.PA triangulation)
+    linPremiumDeltaLine,     // ← V3 (peer P/E premium 6M direction)
+    linH2Line,               // ← V3 (H2 layer concretized)
+    linTacticalExtrasLine,   // ← V3 (IV/RV + QUAL + growth-scare)
+    linRegimeLine,           // ← V3 (active regime + active weights)
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     (isMOS && md.ag_demand) ? `MOS/CORN: ratio ${md.ag_demand.mos_corn_ratio ?? "—"} | CORN $${md.ag_demand.corn_price ?? "—"} (${md.ag_demand.corn_change_pct >= 0 ? "+" : ""}${md.ag_demand.corn_change_pct}%) | Spread: ${md.ag_demand.relative_spread_pp != null ? (md.ag_demand.relative_spread_pp >= 0 ? "+" : "") + md.ag_demand.relative_spread_pp + "pp" : "—"}` : null,
@@ -487,50 +585,71 @@ SCORING: MOS is more volatile than consumer staples but less extreme than shippi
 
   // ── NEW: LIN-specific guidance ────────────────────────────────────────────
   const linGuidance = isLIN ? `
-CRITICAL — LIN-SPECIFIC SCORING GUIDANCE:
+CRITICAL — LIN-SPECIFIC SCORING GUIDANCE (V3):
 LIN is Linde plc — world's #1 industrial gas company in a 3-player oligopoly with Air Products (APD) and Air Liquide (AI.PA). Quality compounder, 30+ year Dividend Aristocrat, ~30% on-site take-or-pay contracts with inflation pass-through. Best-in-class operator: ROCE >25%, operating margin >30%.
 
+V3 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+The deterministic engine now scores all of the following quantitatively. If you agree with the quant's score on a layer, return a similar number — your job is what numbers can't capture, not to repeat them.
+• Peer P/E premium vs APD/AI.PA + 6M delta direction (engine treats compression as buy bias)
+• ROCE durability + operating margin trend
+• ASU capacity utilization (THE core operational metric for industrial gas — high util = pricing power)
+• Like-for-like price/mix ex-FX (replaces categorical moat checks — actual moat measurement)
+• EPS estimate revisions trend (30d / 90d, FactSet/Refinitiv consensus delta)
+• BBB OAS credit spread + 1m change (leads backlog 6-12mo via project-sanctioning IRR math)
+• IV/RV compression (catalyst-hunt setup) and QUAL factor flow vs SPY
+• Deterministic growth-scare amplifier (SPY 10d drawdown + LIN outperformance)
+• H2 layer concrete metrics: contract dollar value 90d trailing, subsidy regime, green/grey LCOE gap + 6m direction
+• Triangulated peer-relative — LIN vs APD AND AI.PA spreads both scored
+• DXY FX overlay (LIN ~70% non-US revenue)
+• Geo-weighted PMI composite (40/30/30 Americas/EMEA/APAC) drives REGIME-CONDITIONAL composite weights:
+  - Expansion (PMI >55): 25/40/35 — tilt toward operating leverage
+  - Neutral (PMI 48-55): 20/35/45 — default compounder weights
+  - Contraction (PMI <48): 15/30/55 — tilt toward valuation re-rating
+  See "Active regime" line in market data above — interpret in line with the live regime.
+
 WHAT DRIVES LIN (in order of importance):
-1. PEER VALUATION DISCIPLINE: LIN trades at a premium to APD/AI.PA because it deserves one (highest ROCE, best margins, most contracted revenue). The cleanest valuation signal is the premium spread. Historical normal range: 5-15%. Premium <5% is exceptional buy. Premium >18% is trim. The deterministic engine scores this. If you agree with the quant's strategic score, return similar.
+1. PEER VALUATION DISCIPLINE: LIN trades at a premium to APD/AI.PA because it deserves one (highest ROCE, best margins, most contracted revenue). The cleanest valuation signal is the premium spread + its 6M direction. Engine scores both. If you agree, return similar.
 2. STRUCTURAL TAILWINDS — multi-year compounding drivers (THIS IS YOUR PRIMARY VALUE-ADD):
-   • Hydrogen economy buildout: LIN is the global #1 H2 producer (blue + green). Mega-project announcements (>$1B) are major catalysts. Watch IRA subsidy implementation, EU Green Deal H2 strategy, customer offtake agreements.
+   • Hydrogen economy buildout: LIN is the global #1 H2 producer (blue + green). Mega-project announcements (>$1B) are major catalysts. Watch IRA 45V tax credit guidance, EU H2 Bank auctions, customer offtake agreements (steel, ammonia, refining). Engine sees the contract $ — you assess offtake quality and policy momentum.
    • Decarbonization capex: CCUS deployments, customer Net Zero commitments driving demand for industrial gas in carbon capture chains.
    • Semi fab buildouts: Specialty gases (neon, helium, ultra-high-purity nitrogen, argon) for TSMC Arizona, Samsung Texas, Intel Ohio, Micron New York. Each fab = multi-year on-site contract.
 3. BACKLOG GROWTH: Sale-of-gas + on-site project pipeline, reported quarterly. Leading indicator — earnings lag 2-4 quarters. Engine scores YoY growth.
 
 WHAT NOT TO PENALIZE:
 • Proximity to 52-week highs — normal state for a compounder
-• RSI 60-70 — normal range for low-volatility quality stock (LIN daily moves typically 0.5-1.5%)
+• RSI 60-70 — normal range for low-volatility quality stock (LIN daily moves typically 0.5-1.5%, engine has tightened band 35/70)
 • Trailing P/E 26-32x — normal compounder range
 • P/B (high due to Praxair merger goodwill — the metric is uninformative for LIN)
 • Premium to APD/AI.PA in the 5-15% range — that IS the quality moat being priced
+• Active regime context: don't fight the regime weights. If engine is in CONTRACTION mode (defensive bid), structural strategic signals matter more than tactical noise.
 
-WHAT EARNS BUY BIAS:
-• Premium to peers <5% (rare quality discount — exceptional setup, market is mispricing the moat)
-• Yield in top quartile of historical range (>1.7%, aristocrat-grade)
-• LIN drawdown >10% in broad growth scares while fundamentals intact (defensive bid will return — engine has growth-scare amplifier for VIX>25 + drag-down day)
-• Mega-scale hydrogen project announcement (LNG-equivalent industrial gas project win)
+WHAT EARNS BUY BIAS (in addition to engine signals):
+• Mega-scale hydrogen project announcement (LNG-equivalent industrial gas project win — engine sees the contract $ but not the strategic significance)
 • Semi capex super-cycle confirmation (multiple fab announcements in same quarter)
-• Backlog growth >8% YoY accelerating
+• IRA 45V or EU H2 Bank tightening interpretation that broadens green H2 economics
+• Earnings beat with backlog acceleration vs consensus (the engine sees the metric, not the surprise)
+• Defensive bid setup confirmation: engine flags growth-scare via SPY/LIN 10D math; you confirm it's macro-driven not LIN-specific
 
-WHAT EARNS TRIM BIAS:
-• Premium to peers >18% (market overpaying for the quality moat)
-• Yield compressing below 1.1% (stretched, low margin of safety)
-• Backlog growth turning negative + margins compressing simultaneously
-• ROCE slipping below 22% (moat erosion signal — quality eroding)
-• Operating margin compressing below 28% with no offsetting tailwind
+WHAT EARNS TRIM BIAS (in addition to engine signals):
+• Mega-cap rotation away from quality (engine sees QUAL flow direction; you confirm narrative)
+• Capital misallocation news: large value-destroying M&A
+• Backlog growth turning negative + margins compressing simultaneously (multi-engine signals confirming)
+• ROCE slipping below 22% with structural cause (moat erosion, not just timing)
+• Price/mix ex-FX going negative (engine flags moat erosion risk; you assess durability)
 
-YOUR VALUE-ADD FOR LIN:
-• Hydrogen pipeline depth: project announcements, government policy implementation (IRA 45V tax credits, EU H2 Bank auctions), customer offtake commitments (steel, ammonia, refining)
-• Decarbonization momentum: CCUS deployments, industrial customer Net Zero commitments, blue-vs-green H2 economics
-• Semi fab buildout cadence: TSMC Arizona ramp, Samsung Texas timing, Intel Ohio status, Micron NY, China export controls impact on global capex flow
-• Capital allocation discipline: buyback pace (~3-4% annual), bolt-on M&A activity, dividend growth sustainability (target 5-10% annually)
-• FX: ~70% non-US revenue. DXY direction matters for translated EPS — engine scores this.
-• Pricing power durability: contract repricing in inflationary periods (LIN's on-site contracts have inflation pass-through clauses)
-• Gas-mix shift: helium scarcity pricing, neon supply (Ukraine pre-war was 50% global), specialty gas margins
+YOUR VALUE-ADD FOR LIN (REFOCUSED):
+With the engine scoring 30+ data points, your job is qualitative interpretation of what numbers can't capture:
+• Mega-project announcements: H2 plant wins >$1B (each is a multi-day move catalyst), LNG ammonia offtake commitments, semi fab on-site contracts (e.g., TSMC Arizona, Samsung Texas, Intel Ohio, Micron NY)
+• Regulatory implementation specifics: IRA 45V tax credit guidance evolution, EU H2 Bank auction outcomes, JP/KR Contracts-for-Difference structure
+• Customer offtake quality: who is signing? Steel? Ammonia? Refining? Government-backed or private? Take-or-pay vs spot?
+• Capital allocation pivots: special dividend signals, large M&A (cylinder business in EM, healthcare gases), buyback acceleration beyond ~3-4% baseline
+• Earnings beats/misses with backlog inflection — the engine sees the metric, not the surprise vs consensus
+• Specialty gas dynamics: helium scarcity pricing, neon supply (Ukraine pre-war was 50% global), rare-gas margins
+• Competitive moves: APD's reset under new CEO, AI.PA's regional strategy
+• China export-control impact on global semi capex flow (and thus on-site contract pipeline)
 
 MOST DAYS SHOULD BE NEUTRAL:
-LIN is a quality compounder with low daily vol. Composite scores between -5 and +5 roughly 80% of trading days. Meaningful scores appear during: peer premium dislocations, growth-scare drag-downs, mega-project announcements, capital allocation pivots (special dividends, big M&A), or earnings beats/misses with backlog inflection.
+LIN is a quality compounder with low daily vol. Composite scores between -5 and +5 roughly 80% of trading days. Meaningful scores appear during: peer premium dislocations (engine flags), H2 mega-project announcements (you flag), regulatory pivots (you flag), or earnings beats/misses with backlog inflection.
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -638,7 +757,7 @@ CRITICAL — MOS SCORING: The Mosaic Company, world's largest finished phosphate
 
   // ── NEW: LIN guidance (abbreviated for web search path) ──
   const linGuidance = isLIN ? `
-CRITICAL — LIN SCORING: Linde plc, world's #1 industrial gas company in 3-player oligopoly (LIN/APD/AI.PA). Quality compounder, 30+ year Dividend Aristocrat, ROCE >25%, op margin >30%. Do NOT penalize 52w proximity, RSI 60-70, P/E 26-32x, or peer premium 5-15% — all normal for low-vol best-in-class compounder. The cleanest valuation signal is P/E premium vs APD+AI.PA peer average (5-15% normal, <5% buy, >18% trim). Search for: LIN P/E vs APD and Air Liquide, hydrogen project pipeline (LIN is global H2 leader — blue + green, IRA 45V tax credits, EU H2 Bank), semi fab capex announcements (TSMC Arizona, Samsung Texas, Intel Ohio, Micron NY drive on-site contracts), decarbonization/CCUS deployments, backlog growth (sale-of-gas + on-site, leading indicator), ROCE durability >25%, op margin >30%, DXY direction (~70% non-US revenue), dividend growth (5-10% normal), buyback pace (~3-4% annual). Most days = NEUTRAL. Meaningful scores: peer premium dislocations, growth-scare drag-downs, mega-project wins.
+CRITICAL — LIN SCORING (V3): Linde plc, world's #1 industrial gas company in 3-player oligopoly (LIN/APD/AI.PA). Quality compounder, 30+ year Dividend Aristocrat, ROCE >25%, op margin >30%. Do NOT penalize 52w proximity, RSI 60-70, P/E 26-32x, or peer premium 5-15% — all normal for low-vol best-in-class compounder. Composite weights are regime-conditional on geo-weighted PMI (>55: 25/40/35 expansion · 48-55: 20/35/45 neutral · <48: 15/30/55 contraction). Cleanest valuation signal is P/E premium vs APD+AI.PA peer avg with 6M direction (compressing = buy bias even if level is normal). Search for: LIN P/E vs APD and Air Liquide (current + 6mo ago), ASU capacity utilization disclosed in earnings, like-for-like price/mix ex-FX from segment reporting, BBB OAS credit spread (FRED BAMLC0A4CBBB), EPS revisions from FactSet/Refinitiv, hydrogen project pipeline (LIN is global H2 leader, IRA 45V tax credits, EU H2 Bank auctions, contracts $ trailing 90d), green/grey LCOE gap (current + 6mo ago), semi fab capex (TSMC Arizona, Samsung Texas, Intel Ohio, Micron NY drive on-site contracts), decarbonization/CCUS deployments, backlog growth (sale-of-gas + on-site, leading indicator), DXY direction (~70% non-US revenue), QUAL ETF performance vs SPY (30d). Most days = NEUTRAL. Meaningful scores: peer premium dislocations, growth-scare drag-downs, mega-project wins, regulatory pivots.
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -737,7 +856,9 @@ async function scoreHolding(holding, useWebSearch) {
     const { parsed: llm, elapsed, tokIn, tokOut } = await fetchLLMScore(holding, prompt, useWebSearch);
     console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok)`);
 
-    const blended = blendScores(detScores, llm, holding.weights);
+    // V3: pass archetype so blendScores activates per-archetype overrides (LIN gets 65/60/40 vs default 70/50/30).
+    // Use detScores.weights so LIN's regime-conditional composite weights win over upstream holding.weights.
+    const blended = blendScores(detScores, llm, detScores.weights || holding.weights, holding.archetype);
 
     const price = {};
     if (md.price?.current) price.current = md.price.current;
@@ -752,6 +873,11 @@ async function scoreHolding(holding, useWebSearch) {
       symbol: holding.symbol,
       price: { ...price, ...(llm.price || {}) },
       ...blended,
+      // V3: hoist regime context to top level for clean downstream consumption
+      // (log-signals, paper-trader, dashboard all look here first; null for non-LIN)
+      regime: detScores.regime,
+      regime_pmi: detScores.regimePmi,
+      weights: detScores.weights,
       confidence,
       key_metric: llm.key_metric || { name: "", value: "" },
       risks: llm.risks || [],
@@ -762,7 +888,8 @@ async function scoreHolding(holding, useWebSearch) {
     if (md.price?.current) result.price.current = md.price.current;
     if (md.price?.change_pct != null) result.price.change_pct = md.price.change_pct;
 
-    console.log(`  ✓ ${holding.symbol}: DET=${detScores.composite.score} + LLM=${llm.composite?.score ?? 0} → BLENDED=${blended.composite.score} [confidence: ${confidence.level}]`);
+    const regimeStr = detScores.regime ? ` [regime: ${detScores.regime}]` : "";
+    console.log(`  ✓ ${holding.symbol}: DET=${detScores.composite.score} + LLM=${llm.composite?.score ?? 0} → BLENDED=${blended.composite.score} [confidence: ${confidence.level}]${regimeStr}`);
     return result;
   } catch (e) {
     console.error(`  ✗ ${holding.symbol}: ${e.message}`);
@@ -866,13 +993,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.2 — All 11 holdings optimized (LIN oligopoly quality compounder with peer P/E premium + backlog YoY + global PMI; SMH retired)</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.3 — All 11 holdings optimized. LIN v3 deep upgrade: regime-conditional composite weights (PMI-gated), BBB OAS credit-spread overlay, ASU utilization + price/mix ex-FX, EPS revisions, AI.PA peer triangulation, peer P/E premium 6M delta, H2 layer concretized (contracts $ + subsidy + LCOE gap). SMH retired.</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v7.2");
+  console.log("Portfolio Strategy Signal Generator v7.3");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
