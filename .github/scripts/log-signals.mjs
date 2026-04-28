@@ -64,7 +64,7 @@ const CSV_HEADERS = [
   "alt_season_spread_pp",     // ETHA (ETHA vs IBIT)
   "copper_regime_spread_pp",  // GLNCY (GLNCY vs COPX)
   "ag_demand_spread_pp",      // MOS (MOS vs CORN)
-  "dram_cycle_spread_pp",     // SMH (SMH vs MU)
+  "dram_cycle_spread_pp",     // legacy SMH (SMH vs MU) — retained for CSV back-compat
 
   // Deterministic sub-scores (pre-blend)
   "det_tactical", "det_positional", "det_strategic", "det_composite",
@@ -85,6 +85,16 @@ const CSV_HEADERS = [
   "key_metric_name", "key_metric_value",
   "data_source",
   "confidence_level", "confidence_score", "confidence_missing",
+
+  // ─── LIN-era additions (appended for CSV back-compat) ───────────────────
+  // New macro fields
+  "dxy", "us_ism", "eu_pmi", "china_pmi",
+  // LIN-specific feeds
+  "lin_peer_pe_premium_pct",   // LIN P/E premium vs APD+AI.PA peer avg
+  "lin_backlog_yoy_pct",       // LIN sale-of-gas + on-site backlog YoY
+  "lin_peer_relative_spread_pp", // LIN vs APD 1m spread
+  "roce_pct",                  // LIN's signature metric (best-in-class >25%)
+  "operating_margin_pct",      // LIN op margin (best-in-class >30%)
 ].join(",");
 
 const csvExists = existsSync(CSV_PATH);
@@ -189,6 +199,19 @@ for (const s of normalized) {
     s.confidence?.level ?? "",
     s.confidence?.score ?? "",
     esc((s.confidence?.missing || []).join(";")),
+
+    // ─── LIN-era additions ────────────────────────────────────────────────
+    // New macro fields (populated for every row — same macro applies to all)
+    macro.dxy ?? "",
+    macro.us_ism ?? "",
+    macro.eu_pmi ?? "",
+    macro.china_pmi ?? "",
+    // LIN-specific feeds (only populated on LIN row, blank for others)
+    md.peer_valuation?.premium_pct ?? "",
+    md.backlog?.yoy_growth_pct ?? "",
+    md.peer_relative?.relative_spread_pp ?? "",
+    md.fundamentals?.roce_pct ?? "",
+    md.fundamentals?.operating_margin_pct ?? "",
   ].join(",");
 
   csvContent += row + "\n";
@@ -222,6 +245,11 @@ const dailyEntry = {
     mxn_usd: macro.mxn_usd ?? null,
     brl_usd: macro.brl_usd ?? null,
     gscpi: macro.gscpi ?? null,
+    // LIN-era macro additions
+    dxy: macro.dxy ?? null,
+    us_ism: macro.us_ism ?? null,
+    eu_pmi: macro.eu_pmi ?? null,
+    china_pmi: macro.china_pmi ?? null,
   },
   holdings: normalized.map(s => {
     const md = marketData[s.symbol] || {};
@@ -252,6 +280,13 @@ const dailyEntry = {
       copper_regime_spread_pp: md.copper_regime?.relative_spread_pp ?? null,
       ag_demand_spread_pp: md.ag_demand?.relative_spread_pp ?? null,
       dram_cycle_spread_pp: md.dram_cycle?.relative_spread_pp ?? null,
+
+      // LIN-specific feeds
+      lin_peer_pe_premium_pct: md.peer_valuation?.premium_pct ?? null,
+      lin_backlog_yoy_pct: md.backlog?.yoy_growth_pct ?? null,
+      lin_peer_relative_spread_pp: md.peer_relative?.relative_spread_pp ?? null,
+      roce_pct: md.fundamentals?.roce_pct ?? null,
+      operating_margin_pct: md.fundamentals?.operating_margin_pct ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
