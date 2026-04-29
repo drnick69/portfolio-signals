@@ -8,7 +8,8 @@
 //   - Confidence-weighted: high=100%, medium=70%, low=40% of allocation  // ← NEW
 //   - Score-magnitude-weighted: |composite| → 0.4 (weak BUY) to 1.0 (STRONG_BUY)  // ← V3
 //     Final multiplier: pct × confidence × score_magnitude
-//   - Trim: sell 3% of trim position and add proceeds to cash
+//   - Trim: sell 3% of trim position, reduce cost_basis proportionally,         // ← FIX
+//     delete position when shares hit zero. Add proceeds to cash.               // ← FIX
 //   - Snapshot captures composite scores + LIN regime for forward validation  // ← V3
 //   - Prices come from /tmp/signal-data.json + /tmp/market-data.json
 //   - State persists in docs/history/paper-portfolio.json
@@ -161,6 +162,8 @@ portfolio.total_deposited += DAILY_DEPOSIT;
 const trades = [];
 
 // 1. TRIM: sell 3% of the weakest position
+// FIX: cost_basis is now reduced proportionally to shares sold.
+// FIX: position is deleted entirely when shares hit zero (prevents ghost positions).
 if (assignments.trim && portfolio.holdings[assignments.trim]) {
   const sym = assignments.trim;
   const h = portfolio.holdings[sym];
@@ -168,11 +171,23 @@ if (assignments.trim && portfolio.holdings[assignments.trim]) {
   if (price && h.shares > 0) {
     const sellShares = +(h.shares * TRIM_PCT).toFixed(4);
     const proceeds = +(sellShares * price).toFixed(2);
+    const fraction = sellShares / h.shares;
+    const cbReduction = +(h.cost_basis * fraction).toFixed(2);
+
     h.shares = +(h.shares - sellShares).toFixed(4);
+    h.cost_basis = +(h.cost_basis - cbReduction).toFixed(2);
     portfolio.cash += proceeds;
+
     const ctx = getSignalContext(signalData, sym);  // ← V3
     trades.push({ type: "TRIM", symbol: sym, shares: -sellShares, price, value: proceeds, ...ctx });  // ← V3: signal context
-    console.log(`  ✂️ TRIM ${sym}: sold ${sellShares} shares @ $${price.toFixed(2)} = $${proceeds.toFixed(0)}${ctx.composite_score != null ? ` [score: ${ctx.composite_score}]` : ""}`);
+
+    if (h.shares <= 0.0001 || h.cost_basis <= 0.01) {
+      delete portfolio.holdings[sym];
+      console.log(`  ✂️ TRIM ${sym}: sold ${sellShares} shares @ $${price.toFixed(2)} = $${proceeds.toFixed(0)} → POSITION CLOSED${ctx.composite_score != null ? ` [score: ${ctx.composite_score}]` : ""}`);
+    } else {
+      h.avg_price = +(h.cost_basis / h.shares).toFixed(4);
+      console.log(`  ✂️ TRIM ${sym}: sold ${sellShares} shares @ $${price.toFixed(2)} = $${proceeds.toFixed(0)}${ctx.composite_score != null ? ` [score: ${ctx.composite_score}]` : ""}`);
+    }
   }
 }
 
