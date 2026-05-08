@@ -1,7 +1,7 @@
 // ─── claire-summary.mjs ────────────────────────────────────────────────────────
 // Generates plain-English one-line summaries of each holding for the "Claire"
 // tab on the hub. Reads the latest entry from docs/history/daily-log.jsonl,
-// batches all 11 holdings into one Claude call, writes docs/history/claire.json.
+// batches all 12 holdings into one Claude call, writes docs/history/claire.json.
 //
 // Voice: conversational but grounded, descriptive not prescriptive, assumes
 // intelligence but zero market vocabulary. One sentence each. No jargon, no
@@ -17,7 +17,7 @@ const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PORTFOLIO = ["MOS", "ASML", "LIN", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
+const PORTFOLIO = ["MOS", "ASML", "LIN", "MSFT", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -26,6 +26,7 @@ const TICKER_IDENTITY = {
   "MOS":   { name: "Mosaic Company",       business: "North American fertilizer producer (potash and phosphate)" },
   "ASML":  { name: "ASML Holding",         business: "Dutch company that makes the lithography machines used to print advanced computer chips — the sole supplier of EUV machines worldwide" },
   "LIN":   { name: "Linde plc",            business: "world's largest industrial gas company — supplies oxygen, nitrogen, hydrogen, helium, and argon to hospitals, factories, and electronics manufacturers under long-term contracts" },
+  "MSFT":  { name: "Microsoft",            business: "the software giant behind Windows, Office, and Xbox — but its biggest growth engine now is the Azure cloud service, which rents out the computing power that AI companies need, plus a major partnership with OpenAI (the maker of ChatGPT)" },
   "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
   "ETHA":  { name: "iShares Ethereum ETF", business: "spot Ethereum exposure (ETHA tracks the price of ether, the second-largest cryptocurrency)" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
@@ -45,6 +46,7 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - MOS     = Mosaic Company (North American fertilizer producer)
 - ASML    = ASML Holding (Dutch maker of EUV chipmaking machines)
 - LIN     = Linde plc (world's largest industrial gas supplier — oxygen, nitrogen, hydrogen, etc.)
+- MSFT    = Microsoft (Windows/Office/Xbox plus Azure cloud powering AI plus OpenAI partnership)
 - ENB     = Enbridge (Canadian oil & gas pipeline operator)
 - ETHA    = iShares Ethereum ETF (spot Ethereum / ether exposure)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
@@ -65,7 +67,7 @@ RULES:
 - No jargon: avoid "P/E", "RSI", "yield spread", "forward multiple", "oversold", "basis points", "beta", "composite score", "EBITDA", etc.
 - Describe what's happening, don't tell her what to do. "Looks cheap here" not "buy more." "Holding steady" not "hold."
 - No numbers unless a specific number aids understanding. "Down about 8%" is fine; "trading at 32.4x forward earnings" is not.
-- Vary the sentence structure across the 11 holdings — don't start every line with "X is..."
+- Vary the sentence structure across the 12 holdings — don't start every line with "X is..."
 - If nothing interesting is happening, say that honestly. Boring is fine. "SPY is quiet — the broader market is having an uneventful week" is a good output.
 - Ground the sentence in what's actually driving the ticker (the business, the commodity, the macro factor) rather than the score itself. She cares about why, not the number.
 
