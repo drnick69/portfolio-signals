@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // paper-trader.mjs — Simulates portfolio performance following daily signals.
-// Starting: $1M equally distributed across 11 holdings.
+// Starting: $1M equally distributed across 12 holdings.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
 // Trade rules:
@@ -115,7 +115,7 @@ for (const s of normalized) {
 console.log("Paper Trader");
 console.log("============");
 console.log(`Date: ${date}`);
-console.log(`Prices: ${Object.keys(prices).length}/11`);
+console.log(`Prices: ${Object.keys(prices).length}/12`);
 
 // ─── LOAD OR INITIALIZE PORTFOLIO ───────────────────────────────────────────
 let portfolio;
@@ -124,7 +124,7 @@ if (existsSync(PORTFOLIO_PATH)) {
   console.log(`Portfolio loaded: day ${portfolio.day_count + 1}, $${portfolio.total_value?.toFixed(0) || "?"}`);
 } else {
   // Initialize: $1M equally distributed
-  const perHolding = INITIAL_CAPITAL / 11;
+  const perHolding = INITIAL_CAPITAL / 12;
   const holdings = {};
   for (const s of normalized) {
     const price = prices[s.symbol];
