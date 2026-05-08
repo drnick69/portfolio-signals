@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.10 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.11 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -33,6 +33,25 @@
 //          industry reports — IRA 45V tracker, EU H2 Bank, BNEF LCOE)
 //        All v3 LIN consumers degrade gracefully on null — score-engine computes
 //        partial scores, qualitative LLM block fills the gaps via web search.
+// v4.11: MSFT ai_infra_quality_compounder additions (hybrid LIN+ASML+SPY archetype):
+//        - MSFT added to SYMBOLS array (Finnhub + TwelveData both work natively, no remap)
+//        - GOOGL + META + AAPL auxiliary quotes WITH metrics for mega-cap quality cohort
+//          PE comparison (per JSX: cohort_avg_fwd_pe = avg of GOOGL/META/AAPL forward PE,
+//          MSFT premium/discount vs cohort is flagship strategic signal)
+//        - cohort_valuation (MSFT P/E premium vs GOOGL/META/AAPL average; trailing P/E
+//          used here since Finnhub free tier exposes trailing — LLM web-search prompt
+//          fills forward PE for the JSX consumer)
+//        - cohort_relative (rotation pressure: MSFT 30d return minus cohort avg 30d
+//          return; rotation_pressure_active = TRUE if MSFT lagging cohort by >5pp/30d.
+//          THIS IS THE SIGNATURE MSFT TACTICAL SETUP — capital rotating from MSFT to
+//          higher-beta AI names like NVDA/PLTR/AMD historically a buy setup, not warning)
+//        - factor_flow (qual_vs_spy_30d_pp reused from LIN's hist returns fetch — QUAL
+//          factor leadership is a market-wide quality-bid signal, applies to MSFT too)
+//        - fundamentals v1 fields explicit-null: azure_growth_cc_pct, capex_ttm_usd_b,
+//          fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct (need earnings
+//          disclosure / FactSet — LLM block sources via web search)
+//        - New fetchMSFTHistoricalReturns() runs alongside fetchLINHistoricalReturns()
+//          (4 Alpaca calls: MSFT, GOOGL, META, AAPL — ~2s additional runtime)
 
 import { writeFileSync } from "fs";
 
@@ -48,6 +67,7 @@ const SYMBOLS = [
   { symbol: "MOS",   finnhub: "MOS",   td: "MOS" },
   { symbol: "ASML",  finnhub: "ASML",  td: "ASML" },
   { symbol: "LIN",   finnhub: "LIN",   td: "LIN" },
+  { symbol: "MSFT",  finnhub: "MSFT",  td: "MSFT" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
@@ -59,13 +79,17 @@ const SYMBOLS = [
 ];
 
 // ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
-// needsMetrics: true → also fetch /stock/metric for P/E (used by LIN peer valuation).
+// needsMetrics: true → also fetch /stock/metric for P/E (used by LIN peer valuation
+// and MSFT cohort valuation).
 const AUX_SYMBOLS = [
   { symbol: "RSP",   finnhub: "RSP",   purpose: "spy_breadth" },
   { symbol: "COPX",  finnhub: "COPX",  purpose: "glncy_copper" },
   { symbol: "CORN",  finnhub: "CORN",  purpose: "mos_ag_demand" },
-  { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer", needsMetrics: true },  // Air Products
-  { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer", needsMetrics: true },  // Air Liquide ADR
+  { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",     needsMetrics: true },  // Air Products
+  { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",     needsMetrics: true },  // Air Liquide ADR
+  { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
+  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
+  { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -81,7 +105,7 @@ async function fetchJSON(url, label) {
   }
 }
 
-// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 11 symbols) ────────
+// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 12 symbols) ────────
 // Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
 // Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range, ROI, op margin.
 async function fetchQuotes() {
@@ -140,7 +164,8 @@ async function fetchQuotes() {
 
 // ─── STAGE 1b: AUXILIARY QUOTES ─────────────────────────────────────────────
 // Quote-only by default. Symbols with needsMetrics: true also fetch P/E
-// (used by LIN peer valuation — APD and AIQUY).
+// (used by LIN peer valuation — APD, AIQUY — and MSFT cohort valuation —
+// GOOGL, META, AAPL).
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
@@ -184,7 +209,7 @@ async function fetchAuxQuotes() {
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
-// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 33 total.
+// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 36 total.
 // Pacing: 8s between each set of 3, so ~8 calls/min.
 async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
@@ -458,6 +483,83 @@ async function fetchLINHistoricalReturns() {
   return result;
 }
 
+// ─── STAGE 3d: ALPACA HISTORICAL RETURNS (MSFT cohort rotation pressure) ─────
+// Pulls daily closes for MSFT + cohort (GOOGL, META, AAPL) and computes:
+//   - MSFT 30d return
+//   - Cohort avg 30d return (avg of GOOGL/META/AAPL where available)
+//   - rotation_pressure_pp = MSFT 30d - cohort avg 30d
+//   - rotation_pressure_active = TRUE if rotation_pressure_pp < -5
+// This is the SIGNATURE MSFT tactical setup — capital rotating away from the
+// highest-quality AI infra name into higher-beta AI names (NVDA/PLTR/AMD)
+// historically a buy setup, not a warning.
+async function fetchMSFTHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-MSFT] No keys — skipping MSFT cohort returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-MSFT] Fetching MSFT/GOOGL/META/AAPL bars for cohort rotation...");
+  const symbols = ["MSFT", "GOOGL", "META", "AAPL"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const msftRet30  = retNDays(closes.MSFT, 30);
+  const googlRet30 = retNDays(closes.GOOGL, 30);
+  const metaRet30  = retNDays(closes.META, 30);
+  const aaplRet30  = retNDays(closes.AAPL, 30);
+
+  const cohortRets = [googlRet30, metaRet30, aaplRet30].filter(r => r != null);
+  const cohortAvg = cohortRets.length > 0
+    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+    : null;
+
+  const rotationPp = (msftRet30 != null && cohortAvg != null)
+    ? +(msftRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const result = {
+    msft_30d_return_pct:        msftRet30,
+    googl_30d_return_pct:       googlRet30,
+    meta_30d_return_pct:        metaRet30,
+    aapl_30d_return_pct:        aaplRet30,
+    cohort_avg_30d_return_pct:  cohortAvg,
+    rotation_pressure_pp:       rotationPp,
+    rotation_pressure_active:   rotationPp != null && rotationPp < -5,
+    cohort_count:               cohortRets.length,
+  };
+
+  const activeStr = result.rotation_pressure_active ? " [ACTIVE — buy setup]" : "";
+  console.log(`  [ALPACA-MSFT] ✓ MSFT 30d=${msftRet30 != null ? (msftRet30 >= 0 ? "+" : "") + msftRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -569,7 +671,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.10");
+  console.log("Market Data Pre-Fetch v4.11");
   console.log("===========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -606,6 +708,10 @@ async function main() {
   // Stage 3c: LIN historical returns (Alpaca — v3 tactical extras + factor flow)
   console.log("\n─── STAGE 3c: LIN HISTORICAL RETURNS (Alpaca) ───");
   const linHistReturns = await fetchLINHistoricalReturns();
+
+  // Stage 3d: MSFT cohort historical returns (Alpaca — rotation pressure)
+  console.log("\n─── STAGE 3d: MSFT COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const msftHistReturns = await fetchMSFTHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -968,6 +1074,89 @@ async function main() {
     console.log(`  LIN v3 sourced: ${v3Coverage.length > 0 ? v3Coverage.join(", ") : "(none)"} | pending external data: ASU util, price/mix ex-FX, EPS revs, peer P/E 6m Δ, H2 layer`);
   }
 
+  // ── NEW v4.11: Attach MSFT cohort valuation (vs GOOGL + META + AAPL) ──
+  // Mega-cap quality cohort comparison — analogous to LIN's peer_valuation block.
+  // Trailing P/E here from Finnhub free tier; the JSX consumer's strategic block
+  // surfaces forward PE via web search (cohort_avg_fwd_pe, msft_vs_cohort_pct).
+  if (output.MSFT) {
+    const msftPE = output.MSFT.valuation?.trailingPE;
+    const googlPE = auxQuotes.GOOGL?.pe;
+    const metaPE = auxQuotes.META?.pe;
+    const aaplPE = auxQuotes.AAPL?.pe;
+    const cohortPEs = [googlPE, metaPE, aaplPE].filter(p => p != null && p > 0);
+
+    if (msftPE && cohortPEs.length > 0) {
+      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
+      const premiumPct = +(((msftPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+
+      output.MSFT.cohort_valuation = {
+        msft_pe: msftPE,
+        googl_pe: googlPE ?? null,
+        meta_pe: metaPE ?? null,
+        aapl_pe: aaplPE ?? null,
+        cohort_avg_pe: +cohortAvg.toFixed(2),
+        premium_pct: premiumPct,
+        cohort_count: cohortPEs.length,
+      };
+
+      const zone = premiumPct < -8 ? "DISCOUNT (BUY)" : premiumPct < 0 ? "BELOW COHORT" : premiumPct < 5 ? "IN-LINE" : premiumPct < 15 ? "DESERVED PREMIUM" : "RICH (TRIM)";
+      console.log(`  MSFT cohort-valuation: MSFT ${msftPE}x | GOOGL ${googlPE ?? "—"}x | META ${metaPE ?? "—"}x | AAPL ${aaplPE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !msftPE ? "no MSFT P/E" : "no cohort P/E (GOOGL/META/AAPL unavailable)";
+      console.log(`  MSFT cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── MSFT cohort-relative (rotation pressure: 30d return spread) ────
+    // Signature MSFT tactical setup. Score-engine reads rotation_pressure_active
+    // and rotation_pressure_pp to fire the buy signal when capital is rotating
+    // out of MSFT into higher-beta AI names.
+    if (msftHistReturns) {
+      output.MSFT.cohort_relative = {
+        msft_30d_return_pct:        msftHistReturns.msft_30d_return_pct,
+        googl_30d_return_pct:       msftHistReturns.googl_30d_return_pct,
+        meta_30d_return_pct:        msftHistReturns.meta_30d_return_pct,
+        aapl_30d_return_pct:        msftHistReturns.aapl_30d_return_pct,
+        cohort_avg_30d_return_pct:  msftHistReturns.cohort_avg_30d_return_pct,
+        rotation_pressure_pp:       msftHistReturns.rotation_pressure_pp,
+        rotation_pressure_active:   msftHistReturns.rotation_pressure_active,
+        cohort_count:               msftHistReturns.cohort_count,
+      };
+
+      const rp = msftHistReturns.rotation_pressure_pp;
+      const rpStr = rp == null ? "—"
+        : msftHistReturns.rotation_pressure_active ? `MSFT lagging cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION PRESSURE ACTIVE — buy setup)`
+        : rp < 0 ? `MSFT lagging cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `MSFT leading cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  MSFT cohort-relative: ${rpStr}`);
+    } else {
+      console.log(`  MSFT cohort-relative: skipped (no historical returns)`);
+    }
+
+    // ── MSFT factor_flow — reuse QUAL/SPY 30d data fetched for LIN ──
+    // QUAL factor leadership is a market-wide quality-bid signal. Same value
+    // applies to MSFT (compounder benefits from quality-factor flow same as LIN).
+    output.MSFT.factor_flow = {
+      qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
+    };
+
+    // ── MSFT fundamentals additions — explicit nulls for fields needing
+    //    earnings disclosure / paid consensus feeds. Score-engine and
+    //    qualitative LLM both degrade gracefully on null; LLM web-search
+    //    prompt for MSFT explicitly lists these as fallback fetch targets.
+    output.MSFT.fundamentals.azure_growth_cc_pct    = null;  // earnings disclosure (Intelligent Cloud segment)
+    output.MSFT.fundamentals.capex_ttm_usd_b        = null;  // 10-Q cash flow statement
+    output.MSFT.fundamentals.fcf_margin_pct         = null;  // computed from earnings (LFCF / revenue)
+    output.MSFT.fundamentals.eps_revisions_30d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.MSFT.fundamentals.eps_revisions_90d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 90d
+
+    const msftCoverage = [
+      output.MSFT.cohort_valuation ? "cohort-PE" : null,
+      output.MSFT.cohort_relative?.rotation_pressure_pp != null ? "rotation" : null,
+      output.MSFT.factor_flow?.qual_vs_spy_30d_pp != null ? "QUAL" : null,
+    ].filter(Boolean);
+    console.log(`  MSFT v1 sourced: ${msftCoverage.length > 0 ? msftCoverage.join(", ") : "(none)"} | pending external data: Azure CC growth, capex TTM, FCF margin, EPS revs, forward PE`);
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -996,6 +1185,8 @@ async function main() {
   console.log(`  LIN v3 BBB OAS: ${macro.bbb_oas_bps != null ? `${macro.bbb_oas_bps}bps (1m Δ ${macro.bbb_oas_1m_change_bps != null ? (macro.bbb_oas_1m_change_bps >= 0 ? "+" : "") + macro.bbb_oas_1m_change_bps + "bps" : "—"})` : "unavailable"}`);
   console.log(`  LIN v3 returns: ${linHistReturns ? `SPY 10d=${linHistReturns.spy_10d_drawdown_pct}%, LIN-SPY 10d=${linHistReturns.lin_vs_spy_10d_pp}pp, QUAL-SPY 30d=${linHistReturns.qual_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  LIN AI.PA:      ${output.LIN?.peer_relative_aipa ? `spread=${output.LIN.peer_relative_aipa.relative_spread_pp}pp` : "unavailable"}`);
+  console.log(`  MSFT cohort PE: ${output.MSFT?.cohort_valuation ? `MSFT ${output.MSFT.cohort_valuation.msft_pe}x vs ${output.MSFT.cohort_valuation.cohort_count}-name cohort avg ${output.MSFT.cohort_valuation.cohort_avg_pe}x = ${output.MSFT.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  MSFT rotation:  ${output.MSFT?.cohort_relative ? `MSFT 30d=${output.MSFT.cohort_relative.msft_30d_return_pct}%, cohort=${output.MSFT.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.MSFT.cohort_relative.rotation_pressure_pp}pp${output.MSFT.cohort_relative.rotation_pressure_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
