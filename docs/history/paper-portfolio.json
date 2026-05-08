@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 42,
-  "cash": 17759.16,
-  "total_deposited": 1420000,
+  "day_count": 43,
+  "cash": 17653.14,
+  "total_deposited": 1430000,
   "holdings": {
     "MOS": {
       "shares": 6354.2915,
@@ -10,8 +10,8 @@
       "avg_price": 25.4157
     },
     "ASML": {
-      "shares": 35.4067,
-      "cost_basis": 46193.37,
+      "shares": 34.3445,
+      "cost_basis": 44807.57,
       "avg_price": 1304.6505
     },
     "LIN": {
@@ -25,14 +25,14 @@
       "avg_price": 54.06
     },
     "ETHA": {
-      "shares": 11321.4144,
-      "cost_basis": 176783.46,
-      "avg_price": 15.615
+      "shares": 11561.3136,
+      "cost_basis": 180902.53,
+      "avg_price": 15.6472
     },
     "GLNCY": {
-      "shares": 9654.437,
-      "cost_basis": 145136.38,
-      "avg_price": 15.0331
+      "shares": 9847.3675,
+      "cost_basis": 148078.57,
+      "avg_price": 15.0374
     },
     "IBIT": {
       "shares": 4652.6428,
@@ -50,9 +50,9 @@
       "avg_price": 17.0346
     },
     "AMKBY": {
-      "shares": 9713.4174,
-      "cost_basis": 124513.81,
-      "avg_price": 12.8187
+      "shares": 10144.3108,
+      "cost_basis": 129221.32,
+      "avg_price": 12.7383
     },
     "SPY": {
       "shares": 166.9954,
@@ -2363,7 +2363,95 @@
       "regimes": {
         "LIN": "neutral"
       }
+    },
+    {
+      "date": "2026-05-08",
+      "day": 43,
+      "total_value": 1515552.61,
+      "total_deposited": 1430000,
+      "cash": 17653.14,
+      "holdings_value": 1497899.47,
+      "pnl": 85552.61,
+      "pnl_pct": 5.98,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ASML",
+          "shares": -1.0622,
+          "price": 1565.38,
+          "value": 1662.75,
+          "composite_score": 7,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "AMKBY",
+          "shares": 430.8934,
+          "price": 10.925,
+          "value": 4707.51,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -25,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "ETHA",
+          "shares": 239.8992,
+          "price": 17.17,
+          "value": 4119.07,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -31,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "GLNCY",
+          "shares": 192.9305,
+          "price": 15.25,
+          "value": 2942.19,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -14,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "AMKBY",
+        "positionalBuy": "ETHA",
+        "strategicBuy": "GLNCY",
+        "trim": "ASML"
+      },
+      "composite_scores": {
+        "MOS": -26,
+        "ASML": 7,
+        "LIN": 3,
+        "MSFT": -25,
+        "ENB": 5,
+        "ETHA": -31,
+        "GLNCY": -14,
+        "IBIT": -14,
+        "KOF": -3,
+        "PBR.A": -4,
+        "AMKBY": -25,
+        "SPY": 6
+      },
+      "regimes": {
+        "LIN": "neutral"
+      }
     }
   ],
-  "total_value": 1519044.27
+  "total_value": 1515552.61
 }
