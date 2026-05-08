@@ -51,6 +51,19 @@
 //     concretized (contracts $ value 90d + subsidy regime + green/grey LCOE delta).
 //     ARCHITECTURE: regime-conditional composite weights gated by global PMI
 //     (>55: 25/40/35 expansion · 48-55: 20/35/45 neutral · <48: 15/30/55 contraction).
+//   - AI_INFRA_QUALITY_COMPOUNDER (MSFT) — V1: tightened RSI 40/65 (compounder bands),
+//     compounder MA + inverted 52w (no penalty at highs), drawdown-from-52w-high
+//     as primary tactical signal (>12% setup, >20% strong, >25% rare conviction buy),
+//     cohort rotation pressure (MSFT vs GOOGL/META/AAPL avg 30d return — capital
+//     flowing to higher-beta AI names is the SIGNATURE buy setup, not a warning),
+//     QUAL factor flow (mechanical quality bid same as LIN), cohort P/E premium vs
+//     mega-cap quality cohort as primary strategic signal (mirrors LIN's peer_valuation
+//     architecture but vs GOOGL/META/AAPL instead of APD/AIQUY), TIPS overlay
+//     (long-duration cash flow rate sensitivity), DXY overlay (~50% non-US revenue),
+//     dividend yield secondary (low ~0.8% baseline). Fundamentals null-safe for
+//     Azure CC growth / capex YoY / FCF margin / EPS revisions / forward PE — LLM
+//     block sources via web search, blended in via blendScores. STATIC composite
+//     weights 20/35/45 — NO regime conditioning in v1.
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 const CYCLICAL_ARCHETYPES = new Set([
@@ -103,6 +116,17 @@ function computeLINRegimeWeights(macro) {
   return            { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     pmi: wAvg };
 }
 
+// ─── MSFT DRAWDOWN-FROM-HIGH HELPER (V1) ────────────────────────────────────
+// Computes % drawdown from 52w high (negative if below). Returns null if missing data.
+// Drawdown-from-high is the SIGNATURE MSFT tactical setup signal (compounder
+// drawdowns are buys, not warnings).
+function computeMSFTDrawdown(data) {
+  const cur = data?.price?.current;
+  const hi = data?.price?.week52_high;
+  if (cur == null || hi == null || hi <= 0) return null;
+  return +(((cur - hi) / hi) * 100).toFixed(2);
+}
+
 // ─── TACTICAL LAYER (short-term mean reversion) ─────────────────────────────
 export function scoreTactical(data, macro) {
   let score = 0;
@@ -119,6 +143,7 @@ export function scoreTactical(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
   const isLIN = archetype === "oligopoly_quality_compounder";
+  const isMSFT = archetype === "ai_infra_quality_compounder";
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -448,6 +473,83 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MSFT-SPECIFIC (V1): AI INFRA QUALITY COMPOUNDER ─────────────────────
+  if (isMSFT) {
+    // RSI tightened bands (compounder, similar to LIN)
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: MSFT severe oversold — rare quality compounder opportunity`); }
+      else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: MSFT deeply oversold — compounder on sale`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: MSFT oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: MSFT mildly oversold (tightened band)`); }
+      else if (rsi < 40) { score += -8;  notes.push(`RSI ${rsi}: MSFT approaching oversold`); }
+      else if (rsi <= 60) { score += 0;  notes.push(`RSI ${rsi}: MSFT normal trending range`); }
+      else if (rsi < 65) { score += 3;   notes.push(`RSI ${rsi}: MSFT healthy momentum`); }
+      else if (rsi < 70) { score += 12;  notes.push(`RSI ${rsi}: MSFT overbought (tightened — quality compounder)`); }
+      else if (rsi < 75) { score += 22;  notes.push(`RSI ${rsi}: MSFT extended`); }
+      else if (rsi < 80) { score += 32;  notes.push(`RSI ${rsi}: MSFT deeply overbought`); }
+      else               { score += 45;  notes.push(`RSI ${rsi}: MSFT extreme — trim bias`); }
+    }
+
+    // Drawdown-from-52w-high — THE signature MSFT tactical signal
+    // Compounder drawdowns are buys, not warnings (capital rotating to higher-beta AI)
+    const dd = computeMSFTDrawdown(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 25)       { score += -25; notes.push(`MSFT drawdown ${dd.toFixed(1)}%: extreme — rare compounder buy`); }
+      else if (ddMag > 20)  { score += -18; notes.push(`MSFT drawdown ${dd.toFixed(1)}%: deep — high-conviction buy setup`); }
+      else if (ddMag > 15)  { score += -12; notes.push(`MSFT drawdown ${dd.toFixed(1)}%: meaningful — compounder buy interest`); }
+      else if (ddMag > 12)  { score += -8;  notes.push(`MSFT drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 8)   { score += -3;  notes.push(`MSFT drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 2)   { score += 3;   notes.push(`MSFT at/near 52w highs — normal compounder`); }
+    }
+
+    // Daily change reaction
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -5)      { score += -15; notes.push(`MSFT daily ${chg}%: rare big drop — aggressive buy`); }
+      else if (chg < -3) { score += -8;  notes.push(`MSFT daily ${chg}%: sharp drop`); }
+      else if (chg < -2) { score += -3;  notes.push(`MSFT daily ${chg}%: notable for low-vol compounder`); }
+      else if (chg > 5)  { score += 10;  notes.push(`MSFT daily +${chg}%: rare sharp rally`); }
+      else if (chg > 3)  { score += 5;   notes.push(`MSFT daily +${chg}%: notable rally`); }
+      else if (chg > 2)  { score += 2;   notes.push(`MSFT daily +${chg}%: notable for low-vol`); }
+    }
+
+    // Cohort rotation pressure — THE other signature MSFT tactical setup
+    // Capital rotating from MSFT to higher-beta AI names (NVDA/PLTR/AMD) is
+    // historically a buy setup, not a warning.
+    if (data.cohort_relative) {
+      const rp = data.cohort_relative.rotation_pressure_pp;
+      const active = data.cohort_relative.rotation_pressure_active;
+      if (rp != null) {
+        if (active && rp < -10)     { score += -12; notes.push(`Rotation pressure ACTIVE: MSFT lagging cohort by ${(-rp).toFixed(1)}pp/30d — strong buy setup (capital chasing higher-beta AI)`); }
+        else if (active && rp < -7) { score += -8;  notes.push(`Rotation pressure ACTIVE: MSFT lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+        else if (active)            { score += -5;  notes.push(`Rotation pressure ACTIVE: MSFT lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+        else if (rp < -2)           { score += -2;  notes.push(`MSFT mildly lagging cohort (${rp.toFixed(1)}pp/30d)`); }
+        else if (rp > 5)            { score += 4;   notes.push(`MSFT outperforming cohort by ${rp.toFixed(1)}pp/30d — quality leadership`); }
+      }
+    }
+
+    // QUAL factor flow — quality bid mechanical for MSFT (same data as LIN)
+    if (data.factor_flow?.qual_vs_spy_30d_pp != null) {
+      const q = data.factor_flow.qual_vs_spy_30d_pp;
+      if (q > 2)       { score += -3; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): strong quality bid — MSFT benefits`); }
+      else if (q > 1)  { score += -1; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): quality bid active`); }
+      else if (q < -2) { score += 3;  notes.push(`QUAL ${q.toFixed(1)}pp vs SPY (30d): quality factor under pressure`); }
+      else if (q < -1) { score += 1;  }
+    }
+
+    // VIX overlay — MSFT as collateral damage in broad fear (quality bid will return)
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -2) {
+        score += -8; notes.push(`VIX ${vix} + MSFT ${chg}%: broad fear collateral — quality bid will return`);
+      } else if (vix > 25 && chg < -1.5) {
+        score += -4; notes.push(`VIX ${vix} + MSFT ${chg}%: elevated fear pressure on compounder`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (all other holdings) ────────────────────────────────
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -491,6 +593,7 @@ export function scorePositional(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
   const isLIN = archetype === "oligopoly_quality_compounder";
+  const isMSFT = archetype === "ai_infra_quality_compounder";
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -527,6 +630,9 @@ export function scorePositional(data, macro) {
     } else if (isLIN) {
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
       if (m[ma] != null) { score += m[ma]; notes.push(`LIN MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isMSFT) {
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`MSFT MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -628,6 +734,14 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`LIN 52w: ${w52}% — real drawdown, compounder on sale`); }
       else if (w52 > 15) { score += -38; notes.push(`LIN 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -50; notes.push(`LIN 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isMSFT) {
+      if (w52 > 95)      { score += 0;   notes.push(`MSFT 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`MSFT 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`MSFT 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`MSFT 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`MSFT 52w: ${w52}% — real drawdown, compounder on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`MSFT 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`MSFT 52w: ${w52}% — catastrophic drawdown — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -725,6 +839,11 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -5)  { score += -8;  notes.push(`LIN ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 15)  { score += 6;   notes.push(`LIN ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 8)   { score += 2;   notes.push(`LIN ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isMSFT) {
+      if (pctFromSMA < -10)      { score += -15; notes.push(`MSFT ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -5)  { score += -8;  notes.push(`MSFT ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 15)  { score += 6;   notes.push(`MSFT ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`MSFT ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -943,6 +1062,69 @@ export function scorePositional(data, macro) {
     }
   }
 
+  // ─── MSFT-SPECIFIC POSITIONAL ADD-ONS (V1) ───────────────────────────────
+  // Operational fundamentals (Azure CC growth, FCF margin, capex YoY, EPS revs) —
+  // null in market-data v4.11; LLM block sources via web search and blends in.
+  // Score-engine logic is null-safe and ready for future direct sourcing.
+
+  // Azure constant-currency growth — THE primary MSFT operational metric
+  if (isMSFT && data.fundamentals?.azure_growth_cc_pct != null) {
+    const a = data.fundamentals.azure_growth_cc_pct;
+    if (a > 30)      { score += -8; notes.push(`Azure CC growth ${a.toFixed(1)}%: accelerating — AI thesis confirmation`); }
+    else if (a > 28) { score += -5; notes.push(`Azure CC growth ${a.toFixed(1)}%: strong acceleration`); }
+    else if (a > 25) { score += -2; notes.push(`Azure CC growth ${a.toFixed(1)}%: healthy`); }
+    else if (a > 22) { score += 0;  notes.push(`Azure CC growth ${a.toFixed(1)}%: in normal range`); }
+    else if (a > 18) { score += 4;  notes.push(`Azure CC growth ${a.toFixed(1)}%: maturing — watch deceleration`); }
+    else if (a > 15) { score += 8;  notes.push(`Azure CC growth ${a.toFixed(1)}%: decelerating — thesis-risk territory`); }
+    else             { score += 14; notes.push(`Azure CC growth ${a.toFixed(1)}%: weak — thesis impairment`); }
+  }
+
+  // Operating margin trend (compounder durability check)
+  if (isMSFT && data.fundamentals?.operating_margin_pct != null) {
+    const om = data.fundamentals.operating_margin_pct;
+    if (om > 46)      { score += -3; notes.push(`MSFT op margin ${om}%: peer-best execution`); }
+    else if (om > 44) { score += -1; notes.push(`MSFT op margin ${om}%: best-in-class`); }
+    else if (om > 42) { score += 0;  notes.push(`MSFT op margin ${om}%: normal`); }
+    else if (om > 40) { score += 3;  notes.push(`MSFT op margin ${om}%: compressing (capex absorption?)`); }
+    else              { score += 7;  notes.push(`MSFT op margin ${om}%: significant compression`); }
+  }
+
+  // FCF margin — capex absorption pressure read
+  if (isMSFT && data.fundamentals?.fcf_margin_pct != null) {
+    const fm = data.fundamentals.fcf_margin_pct;
+    if (fm > 30)      { score += -3; notes.push(`MSFT FCF margin ${fm.toFixed(1)}%: pre-AI-capex normal`); }
+    else if (fm > 28) { score += -1; notes.push(`MSFT FCF margin ${fm.toFixed(1)}%: healthy`); }
+    else if (fm > 25) { score += 0;  notes.push(`MSFT FCF margin ${fm.toFixed(1)}%: capex absorbing`); }
+    else if (fm > 22) { score += 3;  notes.push(`MSFT FCF margin ${fm.toFixed(1)}%: compressing — capex pressure`); }
+    else              { score += 7;  notes.push(`MSFT FCF margin ${fm.toFixed(1)}%: sharp compression — watch`); }
+  }
+
+  // Capex YoY — cycle intensity read
+  if (isMSFT && data.fundamentals?.capex_yoy_growth_pct != null) {
+    const cx = data.fundamentals.capex_yoy_growth_pct;
+    if (cx > 80)      { score += 3;  notes.push(`Capex +${cx.toFixed(0)}% YoY: peak intensity — margin pressure but moat building`); }
+    else if (cx > 50) { score += 1;  notes.push(`Capex +${cx.toFixed(0)}% YoY: high — AI cycle peak`); }
+    else if (cx > 25) { score += 0;  notes.push(`Capex +${cx.toFixed(0)}% YoY: expansion phase`); }
+    else if (cx > 10) { score += -1; notes.push(`Capex +${cx.toFixed(0)}% YoY: moderating — FCF recovery`); }
+    else if (cx > 0)  { score += -3; notes.push(`Capex +${cx.toFixed(0)}% YoY: peak passing — FCF normalizing`); }
+    else              { score += -5; notes.push(`Capex ${cx.toFixed(0)}% YoY: contracting — thesis impairment OR efficient build`); }
+  }
+
+  // EPS revisions trend (FactSet/Refinitiv consensus delta)
+  if (isMSFT && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -1) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -3) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isMSFT && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 1.5)       { score += -2; }
+    else if (r30 < -1.5) { score += 2;  }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -964,6 +1146,7 @@ export function scoreStrategic(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isMOS = archetype === "cyclical_commodity";
   const isLIN = archetype === "oligopoly_quality_compounder";
+  const isMSFT = archetype === "ai_infra_quality_compounder";
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -1326,7 +1509,6 @@ export function scoreStrategic(data, macro) {
   // ─── LIN STRATEGIC (V3) ──────────────────────────────────────────────────
   if (isLIN) {
     // Peer P/E premium is the cleanest valuation signal for LIN
-    // data.peer_valuation = { lin_pe, apd_pe, ai_pa_pe, peer_avg_pe, premium_pct, premium_6m_delta_pp }
     if (data.peer_valuation && data.peer_valuation.premium_pct != null) {
       const prem = data.peer_valuation.premium_pct;
       if (prem < -5)       { score += -30; notes.push(`LIN P/E ${prem.toFixed(1)}% vs peers: discount — exceptional quality buy (very rare)`); }
@@ -1389,7 +1571,7 @@ export function scoreStrategic(data, macro) {
       else              { score += 8;  notes.push(`LIN op margin ${om}%: significant compression`); }
     }
 
-    // V3: H2 contract dollar value (90d trailing) — replaces categorical proxy
+    // V3: H2 contract dollar value (90d trailing)
     if (data.h2_layer?.contracts_90d_usd_m != null) {
       const c = data.h2_layer.contracts_90d_usd_m;
       if (c > 1000)     { score += -8; notes.push(`H2 contracts $${c.toFixed(0)}M (90d): exceptional — H2 thesis activating`); }
@@ -1400,7 +1582,7 @@ export function scoreStrategic(data, macro) {
       else              { score += 6;  notes.push(`H2 contracts $${c.toFixed(0)}M (90d): pipeline weakening`); }
     }
 
-    // V3: H2 subsidy regime — 45V / EU H2 Bank / JP-KR CfDs
+    // V3: H2 subsidy regime
     if (data.h2_layer?.subsidy_regime) {
       const r = data.h2_layer.subsidy_regime;
       if (r === "strengthening")  { score += -4; notes.push(`H2 subsidy regime: strengthening — 45V/EU H2 Bank/JP-KR supportive`); }
@@ -1408,7 +1590,7 @@ export function scoreStrategic(data, macro) {
       else                        { notes.push(`H2 subsidy regime: stable`); }
     }
 
-    // V3: Green/grey LCOE gap direction (closing = green H2 commercially viable)
+    // V3: Green/grey LCOE gap direction
     if (data.h2_layer?.lcoe_gap_6m_delta != null) {
       const d = data.h2_layer.lcoe_gap_6m_delta;
       if (d < -1.0)      { score += -6; notes.push(`Green/grey LCOE Δ ${d.toFixed(2)}/kg (6m): rapidly closing — green H2 commercial`); }
@@ -1443,6 +1625,74 @@ export function scoreStrategic(data, macro) {
       else if (tips > 2)   { score += 1;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
       else if (tips < 0)   { score += -3; notes.push(`TIPS ${tips}%: accommodative — compounder tailwind`); }
       else if (tips < 0.5) { score += -1; notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── MSFT STRATEGIC (V1) ─────────────────────────────────────────────────
+  if (isMSFT) {
+    // Cohort P/E premium — primary deterministic strategic signal for MSFT
+    // data.cohort_valuation = { msft_pe, googl_pe, meta_pe, aapl_pe, cohort_avg_pe, premium_pct }
+    // Mirrors LIN's peer_valuation architecture but vs mega-cap quality cohort.
+    if (data.cohort_valuation && data.cohort_valuation.premium_pct != null) {
+      const prem = data.cohort_valuation.premium_pct;
+      if (prem < -15)      { score += -25; notes.push(`MSFT P/E ${prem.toFixed(1)}% vs cohort: deep discount — exceptional buy (very rare)`); }
+      else if (prem < -8)  { score += -18; notes.push(`MSFT P/E ${prem.toFixed(1)}% vs cohort: discount — strong buy`); }
+      else if (prem < 0)   { score += -10; notes.push(`MSFT P/E ${prem.toFixed(1)}% vs cohort: below cohort — buy bias`); }
+      else if (prem < 5)   { score += -3;  notes.push(`MSFT P/E +${prem.toFixed(1)}% vs cohort: in-line — fair value`); }
+      else if (prem <= 15) { score += 0;   notes.push(`MSFT P/E +${prem.toFixed(1)}% vs cohort: deserved premium (normal)`); }
+      else if (prem < 20)  { score += 5;   notes.push(`MSFT P/E +${prem.toFixed(1)}% vs cohort: stretched`); }
+      else if (prem < 25)  { score += 12;  notes.push(`MSFT P/E +${prem.toFixed(1)}% vs cohort: rich premium — trim bias`); }
+      else                 { score += 18;  notes.push(`MSFT P/E +${prem.toFixed(1)}% vs cohort: extreme premium — trim`); }
+    } else {
+      // Fallback: trailing PE absolute bands when cohort data unavailable
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 22)       { score += -10; notes.push(`MSFT P/E ${pe.toFixed(1)}x: cheap (cohort data unavailable)`); }
+        else if (pe < 27)  { score += -5;  notes.push(`MSFT P/E ${pe.toFixed(1)}x: below normal compounder range`); }
+        else if (pe <= 33) { score += 0;   notes.push(`MSFT P/E ${pe.toFixed(1)}x: normal compounder range`); }
+        else if (pe < 38)  { score += 5;   notes.push(`MSFT P/E ${pe.toFixed(1)}x: rich`); }
+        else               { score += 12;  notes.push(`MSFT P/E ${pe.toFixed(1)}x: extreme`); }
+      }
+    }
+
+    // Dividend yield secondary — MSFT yields ~0.7-0.9% (low base)
+    const dy = data.valuation?.dividendYield;
+    if (dy != null && dy > 0) {
+      if (dy > 1.2)      { score += -3; notes.push(`MSFT yield ${dy}%: above normal — modestly attractive`); }
+      else if (dy > 0.9) { score += -1; notes.push(`MSFT yield ${dy}%: above baseline`); }
+      else if (dy > 0.7) { score += 0;  notes.push(`MSFT yield ${dy}%: normal baseline`); }
+      else if (dy > 0.5) { score += 1;  notes.push(`MSFT yield ${dy}%: compressed — stock is rich`); }
+      else               { score += 3;  notes.push(`MSFT yield ${dy}%: very low — yield compression`); }
+    }
+
+    // TIPS overlay — long-duration cash flow rate sensitivity (compounder hybrid)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 8;   notes.push(`TIPS ${tips}%: very restrictive — long-duration MSFT headwind`); }
+      else if (tips > 2.5) { score += 4;   notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips > 2)   { score += 2;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -8;  notes.push(`TIPS ${tips}%: accommodative — long-duration tailwind`); }
+      else if (tips < 1)   { score += -3;  notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // VIX overlay — quality compounder catches defensive bid in fear regimes
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — MSFT defensive quality bid`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — MSFT as safe haven`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — MSFT vulnerable to rotation`); }
+    }
+
+    // DXY overlay — ~50% non-US revenue (FX sensitivity material but less than LIN)
+    if (macro?.dxy != null) {
+      const dxy = macro.dxy;
+      if (dxy > 130)      { score += 3;  notes.push(`DXY ${dxy}: very strong USD — MSFT FX headwind`); }
+      else if (dxy > 125) { score += 1;  notes.push(`DXY ${dxy}: strong USD — mild FX headwind`); }
+      else if (dxy > 120) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
+      else if (dxy > 115) { score += -1; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
+      else                { score += -3; notes.push(`DXY ${dxy}: weak USD — FX tailwind`); }
     }
 
     return { score: clamp(score), notes };
@@ -1568,6 +1818,7 @@ export function computeDeterministicScores(data, macro) {
   const strategic = scoreStrategic(data, macro);
 
   // V3: LIN regime-conditional weights override based on global PMI.
+  // MSFT V1: static weights via data._weights (set by generate-signals.mjs as 20/35/45).
   // Other archetypes use their pre-set _weights, or the default 25/35/40.
   let weights = data._weights || { t: 0.25, p: 0.35, s: 0.40 };
   let regime = null;
@@ -1612,6 +1863,8 @@ const BLEND_WEIGHTS = {
 // LIN's positional and strategic now have many more deterministic inputs
 // (ASU util, price/mix, BBB OAS, EPS revisions, premium delta, H2 layer),
 // so we lean a bit more on deterministic for those layers.
+// MSFT V1: uses defaults — most strategic content (forward PE, PE-vs-history,
+// AI phase, OpenAI moat) is qualitative and best-handled by the LLM layer.
 const BLEND_WEIGHTS_BY_ARCHETYPE = {
   oligopoly_quality_compounder: {
     tactical:   { det: 0.65, llm: 0.35 }, // slightly more LLM for narrative tactical inputs
