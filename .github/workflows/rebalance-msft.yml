@@ -1,0 +1,49 @@
+name: Rebalance MSFT (one-time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Dry-run shows the plan, Execute applies the changes"
+        required: true
+        type: choice
+        options: [dry-run, execute]
+        default: dry-run
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Fetch latest market data (populates MSFT price)
+        env:
+          FK: ${{ secrets.FK }}
+          TD_KEY: ${{ secrets.TD_KEY }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
+          ALPK: ${{ secrets.ALPK }}
+          ALPS: ${{ secrets.ALPS }}
+        run: node .github/scripts/fetch-market-data.mjs
+
+      - name: Run rebalance script
+        run: |
+          if [ "${{ inputs.mode }}" = "execute" ]; then
+            node .github/scripts/rebalance-msft.mjs --execute
+          else
+            node .github/scripts/rebalance-msft.mjs
+          fi
+
+      - name: Commit updated portfolio (only if executed)
+        if: inputs.mode == 'execute'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/history/paper-portfolio.json
+          git diff --staged --quiet || git commit -m "Rebalance: 1/12 MSFT, others trimmed proportionally"
+          git push
