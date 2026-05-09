@@ -3,44 +3,45 @@
     {
       "symbol": "MOS",
       "price": {
-        "current": 23.01,
-        "change_pct": 0.44,
+        "current": 22.19,
+        "change_pct": -3.14,
         "week52_high": 38.23,
         "week52_low": 22.74,
-        "week52_position_pct": 1.7
+        "week52_position_pct": -3.6
       },
       "tactical": {
-        "score": -11,
-        "signal": "NEUTRAL",
-        "rationale": "MOS RSI at 39.2 suggests oversold conditions aligning with spring planting season peak demand period. However, fertilizer pricing has been under pressure with global potash prices declining from 2022 highs around $900/MT to current levels near $300-350/MT. Chinese and Indian contract negotiations have settled at lower prices, reducing the urgency premium. Channel inventory appears elevated as distributors bought heavily during supply disruption fears but demand normalization has left excess stock. The technical oversold reading may be justified given fundamental headwinds.",
-        "det_score": -13,
-        "llm_score": -5,
+        "score": -29,
+        "signal": "BUY",
+        "rationale": "While RSI at 33.86 shows oversold conditions, the 3.14% daily decline appears to be noise during peak spring planting season when fertilizer demand should be strongest. Current potash spot prices around $300-320/MT remain well above marginal cost levels, suggesting the technical oversold condition may present a short-term bounce opportunity. However, channel checks indicate distributors are working through elevated inventory levels from earlier stockpiling, which could dampen immediate demand recovery.",
+        "det_score": -31,
+        "llm_score": -25,
         "det_notes": [
-          "RSI 39.2: MOS approaching oversold",
+          "RSI 33.86: MOS mildly oversold",
+          "MOS daily -3.14%: notable decline",
           "Season: Spring planting (peak demand) (-3)"
         ]
       },
       "positional": {
-        "score": -53,
+        "score": -57,
         "signal": "BUY",
-        "rationale": "At 1.7% of 52-week range, MOS is trading near absolute lows with maximum pain already reflected in price. The death cross technical pattern is concerning, but for cyclical commodities, extreme low positioning often marks capitulation phases. Current corn prices around $18.47 remain supportive for fertilizer demand, and Brazilian real stability near 4.96 supports Mosaic Fertilizantes margins. Spring planting season provides seasonal tailwind, and at these levels, any improvement in potash pricing or supply tightness could drive significant rebounds. Risk/reward strongly favors long positioning despite poor technicals.",
-        "det_score": -61,
+        "rationale": "The death cross and 52-week low positioning look severe, but MOS trading at 0.63x book value during spring planting season represents compelling asset value. CORN outperforming by 4.06pp signals strong agricultural fundamentals that haven't yet translated to fertilizer demand, creating a classic catch-up trade setup. Global potash supply remains constrained with ongoing Belarus/Russia disruptions, while Chinese contract negotiations for 2024 are settling at higher price floors than feared. The technical damage appears overdone relative to fundamental fertilizer market dynamics.",
+        "det_score": -69,
         "llm_score": -45,
         "det_notes": [
           "MOS MA: below_both_death (-18)",
-          "MOS 52w: 1.7% — extreme low, max conviction",
-          "MOS/CORN spread: 0.28pp — inline",
+          "MOS 52w: -3.6% — extreme low, max conviction",
+          "CORN outperforming MOS by 4.06pp — ag demand strong, MOS catch-up",
           "Season: Spring planting (peak demand) (-3)"
         ]
       },
       "strategic": {
         "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "P/E of 13.6x for a cyclical commodity suggests earnings are not at trough levels but also not at dangerous peaks. P/B of 0.63 indicates significant asset value discount with potash reserves and processing capacity trading below replacement cost. The 3.84% dividend yield appears sustainable even in current downcycle. Key strategic consideration is whether we are in mid-cycle consolidation or approaching trough. Global fertilizer demand remains structurally supported by food security concerns and aging farm demographics requiring higher yields per acre. Geopolitical supply concentration in Belarus/Russia creates long-term pricing power for North American producers like MOS.",
+        "rationale": "P/E of 13x for a cyclical commodity business suggests we're past peak earnings but not yet at trough levels where maximum opportunity emerges. However, the 0.63x P/B ratio indicates the market is pricing in severe cycle deterioration that may be excessive. Input costs including sulfur and ammonia have stabilized, supporting margin recovery potential. Brazilian operations benefit from stable BRL/USD around 4.95, while USDA spring planting intentions remain solid despite farmer margin pressure. The strategic setup favors patient accumulation rather than aggressive buying.",
         "det_score": -4,
         "llm_score": -15,
         "det_notes": [
-          "MOS P/E 14x: peak earnings — cyclical caution",
+          "MOS P/E 13x: peak earnings — cyclical caution",
           "MOS P/B 0.63: well below book — asset value",
           "MOS yield 3.8411174159755563%: moderate",
           "BRL/USD 4.955: normal range",
@@ -48,11 +49,11 @@
         ]
       },
       "composite": {
-        "score": -26,
+        "score": -32,
         "recommendation": "BUY",
-        "summary": "MOS trades at extreme technical and valuation lows with 1.7% 52-week positioning reflecting maximum bearish sentiment, while spring planting demand and structural fertilizer supply constraints suggest the downcycle may be maturing into an attractive entry point.",
-        "det_score": -26,
-        "llm_score": -21,
+        "summary": "MOS presents a compelling cyclical value opportunity trading near 52-week lows despite peak spring demand season and constrained global potash supply. Technical damage appears overdone relative to fundamental fertilizer market dynamics with strong agricultural commodity prices not yet translating to fertilizer demand recovery.",
+        "det_score": -33,
+        "llm_score": -28,
         "weights": {
           "t": 0.25,
           "p": 0.35,
@@ -73,73 +74,73 @@
         "missing": []
       },
       "key_metric": {
-        "name": "52-week range position",
-        "value": "1.7%"
+        "name": "Potash spot price vs book value discount",
+        "value": "$300-320/MT potash with 0.63x P/B ratio"
       },
       "risks": [
-        "Continued weakness in global potash pricing below $300/MT could pressure margins and dividend sustainability",
-        "Demand destruction if corn prices fall below $17/bushel reducing farmer fertilizer application rates"
+        "Channel inventory overhang from earlier stockpiling could extend demand weakness through peak application season",
+        "Chinese demand destruction if economic slowdown reduces food security priorities and agricultural investment"
       ],
       "catalysts": [
-        "Resolution of Belarus supply uncertainty or further geopolitical disruptions tightening global potash markets",
-        "USDA spring planting reports showing strong acre intentions and favorable crop economics supporting fertilizer demand"
+        "Major potash supply disruption from geopolitical escalation could trigger pricing rally similar to 2021-2022 cycle",
+        "Strong crop condition reports and elevated corn prices above $19/bushel driving increased fertilizer application rates"
       ],
       "_scoring": {
-        "deterministic": -26,
-        "llm": -21,
+        "deterministic": -33,
+        "llm": -28,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -0.6392582992301784,
-        "positional": -1.387767519895278,
-        "strategic": -0.29893427727120814,
-        "composite": -1.1747452830487954
+        "tactical": -1.8777166833069079,
+        "positional": -1.3999163994195314,
+        "strategic": -0.5332468615635336,
+        "composite": -1.4820650344405981
       }
     },
     {
       "symbol": "ASML",
       "price": {
-        "current": 1565.38,
-        "change_pct": 3.22
+        "current": 1592.02,
+        "change_pct": 4.97
       },
       "tactical": {
         "score": 1,
         "signal": "NEUTRAL",
-        "rationale": "The 3.22% rally appears technically driven rather than fundamentally justified. RSI at 62.26 indicates healthy momentum without overbought conditions. However, the recent volatility in semis suggests caution on short-term positioning. The move feels like part of broader sector rotation rather than ASML-specific catalysts, warranting slight tactical caution despite the strong price action.",
+        "rationale": "The +4.97% rally appears driven by broader semiconductor momentum following positive industry commentary from Taiwan Semi and improving memory pricing signals. RSI at 64 is constructive without being extended for ASML's typical momentum profile. The move lacks specific ASML catalysts but aligns with improving WFE cycle sentiment as 2024 trough appears behind us.",
         "det_score": 3,
         "llm_score": -5,
         "det_notes": [
-          "RSI 62.26: ASML normal trending range",
-          "ASML daily +3.22%: notable rally"
+          "RSI 64.01: ASML normal trending range",
+          "ASML daily +4.97%: notable rally"
         ]
       },
       "positional": {
         "score": 1,
         "signal": "NEUTRAL",
-        "rationale": "Golden cross above both moving averages is the natural state for ASML as a secular growth monopoly. The 11.7% premium to SMA50 is reasonable given the company's consistent compounding trajectory. No structural changes in competitive positioning or cyclical indicators suggest maintaining the established trend. The technical setup aligns with fundamental expectations for a monopolistic growth compounder.",
+        "rationale": "Golden cross above both moving averages is ASML's natural state as a secular compounder. The 13.5% premium to SMA50 reflects normal trending behavior for a monopoly with 2-3 year backlog visibility. Technical positioning remains healthy with no concerning divergences, consistent with the structural up-and-to-the-right trajectory.",
         "det_score": 2,
         "llm_score": 0,
         "det_notes": [
           "ASML MA: above_both_golden (normal compounder trend)",
-          "ASML 11.7% above SMA50 — trending up"
+          "ASML 13.5% above SMA50 — trending up"
         ]
       },
       "strategic": {
-        "score": 12,
+        "score": 9,
         "signal": "NEUTRAL",
-        "rationale": "Trailing P/E of 48.8x is approaching the upper end of reasonable valuation even for ASML's monopoly position. While the company justifies premium multiples due to EUV exclusivity and High-NA ramp potential, current levels suggest limited margin of safety. Forward earnings growth must materialize strongly to support this valuation, particularly with uncertain WFE cycle timing and China export control impacts on revenue visibility.",
+        "rationale": "Trailing P/E of 48.6x is elevated even for ASML's premium multiple regime, though forward estimates suggest compression as 2025-2026 EUV deliveries accelerate. High-NA ramp provides structural growth catalyst, but current valuation assumes flawless execution. China export controls continue creating revenue headwinds while hyperscaler AI capex benefits remain indirect through foundry customers.",
         "det_score": 5,
-        "llm_score": 15,
+        "llm_score": 10,
         "det_notes": [
-          "ASML P/E 48.8x: rich"
+          "ASML P/E 48.6x: rich"
         ]
       },
       "composite": {
-        "score": 7,
+        "score": 5,
         "recommendation": "HOLD",
-        "summary": "ASML remains a high-quality monopolistic compounder with solid technical momentum, but current valuation at 48.8x P/E approaches stretched levels that warrant some caution despite the company's structural advantages.",
+        "summary": "ASML benefits from improving WFE cycle sentiment and structural EUV monopoly position, but elevated trailing multiples warrant modest caution despite strong technical momentum.",
         "det_score": 4,
-        "llm_score": 8,
+        "llm_score": 5,
         "weights": {
           "t": 0.15,
           "p": 0.3,
@@ -162,70 +163,69 @@
         ]
       },
       "key_metric": {
-        "name": "Trailing P/E Ratio",
-        "value": "48.8x"
+        "name": "Forward P/E Multiple Compression",
+        "value": "Expected 2025 P/E ~35x vs trailing 48.6x"
       },
       "risks": [
-        "Extended valuation multiple approaching 50x P/E creates vulnerability to any earnings disappointment or forward guidance reduction",
-        "China export control restrictions could materially impact revenue given historical China exposure of 20-30% of sales"
+        "China export control expansion reducing addressable market by additional 10-15%",
+        "Memory capex recovery delays extending WFE trough into H2 2024"
       ],
       "catalysts": [
-        "High-NA EUV tool ramp with premium pricing of $350M+ per unit could accelerate revenue and margin expansion in 2024-2025",
-        "TSMC aggressive capacity expansion plans for advanced nodes requiring exclusive ASML EUV lithography tools"
+        "TSMC 3nm ramp acceleration driving incremental EUV tool orders",
+        "High-NA EUV commercial deployment beginning with first customer shipments"
       ],
       "_scoring": {
         "deterministic": 4,
-        "llm": 8,
+        "llm": 5,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.2374387968569234,
-        "positional": 0.7432119893278027,
-        "strategic": 1.7509007668742191,
-        "composite": 1.2608522671466131
+        "tactical": 0.5108981788502894,
+        "positional": 0.7995007879303416,
+        "strategic": 1.1895506911801903,
+        "composite": 1.0488460243733466
       }
     },
     {
       "symbol": "LIN",
       "price": {
-        "current": 494.2,
-        "change_pct": 0.07,
+        "current": 493.16,
+        "change_pct": -0.14,
         "week52_high": 521.28,
         "week52_low": 387.78,
-        "week52_position_pct": 79.7
+        "week52_position_pct": 78.9
       },
       "tactical": {
-        "score": 3,
+        "score": 0,
         "signal": "NEUTRAL",
-        "rationale": "RSI 46.59 suggests LIN has room to move in either direction, but the modest underperformance vs recent strength indicates some near-term consolidation. The quality premium to AI.PA remains intact at 3.04pp, though tactical momentum has moderated from yesterday's stronger levels. No immediate catalysts driving short-term price action.",
-        "det_score": 2,
-        "llm_score": 5,
+        "rationale": "The quant engine correctly identifies LIN in normal trending range with RSI 45.52. Given LIN's typical low volatility nature and the absence of any immediate catalysts or news flow, the technical picture appears appropriately neutral. No major earnings events or hydrogen project announcements are imminent that would override the current consolidation pattern.",
+        "det_score": 0,
+        "llm_score": 0,
         "det_notes": [
-          "RSI 46.59: LIN normal trending range",
-          "LIN outperforming AI.PA by 3.04pp — quality premium"
+          "RSI 45.52: LIN normal trending range"
         ]
       },
       "positional": {
-        "score": -7,
+        "score": -8,
         "signal": "NEUTRAL",
-        "rationale": "The above_200_below_50 technical setup actually favors LIN in current market conditions - it's holding above long-term trend while allowing for healthy consolidation. At 79.7% of 52-week range, this represents normal positioning for a quality compounder, not overextension. The inline spread vs APD masks LIN's structural advantages in hydrogen and specialty gases that should drive relative outperformance over 3-6 month horizon.",
-        "det_score": -6,
-        "llm_score": -8,
+        "rationale": "While the quant engine captures the technical positioning above 200-day but below 50-day MA, the broader positional context is more constructive. BBB OAS at 99bps with 6bps tightening in the past month signals improving project economics for LIN's customers, which should translate to backlog growth in 6-12 months. The mild pullback from 52-week highs creates a better entry point for a quality compounder, and defensive positioning in current macro uncertainty favors LIN's contracted revenue base.",
+        "det_score": -10,
+        "llm_score": -5,
         "det_notes": [
           "LIN MA: above_200_below_50 (-5)",
-          "LIN 52w: 79.7% — mild pullback",
-          "LIN/APD spread: -0.23pp — inline",
-          "LIN outperforming AI.PA by 3.04pp (1m) — leading both peers"
+          "LIN 52w: 78.9% — mild pullback",
+          "LIN/APD spread: -0.28pp — inline",
+          "BBB OAS 99bps: tight — capital allocation tailwind"
         ]
       },
       "strategic": {
-        "score": 10,
+        "score": 17,
         "signal": "NEUTRAL",
-        "rationale": "While the 8.9% P/E premium vs peers is below historical norms suggesting value, the concerning ROCE of 10.93% and compressed operating margins at 26.48% signal structural headwinds. However, this appears cyclical rather than secular - industrial gas demand remains robust with hydrogen buildout accelerating globally. The very strong USD at 118.39 creates meaningful FX headwinds given 70% non-US revenue exposure, but this should reverse as Fed policy normalizes.",
-        "det_score": 14,
-        "llm_score": 8,
+        "rationale": "The engine identifies concerning ROCE at 10.93% and margin compression to 26.48%, both well below LIN's historical best-in-class metrics of ROCE >25% and margins >30%. While the 10.9% P/E premium to peers remains deserved based on structural advantages, the operational deterioration is meaningful. The hydrogen economy buildout remains a multi-year tailwind, but execution metrics suggest LIN is facing margin pressure from project mix or competitive dynamics that numbers alone cannot fully capture.",
+        "det_score": 21,
+        "llm_score": 15,
         "det_notes": [
-          "LIN P/E +8.9% vs peers: below normal premium",
+          "LIN P/E +10.9% vs peers: deserved premium (normal)",
           "LIN yield 1.2959400627720967%: slightly stretched",
           "LIN ROCE 10.93%: moat erosion risk",
           "LIN op margin 26.48%: significant compression",
@@ -233,11 +233,11 @@
         ]
       },
       "composite": {
-        "score": 3,
+        "score": 5,
         "recommendation": "HOLD",
-        "summary": "LIN shows mixed signals with tactical consolidation and strategic headwinds from USD strength offset by solid positional setup and intact quality moat. The recent pullback creates better entry point for long-term hydrogen economy exposure.",
-        "det_score": 5,
-        "llm_score": 2,
+        "summary": "LIN presents a mixed picture with structural hydrogen tailwinds offset by concerning operational metrics. While defensive qualities support positioning during macro uncertainty, margin compression and ROCE deterioration warrant caution on valuation.",
+        "det_score": 6,
+        "llm_score": 3,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -259,81 +259,77 @@
       },
       "key_metric": {
         "name": "ROCE vs Historical Range",
-        "value": "10.93% (well below 25%+ normal range)"
+        "value": "10.93% (well below 25%+ historical best-in-class)"
       },
       "risks": [
-        "Continued USD strength pressuring international revenue translation with 70% non-US exposure",
-        "Industrial recession risk dampening demand for specialty gases and delaying hydrogen project sanctioning",
-        "Margin compression accelerating if unable to pass through inflation in contracted pricing",
-        "Hydrogen economy buildout slower than expected due to regulatory delays or reduced government subsidies"
+        "Continued margin compression suggesting competitive pressure or unfavorable project mix in core industrial gas business",
+        "ROCE deterioration indicating potential moat erosion or capital allocation efficiency decline from historical excellence"
       ],
       "catalysts": [
-        "Major hydrogen project announcement exceeding $1B scale with strong offtake agreements",
-        "Semiconductor fab construction acceleration driving specialty gas demand (TSMC Arizona, Intel Ohio expansions)",
-        "IRA 45V hydrogen tax credit guidance becoming more favorable expanding green hydrogen economics",
-        "USD weakness reversing FX headwinds and boosting international earnings translation"
+        "Major hydrogen project announcements over $1B as green hydrogen economics improve with policy support",
+        "Semiconductor fab construction acceleration driving specialty gas demand and multi-year on-site contracts"
       ],
       "_scoring": {
-        "deterministic": 5,
-        "llm": 2,
+        "deterministic": 6,
+        "llm": 3,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.383554979538107,
-        "positional": 0.4275113212947538,
-        "strategic": 1.5800811798621002,
-        "composite": 0.9656283216683816
+        "tactical": 0.4312776834450496,
+        "positional": 0.45821191403122347,
+        "strategic": 1.845854520796847,
+        "composite": 1.0488460243733466
       }
     },
     {
       "symbol": "MSFT",
       "price": {
-        "current": 418.22,
-        "change_pct": -0.61,
+        "current": 415.12,
+        "change_pct": -1.34,
         "week52_high": 555.45,
         "week52_low": 356.28,
-        "week52_position_pct": 31.1
+        "week52_position_pct": 29.5
       },
       "tactical": {
-        "score": -17,
+        "score": -23,
         "signal": "NEUTRAL",
-        "rationale": "The 24.7% drawdown from 52-week highs creates a solid tactical setup, reinforced by Microsoft's Q1 FY25 results showing Azure constant currency growth accelerating to 33% - the highest in several quarters. This acceleration suggests the AI infrastructure thesis remains intact despite the significant price correction. The RSI at 55.85 provides room for upward movement without being oversold, typical for MSFT's low-volatility profile.",
-        "det_score": -18,
-        "llm_score": -15,
+        "rationale": "The -25.3% drawdown from 52-week high creates an asymmetric risk/reward setup typical of quality compounders during broad tech selloffs. Azure constant-currency growth remains healthy at ~30% based on recent quarters, suggesting the drawdown is sentiment-driven rather than fundamental deterioration. RSI at 53.89 indicates neutral momentum with room for recovery bounce. The technical setup aligns with historical MSFT buying opportunities during cohort rotation phases.",
+        "det_score": -25,
+        "llm_score": -20,
         "det_notes": [
-          "RSI 55.85: MSFT normal trending range",
-          "MSFT drawdown -24.7%: deep — high-conviction buy setup"
+          "RSI 53.89: MSFT normal trending range",
+          "MSFT drawdown -25.3%: extreme — rare compounder buy"
         ]
       },
       "positional": {
-        "score": -32,
+        "score": -43,
         "signal": "BUY",
-        "rationale": "Microsoft's positioning in the AI cycle remains dominant with the OpenAI partnership providing proprietary distribution advantages for Copilot and Azure AI services. Enterprise Copilot adoption is showing early traction with over 1 million paid seats reported, though still early in monetization curve. The 46.75% operating margin demonstrates exceptional execution quality. Forward P/E around 28x represents reasonable valuation for a compounder with 30%+ Azure growth, especially compared to historical premiums during growth phases.",
-        "det_score": -35,
-        "llm_score": -30,
+        "rationale": "Forward P/E around 26-27x represents significant compression from historical 30-32x range, particularly attractive given Azure's growth trajectory and AI monetization runway. The above 50-day/below 200-day MA configuration typically resolves upward for quality compounders like MSFT when fundamental drivers remain intact. OpenAI partnership continues providing exclusive access to cutting-edge models, creating defensible moat in enterprise AI deployment. Copilot seat expansion showing momentum with enterprise pilots converting at accelerating rates.",
+        "det_score": -51,
+        "llm_score": -35,
         "det_notes": [
           "MSFT MA: above_50_below_200 (-10)",
-          "MSFT 52w: 31.1% — real drawdown, compounder on sale",
+          "MSFT 52w: 29.5% — major drawdown, high-conviction buy (rare)",
           "MSFT op margin 46.75%: peer-best execution"
         ]
       },
       "strategic": {
-        "score": -23,
+        "score": -18,
         "signal": "NEUTRAL",
-        "rationale": "The 12.7% discount to big tech cohort trailing P/E is compelling given MSFT's superior margin profile and AI positioning. Forward P/E compression toward 28x while maintaining Azure acceleration creates an attractive risk-adjusted entry. Hyperscaler capex discipline remains intact with guided increases focused on AI infrastructure ROI. The secular AI infrastructure build-out is multi-year with Microsoft best positioned through Azure's enterprise relationships and OpenAI exclusive partnership extending through 2030.",
-        "det_score": -19,
-        "llm_score": -25,
+        "rationale": "AI infrastructure cycle remains in early monetization phase rather than saturation, supporting MSFT's premium positioning. Hyperscaler capex discipline among peers (GOOGL, META reducing AI spend growth rates) actually benefits MSFT's pricing power and market share gains. The trailing P/E discount to cohort of -15.3% understates the forward valuation attractiveness as Azure growth acceleration justifies premium to slower-growing mega-caps. Regulatory overhang from gaming integration largely resolved, clearing path for focused AI execution.",
+        "det_score": -26,
+        "llm_score": -15,
         "det_notes": [
-          "MSFT P/E -12.7% vs cohort: discount — strong buy",
+          "MSFT P/E -15.3% vs cohort: deep discount — exceptional buy (very rare)",
           "MSFT yield 0.8650806854100817%: normal baseline",
           "DXY 118.3926: mild USD weakness — FX tailwind"
         ]
       },
       "composite": {
-        "score": -25,
+        "score": -28,
         "recommendation": "BUY",
-        "summary": "Deep drawdown combined with Azure growth re-acceleration and cohort valuation discount creates high-conviction buy setup for the dominant AI infrastructure compounder. Quality execution metrics intact with clear secular tailwinds.",
-        "det_score": -24,
+        "summary": "MSFT presents a rare high-conviction buying opportunity with -25% drawdown creating entry point in best-in-class AI infrastructure play. Forward valuation compression combined with intact Azure growth supports strong risk-adjusted returns.",
+        "det_score": -35,
         "llm_score": -25,
         "weights": {
           "t": 0.2,
@@ -355,76 +351,74 @@
         "missing": []
       },
       "key_metric": {
-        "name": "Azure Constant Currency Growth",
-        "value": "33% (Q1 FY25 acceleration)"
+        "name": "Azure Constant Currency Growth Rate",
+        "value": "~30% (estimated from recent quarters)"
       },
       "risks": [
-        "OpenAI partnership renegotiation risk as AGI development progresses and exclusivity clauses potentially trigger",
-        "Copilot enterprise adoption slower than expected with seat growth stalling or ASP compression from competitive pressure",
-        "AI capex cycle peak leading to margin compression without corresponding revenue acceleration"
+        "Azure growth deceleration below 25% due to enterprise AI spending pullback or competitive pressure from AWS/Google Cloud",
+        "OpenAI partnership renegotiation unfavorable to MSFT, potentially reducing exclusivity or increasing revenue sharing costs"
       ],
       "catalysts": [
-        "Continued Azure CC growth acceleration above 35% driven by broad-based AI workload adoption beyond OpenAI services",
-        "Copilot enterprise inflection with seat count exceeding 2 million and improved ASP through premium tiers",
-        "OpenAI partnership extension or deepening integration announcements reinforcing competitive moat"
+        "Q4 earnings showing Azure re-acceleration above 32% driven by Copilot enterprise adoption and AI workload migration",
+        "OpenAI partnership extension with improved economics or deeper integration announced at upcoming BUILD conference"
       ],
       "_scoring": {
-        "deterministic": -24,
+        "deterministic": -35,
         "llm": -25,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -1.0776068472737292,
-        "positional": -0.5590532663085243,
-        "strategic": -1.2384420058378625,
-        "composite": -1.1009392966792375
+        "tactical": -1.3999937108754683,
+        "positional": -0.8690225955764584,
+        "strategic": -1.0254747337760262,
+        "composite": -1.2084530280823338
       }
     },
     {
       "symbol": "ENB",
       "price": {
-        "current": 53.53,
-        "change_pct": -0.85
+        "current": 53.59,
+        "change_pct": -0.74
       },
       "tactical": {
-        "score": -1,
+        "score": 0,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 49.1 indicates neutral momentum, but ENB's price action near $53.50 shows resilience despite recent rate volatility. The stock is holding above the 200-day MA at $49.52, demonstrating technical strength for a defensive utility-like name. Minor positive tactical bias given the stock's ability to maintain levels while other yield-sensitive names have struggled.",
+        "rationale": "RSI at 49.54 confirms neutral momentum for ENB, which is appropriate given its low-volatility dividend compounder nature. The 0.74% decline today is within normal daily trading range of 0.3-0.8%. VIX at 17.08 shows no significant market stress that would create tactical opportunities in yield stocks. No meaningful catalyst or news flow to drive short-term positioning bias.",
         "det_score": 0,
-        "llm_score": -5,
+        "llm_score": 0,
         "det_notes": [
-          "RSI 49.1: ENB normal range"
+          "RSI 49.54: ENB normal range"
         ]
       },
       "positional": {
         "score": 14,
         "signal": "NEUTRAL",
-        "rationale": "The 90bps yield spread over 10Y confirms the quant assessment - ENB is trading rich relative to historical norms. With 10Y at 4.36%, the yield advantage has compressed meaningfully from the 300bps+ levels that typically signal value. This spread compression suggests limited near-term upside and potential vulnerability if rates continue rising or if dividend growth disappoints.",
+        "rationale": "The 85bps yield spread over 10Y Treasury places ENB in expensive territory, though not extreme. Trading above 200-day MA but below 50-day suggests recent consolidation near highs. Natural gas fundamentals remain supportive with Henry Hub holding above $2.50, but LNG Canada Phase 2 timeline remains uncertain. Canadian crude production growth continues supporting Mainline throughput, but WCS-WTI spread has narrowed reducing some margin benefits.",
         "det_score": 12,
         "llm_score": 15,
         "det_notes": [
           "ENB MA: above_200_below_50 (-3)",
-          "ENB yield spread: 90bps over 10Y — expensive"
+          "ENB yield spread: 85bps over 10Y — expensive"
         ]
       },
       "strategic": {
-        "score": -3,
+        "score": 8,
         "signal": "NEUTRAL",
-        "rationale": "Natural gas fundamentals are improving with Henry Hub showing stability, supporting higher throughput volumes across ENB's gas transmission network. LNG Canada Phase 1 ramp-up continues to drive structural demand for pipeline capacity. Canadian crude production remains robust with WCS-WTI spreads normalizing, benefiting Mainline economics. The 5.26% yield supports dividend sustainability with room for 3-5% annual growth, making this a hold-forever income story despite current valuation richness.",
+        "rationale": "ENB's 5.26% yield represents yield compression from historical ranges, though dividend coverage remains solid with sustainable payout ratios. P/E of 21.5x is fair value for pipeline infrastructure. Rate environment remains challenging for yield stocks with 10Y at 4.41%, but Fed pause signals may provide some relief. Long-term LNG export buildout thesis intact but execution timelines extended. Dividend growth trajectory of 3-5% annually appears sustainable given contracted cash flows.",
         "det_score": 8,
-        "llm_score": -8,
+        "llm_score": 8,
         "det_notes": [
-          "ENB P/E 21.6x: normal range",
+          "ENB P/E 21.5x: normal range",
           "ENB yield 5.263157894736842%: low — yield compression",
           "2s10s 49bps: normal range"
         ]
       },
       "composite": {
-        "score": 5,
+        "score": 10,
         "recommendation": "HOLD",
-        "summary": "ENB remains fundamentally sound with improving gas volumes and LNG buildout tailwinds, but current valuation reflects much of this optimism with yield spread at only 90bps over treasuries. Modest trim bias reflects opportunity cost rather than fundamental concerns.",
+        "summary": "ENB reflects fair value with slight expensive bias due to yield compression, but fundamental dividend compounder thesis remains intact with solid coverage and LNG growth optionality.",
         "det_score": 9,
-        "llm_score": 5,
+        "llm_score": 8,
         "weights": {
           "t": 0.1,
           "p": 0.45,
@@ -447,65 +441,65 @@
         ]
       },
       "key_metric": {
-        "name": "ENB Yield Spread vs 10Y",
-        "value": "90bps - approaching rich territory"
+        "name": "ENB yield spread vs 10Y Treasury",
+        "value": "85bps - in expensive range but not extreme"
       },
       "risks": [
-        "Further yield spread compression below 100bps would signal overvaluation relative to risk-free alternatives",
-        "Rising rate environment could pressure all yield-sensitive names regardless of fundamentals"
+        "Further yield compression below 100bps would signal significant overvaluation versus bonds",
+        "Delays in LNG Canada Phase 2 or other export terminal projects reducing long-term growth runway"
       ],
       "catalysts": [
-        "LNG Canada Phase 2 approval would create additional structural pipeline demand",
-        "Fed pivot to rate cuts would provide significant tailwinds for yield-focused investors"
+        "Fed rate cutting cycle beginning would provide structural tailwind for yield stock rerating",
+        "LNG Canada Phase 2 approval or new Gulf Coast export terminal pipeline contracts boosting growth visibility"
       ],
       "_scoring": {
         "deterministic": 9,
-        "llm": 5,
+        "llm": 8,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.09132261417573977,
-        "positional": 1.2562255748815072,
-        "strategic": 0.4697538642833271,
-        "composite": 1.1132402944074973
+        "tactical": 0.4312776834450496,
+        "positional": 1.2924736057846233,
+        "strategic": 1.1075127124781083,
+        "composite": 1.390861032321177
       }
     },
     {
       "symbol": "ETHA",
       "price": {
-        "current": 17.17,
-        "change_pct": -0.75,
+        "current": 17.48,
+        "change_pct": 1.04,
         "week52_high": 36.8,
-        "week52_low": 13.25,
-        "week52_position_pct": 16.6
+        "week52_low": 13.53,
+        "week52_position_pct": 17
       },
       "tactical": {
-        "score": -1,
+        "score": -3,
         "signal": "NEUTRAL",
-        "rationale": "ETH RSI at 49.48 suggests neutral momentum with slight oversold lean. Recent price action shows consolidation rather than breakdown, with ETHA holding above key $16.50 support despite broader crypto weakness. ETH's typical volatility expansion hasn't materialized yet, suggesting potential for momentum shift rather than continued decline.",
+        "rationale": "ETH showing modest recovery momentum with RSI at neutral 52.72, suggesting room for further upside without being overbought. The 1.81% gain yesterday indicates some buying interest returning after the deep correction. However, momentum remains fragile and lacks conviction volume typical of strong ETH rallies. The technical setup is mildly constructive but not compelling enough for aggressive positioning.",
         "det_score": 0,
-        "llm_score": -5,
+        "llm_score": -10,
         "det_notes": [
-          "RSI 49.48: ETH neutral/trending"
+          "RSI 52.72: ETH neutral/trending"
         ]
       },
       "positional": {
-        "score": -77,
+        "score": -76,
         "signal": "STRONG_BUY",
-        "rationale": "ETHA trading 53% below 52-week highs presents exceptional risk-adjusted opportunity. ETH ecosystem fundamentals remain robust with L2 TVL holding steady and upcoming Pectra upgrade addressing scalability concerns. ETH/BTC ratio near cycle lows historically precedes alt-season rotations. Current positioning 16.6% into 52-week range is deeply oversold territory where institutional accumulation typically begins.",
-        "det_score": -80,
-        "llm_score": -75,
+        "rationale": "ETHA trading 53% below 52-week highs at only 17th percentile presents compelling risk-reward at these depressed levels. The 0.93pp outperformance vs IBIT signals early rotation into ETH, which historically marks bottoming processes. ETH's -26.7% distance from 200DMA represents oversold conditions that typically resolve with sharp rebounds. DeFi TVL has stabilized around $100B and Layer 2 adoption continues growing, providing fundamental support for eventual recovery.",
+        "det_score": -82,
+        "llm_score": -70,
         "det_notes": [
           "ETHA MA: above_50_below_200 (-5)",
-          "ETHA 52w: 16.6% — significant drawdown, strong buy",
-          "ETH -28.0% below 200DMA — deep correction, strong buy",
-          "ETHA/IBIT spread: -0.11pp — inline"
+          "ETHA 52w: 17% — significant drawdown, strong buy",
+          "ETH -26.7% below 200DMA — deep correction, strong buy",
+          "ETHA mildly outperforming IBIT (0.93pp)"
         ]
       },
       "strategic": {
         "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "Regulatory environment improving with SEC's clearer commodity classification stance on ETH. Tight credit spreads and risk-on backdrop should benefit ETH disproportionately given its higher beta to risk assets. However, rising real rates and persistent macro uncertainty cap upside potential. DeFi innovation continuing with Base ecosystem growth providing fundamental support.",
+        "rationale": "Risk-on environment with tight credit spreads and VIX at benign 17.08 levels should favor ETH's higher-beta profile relative to BTC. However, the crypto regulatory environment remains uncertain with ongoing SEC scrutiny of ETH's commodity status potentially impacting ETF flows. Rising real rates at 1.96% create headwinds for risk assets, but the steepening yield curve suggests growth expectations improving which could support risk appetite rotation back into crypto.",
         "det_score": -5,
         "llm_score": -15,
         "det_notes": [
@@ -513,11 +507,11 @@
         ]
       },
       "composite": {
-        "score": -31,
+        "score": -32,
         "recommendation": "BUY",
-        "summary": "Deep technical oversold conditions combined with improving regulatory clarity and robust ecosystem fundamentals create compelling asymmetric opportunity despite macro headwinds. ETHA positioned for significant outperformance on any crypto market recovery.",
+        "summary": "ETHA presents attractive risk-reward at severely depressed levels with early signs of BTC-to-ETH rotation emerging, though momentum remains tentative amid mixed macro crosscurrents and regulatory overhang.",
         "det_score": -30,
-        "llm_score": -32,
+        "llm_score": -35,
         "weights": {
           "t": 0.3,
           "p": 0.35,
@@ -540,27 +534,29 @@
         ]
       },
       "key_metric": {
-        "name": "ETH vs 200DMA Extension",
-        "value": "-28.0%"
+        "name": "ETHA 52-week position",
+        "value": "17% - extreme oversold territory"
       },
       "risks": [
-        "Rising real rates creating headwinds for risk assets with ETH's higher volatility amplifying downside",
-        "Solana ecosystem continuing to capture market share and developer mindshare from Ethereum"
+        "SEC regulatory crackdown on ETH staking or commodity classification could trigger massive ETF outflows",
+        "Rising real rates above 2% could spark broader risk-off rotation away from crypto assets",
+        "Solana and other L1 competitors gaining DeFi market share could undermine ETH's network value proposition"
       ],
       "catalysts": [
-        "Pectra upgrade implementation improving transaction throughput and reducing gas costs",
-        "Institutional ETF flows accelerating as crypto allocations normalize following Trump administration policy clarity"
+        "Bitcoin breaking above key resistance could trigger aggressive alt-season rotation favoring ETH",
+        "Ethereum Pectra upgrade reducing gas fees and improving scalability could reignite DeFi activity",
+        "Federal Reserve pivot to dovish stance lowering real rates would boost appetite for risk assets like ETH"
       ],
       "_scoring": {
         "deterministic": -30,
-        "llm": -32,
+        "llm": -35,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.09132261417573977,
-        "positional": -2.334869523994425,
-        "strategic": -0.29893427727120814,
-        "composite": -1.5437752148965844
+        "tactical": 0.19241619722932982,
+        "positional": -2.1204151332065586,
+        "strategic": -0.5332468615635336,
+        "composite": -1.4820650344405981
       }
     },
     {
@@ -570,35 +566,35 @@
         "change_pct": -1.1
       },
       "tactical": {
-        "score": 2,
+        "score": -1,
         "signal": "NEUTRAL",
-        "rationale": "RSI 56 is technically neutral but GLNCY's -1.1% decline while copper surged 4.3% reveals significant relative weakness. This divergence suggests either profit-taking after recent gains or structural headwinds the quant layer missed. The trading arm should benefit from copper volatility, yet price action shows market skepticism. Short-term momentum favors waiting for better entry.",
+        "rationale": "RSI at 58.56 shows mild bullish momentum without being overbought. The 1.1% decline today against COPX's 4.07% surge creates a tactical opportunity - diversified commodity traders often lag pure-play miners on initial moves but catch up as markets recognize the trading arm's value during volatile periods. The golden cross technical setup (above both SMAs) remains intact despite today's minor pullback.",
         "det_score": 0,
-        "llm_score": 5,
+        "llm_score": -5,
         "det_notes": [
-          "RSI 56.15: GLNCY neutral"
+          "RSI 58.56: GLNCY neutral"
         ]
       },
       "positional": {
         "score": -10,
         "signal": "NEUTRAL",
-        "rationale": "Golden cross above both MAs remains bullish, but the real story is COPX leading by 5.39pp - this is classic commodity cycle behavior where pure-plays lead before diversified miners catch up. Glencore's trading arm adds volatility profits during commodity surges that pure miners lack. HY spreads at 2.79bps confirm healthy industrial demand backdrop. Expect catch-up trade as copper momentum sustains.",
+        "rationale": "COPX surging 5.17pp ahead of GLNCY signals strong copper momentum that Glencore should capture given copper represents ~30% of mining EBITDA. LME copper inventories remain tight, and Chinese manufacturing data has been improving. The diversification discount is extreme - market is pricing Glencore's trading arm near zero despite its $2-4B EBITDA generation capability during commodity volatility. HY credit spreads at 2.79bps confirm healthy industrial demand backdrop.",
         "det_score": -5,
         "llm_score": -15,
         "det_notes": [
           "GLNCY MA: above_both_golden (+8)",
-          "COPX outperforming GLNCY by 5.39pp — copper surging, GLNCY catch-up potential",
+          "COPX outperforming GLNCY by 5.17pp — copper surging, GLNCY catch-up potential",
           "HY OAS 2.79bps: tight — healthy commodity demand"
         ]
       },
       "strategic": {
         "score": -24,
         "signal": "NEUTRAL",
-        "rationale": "P/E 250x correctly signals earnings trough - classic cyclical buy setup. But P/B 1.67 above replacement cost suggests limited downside protection versus historical 0.8-1.0x trough levels. Key insight: market likely valuing trading arm near zero despite $2-4B steady EBITDA. With copper inventories tight and Chinese infrastructure spending accelerating, mining EBITDA inflection approaching while trading profits compound. Sum-of-parts discount creates asymmetric upside.",
+        "rationale": "P/E of 248x represents classic cyclical trough valuation - earnings are depressed making this a contrarian buy signal per Lynch's rule. More importantly, P/B at 1.67x means mining assets are reasonably valued relative to replacement cost, not the deep discount levels seen in prior cycles. The sum-of-parts disconnect is severe: trading arm generating steady cash flow is being valued at near-zero multiples when standalone trading houses command 8-12x EBITDA. Commodity super-cycle thesis strengthening with infrastructure spending and energy transition metal demand.",
         "det_score": -22,
         "llm_score": -25,
         "det_notes": [
-          "GLNCY P/E 250x: deep trough — commodity buy",
+          "GLNCY P/E 248x: deep trough — commodity buy",
           "GLNCY P/B 1.67: above book",
           "HY OAS 2.79bps: tight — healthy industrial demand"
         ]
@@ -606,9 +602,9 @@
       "composite": {
         "score": -14,
         "recommendation": "HOLD",
-        "summary": "Despite short-term relative weakness, Glencore sits at classic cyclical trough with P/E 250x signaling earnings inflection ahead. Trading arm provides volatility profits while copper surge builds momentum for catch-up trade to pure miners.",
+        "summary": "Glencore presents compelling cyclical value with P/E of 248x signaling earnings trough while copper surge and tight credit spreads confirm improving commodity fundamentals. Market severely undervaluing the trading arm's steady cash generation during volatile periods.",
         "det_score": -12,
-        "llm_score": -15,
+        "llm_score": -18,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -631,77 +627,77 @@
         ]
       },
       "key_metric": {
-        "name": "GLNCY/COPX Ratio Divergence",
-        "value": "-5.39pp underperformance vs copper miners during 4.3% COPX surge"
+        "name": "GLNCY/COPX Spread",
+        "value": "-5.17pp (COPX leading)"
       },
       "risks": [
-        "Chinese property sector deterioration could collapse base metals demand despite current PMI strength",
-        "ESG divestment pressure on coal assets may force value-destructive disposals before commodity cycle peaks"
+        "China property sector weakness could undermine base metals demand despite recent PMI improvements",
+        "ESG pressure forcing coal asset divestments at unfavorable valuations before cash generation maximized"
       ],
       "catalysts": [
-        "LME copper inventory drawdown accelerating as Chinese infrastructure spending ramps through Q3",
-        "Trading arm EBITDA guidance raise as commodity volatility generates outsized marketing profits"
+        "Copper supply constraints from major mines could drive LME prices above $10,000/tonne benefiting 30% of mining EBITDA",
+        "Management spin-off or separate valuation of trading arm could unlock $15-25B in hidden value currently priced at zero"
       ],
       "_scoring": {
         "deterministic": -12,
-        "llm": -15,
+        "llm": -18,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.3104968881975152,
-        "positional": 0.3091235707823604,
-        "strategic": -1.3238517993439218,
-        "composite": -0.28907344661410145
+        "tactical": 0.35165718803980967,
+        "positional": 0.38236994205364166,
+        "strategic": -1.5177026059885188,
+        "composite": -0.25081100582840893
       }
     },
     {
       "symbol": "IBIT",
       "price": {
-        "current": 45.11,
-        "change_pct": -0.64,
+        "current": 45.45,
+        "change_pct": 0.11,
         "week52_high": 71.82,
         "week52_low": 35.3,
-        "week52_position_pct": 26.9
+        "week52_position_pct": 27.8
       },
       "tactical": {
-        "score": -4,
+        "score": -3,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 60.17 suggests room for upside momentum without being overbought. Bitcoin's current price action shows healthy consolidation after recent moves, with institutional flow patterns indicating accumulation rather than distribution. The -1.18% daily move appears to be normal volatility rather than trend reversal, and crypto markets often see momentum continuation after brief pauses.",
+        "rationale": "RSI at 62.25 shows moderate momentum without overbought conditions. Bitcoin's recent consolidation around current levels suggests accumulation rather than distribution. Flow data indicates institutional interest remains steady with no major outflow divergence. Short-term technicals support a slight bullish bias as BTC holds above key support levels despite being below 200DMA.",
         "det_score": 0,
-        "llm_score": -15,
+        "llm_score": -10,
         "det_notes": [
-          "RSI 60.17: BTC neutral/trending"
+          "RSI 62.25: BTC neutral/trending"
         ]
       },
       "positional": {
-        "score": -31,
+        "score": -41,
         "signal": "BUY",
-        "rationale": "BTC trading 14.5% below 200DMA in month 25 of the cycle historically presents strong risk-adjusted opportunities. While we're deeper in the cycle, the pattern appears to be extending rather than truncating, with institutional adoption still in early innings. ETF flows have been resilient during this consolidation phase, and the technical setup with price above 50DMA but below 200DMA often precedes significant moves higher in crypto.",
+        "rationale": "Bitcoin trading 13.9% below 200DMA in month 25 of cycle creates compelling risk-reward setup. Historical precedent shows late-cycle corrections often present best entry opportunities before final parabolic moves. ETF flows remain constructive with no signs of retail capitulation. Current positioning at 27.8% of 52-week range provides significant upside runway. Institutional adoption continues with corporate treasury allocations accelerating.",
         "det_score": -37,
-        "llm_score": -25,
+        "llm_score": -45,
         "det_notes": [
           "IBIT MA: above_50_below_200 (-5)",
-          "IBIT 52w: 26.9% — lower range, buy",
-          "BTC -14.5% below 200DMA — testing regime",
+          "IBIT 52w: 27.8% — lower range, buy",
+          "BTC -13.9% below 200DMA — testing regime",
           "Halving cycle: month 25, phase=extended_expansion"
         ]
       },
       "strategic": {
-        "score": -6,
+        "score": -13,
         "signal": "NEUTRAL",
-        "rationale": "This cycle is showing clear structural differences from previous ones due to institutional adoption via ETFs and potential strategic Bitcoin reserves discussion. While we're in month 25 post-halving, the extended expansion phase could persist longer given the new demand dynamics. Regulatory clarity improving globally and potential central bank adoption creates longer-term tailwinds that weren't present in previous cycles.",
+        "rationale": "Extended expansion phase historically sees volatile but ultimately upward price action. Current cycle showing signs of extension beyond traditional 4-year pattern, potentially due to institutional adoption changing market dynamics. Regulatory clarity improving with ETF approvals setting precedent. Macro environment with real rates above 1.6% creates headwinds but Bitcoin's store-of-value narrative strengthening amid persistent inflation concerns.",
         "det_score": 3,
-        "llm_score": -10,
+        "llm_score": -20,
         "det_notes": [
           "Cycle: month 25 (extended_expansion) — mild maturity tilt"
         ]
       },
       "composite": {
-        "score": -14,
+        "score": -20,
         "recommendation": "HOLD",
-        "summary": "IBIT presents a modest buy opportunity with BTC 14.5% below 200DMA in an extending cycle phase, supported by institutional flows and structural adoption tailwinds that differentiate this cycle from historical patterns.",
+        "summary": "Late-cycle correction in Bitcoin presents attractive entry opportunity as institutional flows remain supportive and regulatory environment improves. Risk-reward strongly favors upside from current levels below 200DMA despite extended cycle timing.",
         "det_score": -12,
-        "llm_score": -17,
+        "llm_score": -26,
         "weights": {
           "t": 0.3,
           "p": 0.35,
@@ -725,50 +721,50 @@
       },
       "key_metric": {
         "name": "BTC vs 200DMA",
-        "value": "-14.5%"
+        "value": "-13.9%"
       },
       "risks": [
-        "Cycle extension could reverse suddenly if historical 4-year pattern reasserts, leading to significant drawdown",
-        "Rising interest rates and credit spreads could pressure risk assets including crypto as macro conditions tighten"
+        "Regulatory crackdown on crypto could reverse institutional adoption trends",
+        "Macro tightening with rising real rates creating liquidity headwinds for risk assets"
       ],
       "catalysts": [
-        "Potential US strategic Bitcoin reserve announcement or other sovereign adoption could drive massive institutional inflows",
-        "Further regulatory clarity from major jurisdictions enabling additional institutional participation and ETF product launches"
+        "Additional spot Bitcoin ETF approvals increasing institutional access and flows",
+        "Corporate treasury adoption accelerating as inflation hedge strategies gain traction"
       ],
       "_scoring": {
         "deterministic": -12,
-        "llm": -17,
+        "llm": -26,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -0.12785165984603566,
-        "positional": -0.5195906828043931,
-        "strategic": 0.21352448376514868,
-        "composite": -0.28907344661410145
+        "tactical": 0.19241619722932982,
+        "positional": -0.7931806235988766,
+        "strategic": -0.6152848402656157,
+        "composite": -0.6612290153658054
       }
     },
     {
       "symbol": "KOF",
       "price": {
-        "current": 107.9,
-        "change_pct": 1.67
+        "current": 105.77,
+        "change_pct": -0.34
       },
       "tactical": {
         "score": -1,
         "signal": "NEUTRAL",
-        "rationale": "RSI at 63.5 shows momentum without being overbought for a consumer staples name. The 0.96% daily move suggests continued buying interest, and KOF's historical tendency to trend once it breaks above both moving averages supports near-term momentum. Yesterday's incorrect SELL signal suggests the bearish technical view was premature.",
+        "rationale": "MXN showing signs of stabilization around 17.40 level after recent volatility, with Banxico maintaining restrictive policy stance supporting peso strength. Mexican consumer confidence has been recovering gradually, and we're entering peak consumption season ahead of summer. The RSI at 59 suggests room for near-term upside without being overbought for a staples name. Recent retail sales data from Mexico showing resilience despite higher rates.",
         "det_score": 0,
         "llm_score": -5,
         "det_notes": [
-          "RSI 63.5: KOF normal range"
+          "RSI 59.35: KOF normal range"
         ]
       },
       "positional": {
-        "score": 2,
+        "score": 4,
         "signal": "NEUTRAL",
-        "rationale": "The golden cross above both 50-day and 200-day moving averages is technically constructive and properly captured by the quantitative score. No additional qualitative edge to add on the intermediate-term technical picture, as the uptrend remains intact without concerning divergences.",
+        "rationale": "While the golden cross signal is constructive, KOF's ADR has outpaced peso strength recently, suggesting some technical overextension. The stock is trading near multi-year highs and positioning data suggests institutional flows have been heavy into LatAm consumer names. Nearshoring narrative has provided structural peso support, but this may be getting priced in at current levels. Volume trends need to prove sustainability of the technical breakout.",
         "det_score": 3,
-        "llm_score": 0,
+        "llm_score": 5,
         "det_notes": [
           "KOF MA: above_both_golden (+3)"
         ]
@@ -776,7 +772,7 @@
       "strategic": {
         "score": -7,
         "signal": "NEUTRAL",
-        "rationale": "MXN/USD at 17.40 appears stable but positioned for potential strengthening given Mexico's nearshoring momentum and Banxico's hawkish stance relative to Fed dovishness. Mexican retail sales have shown resilience, and real wage growth is supporting consumer spending power. KOF's defensive characteristics become more attractive as global growth concerns mount, while the 3.76% dividend yield provides income support during volatility.",
+        "rationale": "Valuation remains reasonable at 15.7x P/E for a dominant LatAm bottler with defensive characteristics. Sugar prices have moderated from peaks, providing margin relief, while PET resin costs remain manageable. The nearshoring theme provides structural peso support which benefits KOF's USD-denominated returns. Dividend growth trajectory of 5-8% annually looks sustainable given strong free cash flow generation and market position. Real wages in Mexico showing improvement supporting volume growth.",
         "det_score": -4,
         "llm_score": -8,
         "det_notes": [
@@ -787,11 +783,11 @@
         ]
       },
       "composite": {
-        "score": -3,
+        "score": -2,
         "recommendation": "HOLD",
-        "summary": "Technical momentum remains positive with the golden cross pattern intact, while peso stability and improving Mexican consumer fundamentals support the strategic outlook. Quantitative metrics show normal valuation ranges, creating a modestly constructive setup.",
+        "summary": "KOF presents a modest buying opportunity with reasonable valuation, improving input cost environment, and peso stability supporting ADR returns, though technical positioning suggests limited near-term upside after recent outperformance.",
         "det_score": -1,
-        "llm_score": -5,
+        "llm_score": -3,
         "weights": {
           "t": 0.15,
           "p": 0.35,
@@ -814,74 +810,76 @@
         ]
       },
       "key_metric": {
-        "name": "MXN/USD Exchange Rate",
-        "value": "17.3969"
+        "name": "MXN/USD Exchange Rate Stability",
+        "value": "17.3969 - holding support levels with Banxico policy providing backstop"
       },
       "risks": [
-        "Banxico rate cuts could weaken MXN significantly, pressuring ADR price despite potentially boosting domestic volumes",
-        "Rising sugar and PET resin input costs could compress margins if pricing power proves insufficient in competitive LatAm markets"
+        "Banxico rate cuts could weaken MXN significantly, pressuring ADR returns despite potential volume benefits",
+        "Rising competition from Arca Continental in key Mexican markets pressuring market share and pricing power"
       ],
       "catalysts": [
-        "Continued nearshoring investment flows could structurally strengthen MXN, boosting ADR translation effects",
-        "Q2 earnings could show volume acceleration from improving Mexican consumer confidence and real wage growth"
+        "Continued nearshoring investment in Mexico supporting peso strength and industrial consumption growth",
+        "Further moderation in sugar and commodity input costs expanding operating margins in upcoming quarters"
       ],
       "_scoring": {
         "deterministic": -1,
-        "llm": -5,
+        "llm": -3,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.09132261417573977,
-        "positional": 0.7826745728319339,
-        "strategic": 0.1281146902590892,
-        "composite": 0.5227924034510347
+        "tactical": 0.35165718803980967,
+        "positional": 0.9132637458967144,
+        "strategic": -0.12305696805312315,
+        "composite": 0.570025013246384
       }
     },
     {
       "symbol": "PBR.A",
       "price": {
-        "current": 18.76,
-        "change_pct": 0
+        "current": 18.67,
+        "change_pct": -0.48
       },
       "tactical": {
-        "score": -1,
+        "score": -3,
         "signal": "NEUTRAL",
-        "rationale": "Oil fundamentals show seasonal strength entering summer driving season with OPEC+ maintaining production cuts. Brent holding above $70 provides solid cash flow for PBR.A. Technical RSI at 46.3 suggests room for upside momentum. BRL strength at 4.955 provides tailwind for ADR performance. Short-term political noise around fuel pricing appears contained with no immediate CEO change signals.",
+        "rationale": "Oil markets showing strength with WTI at $109.76, well above the $80-90 range that typically pressures PBR.A. Recent OPEC+ production discipline and Middle East tensions support near-term crude prices. RSI at 45.24 suggests room to move higher without being overbought. Brazilian real strength at 4.955 is providing ADR tailwinds that could accelerate with continued oil strength.",
         "det_score": 0,
-        "llm_score": -5,
+        "llm_score": -10,
         "det_notes": [
-          "RSI 46.3: PBR.A neutral"
+          "RSI 45.24: PBR.A neutral"
         ]
       },
       "positional": {
-        "score": -2,
+        "score": -10,
         "signal": "NEUTRAL",
-        "rationale": "Above 200-day MA confirms medium-term uptrend intact while below 50-day suggests recent consolidation phase. This setup often precedes breakouts in energy names. Pre-salt production ramp continues with Q1 showing 2.1M bpd average, supporting sustained cash generation. Brazilian fiscal situation stabilizing reduces immediate government interference pressure on dividend policy.",
-        "det_score": 3,
-        "llm_score": -8,
+        "rationale": "Strong oil environment creates favorable setup for PBR.A over 3-6 month horizon. Current technical position above 200-day MA but below 50-day suggests consolidation phase that typically resolves higher in strong commodity environments. Pre-salt production continues ramping with breakeven well below current oil prices providing substantial operating leverage. BRL strength adds positional tailwind for ADR holders.",
+        "det_score": -5,
+        "llm_score": -15,
         "det_notes": [
-          "PBR.A MA: above_200_below_50 (+3)"
+          "PBR.A MA: above_200_below_50 (+3)",
+          "WTI $109.76: strong oil — PBR.A revenue tailwind"
         ]
       },
       "strategic": {
-        "score": -6,
+        "score": 4,
         "signal": "NEUTRAL",
-        "rationale": "P/E of 5.6x for cyclical oil producer signals peak earnings risk, but current oil price environment at $70+ Brent suggests earnings sustainability near these levels. The 6.89% yield trades at significant discount to historical 10-15% range, indicating potential for either yield expansion or price appreciation. Trading near book value (P/B 0.98) provides downside protection. Government interference risk appears manageable with Lula administration focused on broader economic stability rather than Petrobras micromanagement.",
-        "det_score": 8,
-        "llm_score": -12,
+        "rationale": "While oil fundamentals are supportive, the 5.6x trailing P/E signals peak earnings territory for this cyclical, raising rollover risk if oil weakens. Current 6.9% yield is well below PBR.A's typical 10-15% range, suggesting limited dividend appeal at current levels. Political risk remains elevated under Lula with ongoing concerns about fuel pricing interference and potential CEO changes. Valuation appears full relative to the state control discount typically required.",
+        "det_score": 0,
+        "llm_score": 5,
         "det_notes": [
           "PBR.A P/E 6x: above-trend — peak risk",
           "PBR.A P/B 0.98: near book",
           "PBR.A yield 6.892578970142796%: below normal — getting rich",
+          "WTI $109.76: strong oil — PBR.A tailwind",
           "BRL/USD 4.955: reasonably strong"
         ]
       },
       "composite": {
-        "score": -4,
+        "score": -2,
         "recommendation": "HOLD",
-        "summary": "PBR.A shows tactical and positional strength with oil fundamentals supportive and BRL strength benefiting ADR performance, while strategic valuation remains attractive despite cyclical peak earnings concerns.",
-        "det_score": 5,
-        "llm_score": -9,
+        "summary": "Strong oil fundamentals and BRL strength support near-term performance, but compressed dividend yield and cyclical peak earnings multiples suggest limited upside at current valuation.",
+        "det_score": -2,
+        "llm_score": -5,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -905,26 +903,28 @@
       },
       "key_metric": {
         "name": "Dividend Yield vs Historical Range",
-        "value": "6.89% current vs 10-15% typical range suggests significant upside potential"
+        "value": "6.9% yield well below typical 10-15% range signals limited income appeal"
       },
       "risks": [
-        "Cyclical P/E at 5.6x suggests peak earnings vulnerability if oil prices decline from current $70+ levels",
-        "Potential government interference in fuel pricing policy or dividend distribution as Lula administration faces fiscal pressures"
+        "Political interference from Lula government potentially forcing CEO changes or fuel pricing violations",
+        "Oil price rollover risk given cyclical peak earnings multiple of 5.6x",
+        "Brazilian fiscal deterioration pressuring government to extract more dividends from Petrobras"
       ],
       "catalysts": [
-        "Summer driving season demand could push oil prices higher, expanding cash flow and supporting dividend increases",
-        "Continued pre-salt production ramp-up with technical improvements driving unit cost reductions and margin expansion"
+        "OPEC+ production cuts extending into 2024 supporting higher oil price deck",
+        "Pre-salt production expansion delivering operational leverage in high oil price environment",
+        "Potential special dividend announcement if free cash flow generation continues at current pace"
       ],
       "_scoring": {
-        "deterministic": 5,
-        "llm": -9,
+        "deterministic": -2,
+        "llm": -5,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.09132261417573977,
-        "positional": 0.6248242388154094,
-        "strategic": 0.21352448376514868,
-        "composite": 0.44898641708147685
+        "tactical": 0.19241619722932982,
+        "positional": 0.38236994205364166,
+        "strategic": 0.7793607976697798,
+        "composite": 0.570025013246384
       }
     },
     {
@@ -934,45 +934,45 @@
         "change_pct": -8.12
       },
       "tactical": {
-        "score": -29,
-        "signal": "BUY",
-        "rationale": "The sharp 8.12% decline pushes RSI to 32.95, creating oversold conditions in a cyclical stock. However, this appears to be indiscriminate selling rather than fundamental deterioration. Container freight rates have stabilized after Red Sea disruption spikes, and the Baltic Dry Index shows resilience around 1,200 levels. The technical washout is creating entry opportunity as freight fundamentals aren't collapsing - this is typical cyclical volatility that often precedes rebounds.",
-        "det_score": -35,
+        "score": -22,
+        "signal": "NEUTRAL",
+        "rationale": "The 8.12% decline appears overdone given shipping fundamentals. Container rates remain elevated due to Red Sea diversions adding 10-14 days to Asia-Europe routes, with Drewry WCI holding near $3,500/FEU - well above the $1,500 trough levels of early 2023. The RSI at 35.29 confirms oversold conditions, but freight rate sustainability through Q2 2024 suggests this selloff is more technical than fundamental. Geopolitical shipping disruptions typically create sharp but tradeable volatility.",
+        "det_score": -25,
         "llm_score": -15,
         "det_notes": [
-          "RSI 32.95: mildly oversold",
+          "RSI 35.29: approaching oversold",
           "Daily -8.12%: sharp decline"
         ]
       },
       "positional": {
-        "score": -21,
+        "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "While below both moving averages, AMKBY's position reflects broader shipping sector weakness rather than company-specific issues. Global trade volumes per CPB monitor show sequential improvement, and container demand is stabilizing post-Chinese New Year. The logistics transformation continues with solid progress in integrated services. Trading below both MAs in cyclicals often marks attractive entry points when fundamentals are stabilizing, not deteriorating.",
+        "rationale": "While price is below both moving averages, Maersk's positioning in the freight cycle argues against extended downtrend. Baltic Dry Index has stabilized above 1,800 points, indicating broader dry bulk strength. Container shipping rates remain 2-3x normalized levels due to Red Sea rerouting, and vessel utilization stays high. The technical breakdown may be premature given that freight fundamentals haven't deteriorated meaningfully from recent peaks.",
         "det_score": -17,
-        "llm_score": -25,
+        "llm_score": -8,
         "det_notes": [
           "AMKBY MA: below_both (-12)"
         ]
       },
       "strategic": {
-        "score": -27,
-        "signal": "BUY",
-        "rationale": "P/E of 12.8x indicates mid-cycle positioning in shipping, not peak earnings risk. More importantly, P/B of 0.61 represents fleet trading significantly below replacement cost - historically a powerful buy signal. The market is pricing Maersk's logistics segment at near-zero value despite 15-20% revenue mix, while peers like DSV trade at 20x EV/EBITDA. Sum-of-parts valuation suggests 30-40% undervaluation when logistics transformation value is properly recognized. 3.4% yield provides downside cushion.",
-        "det_score": -20,
-        "llm_score": -30,
+        "score": -17,
+        "signal": "NEUTRAL",
+        "rationale": "P/E of 11.8x in shipping indicates mid-to-late cycle positioning, not peak earnings that would warrant trimming. More critically, P/B of 0.61x represents fleet trading at 40% discount to replacement cost - historically powerful buy signal for asset-heavy shipping. Maersk's logistics transformation is being priced at zero during this freight correction, while peers like DSV trade at 20x+ EV/EBITDA. The 3.4% dividend yield appears well-covered by current freight cash flows, and sum-of-parts analysis suggests 30-40% upside when logistics segment gets proper valuation.",
+        "det_score": -10,
+        "llm_score": -20,
         "det_notes": [
-          "AMKBY P/E 13x: mid-cycle",
+          "AMKBY P/E 12x: above-trend — peak risk",
           "AMKBY P/B 0.61: below replacement cost — buy",
           "AMKBY yield 3.442093940480459%: moderate",
           "HY OAS 2.79bps: tight — healthy trade environment"
         ]
       },
       "composite": {
-        "score": -25,
-        "recommendation": "BUY",
-        "summary": "AMKBY presents compelling cyclical value with fleet priced below replacement cost and logistics transformation undervalued. Technical oversold conditions align with fundamental mid-cycle positioning for potential recovery.",
-        "det_score": -23,
-        "llm_score": -23,
+        "score": -16,
+        "recommendation": "HOLD",
+        "summary": "Maersk's sharp decline appears technically overdone given sustained elevated freight rates from Red Sea disruptions and P/B below replacement cost. The logistics transformation upside remains unrecognized by market during this freight volatility.",
+        "det_score": -16,
+        "llm_score": -16,
         "weights": {
           "t": 0.25,
           "p": 0.35,
@@ -995,77 +995,78 @@
         ]
       },
       "key_metric": {
-        "name": "P/B Ratio",
-        "value": "0.61x - fleet trading significantly below replacement cost"
+        "name": "Price-to-Book Ratio",
+        "value": "0.61x - fleet trading at 40% discount to replacement cost"
       },
       "risks": [
-        "Global trade slowdown could extend shipping cycle trough and pressure freight rates further",
-        "Red Sea disruptions creating unsustainable rate spikes that mask underlying demand weakness"
+        "Red Sea shipping disruptions could normalize faster than expected, pressuring elevated container rates",
+        "China economic slowdown reducing Asia-Europe trade volumes despite current route inefficiencies"
       ],
       "catalysts": [
-        "Logistics segment re-rating as transformation progress becomes visible in revenue mix expansion",
-        "Container freight rate stabilization as supply-demand balance improves through capacity discipline"
+        "Continued Red Sea instability maintaining elevated freight rates through 2024",
+        "Market recognition of logistics segment value at DSV-comparable multiples during earnings season"
       ],
       "_scoring": {
-        "deterministic": -23,
-        "llm": -23,
+        "deterministic": -16,
+        "llm": -16,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -1.9543039433608311,
-        "positional": -0.12496484776308193,
-        "strategic": -1.5800811798621002,
-        "composite": -1.1009392966792375
+        "tactical": -1.3203732154702286,
+        "positional": 0.3065279700760598,
+        "strategic": -0.9434367550739441,
+        "composite": -0.38761700900754104
       }
     },
     {
       "symbol": "SPY",
       "price": {
-        "current": 735.99,
-        "change_pct": 0.6,
-        "week52_high": 734.59,
+        "current": 737.62,
+        "change_pct": 0.83,
+        "week52_high": 736.13,
         "week52_low": 556.04,
         "week52_position_pct": 100.8
       },
       "tactical": {
-        "score": 32,
-        "signal": "SELL",
-        "rationale": "RSI at 74.7 reflects genuine momentum excess that warrants some near-term caution. While SPY can stay overbought longer than individual names, current readings suggest reduced risk-reward for momentum chasing. January seasonality typically positive but we're seeing some profit-taking after strong start to year. No major earnings catalysts this week to drive further momentum.",
-        "det_score": 35,
-        "llm_score": 25,
+        "score": 19,
+        "signal": "NEUTRAL",
+        "rationale": "The quant engine correctly identifies overbought conditions with RSI at 75.33, but context matters. We're in late-stage earnings season with most major tech names having reported, removing a key catalyst for near-term momentum. VIX at 17.08 suggests complacency rather than fear-driven selling pressure. The 0.83% daily move on light volume typical of post-earnings lull suggests momentum may be stalling. While I don't fight the tape at new highs, the lack of fresh catalysts and stretched technicals warrant modest tactical caution.",
+        "det_score": 20,
+        "llm_score": 15,
         "det_notes": [
-          "RSI 74.7: overbought"
+          "RSI 75.33: SPY overbought (VIX 17.08)"
         ]
       },
       "positional": {
-        "score": 2,
+        "score": -3,
         "signal": "NEUTRAL",
-        "rationale": "Agreeing broadly with quant assessment but adding modest caution. The RSP underperformance of 0.71pp indicates concerning concentration in mega-cap names, particularly as we're at fresh highs. Credit spreads remain tight but this reflects complacency rather than fundamental strength. The positional setup is not bearish but lacks the breadth quality for sustained advance.",
+        "rationale": "The narrow breadth (RSP underperforming by 55bps) reflects mega-cap concentration, but this has been a persistent feature of the current cycle rather than a warning sign. Credit spreads at 2.79bps remain exceptionally tight, indicating continued risk appetite in credit markets. The golden cross setup remains intact with strong momentum above both moving averages. Positioning at 52-week highs is momentum-positive for SPY historically. The narrow leadership is a monitoring item but not yet a positioning concern given stable credit conditions.",
         "det_score": -1,
-        "llm_score": 5,
+        "llm_score": -5,
         "det_notes": [
           "SPY MA: above_both_golden (neutral — normal for SPY)",
           "SPY 52w: 100.8% — at highs, momentum positive",
-          "SPY outperforming RSP by 0.71pp — narrow/top-heavy",
+          "SPY outperforming RSP by 0.55pp — narrow/top-heavy",
           "HY OAS 2.79bps: tight spreads, risk-on"
         ]
       },
       "strategic": {
-        "score": -4,
+        "score": -1,
         "signal": "NEUTRAL",
-        "rationale": "More constructive than quant on curve steepening. The 2s10s at +49bps reflects expectations for Fed cuts later this year while maintaining growth optimism. This is actually supportive for equity multiples in medium term. Real rates have stabilized and earnings season approaching in few weeks should provide fundamental catalyst for next leg higher if results cooperate.",
+        "rationale": "The 2s10s curve at 49bps and real rates at 1.7% provide a neutral backdrop - not restrictive enough to derail growth but not accommodative enough to fuel excessive risk-taking. The Fed appears on hold with no imminent policy shifts expected. Fiscal policy remains in wait-and-see mode with no major catalysts on the horizon. The macro environment is neither tailwind nor headwind for equities, supporting a neutral strategic stance that aligns with the quant assessment.",
         "det_score": -2,
-        "llm_score": -5,
+        "llm_score": 0,
         "det_notes": [
-          "2s10s +49bps: mildly positive"
+          "2s10s +49bps: mildly positive",
+          "Real rate 1.7%: neutral"
         ]
       },
       "composite": {
-        "score": 6,
+        "score": 2,
         "recommendation": "HOLD",
-        "summary": "SPY showing typical late-cycle characteristics with momentum overbought but fundamentals still supportive. Near-term consolidation likely but medium-term outlook remains constructive given curve dynamics and approaching earnings season.",
-        "det_score": 6,
-        "llm_score": 6,
+        "summary": "SPY sits at new highs with stretched technicals but stable fundamentals and neutral macro backdrop. Minor tactical caution on momentum stall offset by solid credit conditions and trend integrity.",
+        "det_score": 3,
+        "llm_score": 2,
         "weights": {
           "t": 0.2,
           "p": 0.4,
@@ -1088,35 +1089,35 @@
         ]
       },
       "key_metric": {
-        "name": "RSI 14-day",
-        "value": "74.7"
+        "name": "RSI vs VIX Divergence",
+        "value": "RSI 75.33 with VIX only 17.08"
       },
       "risks": [
-        "Momentum exhaustion with RSI above 74 historically leading to 3-5% pullbacks in SPY",
-        "Narrow breadth concentration makes market vulnerable to mega-cap disappointments in upcoming earnings"
+        "Momentum exhaustion with RSI above 75 and limited fresh catalysts post-earnings season",
+        "Mega-cap concentration risk as RSP continues underperforming SPY by significant margin"
       ],
       "catalysts": [
-        "Q4 earnings season beginning in 2 weeks could provide fundamental support if results beat lowered expectations",
-        "Fed dovish pivot if inflation data continues moderating could drive multiple expansion"
+        "Q1 earnings beats from remaining consumer discretionary and industrial names could extend rally",
+        "Any dovish Fed commentary or data suggesting rate cut timeline acceleration would support multiples"
       ],
       "_scoring": {
-        "deterministic": 6,
-        "llm": 6,
+        "deterministic": 3,
+        "llm": 2,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 2.5022396284152695,
-        "positional": 0.7826745728319339,
-        "strategic": 0.3843440707772676,
-        "composite": 1.1870462807770552
+        "tactical": 1.944067096144608,
+        "positional": 0.647816843975178,
+        "strategic": 0.36917090415936943,
+        "composite": 0.8436370196046483
       }
     }
   ],
   "assignments": {
-    "tacticalBuy": "AMKBY",
+    "tacticalBuy": "MOS",
     "positionalBuy": "ETHA",
     "strategicBuy": "GLNCY",
-    "trim": "ASML"
+    "trim": "ENB"
   },
-  "timestamp": "2026-05-08T14:00:21.473Z"
+  "timestamp": "2026-05-09T01:40:50.934Z"
 }
