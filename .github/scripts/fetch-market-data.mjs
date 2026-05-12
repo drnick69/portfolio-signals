@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.11 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.12 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -9,49 +9,43 @@
 // v4.6: WTI crude (DCOILWTICO) + BRL/USD (DEXBZUS) for PBR.A oil/FX regime
 // v4.7: CORN auxiliary quote for MOS agricultural demand regime
 // v4.8: MU auxiliary quote for SMH DRAM cycle regime
-// v4.9: LIN oligopoly_quality_compounder additions:
-//       - APD + AIQUY (Air Liquide ADR) auxiliary quotes WITH metrics for peer P/E comparison
-//       - peer_valuation (LIN P/E premium vs APD/AIQUY average)
-//       - peer_relative (daily return spread LIN vs APD)
-//       - fundamentals (ROI as ROCE proxy + operating margin) added per-symbol from
-//         existing Finnhub metrics call (zero extra API cost)
-//       - macro.dxy (renamed from dxy_proxy — cleaner score-engine consumption)
-//       - macro.us_ism (FRED NAPM — US ISM Manufacturing PMI Composite) for LIN global PMI
-//       - SMH/MU retired (replaced by LIN's peer infrastructure)
-// v4.10: LIN v3 deep-upgrade fields (sources what's available from free APIs;
-//        explicit nulls for fields needing paid feeds or news aggregation):
-//        - macro.bbb_oas_bps + bbb_oas_1m_change_bps (FRED BAMLC0A4CBBB,
-//          stored in basis points, leads LIN backlog 6-12mo via capex-IRR math)
-//        - LIN.tactical_extras: spy_10d_drawdown_pct + lin_vs_spy_10d_pp
-//          (Alpaca bars, 10 trading days), iv_rv_ratio left null (needs options data)
-//        - LIN.factor_flow: qual_vs_spy_30d_pp (Alpaca bars on QUAL + SPY, 30 trading days)
-//        - LIN.peer_relative_aipa: daily return spread LIN vs AIQUY (mirrors APD)
-//        - LIN.fundamentals v3 fields explicit-null: asu_utilization_pct, price_mix_ex_fx_pct,
-//          eps_revisions_30d_pct, eps_revisions_90d_pct (need earnings disclosure / FactSet)
-//        - LIN.peer_valuation.premium_6m_delta_pp explicit-null (needs historical P/E)
-//        - LIN.h2_layer skeleton with explicit-null fields (need news aggregation /
-//          industry reports — IRA 45V tracker, EU H2 Bank, BNEF LCOE)
-//        All v3 LIN consumers degrade gracefully on null — score-engine computes
-//        partial scores, qualitative LLM block fills the gaps via web search.
-// v4.11: MSFT ai_infra_quality_compounder additions (hybrid LIN+ASML+SPY archetype):
-//        - MSFT added to SYMBOLS array (Finnhub + TwelveData both work natively, no remap)
-//        - GOOGL + META + AAPL auxiliary quotes WITH metrics for mega-cap quality cohort
-//          PE comparison (per JSX: cohort_avg_fwd_pe = avg of GOOGL/META/AAPL forward PE,
-//          MSFT premium/discount vs cohort is flagship strategic signal)
-//        - cohort_valuation (MSFT P/E premium vs GOOGL/META/AAPL average; trailing P/E
-//          used here since Finnhub free tier exposes trailing — LLM web-search prompt
-//          fills forward PE for the JSX consumer)
-//        - cohort_relative (rotation pressure: MSFT 30d return minus cohort avg 30d
-//          return; rotation_pressure_active = TRUE if MSFT lagging cohort by >5pp/30d.
-//          THIS IS THE SIGNATURE MSFT TACTICAL SETUP — capital rotating from MSFT to
-//          higher-beta AI names like NVDA/PLTR/AMD historically a buy setup, not warning)
-//        - factor_flow (qual_vs_spy_30d_pp reused from LIN's hist returns fetch — QUAL
-//          factor leadership is a market-wide quality-bid signal, applies to MSFT too)
-//        - fundamentals v1 fields explicit-null: azure_growth_cc_pct, capex_ttm_usd_b,
-//          fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct (need earnings
-//          disclosure / FactSet — LLM block sources via web search)
-//        - New fetchMSFTHistoricalReturns() runs alongside fetchLINHistoricalReturns()
-//          (4 Alpaca calls: MSFT, GOOGL, META, AAPL — ~2s additional runtime)
+// v4.9: LIN oligopoly_quality_compounder additions (APD/AIQUY peers, BBB OAS, ISM, fundamentals)
+// v4.10: LIN v3 deep-upgrade fields (BBB OAS delta, QUAL factor flow, tactical extras, H2 layer scaffolding)
+// v4.11: MSFT ai_infra_quality_compounder additions (GOOGL/META/AAPL cohort, rotation pressure)
+// v4.12: HOLDINGS SWAP — added LHX (defense_prime_backlog_compounder) and TMO (life_sciences_quality_compounder);
+//        retired MOS (cyclical fertilizer) and SPY (broad market core).
+//        Removals:
+//          - MOS removed from SYMBOLS; CORN aux removed (was MOS ag-demand only)
+//          - SPY removed from SYMBOLS; RSP aux removed (was SPY breadth only)
+//          - SPY-breadth attachment block removed
+//          - MOS ag-demand attachment block removed
+//          NOTE: SPY is still fetched directly from Alpaca (not via SYMBOLS) inside the
+//                LIN/LHX historical-return functions as a benchmark for factor-flow spreads
+//                (qual_vs_spy_30d_pp, ita_vs_spy_30d_pp, spy_10d_drawdown_pct). It is no
+//                longer a scored holding but remains the market benchmark.
+//        Additions for LHX (analogous to MSFT cohort pattern):
+//          - LMT, NOC, RTX, GD aux quotes WITH metrics (defense-prime cohort PE)
+//          - ITA aux quote (iShares US Aerospace & Defense — defense sector factor proxy)
+//          - cohort_valuation (LHX vs LMT/NOC/RTX/GD avg trailing P/E)
+//          - cohort_relative (cohort_rotation_pp = LHX 30d − cohort avg 30d;
+//            rotation_active = TRUE if < -5pp — capital rotating out of smallest prime
+//            into larger names = historically a buy setup)
+//          - factor_flow.ita_vs_spy_30d_pp (defense sector bid signal)
+//          - fundamentals v1 explicit-null fields: book_to_bill, backlog_growth_yoy_pct,
+//            op_margin_pct, fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct
+//            (need earnings disclosure — LLM block sources via web search)
+//          - New fetchLHXHistoricalReturns() (7 Alpaca calls: LHX, LMT, NOC, RTX, GD, ITA, SPY)
+//        Additions for TMO (analogous to LIN peer pattern + biotech overlay):
+//          - XBI aux quote (SPDR S&P Biotech ETF — biotech funding sentiment proxy)
+//          - DHR aux quote WITH metrics (Danaher — bioprocessing peer for PE comparison)
+//          - peer_valuation (TMO vs DHR trailing P/E; forward PE filled by LLM)
+//          - peer_relative (daily return spread TMO vs DHR — peer sympathy read)
+//          - biotech_overlay (XBI 30d/90d returns — leads TMO bookings 2-3 quarters)
+//          - factor_flow.qual_vs_spy_30d_pp (reused from LIN's fetch — quality factor bid)
+//          - fundamentals v1 explicit-null fields: organic_growth_pct, op_margin_pct,
+//            fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct
+//          - New fetchTMOHistoricalReturns() (3 Alpaca calls: TMO, XBI, DHR — 150-day window
+//            to cover the 90-day XBI return needed for biotech funding lead indicator)
 
 import { writeFileSync } from "fs";
 
@@ -64,10 +58,11 @@ if (!TD_KEY)   console.warn("⚠ Missing TD_KEY — technicals unavailable");
 if (!FRED_KEY) console.warn("⚠ Missing FRED_KEY — macro data unavailable");
 
 const SYMBOLS = [
-  { symbol: "MOS",   finnhub: "MOS",   td: "MOS" },
+  { symbol: "LHX",   finnhub: "LHX",   td: "LHX" },
   { symbol: "ASML",  finnhub: "ASML",  td: "ASML" },
   { symbol: "LIN",   finnhub: "LIN",   td: "LIN" },
   { symbol: "MSFT",  finnhub: "MSFT",  td: "MSFT" },
+  { symbol: "TMO",   finnhub: "TMO",   td: "TMO" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
@@ -75,21 +70,24 @@ const SYMBOLS = [
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
-  { symbol: "SPY",   finnhub: "SPY",   td: "SPY" },
 ];
 
 // ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
-// needsMetrics: true → also fetch /stock/metric for P/E (used by LIN peer valuation
-// and MSFT cohort valuation).
+// needsMetrics: true → also fetch /stock/metric for P/E (used by peer/cohort valuation).
 const AUX_SYMBOLS = [
-  { symbol: "RSP",   finnhub: "RSP",   purpose: "spy_breadth" },
   { symbol: "COPX",  finnhub: "COPX",  purpose: "glncy_copper" },
-  { symbol: "CORN",  finnhub: "CORN",  purpose: "mos_ag_demand" },
   { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",     needsMetrics: true },  // Air Products
   { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",     needsMetrics: true },  // Air Liquide ADR
-  { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
-  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
-  { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",  needsMetrics: true },  // Mega-cap quality cohort
+  { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "LMT",   finnhub: "LMT",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
+  { symbol: "NOC",   finnhub: "NOC",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
+  { symbol: "RTX",   finnhub: "RTX",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
+  { symbol: "GD",    finnhub: "GD",    purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
+  { symbol: "ITA",   finnhub: "ITA",   purpose: "lhx_defense_factor" },                // iShares Aero & Defense ETF
+  { symbol: "XBI",   finnhub: "XBI",   purpose: "tmo_biotech" },                       // SPDR Biotech (funding proxy)
+  { symbol: "DHR",   finnhub: "DHR",   purpose: "tmo_peer",     needsMetrics: true },  // Danaher (bioprocessing peer)
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -147,7 +145,7 @@ async function fetchQuotes() {
       dividend_yield: metrics["dividendYieldIndicatedAnnual"] ?? null,
       beta: metrics["beta"] ?? null,
       market_cap: metrics["marketCapitalization"] ?? null,
-      // ── NEW v4.9: fundamentals for LIN strategic layer (also collected for all symbols) ──
+      // Fundamentals (used primarily by LIN/LHX/TMO/MSFT strategic layers).
       // ROI is closest Finnhub proxy for ROCE (no direct ROCE field).
       roi: metrics["roiTTM"] ?? metrics["roiAnnual"] ?? null,
       operating_margin: metrics["operatingMarginTTM"] ?? metrics["operatingMarginAnnual"] ?? null,
@@ -164,8 +162,8 @@ async function fetchQuotes() {
 
 // ─── STAGE 1b: AUXILIARY QUOTES ─────────────────────────────────────────────
 // Quote-only by default. Symbols with needsMetrics: true also fetch P/E
-// (used by LIN peer valuation — APD, AIQUY — and MSFT cohort valuation —
-// GOOGL, META, AAPL).
+// (used by LIN peer valuation, MSFT cohort valuation, LHX cohort valuation,
+// TMO peer valuation).
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
@@ -427,6 +425,8 @@ async function fix52WeekFromAlpaca(quotes) {
 //   - LIN 10d return - SPY 10d return → tactical_extras.lin_vs_spy_10d_pp
 //   - QUAL 30d return - SPY 30d return → factor_flow.qual_vs_spy_30d_pp
 // 60 calendar days back gives ~42 trading days, comfortably above the 30+ needed.
+// Note: SPY is no longer a scored holding as of v4.12, but it remains the market
+// benchmark for factor-flow spreads and is still fetched directly from Alpaca here.
 async function fetchLINHistoricalReturns() {
   if (!ALPACA_KEY || !ALPACA_SECRET) {
     console.log("  [ALPACA-LIN] No keys — skipping LIN historical returns");
@@ -560,6 +560,168 @@ async function fetchMSFTHistoricalReturns() {
   return result;
 }
 
+// ─── STAGE 3e: ALPACA HISTORICAL RETURNS (LHX defense-cohort rotation + ITA factor) ──
+// Pulls daily closes for LHX + cohort (LMT, NOC, RTX, GD) + ITA + SPY and computes:
+//   - LHX 30d return
+//   - Cohort avg 30d return (avg of LMT/NOC/RTX/GD where available)
+//   - cohort_rotation_pp = LHX 30d - cohort avg 30d
+//   - cohort_rotation_active = TRUE if cohort_rotation_pp < -5 (LHX lagging primes)
+//   - ita_vs_spy_30d_pp = ITA 30d - SPY 30d (defense sector factor flow)
+// LHX is the smallest of the Big 5 primes; rotation INTO larger primes (out of LHX)
+// historically a setup, not a warning. ITA > SPY = defense bid active = positional positive.
+async function fetchLHXHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-LHX] No keys — skipping LHX historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-LHX] Fetching LHX/LMT/NOC/RTX/GD/ITA/SPY bars for cohort rotation + defense factor...");
+  const symbols = ["LHX", "LMT", "NOC", "RTX", "GD", "ITA", "SPY"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const lhxRet30 = retNDays(closes.LHX, 30);
+  const lmtRet30 = retNDays(closes.LMT, 30);
+  const nocRet30 = retNDays(closes.NOC, 30);
+  const rtxRet30 = retNDays(closes.RTX, 30);
+  const gdRet30  = retNDays(closes.GD,  30);
+  const itaRet30 = retNDays(closes.ITA, 30);
+  const spyRet30 = retNDays(closes.SPY, 30);
+
+  const cohortRets = [lmtRet30, nocRet30, rtxRet30, gdRet30].filter(r => r != null);
+  const cohortAvg = cohortRets.length > 0
+    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+    : null;
+
+  const rotationPp = (lhxRet30 != null && cohortAvg != null)
+    ? +(lhxRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const itaVsSpyPp = (itaRet30 != null && spyRet30 != null)
+    ? +(itaRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const result = {
+    lhx_30d_return_pct:        lhxRet30,
+    lmt_30d_return_pct:        lmtRet30,
+    noc_30d_return_pct:        nocRet30,
+    rtx_30d_return_pct:        rtxRet30,
+    gd_30d_return_pct:         gdRet30,
+    cohort_avg_30d_return_pct: cohortAvg,
+    cohort_rotation_pp:        rotationPp,
+    cohort_rotation_active:    rotationPp != null && rotationPp < -5,
+    cohort_count:              cohortRets.length,
+    ita_30d_return_pct:        itaRet30,
+    spy_30d_return_pct:        spyRet30,
+    ita_vs_spy_30d_pp:         itaVsSpyPp,
+  };
+
+  const activeStr = result.cohort_rotation_active ? " [ACTIVE — buy setup]" : "";
+  const itaStr = itaVsSpyPp == null ? "—"
+    : itaVsSpyPp > 1 ? `defense bid active (+${itaVsSpyPp}pp)`
+    : itaVsSpyPp < -1 ? `defense lagging (${itaVsSpyPp}pp)`
+    : "inline";
+  console.log(`  [ALPACA-LHX] ✓ LHX 30d=${lhxRet30 != null ? (lhxRet30 >= 0 ? "+" : "") + lhxRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | ITA-SPY 30d: ${itaStr}`);
+  return result;
+}
+
+// ─── STAGE 3f: ALPACA HISTORICAL RETURNS (TMO biotech overlay + DHR peer) ────
+// Pulls daily closes for TMO, XBI, DHR over a 150-day window (covers 90d return).
+// Computes:
+//   - TMO 30d return
+//   - XBI 30d return + 90d return (biotech funding sentiment, leads TMO bookings 2-3Q)
+//   - DHR 30d return (bioprocessing peer sympathy)
+//   - tmo_vs_dhr_30d_pp = TMO 30d - DHR 30d (peer rotation read)
+async function fetchTMOHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-TMO] No keys — skipping TMO historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-TMO] Fetching TMO/XBI/DHR bars (150d window for XBI 90d return)...");
+  const symbols = ["TMO", "XBI", "DHR"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 150).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=150&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const tmoRet30 = retNDays(closes.TMO, 30);
+  const xbiRet30 = retNDays(closes.XBI, 30);
+  const xbiRet90 = retNDays(closes.XBI, 90);
+  const dhrRet30 = retNDays(closes.DHR, 30);
+
+  const tmoVsDhrPp = (tmoRet30 != null && dhrRet30 != null)
+    ? +(tmoRet30 - dhrRet30).toFixed(3)
+    : null;
+
+  const result = {
+    tmo_30d_return_pct: tmoRet30,
+    xbi_30d_return_pct: xbiRet30,
+    xbi_90d_return_pct: xbiRet90,
+    dhr_30d_return_pct: dhrRet30,
+    tmo_vs_dhr_30d_pp:  tmoVsDhrPp,
+  };
+
+  const xbi90Str = xbiRet90 == null ? "—"
+    : xbiRet90 > 10 ? `biotech thawing (+${xbiRet90}%)`
+    : xbiRet90 < -10 ? `funding frozen (${xbiRet90}%)`
+    : `mixed (${xbiRet90 >= 0 ? "+" : ""}${xbiRet90}%)`;
+  console.log(`  [ALPACA-TMO] ✓ TMO 30d=${tmoRet30 != null ? (tmoRet30 >= 0 ? "+" : "") + tmoRet30 + "%" : "—"} | XBI 30d=${xbiRet30 != null ? (xbiRet30 >= 0 ? "+" : "") + xbiRet30 + "%" : "—"} | XBI 90d: ${xbi90Str} | DHR 30d=${dhrRet30 != null ? (dhrRet30 >= 0 ? "+" : "") + dhrRet30 + "%" : "—"} | TMO-DHR Δ=${tmoVsDhrPp != null ? (tmoVsDhrPp >= 0 ? "+" : "") + tmoVsDhrPp + "pp" : "—"}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -671,7 +833,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.11");
+  console.log("Market Data Pre-Fetch v4.12");
   console.log("===========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -712,6 +874,14 @@ async function main() {
   // Stage 3d: MSFT cohort historical returns (Alpaca — rotation pressure)
   console.log("\n─── STAGE 3d: MSFT COHORT HISTORICAL RETURNS (Alpaca) ───");
   const msftHistReturns = await fetchMSFTHistoricalReturns();
+
+  // Stage 3e: LHX cohort historical returns (Alpaca — defense rotation + ITA factor)
+  console.log("\n─── STAGE 3e: LHX COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const lhxHistReturns = await fetchLHXHistoricalReturns();
+
+  // Stage 3f: TMO historical returns (Alpaca — biotech overlay + DHR peer)
+  console.log("\n─── STAGE 3f: TMO HISTORICAL RETURNS (Alpaca) ───");
+  const tmoHistReturns = await fetchTMOHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -809,9 +979,8 @@ async function main() {
         beta: q.beta ?? null,
         marketCap: q.market_cap ?? null,
       },
-      // ── NEW v4.9: fundamentals (per-symbol, primarily for LIN strategic layer) ──
-      // ROI is closest Finnhub proxy for ROCE — LIN's signature durability metric.
-      // Other archetypes ignore this field; LIN's strategic block reads it.
+      // Fundamentals (per-symbol). ROI is closest Finnhub proxy for ROCE.
+      // Score-engine branches that don't consume these ignore them.
       fundamentals: {
         roce_pct: q.roi ?? null,
         operating_margin_pct: q.operating_margin ?? null,
@@ -819,38 +988,6 @@ async function main() {
       volume: {},
       type: sym.type || "equity",
     };
-  }
-
-  // ── Attach SPY breadth data from RSP auxiliary quote ────────────────────
-  if (output.SPY && auxQuotes.RSP) {
-    const spyPrice = output.SPY.price?.current;
-    const spyChange = output.SPY.price?.change_pct;
-    const rspPrice = auxQuotes.RSP.price;
-    const rspChange = auxQuotes.RSP.change_pct;
-
-    if (spyPrice && rspPrice) {
-      const ratio = +(rspPrice / spyPrice).toFixed(6);
-      const spread = (rspChange != null && spyChange != null)
-        ? +(rspChange - spyChange).toFixed(3) : null;
-
-      output.SPY.breadth = {
-        rsp_price: rspPrice,
-        rsp_change_pct: rspChange,
-        spy_change_pct: spyChange,
-        rsp_spy_ratio: ratio,
-        rsp_spy_spread_pp: spread,
-      };
-
-      const broadStr = spread == null ? "—"
-        : spread > 0 ? `RSP outperforming by ${spread}pp (broad rally)`
-        : spread < 0 ? `SPY outperforming by ${(-spread).toFixed(2)}pp (narrow rally)`
-        : "inline";
-      console.log(`  SPY breadth: RSP/SPY=${ratio} | ${broadStr}`);
-    } else {
-      console.log(`  SPY breadth: skipped (missing price data)`);
-    }
-  } else if (output.SPY) {
-    console.log(`  SPY breadth: skipped (no RSP quote available)`);
   }
 
   // ── Attach ETHA/IBIT ratio for alt-season detection ────────────────────
@@ -912,39 +1049,7 @@ async function main() {
     }
   }
 
-  // ── Attach MOS/CORN ratio for agricultural demand regime ───────────────
-  if (output.MOS && auxQuotes.CORN) {
-    const mosPrice = output.MOS.price?.current;
-    const cornPrice = auxQuotes.CORN.price;
-    const mosChange = output.MOS.price?.change_pct;
-    const cornChange = auxQuotes.CORN.change_pct;
-
-    if (mosPrice && cornPrice) {
-      const ratio = +(mosPrice / cornPrice).toFixed(6);
-      const spread = (mosChange != null && cornChange != null)
-        ? +(mosChange - cornChange).toFixed(3) : null;
-
-      output.MOS.ag_demand = {
-        mos_corn_ratio: ratio,
-        mos_change_pct: mosChange,
-        corn_change_pct: cornChange,
-        corn_price: cornPrice,
-        relative_spread_pp: spread,
-      };
-
-      const agStr = spread == null ? "—"
-        : spread > 0.5 ? `MOS outperforming CORN by ${spread}pp (MOS running ahead)`
-        : spread < -0.5 ? `CORN outperforming MOS by ${(-spread).toFixed(2)}pp (ag demand strong, MOS catch-up?)`
-        : "inline";
-      console.log(`  MOS ag-demand: MOS/CORN=${ratio} | CORN $${cornPrice} (${cornChange >= 0 ? "+" : ""}${cornChange}%) | ${agStr}`);
-    } else {
-      console.log(`  MOS ag-demand: skipped (missing price data)`);
-    }
-  }
-
-  // ── NEW v4.9: Attach LIN peer valuation (vs APD + AIQUY) ──────────────
-  // The cleanest valuation signal for LIN is the P/E premium vs APD/AI.PA.
-  // Historical normal range: 5-15%. <5% = exceptional buy. >18% = trim.
+  // ── LIN peer valuation (vs APD + AIQUY) ───────────────────────────────
   if (output.LIN) {
     const linPE = output.LIN.valuation?.trailingPE;
     const apdPE = auxQuotes.APD?.pe;
@@ -958,7 +1063,7 @@ async function main() {
       output.LIN.peer_valuation = {
         lin_pe: linPE,
         apd_pe: apdPE ?? null,
-        ai_pa_pe: aiquyPE ?? null,  // key matches score-engine field expectation
+        ai_pa_pe: aiquyPE ?? null,
         peer_avg_pe: +peerAvg.toFixed(2),
         premium_pct: premiumPct,
         peer_count: peerPEs.length,
@@ -994,7 +1099,6 @@ async function main() {
       console.log(`  LIN peer-relative: skipped (no APD daily change)`);
     }
 
-    // ── LIN fundamentals already attached via per-symbol roi/operating_margin ──
     const f = output.LIN.fundamentals;
     if (f.roce_pct != null || f.operating_margin_pct != null) {
       console.log(`  LIN fundamentals: ROCE(proxy/ROI)=${f.roce_pct ?? "—"}% | Op margin=${f.operating_margin_pct ?? "—"}%`);
@@ -1003,8 +1107,6 @@ async function main() {
     }
 
     // ─── V3 LIN ATTACHMENTS ───────────────────────────────────────────────
-    // V3.1 peer_relative_aipa: daily return spread LIN vs AIQUY (Air Liquide).
-    //      Mirrors the existing LIN-vs-APD spread; peer-triangulation uses both.
     const aiquyChange = auxQuotes.AIQUY?.change_pct;
     const aiquyPrice = auxQuotes.AIQUY?.price;
     if (linChange != null && aiquyChange != null) {
@@ -1023,41 +1125,25 @@ async function main() {
       console.log(`  LIN peer-relative-aipa: skipped (no AIQUY daily change)`);
     }
 
-    // V3.2 tactical_extras: SPY 10d drawdown + LIN-vs-SPY 10d (from Alpaca bars).
-    //      iv_rv_ratio left null — IV requires options-chain data not in this stack.
     output.LIN.tactical_extras = {
-      iv_rv_ratio: null,                                                  // needs options data (CBOE/Tradier)
+      iv_rv_ratio: null,
       spy_10d_drawdown_pct: linHistReturns?.spy_10d_drawdown_pct ?? null,
       lin_vs_spy_10d_pp:    linHistReturns?.lin_vs_spy_10d_pp ?? null,
     };
 
-    // V3.3 factor_flow: QUAL vs SPY 30d return spread (defensive-quality factor leadership).
     output.LIN.factor_flow = {
       qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
     };
 
-    // V3.4 fundamentals additions — explicit nulls for fields needing earnings disclosure
-    //      or paid consensus feeds. Score-engine and qualitative LLM both degrade gracefully
-    //      on null; LLM web-search prompt for LIN explicitly lists these as fallback fetch targets.
-    output.LIN.fundamentals.asu_utilization_pct   = null;  // air separation unit utilization (earnings call disclosure)
-    output.LIN.fundamentals.price_mix_ex_fx_pct   = null;  // like-for-like price/mix delta ex-FX (segment reporting)
-    output.LIN.fundamentals.eps_revisions_30d_pct = null;  // FactSet/Refinitiv consensus EPS delta 30d
-    output.LIN.fundamentals.eps_revisions_90d_pct = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.LIN.fundamentals.asu_utilization_pct   = null;
+    output.LIN.fundamentals.price_mix_ex_fx_pct   = null;
+    output.LIN.fundamentals.eps_revisions_30d_pct = null;
+    output.LIN.fundamentals.eps_revisions_90d_pct = null;
 
-    // V3.5 peer_valuation 6M delta — needs historical P/E (LIN, APD, AIQUY) 6mo ago.
-    //      Computing this from free APIs would require historical EPS TTM at that date,
-    //      which Finnhub free tier doesn't expose. Left null for paid-feed wiring.
     if (output.LIN.peer_valuation) {
       output.LIN.peer_valuation.premium_6m_delta_pp = null;
     }
 
-    // V3.6 h2_layer — concretized hydrogen pipeline metrics.
-    //      All four fields require external sourcing not available in this stack:
-    //        - contracts_90d_usd_m: news aggregation of LIN H2 contract announcements
-    //        - subsidy_regime: qualitative read on IRA 45V tax credits + EU H2 Bank
-    //        - lcoe_gap_usd_kg: BNEF / IEA green-vs-grey LCOE gap (industry reports)
-    //        - lcoe_gap_6m_delta: 6M change in that gap (negative = closing = green tailwind)
-    //      Score-engine's H2 layer is null-tolerant; the LLM block sources these via web search.
     output.LIN.h2_layer = {
       contracts_90d_usd_m: null,
       subsidy_regime:      null,
@@ -1074,10 +1160,7 @@ async function main() {
     console.log(`  LIN v3 sourced: ${v3Coverage.length > 0 ? v3Coverage.join(", ") : "(none)"} | pending external data: ASU util, price/mix ex-FX, EPS revs, peer P/E 6m Δ, H2 layer`);
   }
 
-  // ── NEW v4.11: Attach MSFT cohort valuation (vs GOOGL + META + AAPL) ──
-  // Mega-cap quality cohort comparison — analogous to LIN's peer_valuation block.
-  // Trailing P/E here from Finnhub free tier; the JSX consumer's strategic block
-  // surfaces forward PE via web search (cohort_avg_fwd_pe, msft_vs_cohort_pct).
+  // ── MSFT cohort valuation (vs GOOGL + META + AAPL) ────────────────────
   if (output.MSFT) {
     const msftPE = output.MSFT.valuation?.trailingPE;
     const googlPE = auxQuotes.GOOGL?.pe;
@@ -1106,10 +1189,6 @@ async function main() {
       console.log(`  MSFT cohort-valuation: skipped (${reason})`);
     }
 
-    // ── MSFT cohort-relative (rotation pressure: 30d return spread) ────
-    // Signature MSFT tactical setup. Score-engine reads rotation_pressure_active
-    // and rotation_pressure_pp to fire the buy signal when capital is rotating
-    // out of MSFT into higher-beta AI names.
     if (msftHistReturns) {
       output.MSFT.cohort_relative = {
         msft_30d_return_pct:        msftHistReturns.msft_30d_return_pct,
@@ -1132,22 +1211,15 @@ async function main() {
       console.log(`  MSFT cohort-relative: skipped (no historical returns)`);
     }
 
-    // ── MSFT factor_flow — reuse QUAL/SPY 30d data fetched for LIN ──
-    // QUAL factor leadership is a market-wide quality-bid signal. Same value
-    // applies to MSFT (compounder benefits from quality-factor flow same as LIN).
     output.MSFT.factor_flow = {
       qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
     };
 
-    // ── MSFT fundamentals additions — explicit nulls for fields needing
-    //    earnings disclosure / paid consensus feeds. Score-engine and
-    //    qualitative LLM both degrade gracefully on null; LLM web-search
-    //    prompt for MSFT explicitly lists these as fallback fetch targets.
-    output.MSFT.fundamentals.azure_growth_cc_pct    = null;  // earnings disclosure (Intelligent Cloud segment)
-    output.MSFT.fundamentals.capex_ttm_usd_b        = null;  // 10-Q cash flow statement
-    output.MSFT.fundamentals.fcf_margin_pct         = null;  // computed from earnings (LFCF / revenue)
-    output.MSFT.fundamentals.eps_revisions_30d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 30d
-    output.MSFT.fundamentals.eps_revisions_90d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.MSFT.fundamentals.azure_growth_cc_pct    = null;
+    output.MSFT.fundamentals.capex_ttm_usd_b        = null;
+    output.MSFT.fundamentals.fcf_margin_pct         = null;
+    output.MSFT.fundamentals.eps_revisions_30d_pct  = null;
+    output.MSFT.fundamentals.eps_revisions_90d_pct  = null;
 
     const msftCoverage = [
       output.MSFT.cohort_valuation ? "cohort-PE" : null,
@@ -1155,6 +1227,196 @@ async function main() {
       output.MSFT.factor_flow?.qual_vs_spy_30d_pp != null ? "QUAL" : null,
     ].filter(Boolean);
     console.log(`  MSFT v1 sourced: ${msftCoverage.length > 0 ? msftCoverage.join(", ") : "(none)"} | pending external data: Azure CC growth, capex TTM, FCF margin, EPS revs, forward PE`);
+  }
+
+  // ── NEW v4.12: LHX cohort valuation (vs LMT + NOC + RTX + GD) ─────────
+  // Defense-prime quality compounder, analogous to MSFT's mega-cap cohort pattern.
+  // Trailing P/E here from Finnhub free tier; forward PE surfaced by LLM via web search.
+  // LHX historically trades at -5 to -15% discount to LMT/NOC/RTX/GD avg —
+  // cohort compression is the central re-rating thesis.
+  if (output.LHX) {
+    const lhxPE = output.LHX.valuation?.trailingPE;
+    const lmtPE = auxQuotes.LMT?.pe;
+    const nocPE = auxQuotes.NOC?.pe;
+    const rtxPE = auxQuotes.RTX?.pe;
+    const gdPE  = auxQuotes.GD?.pe;
+    const cohortPEs = [lmtPE, nocPE, rtxPE, gdPE].filter(p => p != null && p > 0);
+
+    if (lhxPE && cohortPEs.length > 0) {
+      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
+      const premiumPct = +(((lhxPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+
+      output.LHX.cohort_valuation = {
+        lhx_pe: lhxPE,
+        lmt_pe: lmtPE ?? null,
+        noc_pe: nocPE ?? null,
+        rtx_pe: rtxPE ?? null,
+        gd_pe:  gdPE  ?? null,
+        cohort_avg_pe: +cohortAvg.toFixed(2),
+        premium_pct: premiumPct,
+        cohort_count: cohortPEs.length,
+      };
+
+      const zone = premiumPct < -10 ? "WIDE DISCOUNT (BUY — above-norm)"
+        : premiumPct < -5 ? "DISCOUNT (normal range)"
+        : premiumPct < 0 ? "MILD DISCOUNT"
+        : premiumPct < 5 ? "IN-LINE (rare for LHX)"
+        : "PREMIUM (TRIM — rare)";
+      console.log(`  LHX cohort-valuation: LHX ${lhxPE}x | LMT ${lmtPE ?? "—"}x | NOC ${nocPE ?? "—"}x | RTX ${rtxPE ?? "—"}x | GD ${gdPE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !lhxPE ? "no LHX P/E" : "no cohort P/E (LMT/NOC/RTX/GD unavailable)";
+      console.log(`  LHX cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── LHX cohort-relative (rotation pressure: 30d return spread) ─────
+    if (lhxHistReturns) {
+      output.LHX.cohort_relative = {
+        lhx_30d_return_pct:        lhxHistReturns.lhx_30d_return_pct,
+        lmt_30d_return_pct:        lhxHistReturns.lmt_30d_return_pct,
+        noc_30d_return_pct:        lhxHistReturns.noc_30d_return_pct,
+        rtx_30d_return_pct:        lhxHistReturns.rtx_30d_return_pct,
+        gd_30d_return_pct:         lhxHistReturns.gd_30d_return_pct,
+        cohort_avg_30d_return_pct: lhxHistReturns.cohort_avg_30d_return_pct,
+        cohort_rotation_pp:        lhxHistReturns.cohort_rotation_pp,
+        cohort_rotation_active:    lhxHistReturns.cohort_rotation_active,
+        cohort_count:              lhxHistReturns.cohort_count,
+      };
+
+      const rp = lhxHistReturns.cohort_rotation_pp;
+      const rpStr = rp == null ? "—"
+        : lhxHistReturns.cohort_rotation_active ? `LHX lagging cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION ACTIVE — buy setup, capital flowing to larger primes)`
+        : rp < 0 ? `LHX lagging cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `LHX leading cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  LHX cohort-relative: ${rpStr}`);
+
+      // factor_flow: ITA vs SPY 30d (defense sector bid)
+      output.LHX.factor_flow = {
+        ita_vs_spy_30d_pp: lhxHistReturns.ita_vs_spy_30d_pp,
+        ita_30d_return_pct: lhxHistReturns.ita_30d_return_pct,
+        spy_30d_return_pct: lhxHistReturns.spy_30d_return_pct,
+      };
+    } else {
+      console.log(`  LHX cohort-relative: skipped (no historical returns)`);
+      output.LHX.factor_flow = { ita_vs_spy_30d_pp: null, ita_30d_return_pct: null, spy_30d_return_pct: null };
+    }
+
+    // LHX fundamentals — explicit nulls for fields needing earnings disclosure.
+    // LLM web-search prompt sources these as fallback fetch targets.
+    output.LHX.fundamentals.book_to_bill           = null;  // earnings release / backlog disclosure
+    output.LHX.fundamentals.backlog_growth_yoy_pct = null;  // earnings release / backlog disclosure
+    output.LHX.fundamentals.op_margin_pct          = null;  // overrides the generic ROI/op-margin fields for LHX-specific scoring
+    output.LHX.fundamentals.fcf_margin_pct         = null;  // 10-Q cash flow statement
+    output.LHX.fundamentals.eps_revisions_30d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.LHX.fundamentals.eps_revisions_90d_pct  = null;  // FactSet/Refinitiv consensus EPS delta 90d
+
+    const lhxCoverage = [
+      output.LHX.cohort_valuation ? "cohort-PE" : null,
+      output.LHX.cohort_relative?.cohort_rotation_pp != null ? "rotation" : null,
+      output.LHX.factor_flow?.ita_vs_spy_30d_pp != null ? "ITA" : null,
+    ].filter(Boolean);
+    console.log(`  LHX v1 sourced: ${lhxCoverage.length > 0 ? lhxCoverage.join(", ") : "(none)"} | pending external data: book-to-bill, backlog YoY, op margin, FCF margin, EPS revs, forward PE`);
+  }
+
+  // ── NEW v4.12: TMO peer valuation + biotech overlay ─────────────────
+  // Life-sciences quality compounder, analogous to LIN's peer pattern (vs DHR)
+  // overlaid with a biotech-funding sentiment proxy (XBI 30d/90d leads bookings 2-3Q).
+  if (output.TMO) {
+    const tmoPE = output.TMO.valuation?.trailingPE;
+    const dhrPE = auxQuotes.DHR?.pe;
+
+    if (tmoPE && dhrPE) {
+      const premiumPct = +(((tmoPE - dhrPE) / dhrPE) * 100).toFixed(2);
+
+      output.TMO.peer_valuation = {
+        tmo_pe: tmoPE,
+        dhr_pe: dhrPE,
+        premium_pct: premiumPct,
+      };
+
+      const zone = premiumPct < -10 ? "DISCOUNT TO DHR (BUY)"
+        : premiumPct < 0 ? "BELOW DHR"
+        : premiumPct < 10 ? "IN-LINE WITH DHR"
+        : "PREMIUM (TRIM)";
+      console.log(`  TMO peer-valuation: TMO ${tmoPE}x | DHR ${dhrPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !tmoPE ? "no TMO P/E" : "no DHR P/E";
+      console.log(`  TMO peer-valuation: skipped (${reason})`);
+    }
+
+    // ── TMO peer relative (daily return spread vs DHR) ──────────────
+    const tmoChange = output.TMO.price?.change_pct;
+    const dhrChange = auxQuotes.DHR?.change_pct;
+    const dhrPrice = auxQuotes.DHR?.price;
+
+    if (tmoChange != null && dhrChange != null) {
+      const spread = +(tmoChange - dhrChange).toFixed(3);
+
+      output.TMO.peer_relative = {
+        tmo_change_pct: tmoChange,
+        dhr_change_pct: dhrChange,
+        dhr_price: dhrPrice ?? null,
+        relative_spread_pp: spread,
+      };
+
+      const peerStr = spread > 0.5 ? `TMO outperforming DHR by ${spread}pp`
+        : spread < -0.5 ? `DHR outperforming TMO by ${(-spread).toFixed(2)}pp (TMO catch-up potential)`
+        : "inline";
+      console.log(`  TMO peer-relative: ${peerStr}`);
+    } else {
+      console.log(`  TMO peer-relative: skipped (no DHR daily change)`);
+    }
+
+    // ── TMO biotech overlay (XBI 30d/90d + daily change) ────────────
+    const xbiPrice = auxQuotes.XBI?.price;
+    const xbiChange = auxQuotes.XBI?.change_pct;
+
+    if (xbiPrice != null) {
+      output.TMO.biotech_overlay = {
+        xbi_price:          xbiPrice,
+        xbi_change_pct:     xbiChange ?? null,
+        xbi_30d_return_pct: tmoHistReturns?.xbi_30d_return_pct ?? null,
+        xbi_90d_return_pct: tmoHistReturns?.xbi_90d_return_pct ?? null,
+        // Sympathy detection: TMO and XBI both down meaningfully on the day
+        // (score-engine uses this for tactical biotech-sympathy buy signal)
+        sympathy_setup_active: (tmoChange != null && xbiChange != null && tmoChange < -1.5 && xbiChange < -1.5),
+      };
+
+      const fund = tmoHistReturns?.xbi_90d_return_pct;
+      const fundStr = fund == null ? "—"
+        : fund > 10 ? `funding thawing (+${fund}%)`
+        : fund < -10 ? `funding frozen (${fund}%)`
+        : `mixed (${fund >= 0 ? "+" : ""}${fund}%)`;
+      console.log(`  TMO biotech-overlay: XBI $${xbiPrice} (${xbiChange >= 0 ? "+" : ""}${xbiChange}%) | 90d: ${fundStr}${output.TMO.biotech_overlay.sympathy_setup_active ? " | SYMPATHY SETUP ACTIVE" : ""}`);
+    } else {
+      console.log(`  TMO biotech-overlay: skipped (no XBI quote)`);
+    }
+
+    // ── TMO 30d return tactical extras + reused QUAL/SPY factor flow ──
+    output.TMO.tactical_extras = {
+      tmo_30d_return_pct: tmoHistReturns?.tmo_30d_return_pct ?? null,
+      tmo_vs_dhr_30d_pp:  tmoHistReturns?.tmo_vs_dhr_30d_pp ?? null,
+    };
+
+    // factor_flow: QUAL vs SPY 30d — reused from LIN's fetch (market-wide quality bid)
+    output.TMO.factor_flow = {
+      qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
+    };
+
+    // TMO fundamentals — explicit nulls for fields needing earnings disclosure.
+    output.TMO.fundamentals.organic_growth_pct      = null;  // earnings release (TMO segment)
+    output.TMO.fundamentals.op_margin_pct           = null;  // overrides generic for TMO-specific scoring
+    output.TMO.fundamentals.fcf_margin_pct          = null;  // 10-Q cash flow statement
+    output.TMO.fundamentals.eps_revisions_30d_pct   = null;  // FactSet/Refinitiv 30d
+    output.TMO.fundamentals.eps_revisions_90d_pct   = null;  // FactSet/Refinitiv 90d
+    output.TMO.fundamentals.bioprocessing_phase     = null;  // categorical: destocking/bottoming/early_recovery/expansion/peak (LLM)
+
+    const tmoCoverage = [
+      output.TMO.peer_valuation ? "peer-PE" : null,
+      output.TMO.biotech_overlay?.xbi_90d_return_pct != null ? "XBI-90d" : null,
+      output.TMO.tactical_extras?.tmo_vs_dhr_30d_pp != null ? "DHR-30d" : null,
+      output.TMO.factor_flow?.qual_vs_spy_30d_pp != null ? "QUAL" : null,
+    ].filter(Boolean);
+    console.log(`  TMO v1 sourced: ${tmoCoverage.length > 0 ? tmoCoverage.join(", ") : "(none)"} | pending external data: organic growth, bioprocessing phase, op/FCF margin, EPS revs, forward PE, peer commentary (Sartorius/Repligen)`);
   }
 
   output._macro = macro;
@@ -1180,13 +1442,18 @@ async function main() {
   console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
   console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
-  console.log(`  MOS/CORN:       ${output.MOS?.ag_demand ? `ratio=${output.MOS.ag_demand.mos_corn_ratio}, CORN $${output.MOS.ag_demand.corn_price}` : "unavailable"}`);
   console.log(`  LIN peer P/E:   ${output.LIN?.peer_valuation ? `LIN ${output.LIN.peer_valuation.lin_pe}x vs ${output.LIN.peer_valuation.peer_count}-peer avg ${output.LIN.peer_valuation.peer_avg_pe}x = ${output.LIN.peer_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  LIN v3 BBB OAS: ${macro.bbb_oas_bps != null ? `${macro.bbb_oas_bps}bps (1m Δ ${macro.bbb_oas_1m_change_bps != null ? (macro.bbb_oas_1m_change_bps >= 0 ? "+" : "") + macro.bbb_oas_1m_change_bps + "bps" : "—"})` : "unavailable"}`);
   console.log(`  LIN v3 returns: ${linHistReturns ? `SPY 10d=${linHistReturns.spy_10d_drawdown_pct}%, LIN-SPY 10d=${linHistReturns.lin_vs_spy_10d_pp}pp, QUAL-SPY 30d=${linHistReturns.qual_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  LIN AI.PA:      ${output.LIN?.peer_relative_aipa ? `spread=${output.LIN.peer_relative_aipa.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  MSFT cohort PE: ${output.MSFT?.cohort_valuation ? `MSFT ${output.MSFT.cohort_valuation.msft_pe}x vs ${output.MSFT.cohort_valuation.cohort_count}-name cohort avg ${output.MSFT.cohort_valuation.cohort_avg_pe}x = ${output.MSFT.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  MSFT rotation:  ${output.MSFT?.cohort_relative ? `MSFT 30d=${output.MSFT.cohort_relative.msft_30d_return_pct}%, cohort=${output.MSFT.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.MSFT.cohort_relative.rotation_pressure_pp}pp${output.MSFT.cohort_relative.rotation_pressure_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  LHX cohort PE:  ${output.LHX?.cohort_valuation ? `LHX ${output.LHX.cohort_valuation.lhx_pe}x vs ${output.LHX.cohort_valuation.cohort_count}-name cohort avg ${output.LHX.cohort_valuation.cohort_avg_pe}x = ${output.LHX.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  LHX rotation:   ${output.LHX?.cohort_relative ? `LHX 30d=${output.LHX.cohort_relative.lhx_30d_return_pct}%, cohort=${output.LHX.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.LHX.cohort_relative.cohort_rotation_pp}pp${output.LHX.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  LHX ITA-SPY:    ${output.LHX?.factor_flow?.ita_vs_spy_30d_pp != null ? `${output.LHX.factor_flow.ita_vs_spy_30d_pp >= 0 ? "+" : ""}${output.LHX.factor_flow.ita_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  TMO peer P/E:   ${output.TMO?.peer_valuation ? `TMO ${output.TMO.peer_valuation.tmo_pe}x vs DHR ${output.TMO.peer_valuation.dhr_pe}x = ${output.TMO.peer_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  TMO biotech:    ${output.TMO?.biotech_overlay ? `XBI 30d=${output.TMO.biotech_overlay.xbi_30d_return_pct}%, 90d=${output.TMO.biotech_overlay.xbi_90d_return_pct}%${output.TMO.biotech_overlay.sympathy_setup_active ? " [SYMPATHY ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  TMO-DHR 30d:    ${output.TMO?.tactical_extras?.tmo_vs_dhr_30d_pp != null ? `${output.TMO.tactical_extras.tmo_vs_dhr_30d_pp >= 0 ? "+" : ""}${output.TMO.tactical_extras.tmo_vs_dhr_30d_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
