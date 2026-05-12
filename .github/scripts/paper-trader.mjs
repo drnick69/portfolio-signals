@@ -1,18 +1,25 @@
 #!/usr/bin/env node
-// paper-trader.mjs — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v7.5 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across 12 holdings.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
 // Trade rules:
 //   - New cash ($10K) split: 40% to tactical buy, 35% to positional, 25% to strategic
-//   - Confidence-weighted: high=100%, medium=70%, low=40% of allocation  // ← NEW
-//   - Score-magnitude-weighted: |composite| → 0.4 (weak BUY) to 1.0 (STRONG_BUY)  // ← V3
+//   - Confidence-weighted: high=100%, medium=70%, low=40% of allocation
+//   - Score-magnitude-weighted: |composite| → 0.4 (weak BUY) to 1.0 (STRONG_BUY)
 //     Final multiplier: pct × confidence × score_magnitude
-//   - Trim: sell 3% of trim position, reduce cost_basis proportionally,         // ← FIX
-//     delete position when shares hit zero. Add proceeds to cash.               // ← FIX
-//   - Snapshot captures composite scores + LIN regime for forward validation  // ← V3
+//   - Trim: sell 3% of trim position, reduce cost_basis proportionally,
+//     delete position when shares hit zero. Add proceeds to cash.
+//   - Snapshot captures composite scores + LIN regime for forward validation
 //   - Prices come from /tmp/signal-data.json + /tmp/market-data.json
 //   - State persists in docs/history/paper-portfolio.json
+//
+// V7.5: One-time HOLDINGS SWAP migration on first run post-deployment.
+//       MOS → LHX and SPY → TMO. Cost basis transfers to the new symbol;
+//       shares recomputed at the new symbol's current price. Cash position
+//       unchanged → total portfolio value preserved at the swap moment.
+//       P&L for the new positions starts at 0% and tracks LHX/TMO going
+//       forward. Idempotent: no-ops once MOS/SPY are gone from holdings.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -23,26 +30,20 @@ const INITIAL_CAPITAL = 1_000_000;
 const DAILY_DEPOSIT = 10_000;
 const TRIM_PCT = 0.03; // sell 3% of trim position each day
 
-// ── NEW: Confidence-weighted allocation multipliers ─────────────────────────
-const CONFIDENCE_MULTIPLIER = { high: 1.0, medium: 0.7, low: 0.4 };  // ← NEW
+// ── Confidence-weighted allocation multipliers ──────────────────────────────
+const CONFIDENCE_MULTIPLIER = { high: 1.0, medium: 0.7, low: 0.4 };
 
-function getConfidenceMultiplier(signalData, symbol) {  // ← NEW
-  const holding = (signalData.normalized || []).find(s => s.symbol === symbol);  // ← NEW
-  const level = holding?.confidence?.level || "medium";  // ← NEW
-  return CONFIDENCE_MULTIPLIER[level] || 0.7;  // ← NEW
-}  // ← NEW
+function getConfidenceMultiplier(signalData, symbol) {
+  const holding = (signalData.normalized || []).find(s => s.symbol === symbol);
+  const level = holding?.confidence?.level || "medium";
+  return CONFIDENCE_MULTIPLIER[level] || 0.7;
+}
 
 // ── V3: Score-magnitude weighting — stronger signals get more capital ───────
-// Maps |composite score| to a 0.4–1.0 multiplier on allocation.
-//   weak BUY (|s| < 30):     floor at 0.4 (still buys, just smaller)
-//   mid  BUY (|s| = 40-50):  ~0.5–0.75
-//   STRONG_BUY (|s| ≥ 60):   1.0 (full allocation)
-// Combined with confidence multiplier: amount = pct × conf × score_mag.
-// Cash not deployed accumulates for stronger signals on subsequent days.
 function getScoreMagnitude(signalData, symbol) {
   const holding = (signalData.normalized || []).find(s => s.symbol === symbol);
   const score = holding?.composite?.score;
-  if (score == null) return 0.7; // sensible default if score missing
+  if (score == null) return 0.7;
   return Math.max(0.4, Math.min(1.0, (Math.abs(score) - 20) / 40));
 }
 
@@ -52,7 +53,7 @@ function getSignalContext(signalData, symbol) {
   return {
     composite_score: h?.composite?.score ?? null,
     recommendation: h?.composite?.recommendation ?? null,
-    regime: h?.regime ?? null,            // LIN-only in v3; null for others
+    regime: h?.regime ?? null,
     regime_pmi: h?.regime_pmi ?? null,
   };
 }
@@ -69,21 +70,12 @@ try {
 
 const { normalized, assignments, timestamp } = signalData;
 const date = new Date(timestamp).toISOString().split("T")[0];
-const dayOfWeek = new Date(timestamp).getUTCDay(); // 0=Sun, 6=Sat
+const dayOfWeek = new Date(timestamp).getUTCDay();
 
 // ─── MARKET CALENDAR CHECK ──────────────────────────────────────────────────
-// US market holidays (fixed dates + observed). Update annually.
 const HOLIDAYS_2026 = [
-  "2026-01-01", // New Year's
-  "2026-01-19", // MLK Day
-  "2026-02-16", // Presidents' Day
-  "2026-04-03", // Good Friday
-  "2026-05-25", // Memorial Day
-  "2026-06-19", // Juneteenth
-  "2026-07-03", // Independence Day (observed)
-  "2026-09-07", // Labor Day
-  "2026-11-26", // Thanksgiving
-  "2026-12-25", // Christmas
+  "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+  "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
 ];
 const HOLIDAYS_2027 = [
   "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
@@ -97,7 +89,6 @@ const isHoliday = ALL_HOLIDAYS.has(date);
 
 if (isWeekend || isHoliday) {
   console.log(`Paper Trader: ${date} is ${isWeekend ? "a weekend" : "a market holiday"} — skipping trades.`);
-  // Still save portfolio state (revalue at last known prices) but don't trade
   if (existsSync(PORTFOLIO_PATH)) {
     const portfolio = JSON.parse(readFileSync(PORTFOLIO_PATH, "utf-8"));
     writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2));
@@ -123,7 +114,6 @@ if (existsSync(PORTFOLIO_PATH)) {
   portfolio = JSON.parse(readFileSync(PORTFOLIO_PATH, "utf-8"));
   console.log(`Portfolio loaded: day ${portfolio.day_count + 1}, $${portfolio.total_value?.toFixed(0) || "?"}`);
 } else {
-  // Initialize: $1M equally distributed
   const perHolding = INITIAL_CAPITAL / 12;
   const holdings = {};
   for (const s of normalized) {
@@ -154,6 +144,49 @@ if (portfolio.history.some(h => h.date === date)) {
   process.exit(0);
 }
 
+// ─── V7.5 HOLDINGS SWAP (one-time migration) ────────────────────────────────
+// MOS → LHX, SPY → TMO. Cost basis transfers; shares recomputed at the new
+// symbol's current price. Cash unchanged, so total portfolio value is preserved
+// at the swap moment. P&L resets to 0% for the new positions and tracks the
+// new tickers going forward.
+// Idempotent: no-ops once MOS/SPY are no longer present in portfolio.holdings.
+// Safe to leave in indefinitely — can be removed after one successful run.
+const HOLDINGS_MIGRATION = { "MOS": "LHX", "SPY": "TMO" };
+const swaps = [];
+for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
+  const old = portfolio.holdings[oldSym];
+  if (!old || old.shares <= 0) continue;
+  const newPrice = prices[newSym];
+  if (!newPrice) {
+    console.log(`  ⚠ Cannot migrate ${oldSym} → ${newSym}: ${newSym} price unavailable today; will retry next run.`);
+    continue;
+  }
+  const newShares = +(old.cost_basis / newPrice).toFixed(4);
+  const existing = portfolio.holdings[newSym];
+  if (existing) {
+    // Already a position in the new symbol — merge cost basis.
+    existing.shares = +(existing.shares + newShares).toFixed(4);
+    existing.cost_basis = +(existing.cost_basis + old.cost_basis).toFixed(2);
+    existing.avg_price = existing.shares > 0 ? +(existing.cost_basis / existing.shares).toFixed(4) : 0;
+  } else {
+    portfolio.holdings[newSym] = {
+      shares: newShares,
+      cost_basis: old.cost_basis,
+      avg_price: newPrice,
+    };
+  }
+  delete portfolio.holdings[oldSym];
+  swaps.push({
+    from: oldSym,
+    to: newSym,
+    old_shares: old.shares,
+    old_cost_basis: old.cost_basis,
+    new_shares: newShares,
+    new_price: newPrice,
+  });
+  console.log(`  🔄 SWAP ${oldSym} → ${newSym}: $${old.cost_basis.toFixed(0)} cost basis → ${newShares} ${newSym} shares @ $${newPrice.toFixed(2)}`);
+}
+
 // ─── EXECUTE TRADES ─────────────────────────────────────────────────────────
 portfolio.day_count++;
 portfolio.cash += DAILY_DEPOSIT;
@@ -162,8 +195,6 @@ portfolio.total_deposited += DAILY_DEPOSIT;
 const trades = [];
 
 // 1. TRIM: sell 3% of the weakest position
-// FIX: cost_basis is now reduced proportionally to shares sold.
-// FIX: position is deleted entirely when shares hit zero (prevents ghost positions).
 if (assignments.trim && portfolio.holdings[assignments.trim]) {
   const sym = assignments.trim;
   const h = portfolio.holdings[sym];
@@ -178,8 +209,8 @@ if (assignments.trim && portfolio.holdings[assignments.trim]) {
     h.cost_basis = +(h.cost_basis - cbReduction).toFixed(2);
     portfolio.cash += proceeds;
 
-    const ctx = getSignalContext(signalData, sym);  // ← V3
-    trades.push({ type: "TRIM", symbol: sym, shares: -sellShares, price, value: proceeds, ...ctx });  // ← V3: signal context
+    const ctx = getSignalContext(signalData, sym);
+    trades.push({ type: "TRIM", symbol: sym, shares: -sellShares, price, value: proceeds, ...ctx });
 
     if (h.shares <= 0.0001 || h.cost_basis <= 0.01) {
       delete portfolio.holdings[sym];
@@ -203,9 +234,9 @@ for (const { key, pct, label } of buyAllocations) {
   const sym = assignments[key];
   if (!sym || !prices[sym]) continue;
 
-  const confMult  = getConfidenceMultiplier(signalData, sym);  // ← NEW
-  const scoreMult = getScoreMagnitude(signalData, sym);        // ← V3
-  const amount = +(availableCash * pct * confMult * scoreMult).toFixed(2);  // ← V3: × score magnitude
+  const confMult  = getConfidenceMultiplier(signalData, sym);
+  const scoreMult = getScoreMagnitude(signalData, sym);
+  const amount = +(availableCash * pct * confMult * scoreMult).toFixed(2);
   const price = prices[sym];
   const shares = +(amount / price).toFixed(4);
 
@@ -213,20 +244,18 @@ for (const { key, pct, label } of buyAllocations) {
     portfolio.holdings[sym] = { shares: 0, cost_basis: 0, avg_price: 0 };
   }
   const h = portfolio.holdings[sym];
-  const oldCost = h.cost_basis;
-  const oldShares = h.shares;
   h.shares = +(h.shares + shares).toFixed(4);
   h.cost_basis = +(h.cost_basis + amount).toFixed(2);
   h.avg_price = h.shares > 0 ? +(h.cost_basis / h.shares).toFixed(4) : 0;
   portfolio.cash = +(portfolio.cash - amount).toFixed(2);
 
-  const ctx = getSignalContext(signalData, sym);  // ← V3
-  trades.push({  // ← V3: full context in trade log
+  const ctx = getSignalContext(signalData, sym);
+  trades.push({
     type: "BUY", signal: label, symbol: sym, shares, price, value: amount,
     confidence: confMult, score_magnitude: scoreMult,
     ...ctx,
   });
-  console.log(`  ${label} BUY ${sym}: ${shares} shares @ $${price.toFixed(2)} = $${amount.toFixed(0)} [conf: ${confMult}, score_mag: ${scoreMult.toFixed(2)}${ctx.composite_score != null ? `, composite: ${ctx.composite_score}` : ""}${ctx.regime ? `, regime: ${ctx.regime}` : ""}]`);  // ← V3: composite + regime in log
+  console.log(`  ${label} BUY ${sym}: ${shares} shares @ $${price.toFixed(2)} = $${amount.toFixed(0)} [conf: ${confMult}, score_mag: ${scoreMult.toFixed(2)}${ctx.composite_score != null ? `, composite: ${ctx.composite_score}` : ""}${ctx.regime ? `, regime: ${ctx.regime}` : ""}]`);
 }
 
 // ─── COMPUTE PORTFOLIO VALUE ────────────────────────────────────────────────
@@ -249,8 +278,6 @@ const totalPnlPct = +((totalPnl / portfolio.total_deposited) * 100).toFixed(2);
 portfolio.total_value = totalValue;
 
 // Daily snapshot for history
-// V3: capture composite scores + regimes for all holdings to enable
-// forward-validation analysis (signal score → next-N-day return correlation)
 const composite_scores = {};
 const regimes = {};
 for (const h of (normalized || [])) {
@@ -269,8 +296,9 @@ const snapshot = {
   pnl_pct: totalPnlPct,
   trades,
   assignments: { ...assignments },
-  composite_scores,                                      // ← V3
-  ...(Object.keys(regimes).length > 0 ? { regimes } : {}), // ← V3 (only when present)
+  composite_scores,
+  ...(Object.keys(regimes).length > 0 ? { regimes } : {}),
+  ...(swaps.length > 0 ? { swaps } : {}),                  // ← V7.5: only present on migration day
 };
 portfolio.history.push(snapshot);
 
@@ -286,7 +314,6 @@ console.log(`  Cash:           $${portfolio.cash.toFixed(0)}`);
 console.log(`  Holdings:       $${holdingsValue.toFixed(0)} across ${holdingSummary.length} positions`);
 console.log("");
 
-// Sort by value
 holdingSummary.sort((a, b) => b.mktValue - a.mktValue);
 console.log("  POSITION BREAKDOWN:");
 for (const h of holdingSummary) {
