@@ -1,38 +1,35 @@
 name: Claire Summary
-
-# Runs once per day after the main signal pipeline has finished, producing
-# plain-English one-liners per holding for the Claire tab on the hub.
-# Scheduled ~30min after the main signal workflow's typical finish time —
-# adjust as needed.
+# Runs immediately after the Daily Portfolio Signal workflow completes
+# successfully, producing plain-English one-liners per holding for the Claire
+# tab on the hub. Triggered by workflow completion (not cron) so daily-log.jsonl
+# is guaranteed fresh when Claire reads it.
 on:
-  schedule:
-    - cron: "30 21 * * 1-5"  # 21:30 UTC weekdays
+  workflow_run:
+    workflows: ["Daily Portfolio Signal"]
+    types: [completed]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 concurrency:
   group: claire-summary
   cancel-in-progress: false
-
 jobs:
   summarize:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          ref: main
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
       - name: Run Claire summary
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node .github/scripts/claire-summary.mjs
-
       - name: Commit claire.json
         run: |
           git config user.name  "github-actions[bot]"
