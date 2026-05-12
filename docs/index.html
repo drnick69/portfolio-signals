@@ -96,12 +96,12 @@
 
   <script>
     const HOLDINGS = {
-      MOS: { name: "Mosaic", accent: "#2a9d8f" }, ASML: { name: "ASML", accent: "#5b8dee" },
-      LIN: { name: "Linde", accent: "#5b8c7c" }, MSFT: { name: "Microsoft", accent: "#5e8ba8" }, ENB: { name: "Enbridge", accent: "#e8963e" },
+      LHX: { name: "L3Harris", accent: "#b8a04a" }, ASML: { name: "ASML", accent: "#5b8dee" },
+      LIN: { name: "Linde", accent: "#5b8c7c" }, MSFT: { name: "Microsoft", accent: "#5e8ba8" },
+      TMO: { name: "Thermo Fisher", accent: "#a06bc8" }, ENB: { name: "Enbridge", accent: "#e8963e" },
       ETHA: { name: "iShares ETH", accent: "#627eea" }, GLNCY: { name: "Glencore", accent: "#5ba784" },
       IBIT: { name: "iShares BTC", accent: "#f7931a" }, KOF: { name: "Coca-Cola FEMSA", accent: "#e63946" },
       "PBR.A": { name: "Petrobras", accent: "#00a651" }, AMKBY: { name: "Maersk", accent: "#009fda" },
-      SPY: { name: "S&P 500", accent: "#8899aa" },
     };
     const ROLES = {
       tacticalBuy: { label: "TACTICAL BUY", icon: "⚡", color: "#00ff88", bg: "rgba(0,255,136,0.08)", border: "rgba(0,255,136,0.25)" },
@@ -116,7 +116,7 @@
     const fmtMoney = v => v >= 1000000 ? `$${(v/1000000).toFixed(2)}M` : v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${v.toFixed(0)}`;
 
     let DATA = null, PORTFOLIO = null, CLAIRE = null, CALIBRATION = null, currentTab = "signals";
-    let calTicker = "SPY", calLayer = "tactical";
+    let calTicker = "AMKBY", calLayer = "tactical";
 
     async function loadData() {
       try {
