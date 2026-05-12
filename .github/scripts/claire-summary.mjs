@@ -17,16 +17,17 @@ const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PORTFOLIO = ["MOS", "ASML", "LIN", "MSFT", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "SPY"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
 // LLMs to confuse with similar-sounding tickers. Keep this authoritative.
 const TICKER_IDENTITY = {
-  "MOS":   { name: "Mosaic Company",       business: "North American fertilizer producer (potash and phosphate)" },
+  "LHX":   { name: "L3Harris Technologies", business: "American defense prime contractor — makes communications systems, electronic warfare gear, ISR/spy systems, and rocket motors for the US military. Smallest of the five big defense primes (Lockheed, Northrop, Raytheon, General Dynamics, L3Harris) and historically trades at a discount to the larger four" },
   "ASML":  { name: "ASML Holding",         business: "Dutch company that makes the lithography machines used to print advanced computer chips — the sole supplier of EUV machines worldwide" },
   "LIN":   { name: "Linde plc",            business: "world's largest industrial gas company — supplies oxygen, nitrogen, hydrogen, helium, and argon to hospitals, factories, and electronics manufacturers under long-term contracts" },
   "MSFT":  { name: "Microsoft",            business: "the software giant behind Windows, Office, and Xbox — but its biggest growth engine now is the Azure cloud service, which rents out the computing power that AI companies need, plus a major partnership with OpenAI (the maker of ChatGPT)" },
+  "TMO":   { name: "Thermo Fisher Scientific", business: "the world's largest supplier of laboratory equipment and bioprocessing tools — sells to biotech companies, pharma, hospitals, and research labs. Often called the 'picks-and-shovels' supplier for the entire life sciences industry" },
   "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
   "ETHA":  { name: "iShares Ethereum ETF", business: "spot Ethereum exposure (ETHA tracks the price of ether, the second-largest cryptocurrency)" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
@@ -34,7 +35,6 @@ const TICKER_IDENTITY = {
   "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
   "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
   "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
-  "SPY":   { name: "SPDR S&P 500 ETF",     business: "the broad US stock market — owning SPY is owning the 500 largest American companies" },
 };
 
 // ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -43,10 +43,11 @@ const SYSTEM_PROMPT = `You are translating quantitative portfolio analysis into 
 Your job: rewrite each holding's analyst summary into ONE sentence she can understand over dinner.
 
 TICKER GLOSSARY — use these exact company identities, do not substitute or infer:
-- MOS     = Mosaic Company (North American fertilizer producer)
+- LHX     = L3Harris Technologies (American defense prime — comms systems, electronic warfare, ISR, rocket motors)
 - ASML    = ASML Holding (Dutch maker of EUV chipmaking machines)
 - LIN     = Linde plc (world's largest industrial gas supplier — oxygen, nitrogen, hydrogen, etc.)
 - MSFT    = Microsoft (Windows/Office/Xbox plus Azure cloud powering AI plus OpenAI partnership)
+- TMO     = Thermo Fisher Scientific (world's largest life sciences lab equipment and bioprocessing supplier)
 - ENB     = Enbridge (Canadian oil & gas pipeline operator)
 - ETHA    = iShares Ethereum ETF (spot Ethereum / ether exposure)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
@@ -54,7 +55,6 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
 - PBR.A   = Petrobras preferred shares (Brazilian state oil major)
 - AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
-- SPY     = SPDR S&P 500 ETF (broad US stock market)
 
 CRITICAL DISAMBIGUATION:
 - AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
@@ -68,11 +68,11 @@ RULES:
 - Describe what's happening, don't tell her what to do. "Looks cheap here" not "buy more." "Holding steady" not "hold."
 - No numbers unless a specific number aids understanding. "Down about 8%" is fine; "trading at 32.4x forward earnings" is not.
 - Vary the sentence structure across the 12 holdings — don't start every line with "X is..."
-- If nothing interesting is happening, say that honestly. Boring is fine. "SPY is quiet — the broader market is having an uneventful week" is a good output.
+- If nothing interesting is happening, say that honestly. Boring is fine. "Microsoft is quiet — the AI infrastructure story keeps grinding along without any drama" is a good output.
 - Ground the sentence in what's actually driving the ticker (the business, the commodity, the macro factor) rather than the score itself. She cares about why, not the number.
 
 EXAMPLES of the voice:
-- "MOS is down a bit, but fertilizer prices are steady, so nothing is really wrong with the business."
+- "L3Harris is down a bit, but defense spending is on a steady tailwind, so nothing has really changed about the business."
 - "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
 - "Linde is having a quiet week — industrial gas demand is steady and they keep raising prices a little each quarter, which is the whole story with this one."
 - "Bitcoin has been quiet, which after a big run-up is actually what you want to see."
@@ -81,7 +81,7 @@ EXAMPLES of the voice:
 
 OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
 {
-  "MOS": "MOS is down a bit...",
+  "LHX": "L3Harris is down a bit...",
   "ASML": "ASML keeps climbing...",
   ...
 }
