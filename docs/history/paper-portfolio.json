@@ -1,14 +1,9 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 45,
-  "cash": 17165.83,
-  "total_deposited": 1450000,
+  "day_count": 46,
+  "cash": 16142.15,
+  "total_deposited": 1460000,
   "holdings": {
-    "MOS": {
-      "shares": 6666.0809,
-      "cost_basis": 168118.06,
-      "avg_price": 25.2199
-    },
     "ASML": {
       "shares": 34.3445,
       "cost_basis": 44807.57,
@@ -20,8 +15,8 @@
       "avg_price": 509.9999
     },
     "ENB": {
-      "shares": 1400.7534,
-      "cost_basis": 75724.74,
+      "shares": 1358.7308,
+      "cost_basis": 73453,
       "avg_price": 54.06
     },
     "ETHA": {
@@ -50,19 +45,24 @@
       "avg_price": 17.0346
     },
     "AMKBY": {
-      "shares": 10144.3108,
-      "cost_basis": 129221.32,
-      "avg_price": 12.7383
-    },
-    "SPY": {
-      "shares": 166.9954,
-      "cost_basis": 114870.36,
-      "avg_price": 667.2295
+      "shares": 10408.7359,
+      "cost_basis": 132169.66,
+      "avg_price": 12.698
     },
     "MSFT": {
       "shares": 11.1721,
       "cost_basis": 4577.55,
       "avg_price": 409.7305
+    },
+    "LHX": {
+      "shares": 571.2812,
+      "cost_basis": 172835.4,
+      "avg_price": 302.54
+    },
+    "TMO": {
+      "shares": 269.8769,
+      "cost_basis": 120545.91,
+      "avg_price": 446.67
     }
   },
   "history": [
@@ -2632,7 +2632,113 @@
       "regimes": {
         "LIN": "neutral"
       }
+    },
+    {
+      "date": "2026-05-13",
+      "day": 46,
+      "total_value": 1558997.29,
+      "total_deposited": 1460000,
+      "cash": 16142.15,
+      "holdings_value": 1542855.14,
+      "pnl": 98997.29,
+      "pnl_pct": 6.78,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ENB",
+          "shares": -42.0226,
+          "price": 55.15,
+          "value": 2317.55,
+          "composite_score": 4,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "LHX",
+          "shares": 15.5925,
+          "price": 302.54,
+          "value": 4717.34,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -22,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "TMO",
+          "shares": 12.7064,
+          "price": 446.67,
+          "value": 5675.55,
+          "confidence": 1,
+          "score_magnitude": 0.55,
+          "composite_score": -42,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "AMKBY",
+          "shares": 264.4251,
+          "price": 11.15,
+          "value": 2948.34,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -20,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "LHX",
+        "positionalBuy": "TMO",
+        "strategicBuy": "AMKBY",
+        "trim": "ENB"
+      },
+      "composite_scores": {
+        "LHX": -22,
+        "ASML": -8,
+        "LIN": -1,
+        "MSFT": -28,
+        "TMO": -42,
+        "ENB": 4,
+        "ETHA": -23,
+        "GLNCY": -11,
+        "IBIT": -20,
+        "KOF": -1,
+        "PBR.A": -10,
+        "AMKBY": -20
+      },
+      "regimes": {
+        "LIN": "neutral"
+      },
+      "swaps": [
+        {
+          "from": "MOS",
+          "to": "LHX",
+          "old_shares": 6666.0809,
+          "old_cost_basis": 168118.06,
+          "new_shares": 555.6887,
+          "new_price": 302.54
+        },
+        {
+          "from": "SPY",
+          "to": "TMO",
+          "old_shares": 166.9954,
+          "old_cost_basis": 114870.36,
+          "new_shares": 257.1705,
+          "new_price": 446.67
+        }
+      ]
     }
   ],
-  "total_value": 1529690.47
+  "total_value": 1558997.29
 }
