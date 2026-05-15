@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 47,
-  "cash": 16054.73,
-  "total_deposited": 1470000,
+  "day_count": 48,
+  "cash": 12884.38,
+  "total_deposited": 1480000,
   "holdings": {
     "ASML": {
       "shares": 34.3445,
@@ -10,8 +10,8 @@
       "avg_price": 1304.6505
     },
     "LIN": {
-      "shares": 205.8301,
-      "cost_basis": 104973.33,
+      "shares": 199.6552,
+      "cost_basis": 101824.13,
       "avg_price": 509.9999
     },
     "ENB": {
@@ -20,9 +20,9 @@
       "avg_price": 54.06
     },
     "ETHA": {
-      "shares": 12035.1599,
-      "cost_basis": 189120.16,
-      "avg_price": 15.714
+      "shares": 12295.4032,
+      "cost_basis": 193463.62,
+      "avg_price": 15.7346
     },
     "GLNCY": {
       "shares": 10405.2355,
@@ -50,9 +50,9 @@
       "avg_price": 12.698
     },
     "MSFT": {
-      "shares": 11.1721,
-      "cost_basis": 4577.55,
-      "avg_price": 409.7305
+      "shares": 18.1806,
+      "cost_basis": 7497.52,
+      "avg_price": 412.3912
     },
     "LHX": {
       "shares": 586.1258,
@@ -60,9 +60,9 @@
       "avg_price": 302.6345
     },
     "TMO": {
-      "shares": 280.7781,
-      "cost_basis": 125518.61,
-      "avg_price": 447.0385
+      "shares": 301.2905,
+      "cost_basis": 134570.53,
+      "avg_price": 446.6471
     }
   },
   "history": [
@@ -2826,7 +2826,95 @@
       "regimes": {
         "LIN": "neutral"
       }
+    },
+    {
+      "date": "2026-05-15",
+      "day": 48,
+      "total_value": 1569250.72,
+      "total_deposited": 1480000,
+      "cash": 12884.38,
+      "holdings_value": 1556366.34,
+      "pnl": 89250.72,
+      "pnl_pct": 6.03,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "LIN",
+          "shares": -6.1749,
+          "price": 509.32,
+          "value": 3145,
+          "composite_score": 7,
+          "recommendation": "HOLD",
+          "regime": "neutral",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "TMO",
+          "shares": 20.5124,
+          "price": 441.29,
+          "value": 9051.92,
+          "confidence": 1,
+          "score_magnitude": 0.775,
+          "composite_score": -51,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "ETHA",
+          "shares": 260.2433,
+          "price": 16.69,
+          "value": 4343.46,
+          "confidence": 1,
+          "score_magnitude": 0.425,
+          "composite_score": -37,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "MSFT",
+          "shares": 7.0085,
+          "price": 416.63,
+          "value": 2919.97,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -27,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "TMO",
+        "positionalBuy": "ETHA",
+        "strategicBuy": "MSFT",
+        "trim": "LIN"
+      },
+      "composite_scores": {
+        "LHX": -11,
+        "ASML": 2,
+        "LIN": 7,
+        "MSFT": -27,
+        "TMO": -51,
+        "ENB": -4,
+        "ETHA": -37,
+        "GLNCY": -11,
+        "IBIT": -20,
+        "KOF": 2,
+        "PBR.A": -15,
+        "AMKBY": -8
+      },
+      "regimes": {
+        "LIN": "neutral"
+      }
     }
   ],
-  "total_value": 1578629.86
+  "total_value": 1569250.72
 }
