@@ -12,6 +12,14 @@
 // LCOE gap), and per-holding regime/regime_pmi/weights (LIN-only, propagated
 // from the score-engine).
 //
+// V4 (V7.6 holdings sync): NOW telemetry capture — cohort valuation (vs
+// CRM/WDAY/ADBE), cohort relative rotation (30d returns + rotation pressure),
+// IGV factor flow, and NOW-specific fundamentals (cRPO, sub rev growth,
+// $1M+ deals YoY, federal growth). Required for downstream attribution /
+// calibration / accuracy to evaluate NOW signals. The ETHA-era
+// alt_season_spread_pp CSV column is retained as legacy for back-compat
+// (parallels the dram_cycle_spread_pp / ag_demand_spread_pp retirees).
+//
 // This runs AFTER generate-signals.mjs and BEFORE the git commit step.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
@@ -78,10 +86,10 @@ const CSV_HEADERS = [
 
   // Cross-asset ratio inputs (engine reads data.<feed>.relative_spread_pp)
   "rsp_change_pct",           // SPY
-  "alt_season_spread_pp",     // ETHA (ETHA vs IBIT)
+  "alt_season_spread_pp",     // legacy ETHA (ETHA vs IBIT) — retired V7.6, kept for back-compat
   "copper_regime_spread_pp",  // GLNCY (GLNCY vs COPX)
-  "ag_demand_spread_pp",      // MOS (MOS vs CORN)
-  "dram_cycle_spread_pp",     // legacy SMH (SMH vs MU) — retained for CSV back-compat
+  "ag_demand_spread_pp",      // legacy MOS (MOS vs CORN) — retired, kept for back-compat
+  "dram_cycle_spread_pp",     // legacy SMH (SMH vs MU) — retired, kept for back-compat
 
   // Deterministic sub-scores (pre-blend)
   "det_tactical", "det_positional", "det_strategic", "det_composite",
@@ -111,7 +119,7 @@ const CSV_HEADERS = [
   "lin_backlog_yoy_pct",       // LIN sale-of-gas + on-site backlog YoY
   "lin_peer_relative_spread_pp", // LIN vs APD 1m spread
   "roce_pct",                  // LIN's signature metric (best-in-class >25%)
-  "operating_margin_pct",      // LIN op margin (best-in-class >30%)
+  "operating_margin_pct",      // shared: LIN / TMO / NOW op margin
 
   // ─── V3 additions (appended for CSV back-compat) ────────────────────────
   // V3 macro pair — BBB credit spread (leads LIN backlog 6-12mo)
@@ -121,11 +129,11 @@ const CSV_HEADERS = [
   "qual_vs_spy_30d_pp",        // QUAL ETF return - SPY return over 30d
   "spy_10d_drawdown_pct",      // SPY total return / 10 trading days
   "lin_vs_spy_10d_pp",         // LIN total return - SPY total return / 10 trading days
-  // V3 LIN fundamentals
-  "asu_utilization_pct",       // air separation unit capacity utilization
-  "price_mix_ex_fx_pct",       // like-for-like price/mix delta ex-FX
-  "eps_revisions_30d_pct",     // FactSet/Refinitiv consensus EPS delta 30d
-  "eps_revisions_90d_pct",
+  // V3 LIN fundamentals (some shared by TMO / NOW)
+  "asu_utilization_pct",       // air separation unit capacity utilization (LIN)
+  "price_mix_ex_fx_pct",       // like-for-like price/mix delta ex-FX (LIN)
+  "eps_revisions_30d_pct",     // shared: FactSet/Refinitiv consensus EPS delta 30d
+  "eps_revisions_90d_pct",     // shared: 90d
   // V3 LIN peer triangulation + P/E delta
   "lin_peer_aipa_spread_pp",   // LIN vs AI.PA 1m spread (mirrors APD)
   "peer_pe_premium_6m_delta_pp", // 6M change in LIN's peer P/E premium
@@ -136,6 +144,21 @@ const CSV_HEADERS = [
   "h2_lcoe_gap_6m_delta",      // 6M change in LCOE gap (negative = closing)
   // V3 per-holding regime context (LIN only — null elsewhere)
   "regime", "regime_pmi", "weight_t", "weight_p", "weight_s",
+
+  // ─── V4 / V7.6 NOW additions (appended for CSV back-compat) ─────────────
+  // NOW cohort valuation (vs CRM / WDAY / ADBE)
+  "now_pe", "crm_pe", "wday_pe", "adbe_pe", "cohort_avg_pe", "cohort_premium_pct",
+  // NOW cohort relative — 30d returns + rotation pressure
+  "now_30d_return_pct", "cohort_avg_30d_return_pct",
+  "rotation_pressure_pp", "rotation_pressure_active",
+  // NOW factor flow — software cohort vs SPY
+  "igv_vs_spy_30d_pp",
+  // NOW shared fundamentals (FCF margin shared with TMO; cRPO+sub-rev+deals+federal NOW-specific)
+  "fcf_margin_pct",
+  "crpo_growth_pct",
+  "subscription_revenue_growth_pct",
+  "deals_1m_plus_yoy_pct",
+  "federal_growth_pct",
 ].join(",");
 
 const csvExists = existsSync(CSV_PATH);
@@ -284,6 +307,28 @@ for (const s of normalized) {
       r.weights?.p ?? "",
       r.weights?.s ?? "",
     ].join(","); })(),
+
+    // ─── V4 / V7.6 NOW additions ─────────────────────────────────────────
+    // NOW cohort valuation (only NOW row populates these)
+    md.cohort_valuation?.now_pe ?? "",
+    md.cohort_valuation?.crm_pe ?? "",
+    md.cohort_valuation?.wday_pe ?? "",
+    md.cohort_valuation?.adbe_pe ?? "",
+    md.cohort_valuation?.cohort_avg_pe ?? "",
+    md.cohort_valuation?.premium_pct ?? "",
+    // NOW cohort relative — 30d returns + rotation pressure
+    md.cohort_relative?.now_30d_return_pct ?? "",
+    md.cohort_relative?.cohort_avg_30d_return_pct ?? "",
+    md.cohort_relative?.rotation_pressure_pp ?? "",
+    md.cohort_relative?.rotation_pressure_active ?? "",
+    // NOW factor flow — software cohort vs SPY (only NOW row populates)
+    md.factor_flow?.igv_vs_spy_30d_pp ?? "",
+    // NOW shared fundamentals
+    md.fundamentals?.fcf_margin_pct ?? "",
+    md.fundamentals?.crpo_growth_pct ?? "",
+    md.fundamentals?.subscription_revenue_growth_pct ?? "",
+    md.fundamentals?.deals_1m_plus_yoy_pct ?? "",
+    md.fundamentals?.federal_growth_pct ?? "",
   ].join(",");
 
   csvContent += row + "\n";
@@ -382,6 +427,32 @@ const dailyEntry = {
       h2_subsidy_regime:      md.h2_layer?.subsidy_regime ?? null,
       h2_lcoe_gap_usd_kg:     md.h2_layer?.lcoe_gap_usd_kg ?? null,
       h2_lcoe_gap_6m_delta:   md.h2_layer?.lcoe_gap_6m_delta ?? null,
+
+      // ─── V4 / V7.6 NOW additions ───────────────────────────────────────
+      // Cohort valuation (vs CRM / WDAY / ADBE) — NOW row only
+      cohort_valuation: md.cohort_valuation ? {
+        now_pe:         md.cohort_valuation.now_pe ?? null,
+        crm_pe:         md.cohort_valuation.crm_pe ?? null,
+        wday_pe:        md.cohort_valuation.wday_pe ?? null,
+        adbe_pe:        md.cohort_valuation.adbe_pe ?? null,
+        cohort_avg_pe:  md.cohort_valuation.cohort_avg_pe ?? null,
+        premium_pct:    md.cohort_valuation.premium_pct ?? null,
+      } : null,
+      // Cohort relative — 30d returns + rotation pressure
+      cohort_relative: md.cohort_relative ? {
+        now_30d_return_pct:          md.cohort_relative.now_30d_return_pct ?? null,
+        cohort_avg_30d_return_pct:   md.cohort_relative.cohort_avg_30d_return_pct ?? null,
+        rotation_pressure_pp:        md.cohort_relative.rotation_pressure_pp ?? null,
+        rotation_pressure_active:    md.cohort_relative.rotation_pressure_active ?? null,
+      } : null,
+      // Factor flow — software cohort vs SPY (NOW row primarily)
+      igv_vs_spy_30d_pp:    md.factor_flow?.igv_vs_spy_30d_pp ?? null,
+      // NOW shared fundamentals
+      fcf_margin_pct:                  md.fundamentals?.fcf_margin_pct ?? null,
+      crpo_growth_pct:                 md.fundamentals?.crpo_growth_pct ?? null,
+      subscription_revenue_growth_pct: md.fundamentals?.subscription_revenue_growth_pct ?? null,
+      deals_1m_plus_yoy_pct:           md.fundamentals?.deals_1m_plus_yoy_pct ?? null,
+      federal_growth_pct:              md.fundamentals?.federal_growth_pct ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
