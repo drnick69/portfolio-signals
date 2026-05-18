@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.12 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.13 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -14,38 +14,29 @@
 // v4.11: MSFT ai_infra_quality_compounder additions (GOOGL/META/AAPL cohort, rotation pressure)
 // v4.12: HOLDINGS SWAP — added LHX (defense_prime_backlog_compounder) and TMO (life_sciences_quality_compounder);
 //        retired MOS (cyclical fertilizer) and SPY (broad market core).
+// v4.13: HOLDINGS SWAP — sold ETHA (ETH spot ETF), bought NOW (ServiceNow / ai_workflow_quality_compounder).
 //        Removals:
-//          - MOS removed from SYMBOLS; CORN aux removed (was MOS ag-demand only)
-//          - SPY removed from SYMBOLS; RSP aux removed (was SPY breadth only)
-//          - SPY-breadth attachment block removed
-//          - MOS ag-demand attachment block removed
-//          NOTE: SPY is still fetched directly from Alpaca (not via SYMBOLS) inside the
-//                LIN/LHX historical-return functions as a benchmark for factor-flow spreads
-//                (qual_vs_spy_30d_pp, ita_vs_spy_30d_pp, spy_10d_drawdown_pct). It is no
-//                longer a scored holding but remains the market benchmark.
-//        Additions for LHX (analogous to MSFT cohort pattern):
-//          - LMT, NOC, RTX, GD aux quotes WITH metrics (defense-prime cohort PE)
-//          - ITA aux quote (iShares US Aerospace & Defense — defense sector factor proxy)
-//          - cohort_valuation (LHX vs LMT/NOC/RTX/GD avg trailing P/E)
-//          - cohort_relative (cohort_rotation_pp = LHX 30d − cohort avg 30d;
-//            rotation_active = TRUE if < -5pp — capital rotating out of smallest prime
-//            into larger names = historically a buy setup)
-//          - factor_flow.ita_vs_spy_30d_pp (defense sector bid signal)
-//          - fundamentals v1 explicit-null fields: book_to_bill, backlog_growth_yoy_pct,
-//            op_margin_pct, fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct
-//            (need earnings disclosure — LLM block sources via web search)
-//          - New fetchLHXHistoricalReturns() (7 Alpaca calls: LHX, LMT, NOC, RTX, GD, ITA, SPY)
-//        Additions for TMO (analogous to LIN peer pattern + biotech overlay):
-//          - XBI aux quote (SPDR S&P Biotech ETF — biotech funding sentiment proxy)
-//          - DHR aux quote WITH metrics (Danaher — bioprocessing peer for PE comparison)
-//          - peer_valuation (TMO vs DHR trailing P/E; forward PE filled by LLM)
-//          - peer_relative (daily return spread TMO vs DHR — peer sympathy read)
-//          - biotech_overlay (XBI 30d/90d returns — leads TMO bookings 2-3 quarters)
-//          - factor_flow.qual_vs_spy_30d_pp (reused from LIN's fetch — quality factor bid)
-//          - fundamentals v1 explicit-null fields: organic_growth_pct, op_margin_pct,
-//            fcf_margin_pct, eps_revisions_30d_pct, eps_revisions_90d_pct
-//          - New fetchTMOHistoricalReturns() (3 Alpaca calls: TMO, XBI, DHR — 150-day window
-//            to cover the 90-day XBI return needed for biotech funding lead indicator)
+//          - ETHA removed from SYMBOLS
+//          - ETHA/IBIT alt-season attachment block removed (was ETHA positional only)
+//          - ETHA/IBIT summary line removed
+//          NOTE: IBIT remains in SYMBOLS (still scored as a standalone holding).
+//        Additions for NOW (analogous to MSFT cohort pattern + premium-SaaS multiple math):
+//          - CRM, WDAY, ADBE aux quotes WITH metrics (enterprise SaaS cohort P/E)
+//          - IGV aux quote (iShares Expanded Tech-Software — software sector factor proxy)
+//          - cohort_valuation (NOW vs CRM/WDAY/ADBE avg trailing P/E)
+//            ★ NOTE: NOW carries 80-120% premium to CRM/WDAY/ADBE as the BASELINE
+//              (higher growth + higher quality). Premium <60% = unusual discount = buy;
+//              >150% = stretched. Direction of change > absolute level.
+//          - cohort_relative (rotation_pressure_pp = NOW 30d − cohort avg 30d;
+//            rotation_active = TRUE if < -5pp — capital rotating to higher-beta AI/SaaS
+//            names = historically a buy setup, not a warning)
+//          - factor_flow.igv_vs_spy_30d_pp (software sector bid signal — IGV outperforming
+//            SPY by >1pp/30d = SaaS factor bid active)
+//          - fundamentals v1 explicit-null fields: crpo_growth_pct, subscription_growth_pct,
+//            op_margin_pct, fcf_margin_pct, large_deals_growth_pct, federal_growth_pct,
+//            eps_revisions_30d_pct, eps_revisions_90d_pct, ev_sales_current,
+//            now_assist_traction, ai_agent_platform_status
+//          - New fetchNOWHistoricalReturns() (6 Alpaca calls: NOW, CRM, WDAY, ADBE, IGV, SPY)
 
 import { writeFileSync } from "fs";
 
@@ -62,9 +53,9 @@ const SYMBOLS = [
   { symbol: "ASML",  finnhub: "ASML",  td: "ASML" },
   { symbol: "LIN",   finnhub: "LIN",   td: "LIN" },
   { symbol: "MSFT",  finnhub: "MSFT",  td: "MSFT" },
+  { symbol: "NOW",   finnhub: "NOW",   td: "NOW" },
   { symbol: "TMO",   finnhub: "TMO",   td: "TMO" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
-  { symbol: "ETHA",  finnhub: "ETHA",  td: "ETHA" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
   { symbol: "IBIT",  finnhub: "IBIT",  td: "IBIT" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
@@ -76,18 +67,22 @@ const SYMBOLS = [
 // needsMetrics: true → also fetch /stock/metric for P/E (used by peer/cohort valuation).
 const AUX_SYMBOLS = [
   { symbol: "COPX",  finnhub: "COPX",  purpose: "glncy_copper" },
-  { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",     needsMetrics: true },  // Air Products
-  { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",     needsMetrics: true },  // Air Liquide ADR
-  { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
-  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
-  { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",  needsMetrics: true },  // MSFT mega-cap cohort
-  { symbol: "LMT",   finnhub: "LMT",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
-  { symbol: "NOC",   finnhub: "NOC",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
-  { symbol: "RTX",   finnhub: "RTX",   purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
-  { symbol: "GD",    finnhub: "GD",    purpose: "lhx_cohort",   needsMetrics: true },  // Defense prime cohort
-  { symbol: "ITA",   finnhub: "ITA",   purpose: "lhx_defense_factor" },                // iShares Aero & Defense ETF
-  { symbol: "XBI",   finnhub: "XBI",   purpose: "tmo_biotech" },                       // SPDR Biotech (funding proxy)
-  { symbol: "DHR",   finnhub: "DHR",   purpose: "tmo_peer",     needsMetrics: true },  // Danaher (bioprocessing peer)
+  { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",          needsMetrics: true },  // Air Products
+  { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",          needsMetrics: true },  // Air Liquide ADR
+  { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "LMT",   finnhub: "LMT",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
+  { symbol: "NOC",   finnhub: "NOC",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
+  { symbol: "RTX",   finnhub: "RTX",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
+  { symbol: "GD",    finnhub: "GD",    purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
+  { symbol: "ITA",   finnhub: "ITA",   purpose: "lhx_defense_factor" },                     // iShares Aero & Defense ETF
+  { symbol: "XBI",   finnhub: "XBI",   purpose: "tmo_biotech" },                            // SPDR Biotech (funding proxy)
+  { symbol: "DHR",   finnhub: "DHR",   purpose: "tmo_peer",          needsMetrics: true },  // Danaher (bioprocessing peer)
+  { symbol: "CRM",   finnhub: "CRM",   purpose: "now_cohort",        needsMetrics: true },  // SaaS cohort (Salesforce)
+  { symbol: "WDAY",  finnhub: "WDAY",  purpose: "now_cohort",        needsMetrics: true },  // SaaS cohort (Workday)
+  { symbol: "ADBE",  finnhub: "ADBE",  purpose: "now_cohort",        needsMetrics: true },  // SaaS cohort (Adobe)
+  { symbol: "IGV",   finnhub: "IGV",   purpose: "now_software_factor" },                    // iShares Expanded Tech-Software ETF
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -145,7 +140,7 @@ async function fetchQuotes() {
       dividend_yield: metrics["dividendYieldIndicatedAnnual"] ?? null,
       beta: metrics["beta"] ?? null,
       market_cap: metrics["marketCapitalization"] ?? null,
-      // Fundamentals (used primarily by LIN/LHX/TMO/MSFT strategic layers).
+      // Fundamentals (used primarily by LIN/LHX/TMO/MSFT/NOW strategic layers).
       // ROI is closest Finnhub proxy for ROCE (no direct ROCE field).
       roi: metrics["roiTTM"] ?? metrics["roiAnnual"] ?? null,
       operating_margin: metrics["operatingMarginTTM"] ?? metrics["operatingMarginAnnual"] ?? null,
@@ -163,7 +158,7 @@ async function fetchQuotes() {
 // ─── STAGE 1b: AUXILIARY QUOTES ─────────────────────────────────────────────
 // Quote-only by default. Symbols with needsMetrics: true also fetch P/E
 // (used by LIN peer valuation, MSFT cohort valuation, LHX cohort valuation,
-// TMO peer valuation).
+// TMO peer valuation, NOW cohort valuation).
 async function fetchAuxQuotes() {
   if (!FK) return {};
   const result = {};
@@ -722,6 +717,97 @@ async function fetchTMOHistoricalReturns() {
   return result;
 }
 
+// ─── STAGE 3g: ALPACA HISTORICAL RETURNS (NOW SaaS-cohort rotation + IGV factor) ──
+// Pulls daily closes for NOW + cohort (CRM, WDAY, ADBE) + IGV + SPY and computes:
+//   - NOW 30d return
+//   - Cohort avg 30d return (avg of CRM/WDAY/ADBE where available)
+//   - rotation_pressure_pp = NOW 30d - cohort avg 30d
+//   - rotation_pressure_active = TRUE if rotation_pressure_pp < -5 (NOW lagging SaaS cohort)
+//   - igv_vs_spy_30d_pp = IGV 30d - SPY 30d (software sector factor flow)
+// NOW is the highest-quality enterprise-SaaS compounder; rotation INTO higher-beta
+// AI/SaaS names (out of NOW) historically a buy setup, not a warning.
+// IGV > SPY = software bid active = positional positive.
+async function fetchNOWHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-NOW] No keys — skipping NOW historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-NOW] Fetching NOW/CRM/WDAY/ADBE/IGV/SPY bars for cohort rotation + software factor...");
+  const symbols = ["NOW", "CRM", "WDAY", "ADBE", "IGV", "SPY"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const nowRet30  = retNDays(closes.NOW,  30);
+  const crmRet30  = retNDays(closes.CRM,  30);
+  const wdayRet30 = retNDays(closes.WDAY, 30);
+  const adbeRet30 = retNDays(closes.ADBE, 30);
+  const igvRet30  = retNDays(closes.IGV,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const cohortRets = [crmRet30, wdayRet30, adbeRet30].filter(r => r != null);
+  const cohortAvg = cohortRets.length > 0
+    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+    : null;
+
+  const rotationPp = (nowRet30 != null && cohortAvg != null)
+    ? +(nowRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const igvVsSpyPp = (igvRet30 != null && spyRet30 != null)
+    ? +(igvRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const result = {
+    now_30d_return_pct:        nowRet30,
+    crm_30d_return_pct:        crmRet30,
+    wday_30d_return_pct:       wdayRet30,
+    adbe_30d_return_pct:       adbeRet30,
+    cohort_avg_30d_return_pct: cohortAvg,
+    rotation_pressure_pp:      rotationPp,
+    rotation_pressure_active:  rotationPp != null && rotationPp < -5,
+    cohort_count:              cohortRets.length,
+    igv_30d_return_pct:        igvRet30,
+    spy_30d_return_pct:        spyRet30,
+    igv_vs_spy_30d_pp:         igvVsSpyPp,
+  };
+
+  const activeStr = result.rotation_pressure_active ? " [ACTIVE — buy setup]" : "";
+  const igvStr = igvVsSpyPp == null ? "—"
+    : igvVsSpyPp > 1 ? `software bid active (+${igvVsSpyPp}pp)`
+    : igvVsSpyPp < -1 ? `software lagging (${igvVsSpyPp}pp)`
+    : "inline";
+  console.log(`  [ALPACA-NOW] ✓ NOW 30d=${nowRet30 != null ? (nowRet30 >= 0 ? "+" : "") + nowRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | IGV-SPY 30d: ${igvStr}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -833,7 +919,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.12");
+  console.log("Market Data Pre-Fetch v4.13");
   console.log("===========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -882,6 +968,10 @@ async function main() {
   // Stage 3f: TMO historical returns (Alpaca — biotech overlay + DHR peer)
   console.log("\n─── STAGE 3f: TMO HISTORICAL RETURNS (Alpaca) ───");
   const tmoHistReturns = await fetchTMOHistoricalReturns();
+
+  // Stage 3g: NOW cohort historical returns (Alpaca — SaaS rotation + IGV factor)
+  console.log("\n─── STAGE 3g: NOW COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const nowHistReturns = await fetchNOWHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -988,35 +1078,6 @@ async function main() {
       volume: {},
       type: sym.type || "equity",
     };
-  }
-
-  // ── Attach ETHA/IBIT ratio for alt-season detection ────────────────────
-  if (output.ETHA && output.IBIT) {
-    const ethaPrice = output.ETHA.price?.current;
-    const ibitPrice = output.IBIT.price?.current;
-    const ethaChange = output.ETHA.price?.change_pct;
-    const ibitChange = output.IBIT.price?.change_pct;
-
-    if (ethaPrice && ibitPrice) {
-      const ratio = +(ethaPrice / ibitPrice).toFixed(6);
-      const spread = (ethaChange != null && ibitChange != null)
-        ? +(ethaChange - ibitChange).toFixed(3) : null;
-
-      output.ETHA.alt_season = {
-        etha_ibit_ratio: ratio,
-        etha_change_pct: ethaChange,
-        ibit_change_pct: ibitChange,
-        relative_spread_pp: spread,
-      };
-
-      const altStr = spread == null ? "—"
-        : spread > 0.5 ? `ETHA outperforming IBIT by ${spread}pp (alt-season rotation)`
-        : spread < -0.5 ? `IBIT outperforming ETHA by ${(-spread).toFixed(2)}pp (BTC dominance)`
-        : "inline";
-      console.log(`  ETHA alt-season: ETHA/IBIT=${ratio} | ${altStr}`);
-    } else {
-      console.log(`  ETHA alt-season: skipped (missing price data)`);
-    }
   }
 
   // ── Attach GLNCY/COPX ratio for copper regime detection ────────────────
@@ -1229,7 +1290,7 @@ async function main() {
     console.log(`  MSFT v1 sourced: ${msftCoverage.length > 0 ? msftCoverage.join(", ") : "(none)"} | pending external data: Azure CC growth, capex TTM, FCF margin, EPS revs, forward PE`);
   }
 
-  // ── NEW v4.12: LHX cohort valuation (vs LMT + NOC + RTX + GD) ─────────
+  // ── v4.12: LHX cohort valuation (vs LMT + NOC + RTX + GD) ─────────────
   // Defense-prime quality compounder, analogous to MSFT's mega-cap cohort pattern.
   // Trailing P/E here from Finnhub free tier; forward PE surfaced by LLM via web search.
   // LHX historically trades at -5 to -15% discount to LMT/NOC/RTX/GD avg —
@@ -1317,7 +1378,7 @@ async function main() {
     console.log(`  LHX v1 sourced: ${lhxCoverage.length > 0 ? lhxCoverage.join(", ") : "(none)"} | pending external data: book-to-bill, backlog YoY, op margin, FCF margin, EPS revs, forward PE`);
   }
 
-  // ── NEW v4.12: TMO peer valuation + biotech overlay ─────────────────
+  // ── v4.12: TMO peer valuation + biotech overlay ─────────────────────
   // Life-sciences quality compounder, analogous to LIN's peer pattern (vs DHR)
   // overlaid with a biotech-funding sentiment proxy (XBI 30d/90d leads bookings 2-3Q).
   if (output.TMO) {
@@ -1419,6 +1480,98 @@ async function main() {
     console.log(`  TMO v1 sourced: ${tmoCoverage.length > 0 ? tmoCoverage.join(", ") : "(none)"} | pending external data: organic growth, bioprocessing phase, op/FCF margin, EPS revs, forward PE, peer commentary (Sartorius/Repligen)`);
   }
 
+  // ── NEW v4.13: NOW cohort valuation (vs CRM + WDAY + ADBE) ───────────
+  // AI workflow quality compounder, analogous to MSFT's mega-cap cohort pattern,
+  // tuned for premium-SaaS multiple math.
+  // ★ CRITICAL: NOW carries 80-120% premium to CRM/WDAY/ADBE as the BASELINE
+  //   (higher growth + higher quality). This is structural, not a warning.
+  //   The flag is direction of change, not absolute level.
+  //   Premium <60% = unusual discount = buy; >150% = stretched.
+  if (output.NOW) {
+    const nowPE = output.NOW.valuation?.trailingPE;
+    const crmPE = auxQuotes.CRM?.pe;
+    const wdayPE = auxQuotes.WDAY?.pe;
+    const adbePE = auxQuotes.ADBE?.pe;
+    const cohortPEs = [crmPE, wdayPE, adbePE].filter(p => p != null && p > 0);
+
+    if (nowPE && cohortPEs.length > 0) {
+      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
+      const premiumPct = +(((nowPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+
+      output.NOW.cohort_valuation = {
+        now_pe: nowPE,
+        crm_pe: crmPE ?? null,
+        wday_pe: wdayPE ?? null,
+        adbe_pe: adbePE ?? null,
+        cohort_avg_pe: +cohortAvg.toFixed(2),
+        premium_pct: premiumPct,
+        cohort_count: cohortPEs.length,
+      };
+
+      const zone = premiumPct < 60 ? "UNUSUAL DISCOUNT (BUY)"
+        : premiumPct < 80 ? "BELOW NORMAL PREMIUM (BUY-leaning)"
+        : premiumPct < 120 ? "NORMAL PREMIUM"
+        : premiumPct < 150 ? "ABOVE NORMAL PREMIUM"
+        : "STRETCHED (TRIM)";
+      console.log(`  NOW cohort-valuation: NOW ${nowPE}x | CRM ${crmPE ?? "—"}x | WDAY ${wdayPE ?? "—"}x | ADBE ${adbePE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !nowPE ? "no NOW P/E" : "no cohort P/E (CRM/WDAY/ADBE unavailable)";
+      console.log(`  NOW cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── NOW cohort-relative (rotation pressure: 30d return spread) ─────
+    if (nowHistReturns) {
+      output.NOW.cohort_relative = {
+        now_30d_return_pct:        nowHistReturns.now_30d_return_pct,
+        crm_30d_return_pct:        nowHistReturns.crm_30d_return_pct,
+        wday_30d_return_pct:       nowHistReturns.wday_30d_return_pct,
+        adbe_30d_return_pct:       nowHistReturns.adbe_30d_return_pct,
+        cohort_avg_30d_return_pct: nowHistReturns.cohort_avg_30d_return_pct,
+        rotation_pressure_pp:      nowHistReturns.rotation_pressure_pp,
+        rotation_pressure_active:  nowHistReturns.rotation_pressure_active,
+        cohort_count:              nowHistReturns.cohort_count,
+      };
+
+      const rp = nowHistReturns.rotation_pressure_pp;
+      const rpStr = rp == null ? "—"
+        : nowHistReturns.rotation_pressure_active ? `NOW lagging cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION PRESSURE ACTIVE — buy setup, capital flowing to higher-beta AI/SaaS)`
+        : rp < 0 ? `NOW lagging cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `NOW leading cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  NOW cohort-relative: ${rpStr}`);
+
+      // factor_flow: IGV vs SPY 30d (software sector bid)
+      output.NOW.factor_flow = {
+        igv_vs_spy_30d_pp:  nowHistReturns.igv_vs_spy_30d_pp,
+        igv_30d_return_pct: nowHistReturns.igv_30d_return_pct,
+        spy_30d_return_pct: nowHistReturns.spy_30d_return_pct,
+      };
+    } else {
+      console.log(`  NOW cohort-relative: skipped (no historical returns)`);
+      output.NOW.factor_flow = { igv_vs_spy_30d_pp: null, igv_30d_return_pct: null, spy_30d_return_pct: null };
+    }
+
+    // NOW fundamentals — explicit nulls for fields needing earnings disclosure.
+    // LLM web-search prompt sources these as fallback fetch targets.
+    output.NOW.fundamentals.crpo_growth_pct          = null;  // current Remaining Performance Obligations YoY (THE ops metric)
+    output.NOW.fundamentals.subscription_growth_pct  = null;  // total subscription revenue YoY
+    output.NOW.fundamentals.op_margin_pct            = null;  // non-GAAP op margin (overrides generic Finnhub op margin)
+    output.NOW.fundamentals.fcf_margin_pct           = null;  // 10-Q cash flow statement (~32% historical)
+    output.NOW.fundamentals.large_deals_growth_pct   = null;  // $1M+ ACV deal count YoY (enterprise traction read)
+    output.NOW.fundamentals.federal_growth_pct       = null;  // US Federal/Government revenue YoY (secular tailwind)
+    output.NOW.fundamentals.eps_revisions_30d_pct    = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.NOW.fundamentals.eps_revisions_90d_pct    = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.NOW.fundamentals.ev_sales_current         = null;  // EV/Sales (premium SaaS primary valuation lens)
+    output.NOW.fundamentals.now_assist_traction      = null;  // categorical: strong/moderate/early/unclear (LLM)
+    output.NOW.fundamentals.ai_agent_platform_status = null;  // categorical: structural_moat/stable/uncertain/deteriorating (LLM)
+
+    const nowCoverage = [
+      output.NOW.cohort_valuation ? "cohort-PE" : null,
+      output.NOW.cohort_relative?.rotation_pressure_pp != null ? "rotation" : null,
+      output.NOW.factor_flow?.igv_vs_spy_30d_pp != null ? "IGV" : null,
+    ].filter(Boolean);
+    console.log(`  NOW v1 sourced: ${nowCoverage.length > 0 ? nowCoverage.join(", ") : "(none)"} | pending external data: cRPO growth, subs growth, op/FCF margin, $1M+ deals, federal growth, EV/Sales, forward PE, Now Assist traction, AI Agent Platform status`);
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -1440,7 +1593,6 @@ async function main() {
   }
   console.log(`  Macro:          ${Object.keys(macro).length} indicators`);
   console.log(`  GSCPI:          ${macro.gscpi != null ? `${macro.gscpi} (${macro.gscpi_date})` : "unavailable"}`);
-  console.log(`  ETHA/IBIT:      ${output.ETHA?.alt_season ? `ratio=${output.ETHA.alt_season.etha_ibit_ratio}, spread=${output.ETHA.alt_season.relative_spread_pp}pp` : "unavailable"}`);
   console.log(`  GLNCY/COPX:     ${output.GLNCY?.copper_regime ? `ratio=${output.GLNCY.copper_regime.glncy_copx_ratio}, COPX $${output.GLNCY.copper_regime.copx_price}` : "unavailable"}`);
   console.log(`  LIN peer P/E:   ${output.LIN?.peer_valuation ? `LIN ${output.LIN.peer_valuation.lin_pe}x vs ${output.LIN.peer_valuation.peer_count}-peer avg ${output.LIN.peer_valuation.peer_avg_pe}x = ${output.LIN.peer_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  LIN v3 BBB OAS: ${macro.bbb_oas_bps != null ? `${macro.bbb_oas_bps}bps (1m Δ ${macro.bbb_oas_1m_change_bps != null ? (macro.bbb_oas_1m_change_bps >= 0 ? "+" : "") + macro.bbb_oas_1m_change_bps + "bps" : "—"})` : "unavailable"}`);
@@ -1454,6 +1606,9 @@ async function main() {
   console.log(`  TMO peer P/E:   ${output.TMO?.peer_valuation ? `TMO ${output.TMO.peer_valuation.tmo_pe}x vs DHR ${output.TMO.peer_valuation.dhr_pe}x = ${output.TMO.peer_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  TMO biotech:    ${output.TMO?.biotech_overlay ? `XBI 30d=${output.TMO.biotech_overlay.xbi_30d_return_pct}%, 90d=${output.TMO.biotech_overlay.xbi_90d_return_pct}%${output.TMO.biotech_overlay.sympathy_setup_active ? " [SYMPATHY ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  TMO-DHR 30d:    ${output.TMO?.tactical_extras?.tmo_vs_dhr_30d_pp != null ? `${output.TMO.tactical_extras.tmo_vs_dhr_30d_pp >= 0 ? "+" : ""}${output.TMO.tactical_extras.tmo_vs_dhr_30d_pp}pp` : "unavailable"}`);
+  console.log(`  NOW cohort PE:  ${output.NOW?.cohort_valuation ? `NOW ${output.NOW.cohort_valuation.now_pe}x vs ${output.NOW.cohort_valuation.cohort_count}-name cohort avg ${output.NOW.cohort_valuation.cohort_avg_pe}x = ${output.NOW.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  NOW rotation:   ${output.NOW?.cohort_relative ? `NOW 30d=${output.NOW.cohort_relative.now_30d_return_pct}%, cohort=${output.NOW.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.NOW.cohort_relative.rotation_pressure_pp}pp${output.NOW.cohort_relative.rotation_pressure_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  NOW IGV-SPY:    ${output.NOW?.factor_flow?.igv_vs_spy_30d_pp != null ? `${output.NOW.factor_flow.igv_vs_spy_30d_pp >= 0 ? "+" : ""}${output.NOW.factor_flow.igv_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
