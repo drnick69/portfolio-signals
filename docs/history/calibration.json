@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-05-15T23:15:47.876Z",
-  "signal_count": 579,
+  "generated_at": "2026-05-18T23:33:38.242Z",
+  "signal_count": 591,
   "date_range": {
     "start": "2026-03-07",
-    "end": "2026-05-15"
+    "end": "2026-05-18"
   },
   "rolling_window_days": 20,
   "neutral_band": 5,
   "per_ticker": {
     "AMKBY": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -44,7 +44,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 11,
+              "n": 12,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -75,7 +75,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -104,7 +104,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 15,
+              "n": 16,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -135,7 +135,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -157,7 +157,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 20,
+              "n": 21,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -196,7 +196,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -669,21 +669,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
     "ASML": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
-          "n_conviction": 1,
-          "hit_rate": 1,
-          "mean_return": 0.018535224250526013,
+          "n_total": 21,
+          "n_scored": 16,
+          "n_conviction": 2,
+          "hit_rate": 0.5,
+          "mean_return": 0.013642016637307157,
           "buckets": [
             {
               "label": "≤-60",
@@ -708,10 +717,10 @@
             },
             {
               "label": "-10 to +10",
-              "n": 19,
-              "n_with_return": 15,
-              "mean_return": 0.018535224250526013,
-              "hit_rate": 1
+              "n": 20,
+              "n_with_return": 16,
+              "mean_return": 0.013642016637307157,
+              "hit_rate": 0.5
             },
             {
               "label": "+10 to +30",
@@ -810,12 +819,17 @@
               "date": "2026-05-09",
               "score": 1,
               "return_": -0.05684601952236781
+            },
+            {
+              "date": "2026-05-11",
+              "score": -9,
+              "return_": -0.0597560975609757
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 0,
           "hit_rate": null,
@@ -844,7 +858,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
+              "n": 21,
               "n_with_return": 1,
               "mean_return": 0.028579257432525023,
               "hit_rate": null
@@ -881,7 +895,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -917,7 +931,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 8,
+              "n": 9,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -942,7 +956,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": null,
         "mean_return": 0.028579257432525023
@@ -1373,63 +1387,72 @@
         },
         {
           "date": "2026-05-11",
-          "tac_hit_rate": 1,
+          "tac_hit_rate": 0.5,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 1,
+          "tac_n_in_window": 2,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
         {
           "date": "2026-05-12",
-          "tac_hit_rate": 1,
+          "tac_hit_rate": 0.5,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 1,
+          "tac_n_in_window": 2,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
         {
           "date": "2026-05-13",
-          "tac_hit_rate": 1,
+          "tac_hit_rate": 0.5,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 1,
+          "tac_n_in_window": 2,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
         {
           "date": "2026-05-14",
-          "tac_hit_rate": 1,
+          "tac_hit_rate": 0.5,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 1,
+          "tac_n_in_window": 2,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
         {
           "date": "2026-05-15",
-          "tac_hit_rate": 1,
+          "tac_hit_rate": 0.5,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 1,
+          "tac_n_in_window": 2,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": 0.5,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 2,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         }
       ]
     },
     "ENB": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
+          "n_total": 21,
+          "n_scored": 16,
           "n_conviction": 0,
           "hit_rate": null,
-          "mean_return": 0.02097314541047767,
+          "mean_return": 0.021830948753477582,
           "buckets": [
             {
               "label": "≤-60",
@@ -1454,9 +1477,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 19,
-              "n_with_return": 15,
-              "mean_return": 0.02097314541047767,
+              "n": 20,
+              "n_with_return": 16,
+              "mean_return": 0.021830948753477582,
               "hit_rate": null
             },
             {
@@ -1556,12 +1579,17 @@
               "date": "2026-05-09",
               "score": 0,
               "return_": 0.03228214219070716
+            },
+            {
+              "date": "2026-05-11",
+              "score": -1,
+              "return_": 0.03469799889847624
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 1,
           "hit_rate": 0,
@@ -1597,7 +1625,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 11,
+              "n": 12,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -1627,7 +1655,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -1663,7 +1691,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 3,
+              "n": 4,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -1688,7 +1716,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": 0,
         "mean_return": 0.050313271311942256
@@ -2161,21 +2189,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 1,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": null,
+          "pos_hit_rate": 0,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 1,
+          "str_n_in_window": 0
         }
       ]
     },
     "ETHA": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
+          "n_total": 21,
+          "n_scored": 16,
           "n_conviction": 0,
           "hit_rate": null,
-          "mean_return": -0.009408995009156334,
+          "mean_return": -0.014660400544753366,
           "buckets": [
             {
               "label": "≤-60",
@@ -2193,7 +2230,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 0,
+              "n": 1,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -2201,8 +2238,8 @@
             {
               "label": "-10 to +10",
               "n": 20,
-              "n_with_return": 15,
-              "mean_return": -0.009408995009156334,
+              "n_with_return": 16,
+              "mean_return": -0.014660400544753366,
               "hit_rate": null
             },
             {
@@ -2302,12 +2339,17 @@
               "date": "2026-05-09",
               "score": -3,
               "return_": -0.040617848970251766
+            },
+            {
+              "date": "2026-05-11",
+              "score": -3,
+              "return_": -0.09343148357870887
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 1,
           "hit_rate": 0,
@@ -2315,7 +2357,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 16,
+              "n": 17,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -2373,7 +2415,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -2395,7 +2437,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 14,
+              "n": 15,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -2434,7 +2476,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": 0,
         "mean_return": -0.08759521218715993
@@ -2907,6 +2949,15 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 1,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": null,
+          "pos_hit_rate": 0,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 1,
+          "str_n_in_window": 0
         }
       ]
     },
@@ -3350,17 +3401,17 @@
       ]
     },
     "IBIT": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
+          "n_total": 21,
+          "n_scored": 16,
           "n_conviction": 2,
           "hit_rate": 1,
-          "mean_return": 0.014593302184480229,
+          "mean_return": 0.009752264931427067,
           "buckets": [
             {
               "label": "≤-60",
@@ -3385,9 +3436,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
-              "n_with_return": 15,
-              "mean_return": 0.014593302184480229,
+              "n": 21,
+              "n_with_return": 16,
+              "mean_return": 0.009752264931427067,
               "hit_rate": 1
             },
             {
@@ -3487,12 +3538,17 @@
               "date": "2026-05-09",
               "score": -3,
               "return_": -0.014081408140814093
+            },
+            {
+              "date": "2026-05-11",
+              "score": -4,
+              "return_": -0.06286329386437033
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 1,
           "hit_rate": 1,
@@ -3500,7 +3556,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 5,
+              "n": 6,
               "n_with_return": 1,
               "mean_return": 0.019799726900318722,
               "hit_rate": 1
@@ -3558,7 +3614,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -3587,7 +3643,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 10,
+              "n": 11,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -3619,7 +3675,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": 1,
         "mean_return": 0.019799726900318722
@@ -4092,21 +4148,30 @@
           "tac_n_in_window": 2,
           "pos_n_in_window": 1,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": 1,
+          "pos_hit_rate": 1,
+          "str_hit_rate": null,
+          "tac_n_in_window": 2,
+          "pos_n_in_window": 1,
+          "str_n_in_window": 0
         }
       ]
     },
     "KOF": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
+          "n_total": 21,
+          "n_scored": 16,
           "n_conviction": 1,
           "hit_rate": 1,
-          "mean_return": 0.011103104036288254,
+          "mean_return": 0.010840995543407447,
           "buckets": [
             {
               "label": "≤-60",
@@ -4131,9 +4196,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
-              "n_with_return": 15,
-              "mean_return": 0.011103104036288254,
+              "n": 21,
+              "n_with_return": 16,
+              "mean_return": 0.010840995543407447,
               "hit_rate": 1
             },
             {
@@ -4233,12 +4298,17 @@
               "date": "2026-05-09",
               "score": -1,
               "return_": -0.013094450222180117
+            },
+            {
+              "date": "2026-05-11",
+              "score": -1,
+              "return_": 0.006909368150195314
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 0,
           "hit_rate": null,
@@ -4267,7 +4337,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
+              "n": 21,
               "n_with_return": 1,
               "mean_return": 0.004281316143929261,
               "hit_rate": null
@@ -4304,7 +4374,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -4333,7 +4403,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
+              "n": 21,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -4365,7 +4435,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": null,
         "mean_return": 0.004281316143929261
@@ -4838,6 +4908,15 @@
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": 1,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 1,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
@@ -4849,10 +4928,10 @@
         "tactical": {
           "native_horizon": "5d",
           "n_total": 16,
-          "n_scored": 15,
-          "n_conviction": 8,
-          "hit_rate": 0.25,
-          "mean_return": -0.02527297300385444,
+          "n_scored": 16,
+          "n_conviction": 9,
+          "hit_rate": 0.2222222222222222,
+          "mean_return": -0.024840201181939234,
           "buckets": [
             {
               "label": "≤-60",
@@ -4864,9 +4943,9 @@
             {
               "label": "-60 to -30",
               "n": 1,
-              "n_with_return": 0,
-              "mean_return": null,
-              "hit_rate": null
+              "n_with_return": 1,
+              "mean_return": -0.018348623853211107,
+              "hit_rate": 0
             },
             {
               "label": "-30 to -10",
@@ -4979,6 +5058,11 @@
               "date": "2026-05-09",
               "score": -29,
               "return_": -0.01937809824245154
+            },
+            {
+              "date": "2026-05-11",
+              "score": -43,
+              "return_": -0.018348623853211107
             }
           ]
         },
@@ -5542,27 +5626,27 @@
         },
         {
           "date": "2026-05-11",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2222222222222222,
           "pos_hit_rate": 0,
           "str_hit_rate": null,
-          "tac_n_in_window": 8,
+          "tac_n_in_window": 9,
           "pos_n_in_window": 1,
           "str_n_in_window": 0
         }
       ]
     },
     "PBR.A": {
-      "n": 52,
-      "data_through": "2026-05-15",
+      "n": 53,
+      "data_through": "2026-05-18",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
-          "n_scored": 15,
+          "n_total": 21,
+          "n_scored": 16,
           "n_conviction": 5,
           "hit_rate": 0.6,
-          "mean_return": -0.011867265117493293,
+          "mean_return": -0.01211605233132667,
           "buckets": [
             {
               "label": "≤-60",
@@ -5587,9 +5671,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 20,
-              "n_with_return": 15,
-              "mean_return": -0.011867265117493293,
+              "n": 21,
+              "n_with_return": 16,
+              "mean_return": -0.01211605233132667,
               "hit_rate": 0.6
             },
             {
@@ -5689,12 +5773,17 @@
               "date": "2026-05-09",
               "score": -3,
               "return_": -0.03615425816818429
+            },
+            {
+              "date": "2026-05-11",
+              "score": -1,
+              "return_": -0.015847860538827297
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 1,
           "n_conviction": 0,
           "hit_rate": null,
@@ -5716,7 +5805,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 3,
+              "n": 4,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -5760,7 +5849,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -5782,7 +5871,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 10,
+              "n": 11,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -5821,7 +5910,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 1,
         "hit_rate": 0,
         "mean_return": -0.0320064550833781
@@ -6288,6 +6377,15 @@
         },
         {
           "date": "2026-05-15",
+          "tac_hit_rate": 0.6,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 5,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": null,
           "str_hit_rate": null,
@@ -6880,10 +6978,10 @@
         "tactical": {
           "native_horizon": "5d",
           "n_total": 16,
-          "n_scored": 15,
-          "n_conviction": 15,
-          "hit_rate": 0,
-          "mean_return": 0.0134742340476674,
+          "n_scored": 16,
+          "n_conviction": 16,
+          "hit_rate": 0.0625,
+          "mean_return": 0.012564453727047488,
           "buckets": [
             {
               "label": "≤-60",
@@ -6916,9 +7014,9 @@
             {
               "label": "+10 to +30",
               "n": 10,
-              "n_with_return": 9,
-              "mean_return": 0.014336020688675054,
-              "hit_rate": 0
+              "n_with_return": 10,
+              "mean_return": 0.01279419351158243,
+              "hit_rate": 0.1
             },
             {
               "label": "+30 to +60",
@@ -7010,6 +7108,11 @@
               "date": "2026-05-09",
               "score": 19,
               "return_": 0.002006453187278027
+            },
+            {
+              "date": "2026-05-11",
+              "score": 19,
+              "return_": -0.0010822510822511744
             }
           ]
         },
@@ -7573,23 +7676,23 @@
         },
         {
           "date": "2026-05-11",
-          "tac_hit_rate": 0,
+          "tac_hit_rate": 0.0625,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
-          "tac_n_in_window": 15,
+          "tac_n_in_window": 16,
           "pos_n_in_window": 1,
           "str_n_in_window": 0
         }
       ]
     },
     "GLNCY": {
-      "n": 25,
-      "data_through": "2026-05-15",
+      "n": 26,
+      "data_through": "2026-05-18",
       "data_from": "2026-04-13",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -7618,7 +7721,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 17,
+              "n": 18,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -7649,7 +7752,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -7671,7 +7774,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 1,
+              "n": 2,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -7709,7 +7812,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 20,
+          "n_total": 21,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -7724,7 +7827,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 4,
+              "n": 5,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -7770,7 +7873,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 20,
+        "n_total": 21,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -8000,21 +8103,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
     "LIN": {
-      "n": 14,
-      "data_through": "2026-05-15",
+      "n": 15,
+      "data_through": "2026-05-18",
       "data_from": "2026-04-28",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 14,
-          "n_scored": 9,
+          "n_total": 15,
+          "n_scored": 10,
           "n_conviction": 0,
           "hit_rate": null,
-          "mean_return": 0.00698106671615135,
+          "mean_return": 0.007590648539058602,
           "buckets": [
             {
               "label": "≤-60",
@@ -8039,9 +8151,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 14,
-              "n_with_return": 9,
-              "mean_return": 0.00698106671615135,
+              "n": 15,
+              "n_with_return": 10,
+              "mean_return": 0.007590648539058602,
               "hit_rate": null
             },
             {
@@ -8111,12 +8223,17 @@
               "date": "2026-05-09",
               "score": 0,
               "return_": 0.026411306675318307
+            },
+            {
+              "date": "2026-05-11",
+              "score": 2,
+              "return_": 0.013076884945223868
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 14,
+          "n_total": 15,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8145,7 +8262,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 14,
+              "n": 15,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8176,7 +8293,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 14,
+          "n_total": 15,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8212,7 +8329,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 8,
+              "n": 9,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8237,7 +8354,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 14,
+        "n_total": 15,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -8368,21 +8485,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
     "MSFT": {
-      "n": 7,
-      "data_through": "2026-05-15",
+      "n": 8,
+      "data_through": "2026-05-18",
       "data_from": "2026-05-08",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 7,
-          "n_scored": 2,
-          "n_conviction": 2,
+          "n_total": 8,
+          "n_scored": 3,
+          "n_conviction": 3,
           "hit_rate": 1,
-          "mean_return": 0.016763378964803094,
+          "mean_return": 0.02005381130088549,
           "buckets": [
             {
               "label": "≤-60",
@@ -8400,9 +8526,9 @@
             },
             {
               "label": "-30 to -10",
-              "n": 7,
-              "n_with_return": 2,
-              "mean_return": 0.016763378964803094,
+              "n": 8,
+              "n_with_return": 3,
+              "mean_return": 0.02005381130088549,
               "hit_rate": 1
             },
             {
@@ -8444,12 +8570,17 @@
               "date": "2026-05-09",
               "score": -23,
               "return_": 0.016573520909616484
+            },
+            {
+              "date": "2026-05-11",
+              "score": -22,
+              "return_": 0.026634675973050286
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 7,
+          "n_total": 8,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8471,7 +8602,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 1,
+              "n": 2,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8509,7 +8640,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 7,
+          "n_total": 8,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8531,7 +8662,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 7,
+              "n": 8,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8570,7 +8701,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 7,
+        "n_total": 8,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -8599,7 +8730,7 @@
           "tac_hit_rate": 1,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 2,
+          "tac_n_in_window": 3,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -8608,7 +8739,7 @@
           "tac_hit_rate": 1,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 2,
+          "tac_n_in_window": 3,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -8617,7 +8748,7 @@
           "tac_hit_rate": 1,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 2,
+          "tac_n_in_window": 3,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -8626,7 +8757,7 @@
           "tac_hit_rate": 1,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 2,
+          "tac_n_in_window": 3,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -8635,20 +8766,29 @@
           "tac_hit_rate": 1,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 2,
+          "tac_n_in_window": 3,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
+          "tac_hit_rate": 1,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 3,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         }
       ]
     },
     "LHX": {
-      "n": 4,
-      "data_through": "2026-05-15",
+      "n": 5,
+      "data_through": "2026-05-18",
       "data_from": "2026-05-12",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8670,7 +8810,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 3,
+              "n": 4,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8708,7 +8848,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8723,7 +8863,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 4,
+              "n": 5,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8768,7 +8908,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8804,7 +8944,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 1,
+              "n": 2,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8829,7 +8969,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 4,
+        "n_total": 5,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -8864,6 +9004,15 @@
         },
         {
           "date": "2026-05-15",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
           "tac_hit_rate": null,
           "pos_hit_rate": null,
           "str_hit_rate": null,
@@ -8874,13 +9023,13 @@
       ]
     },
     "TMO": {
-      "n": 4,
-      "data_through": "2026-05-15",
+      "n": 5,
+      "data_through": "2026-05-18",
       "data_from": "2026-05-12",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8895,7 +9044,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 2,
+              "n": 3,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -8940,7 +9089,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -8948,7 +9097,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 4,
+              "n": 5,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -9000,7 +9149,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 4,
+          "n_total": 5,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -9022,7 +9171,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 3,
+              "n": 4,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -9061,7 +9210,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 4,
+        "n_total": 5,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -9096,6 +9245,15 @@
         },
         {
           "date": "2026-05-15",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-05-18",
           "tac_hit_rate": null,
           "pos_hit_rate": null,
           "str_hit_rate": null,
@@ -9108,9 +9266,9 @@
   },
   "portfolio": {
     "tactical": {
-      "hit_rate": 0.275,
-      "mean_return": 0.0060727835242657515,
-      "n": 40
+      "hit_rate": 0.29545454545454547,
+      "mean_return": 0.004503133743625914,
+      "n": 44
     },
     "positional": {
       "hit_rate": 0.3333333333333333,
