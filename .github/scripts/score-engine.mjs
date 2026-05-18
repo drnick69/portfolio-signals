@@ -24,6 +24,7 @@
 //   - HIGH_BETA_CRYPTO (ETHA): wider RSI/daily bands than IBIT (1.3-1.5x vol),
 //     inverted 52w + 200DMA extension (no phase amplification), ETHA/IBIT alt-season
 //     ratio as positional signal, all valuation skipped, enhanced macro sensitivity
+//     [NOTE: archetype retained for backward compatibility — ETHA sold v4.13/v7.6]
 //   - EM_DIVIDEND_GROWTH (KOF): dampened RSI (consumer staples barely move),
 //     mildly inverted 52w, MXN/USD as FX regime signal, narrowed PE bands,
 //     enhanced dividend yield scoring
@@ -60,6 +61,16 @@
 //     2-3Q), QUAL factor flow (reused from LIN), organic growth + bioprocessing
 //     phase + op/FCF margin + EPS revs positional (null-safe — LLM sources),
 //     TIPS + DXY + VIX overlays. STATIC weights 20/35/45.
+//   - AI_WORKFLOW_QUALITY_COMPOUNDER (NOW) — V1: tightened RSI 40/65, compounder MA +
+//     inverted 52w, drawdown-from-52w-high primary tactical (>12% setup, >20% strong),
+//     cohort rotation vs CRM/WDAY/ADBE avg 30d (BUY setup when NOW lags higher-beta
+//     AI/SaaS), IGV vs SPY 30d factor flow (software sector bid), cohort P/E premium
+//     primary strategic with NOW-SPECIFIC BANDS — NOW carries 80-120% premium to
+//     cohort as BASELINE (higher growth + higher quality, structural), so <60% =
+//     unusual discount = buy, >150% = stretched. cRPO growth (THE ops metric) +
+//     subscription growth + $1M+ deals + federal contract growth + op/FCF margin
+//     positional (null-safe — LLM sources). TIPS + DXY + VIX overlays. STATIC
+//     weights 20/35/45.
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
@@ -99,7 +110,7 @@ function computeLINRegimeWeights(macro) {
   return            { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     pmi: wAvg };
 }
 
-// ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO compounder primary signal) ─────
+// ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
   const cur = data?.price?.current;
@@ -123,8 +134,9 @@ export function scoreTactical(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
-  const isLHX = archetype === "defense_prime_backlog_compounder";          // ← V7.5
-  const isTMO = archetype === "life_sciences_quality_compounder";          // ← V7.5
+  const isLHX = archetype === "defense_prime_backlog_compounder";
+  const isTMO = archetype === "life_sciences_quality_compounder";
+  const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -574,6 +586,73 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── NOW-SPECIFIC (V7.6): AI WORKFLOW QUALITY COMPOUNDER ─────────────────
+  // Tightened RSI 40/65 (compounder), drawdown-from-high primary signal,
+  // SaaS cohort rotation vs CRM/WDAY/ADBE, IGV software factor flow.
+  if (isNOW) {
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: NOW severe oversold — rare workflow compounder opportunity`); }
+      else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: NOW deeply oversold — compounder on sale`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: NOW oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: NOW mildly oversold (tightened band)`); }
+      else if (rsi < 40) { score += -8;  notes.push(`RSI ${rsi}: NOW approaching oversold`); }
+      else if (rsi <= 60) { score += 0;  notes.push(`RSI ${rsi}: NOW normal trending range`); }
+      else if (rsi < 65) { score += 3;   notes.push(`RSI ${rsi}: NOW healthy momentum`); }
+      else if (rsi < 70) { score += 12;  notes.push(`RSI ${rsi}: NOW overbought (tightened — quality compounder)`); }
+      else if (rsi < 75) { score += 22;  notes.push(`RSI ${rsi}: NOW extended`); }
+      else if (rsi < 80) { score += 32;  notes.push(`RSI ${rsi}: NOW deeply overbought`); }
+      else               { score += 45;  notes.push(`RSI ${rsi}: NOW extreme — trim bias`); }
+    }
+
+    // Drawdown-from-52w-high — primary tactical signal (>12% setup, >20% strong)
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 25)       { score += -25; notes.push(`NOW drawdown ${dd.toFixed(1)}%: extreme — rare compounder buy`); }
+      else if (ddMag > 20)  { score += -18; notes.push(`NOW drawdown ${dd.toFixed(1)}%: deep — high-conviction buy setup`); }
+      else if (ddMag > 15)  { score += -12; notes.push(`NOW drawdown ${dd.toFixed(1)}%: meaningful — compounder buy interest`); }
+      else if (ddMag > 12)  { score += -8;  notes.push(`NOW drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 8)   { score += -3;  notes.push(`NOW drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 2)   { score += 3;   notes.push(`NOW at/near 52w highs — normal compounder`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -5)      { score += -15; notes.push(`NOW daily ${chg}%: rare big drop — aggressive buy`); }
+      else if (chg < -3) { score += -8;  notes.push(`NOW daily ${chg}%: sharp drop`); }
+      else if (chg < -2) { score += -3;  notes.push(`NOW daily ${chg}%: notable for premium SaaS compounder`); }
+      else if (chg > 5)  { score += 10;  notes.push(`NOW daily +${chg}%: rare sharp rally`); }
+      else if (chg > 3)  { score += 5;   notes.push(`NOW daily +${chg}%: notable rally`); }
+      else if (chg > 2)  { score += 2;   notes.push(`NOW daily +${chg}%: notable rally`); }
+    }
+
+    // SaaS cohort rotation pressure — signature NOW tactical setup.
+    // Capital rotating to higher-beta AI/SaaS from highest-quality workflow franchise
+    // = historically a buy setup, not a warning.
+    if (data.cohort_relative) {
+      const rp = data.cohort_relative.rotation_pressure_pp;
+      const active = data.cohort_relative.rotation_pressure_active;
+      if (rp != null) {
+        if (active && rp < -10)     { score += -12; notes.push(`Rotation pressure ACTIVE: NOW lagging SaaS cohort by ${(-rp).toFixed(1)}pp/30d — strong buy setup (capital chasing higher-beta AI/SaaS)`); }
+        else if (active && rp < -7) { score += -8;  notes.push(`Rotation pressure ACTIVE: NOW lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+        else if (active)            { score += -5;  notes.push(`Rotation pressure ACTIVE: NOW lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+        else if (rp < -2)           { score += -2;  notes.push(`NOW mildly lagging cohort (${rp.toFixed(1)}pp/30d)`); }
+        else if (rp > 5)            { score += 4;   notes.push(`NOW outperforming cohort by ${rp.toFixed(1)}pp/30d — quality leadership`); }
+      }
+    }
+
+    // VIX overlay — premium SaaS compounder as collateral damage in broad fear
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -2) {
+        score += -8; notes.push(`VIX ${vix} + NOW ${chg}%: broad fear collateral — quality bid will return`);
+      } else if (vix > 25 && chg < -1.5) {
+        score += -4; notes.push(`VIX ${vix} + NOW ${chg}%: elevated fear pressure on compounder`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -616,8 +695,9 @@ export function scorePositional(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
-  const isLHX = archetype === "defense_prime_backlog_compounder";          // ← V7.5
-  const isTMO = archetype === "life_sciences_quality_compounder";          // ← V7.5
+  const isLHX = archetype === "defense_prime_backlog_compounder";
+  const isTMO = archetype === "life_sciences_quality_compounder";
+  const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -657,6 +737,9 @@ export function scorePositional(data, macro) {
     } else if (isTMO) {
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
       if (m[ma] != null) { score += m[ma]; notes.push(`TMO MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isNOW) {
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`NOW MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -765,6 +848,14 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`TMO 52w: ${w52}% — real drawdown, compounder on sale`); }
       else if (w52 > 15) { score += -38; notes.push(`TMO 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -50; notes.push(`TMO 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isNOW) {
+      if (w52 > 95)      { score += 0;   notes.push(`NOW 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`NOW 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`NOW 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`NOW 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`NOW 52w: ${w52}% — real drawdown, compounder on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`NOW 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`NOW 52w: ${w52}% — catastrophic drawdown — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -872,6 +963,11 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -5)  { score += -8;  notes.push(`TMO ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 15)  { score += 6;   notes.push(`TMO ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 8)   { score += 2;   notes.push(`TMO ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isNOW) {
+      if (pctFromSMA < -10)      { score += -15; notes.push(`NOW ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -5)  { score += -8;  notes.push(`NOW ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 15)  { score += 6;   notes.push(`NOW ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`NOW ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -1249,6 +1345,115 @@ export function scorePositional(data, macro) {
     else if (r30 < -1.5) { score += 2;  }
   }
 
+  // ─── NOW-SPECIFIC POSITIONAL ADD-ONS (V7.6) ──────────────────────────────
+  // IGV software sector factor flow — software bid mechanical
+  if (isNOW && data.factor_flow?.igv_vs_spy_30d_pp != null) {
+    const i = data.factor_flow.igv_vs_spy_30d_pp;
+    if (i > 2)       { score += -5; notes.push(`IGV +${i.toFixed(1)}pp vs SPY (30d): strong software bid — NOW tailwind`); }
+    else if (i > 1)  { score += -2; notes.push(`IGV +${i.toFixed(1)}pp vs SPY (30d): software bid active`); }
+    else if (i < -2) { score += 3;  notes.push(`IGV ${i.toFixed(1)}pp vs SPY (30d): software sector lagging`); }
+    else if (i < -1) { score += 1;  }
+  }
+
+  // cRPO growth — THE central operational metric for SaaS subscription health.
+  // Leading indicator of next 12 months subscription revenue.
+  if (isNOW && data.fundamentals?.crpo_growth_pct != null) {
+    const c = data.fundamentals.crpo_growth_pct;
+    if (c > 25)      { score += -10; notes.push(`cRPO growth +${c.toFixed(1)}%: strong acceleration — subscription thesis confirmation`); }
+    else if (c > 22) { score += -7;  notes.push(`cRPO growth +${c.toFixed(1)}%: accelerating`); }
+    else if (c > 20) { score += -4;  notes.push(`cRPO growth +${c.toFixed(1)}%: healthy expansion`); }
+    else if (c > 18) { score += 0;   notes.push(`cRPO growth +${c.toFixed(1)}%: in healthy range`); }
+    else if (c > 16) { score += 3;   notes.push(`cRPO growth +${c.toFixed(1)}%: maturing — watch deceleration`); }
+    else if (c > 14) { score += 6;   notes.push(`cRPO growth +${c.toFixed(1)}%: decelerating — caution`); }
+    else             { score += 12;  notes.push(`cRPO growth +${c.toFixed(1)}%: thesis-risk territory`); }
+  }
+
+  // Subscription revenue growth
+  if (isNOW && data.fundamentals?.subscription_growth_pct != null) {
+    const s = data.fundamentals.subscription_growth_pct;
+    if (s > 24)      { score += -5; notes.push(`Subs growth +${s.toFixed(1)}%: strong acceleration`); }
+    else if (s > 22) { score += -3; notes.push(`Subs growth +${s.toFixed(1)}%: healthy expansion`); }
+    else if (s > 20) { score += -1; notes.push(`Subs growth +${s.toFixed(1)}%: healthy`); }
+    else if (s > 18) { score += 0;  notes.push(`Subs growth +${s.toFixed(1)}%: normal range`); }
+    else if (s > 16) { score += 3;  notes.push(`Subs growth +${s.toFixed(1)}%: decelerating`); }
+    else             { score += 7;  notes.push(`Subs growth +${s.toFixed(1)}%: weak`); }
+  }
+
+  // $1M+ ACV deal count YoY growth — enterprise traction read
+  if (isNOW && data.fundamentals?.large_deals_growth_pct != null) {
+    const ld = data.fundamentals.large_deals_growth_pct;
+    if (ld > 40)      { score += -6; notes.push(`$1M+ deals +${ld.toFixed(0)}% YoY: enterprise traction strong`); }
+    else if (ld > 30) { score += -3; notes.push(`$1M+ deals +${ld.toFixed(0)}% YoY: accelerating`); }
+    else if (ld > 20) { score += -1; notes.push(`$1M+ deals +${ld.toFixed(0)}% YoY: healthy`); }
+    else if (ld > 10) { score += 2;  notes.push(`$1M+ deals +${ld.toFixed(0)}% YoY: slowing`); }
+    else if (ld > 0)  { score += 5;  notes.push(`$1M+ deals +${ld.toFixed(0)}% YoY: enterprise softness`); }
+    else              { score += 10; notes.push(`$1M+ deals ${ld.toFixed(0)}% YoY: contraction — enterprise budget cuts`); }
+  }
+
+  // Federal/Government revenue growth — structural secular tailwind
+  if (isNOW && data.fundamentals?.federal_growth_pct != null) {
+    const fg = data.fundamentals.federal_growth_pct;
+    if (fg > 30)      { score += -5; notes.push(`Federal growth +${fg.toFixed(1)}%: secular tailwind active`); }
+    else if (fg > 25) { score += -3; notes.push(`Federal growth +${fg.toFixed(1)}%: strong tailwind`); }
+    else if (fg > 15) { score += -1; notes.push(`Federal growth +${fg.toFixed(1)}%: healthy`); }
+    else if (fg > 10) { score += 0;  notes.push(`Federal growth +${fg.toFixed(1)}%: normal`); }
+    else if (fg > 0)  { score += 3;  notes.push(`Federal growth +${fg.toFixed(1)}%: budget/political overhang`); }
+    else              { score += 7;  notes.push(`Federal growth ${fg.toFixed(1)}%: significant overhang`); }
+  }
+
+  // Op margin (NOW non-GAAP target ~30%)
+  if (isNOW && data.fundamentals?.op_margin_pct != null) {
+    const om = data.fundamentals.op_margin_pct;
+    if (om > 32)      { score += -3; notes.push(`NOW op margin ${om.toFixed(1)}%: peak execution`); }
+    else if (om > 30) { score += -1; notes.push(`NOW op margin ${om.toFixed(1)}%: healthy`); }
+    else if (om > 28) { score += 0;  notes.push(`NOW op margin ${om.toFixed(1)}%: normal`); }
+    else if (om > 26) { score += 3;  notes.push(`NOW op margin ${om.toFixed(1)}%: compressing (AI cost absorption?)`); }
+    else              { score += 7;  notes.push(`NOW op margin ${om.toFixed(1)}%: significant compression`); }
+  }
+
+  // FCF margin (NOW historically 32%+)
+  if (isNOW && data.fundamentals?.fcf_margin_pct != null) {
+    const fcf = data.fundamentals.fcf_margin_pct;
+    if (fcf > 34)      { score += -3; notes.push(`NOW FCF margin ${fcf.toFixed(1)}%: strong`); }
+    else if (fcf > 32) { score += -1; notes.push(`NOW FCF margin ${fcf.toFixed(1)}%: healthy`); }
+    else if (fcf > 30) { score += 0;  notes.push(`NOW FCF margin ${fcf.toFixed(1)}%: normal`); }
+    else if (fcf > 28) { score += 2;  notes.push(`NOW FCF margin ${fcf.toFixed(1)}%: compressing`); }
+    else               { score += 5;  notes.push(`NOW FCF margin ${fcf.toFixed(1)}%: significant compression`); }
+  }
+
+  // Now Assist traction (categorical — AI monetization read)
+  if (isNOW && data.fundamentals?.now_assist_traction) {
+    const na = String(data.fundamentals.now_assist_traction).toLowerCase();
+    if (na === "strong")        { score += -5; notes.push(`Now Assist traction: STRONG — Pro Plus AI monetization confirming`); }
+    else if (na === "moderate") { score += -2; notes.push(`Now Assist traction: moderate`); }
+    else if (na === "early")    { score += 1;  notes.push(`Now Assist traction: early stages`); }
+    else if (na === "unclear")  { score += 4;  notes.push(`Now Assist traction: unclear — AI monetization watch`); }
+  }
+
+  // AI Agent Platform status (categorical — thesis-level structural variable)
+  if (isNOW && data.fundamentals?.ai_agent_platform_status) {
+    const ap = String(data.fundamentals.ai_agent_platform_status).toLowerCase();
+    if (ap === "structural_moat") { score += -3; notes.push(`AI Agent Platform: STRUCTURAL MOAT — workflow agentic AI thesis intact`); }
+    else if (ap === "stable")     { score += 0;  notes.push(`AI Agent Platform: stable`); }
+    else if (ap === "uncertain")  { score += 4;  notes.push(`AI Agent Platform: uncertain — watch`); }
+    else if (ap === "deteriorating") { score += 15; notes.push(`AI Agent Platform: DETERIORATING — thesis impairment risk`); }
+  }
+
+  // EPS revisions
+  if (isNOW && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -1) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -3) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isNOW && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 1.5)       { score += -2; }
+    else if (r30 < -1.5) { score += 2;  }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -1269,8 +1474,9 @@ export function scoreStrategic(data, macro) {
   const isPBRA = archetype === "em_state_oil_dividend";
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
-  const isLHX = archetype === "defense_prime_backlog_compounder";          // ← V7.5
-  const isTMO = archetype === "life_sciences_quality_compounder";          // ← V7.5
+  const isLHX = archetype === "defense_prime_backlog_compounder";
+  const isTMO = archetype === "life_sciences_quality_compounder";
+  const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -1887,6 +2093,75 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── NOW STRATEGIC (V7.6) ────────────────────────────────────────────────
+  // Cohort P/E premium primary signal vs CRM/WDAY/ADBE.
+  // CRITICAL: NOW carries an 80-120% premium to cohort as BASELINE (higher growth +
+  // higher quality, structural). Bands reflect this — <60% premium = unusual discount
+  // = buy, >150% = stretched. Direction of change matters more than absolute level.
+  if (isNOW) {
+    if (data.cohort_valuation && data.cohort_valuation.premium_pct != null) {
+      const prem = data.cohort_valuation.premium_pct;
+      if (prem < 60)        { score += -25; notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: UNUSUAL DISCOUNT (well below 80-120% baseline) — exceptional buy`); }
+      else if (prem < 80)   { score += -15; notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: below normal premium range — buy bias`); }
+      else if (prem < 100)  { score += -8;  notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: mild discount to normal — buy lean`); }
+      else if (prem <= 120) { score += 0;   notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: NORMAL deserved premium`); }
+      else if (prem < 150)  { score += 5;   notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: above normal — mild trim`); }
+      else if (prem < 180)  { score += 12;  notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: stretched premium — trim`); }
+      else                  { score += 20;  notes.push(`NOW P/E +${prem.toFixed(1)}% vs cohort: extreme premium — strong trim`); }
+    } else {
+      // Fallback to absolute P/E if cohort data unavailable (NOW typical 50-70x forward)
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 50)       { score += -12; notes.push(`NOW P/E ${pe.toFixed(1)}x: cheap (cohort data unavailable)`); }
+        else if (pe < 55)  { score += -5;  notes.push(`NOW P/E ${pe.toFixed(1)}x: below normal compounder range`); }
+        else if (pe <= 65) { score += 0;   notes.push(`NOW P/E ${pe.toFixed(1)}x: normal compounder range`); }
+        else if (pe < 70)  { score += 5;   notes.push(`NOW P/E ${pe.toFixed(1)}x: rich`); }
+        else if (pe < 80)  { score += 12;  notes.push(`NOW P/E ${pe.toFixed(1)}x: stretched`); }
+        else               { score += 18;  notes.push(`NOW P/E ${pe.toFixed(1)}x: extreme`); }
+      }
+    }
+
+    // Forward PEG (growth-adjusted) — if available from LLM-sourced fundamentals
+    if (data.fundamentals?.forward_peg != null) {
+      const peg = data.fundamentals.forward_peg;
+      if (peg < 2.0)      { score += -8; notes.push(`Forward PEG ${peg.toFixed(2)}: cheap on growth — strong buy`); }
+      else if (peg < 2.5) { score += -4; notes.push(`Forward PEG ${peg.toFixed(2)}: reasonable on growth`); }
+      else if (peg < 3.0) { score += 0;  notes.push(`Forward PEG ${peg.toFixed(2)}: normal for premium SaaS`); }
+      else if (peg < 3.5) { score += 4;  notes.push(`Forward PEG ${peg.toFixed(2)}: rich on growth`); }
+      else                { score += 10; notes.push(`Forward PEG ${peg.toFixed(2)}: expensive on growth — trim bias`); }
+    }
+
+    // TIPS overlay — long-duration cash flow rate sensitivity (premium SaaS most rate-sensitive)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 10;  notes.push(`TIPS ${tips}%: very restrictive — severe long-duration NOW headwind`); }
+      else if (tips > 2.5) { score += 5;   notes.push(`TIPS ${tips}%: restrictive — long-duration headwind`); }
+      else if (tips > 2)   { score += 2;   notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -10; notes.push(`TIPS ${tips}%: accommodative — long-duration tailwind`); }
+      else if (tips < 1)   { score += -4;  notes.push(`TIPS ${tips}%: low real rates — SaaS multiples expand`); }
+    }
+
+    // VIX overlay — premium SaaS catches defensive bid in fear regimes
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — NOW quality bid in fear regime`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — NOW as quality safe haven`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — NOW vulnerable to rotation`); }
+    }
+
+    // DXY overlay — NOW has ~30% non-US revenue
+    if (macro?.dxy != null) {
+      const dxy = macro.dxy;
+      if (dxy > 130)      { score += 3;  notes.push(`DXY ${dxy}: very strong USD — NOW FX headwind`); }
+      else if (dxy > 125) { score += 1;  notes.push(`DXY ${dxy}: strong USD — mild FX headwind`); }
+      else if (dxy > 120) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
+      else if (dxy > 115) { score += -1; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
+      else                { score += -3; notes.push(`DXY ${dxy}: weak USD — FX tailwind`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -1969,7 +2244,7 @@ export function computeDeterministicScores(data, macro) {
   const strategic = scoreStrategic(data, macro);
 
   // V3: LIN regime-conditional weights override based on global PMI.
-  // MSFT/LHX/TMO V1: static weights via data._weights (set by generate-signals.mjs).
+  // MSFT/LHX/TMO/NOW V1: static weights via data._weights (set by generate-signals.mjs).
   // Other archetypes use their pre-set _weights, or the default 25/35/40.
   let weights = data._weights || { t: 0.25, p: 0.35, s: 0.40 };
   let regime = null;
@@ -2014,7 +2289,7 @@ const BLEND_WEIGHTS = {
 // LIN's positional and strategic now have many more deterministic inputs
 // (ASU util, price/mix, BBB OAS, EPS revisions, premium delta, H2 layer),
 // so we lean a bit more on deterministic for those layers.
-// MSFT/LHX/TMO V1: use defaults — most strategic content (forward PE, PE-vs-history,
+// MSFT/LHX/TMO/NOW V1: use defaults — most strategic content (forward PE, PE-vs-history,
 // cycle phase, regime narrative) is qualitative and best-handled by the LLM layer.
 const BLEND_WEIGHTS_BY_ARCHETYPE = {
   oligopoly_quality_compounder: {
