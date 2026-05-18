@@ -1,25 +1,24 @@
 #!/usr/bin/env node
-// generate-signals.mjs v7.5 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v7.6 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
 // v7.5: HOLDINGS SWAP — added LHX (defense_prime_backlog_compounder, 20/40/40) and
 //       TMO (life_sciences_quality_compounder, 20/35/45); retired MOS and SPY.
-//       12 holdings preserved.
-//       LHX: HYBRID of LIN-like quality + ASML-like DoD capex cycle + geopolitical regime overlay.
-//            Tightened RSI 40/70, drawdown primary (>10% setup, >18% strong), cohort rotation vs
-//            LMT/NOC/RTX/GD avg 30d (LHX lagging >5pp = BUY setup), ITA vs SPY 30d factor flow.
-//            Smallest of Big 5 primes, historically -5 to -15% PE discount — compression is the
-//            central re-rating thesis. Aerojet SRM duopoly with NOC.
-//       TMO: "ASML of life sciences" — picks-and-shovels supplier. HYBRID of LIN-like quality +
-//            ASML-like secular monopoly + cyclical end-market exposure (bioprocessing, biotech
-//            funding, China capex). Strategic dominates (45%) — cycle inflection thesis.
-//            Tightened RSI 35/70, drawdown primary (>15% setup, >25% strong), DHR peer P/E,
-//            XBI biotech overlay (30d/90d), biotech sympathy setup (TMO+XBI both down = buy),
-//            QUAL factor flow reused from LIN, DXY (~40% non-US revenue). Currently ~15-25%
-//            drawdown + 1% Q1 2026 organic growth trough = high-conviction buy SETUP zone.
-//       Removals: isSPY/isMOS flags, spyGuidance/mosGuidance (full + search), MOS ag_demand +
-//       SPY breadth + MOS BRL/USD data lines, "cyclical_commodity" from CYCLICAL_ARCHETYPES set.
+// v7.6: HOLDINGS SWAP — replaced ETHA (high_beta_crypto, 30/35/35) with NOW
+//       (ai_workflow_quality_compounder, 20/35/45). 12 holdings preserved.
+//       NOW: HYBRID of LIN/MSFT-like quality compounder + ASML-like secular agentic-AI
+//            workflow cycle + SPY-like long-duration rate sensitivity, tuned for
+//            premium-SaaS multiple math. Tightened RSI 40/65, drawdown primary
+//            (>12% setup, >20% strong, >25% rare conviction), cohort rotation vs
+//            CRM/WDAY/ADBE avg 30d (NOW lagging >5pp = BUY setup), IGV software
+//            factor flow vs SPY 30d, real rate overlay (Fed funds − TIPS 10Y for
+//            long-duration sensitivity), DXY (~30% non-US revenue), forward PE
+//            primacy (engine trailing only — <50x exceptional, 55-65x fair
+//            compounder, >70x stretched), cRPO growth as THE positional metric,
+//            AI commercialization phase + AI Agent Platform structural moat.
+//       Removals: isETHA flag, ethaGuidance (full + search), ETHA alt-season + ETH
+//       200DMA data lines. "high_beta_crypto" archetype no longer in book.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -40,8 +39,8 @@ const HOLDINGS = [
   { symbol: "LIN",   name: "Linde plc",       sector: "Industrial Gas",     archetype: "oligopoly_quality_compounder",     weights: { t:.20, p:.35, s:.45 } },
   { symbol: "MSFT",  name: "Microsoft",       sector: "AI Infrastructure",  archetype: "ai_infra_quality_compounder",      weights: { t:.20, p:.35, s:.45 } },
   { symbol: "TMO",   name: "Thermo Fisher",   sector: "Life Sciences Tools",archetype: "life_sciences_quality_compounder", weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "NOW",   name: "ServiceNow",      sector: "AI Workflow SaaS",   archetype: "ai_workflow_quality_compounder",   weights: { t:.20, p:.35, s:.45 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",   archetype: "dividend_compounder",              weights: { t:.10, p:.45, s:.45 } },
-  { symbol: "ETHA",  name: "iShares ETH",     sector: "Crypto (ETH)",       archetype: "high_beta_crypto",                 weights: { t:.30, p:.35, s:.35 } },
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader",     weights: { t:.20, p:.35, s:.45 } },
   { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",       archetype: "momentum_store_of_value",          weights: { t:.30, p:.35, s:.35 } },
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",     archetype: "em_dividend_growth",               weights: { t:.15, p:.35, s:.50 } },
@@ -82,14 +81,14 @@ function buildPrompt(h, detScores) {
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
-  const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
   const isPBRA = h.archetype === "em_state_oil_dividend";
   const isLIN = h.archetype === "oligopoly_quality_compounder";
   const isMSFT = h.archetype === "ai_infra_quality_compounder";
-  const isLHX = h.archetype === "defense_prime_backlog_compounder";  // ← V7.5
-  const isTMO = h.archetype === "life_sciences_quality_compounder";  // ← V7.5
+  const isLHX = h.archetype === "defense_prime_backlog_compounder";
+  const isTMO = h.archetype === "life_sciences_quality_compounder";
+  const isNOW = h.archetype === "ai_workflow_quality_compounder";  // ← V7.6
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -119,20 +118,6 @@ function buildPrompt(h, detScores) {
     const g = macro.gscpi;
     const regime = g > 1.5 ? "STRESSED" : g > 0.5 ? "ELEVATED" : g > -0.5 ? "NORMAL" : g > -1.0 ? "CALM" : "VERY CALM";
     amkbyGscpiLine = `GSCPI (supply chain pressure): ${g} (${regime}) — date: ${macro.gscpi_date || "latest"}`;
-  }
-
-  // ETHA alt-season line + 200DMA extension
-  let ethaAltSeasonLine = null;
-  if (isETHA && md.alt_season) {
-    const s = md.alt_season;
-    const dir = s.relative_spread_pp > 0.5 ? "ALT-SEASON (ETHA outperforming)" :
-                s.relative_spread_pp < -0.5 ? "BTC DOMINANCE (IBIT outperforming)" : "INLINE";
-    ethaAltSeasonLine = `ETHA/IBIT ratio: ${s.etha_ibit_ratio ?? "—"} | Spread: ${s.relative_spread_pp != null ? (s.relative_spread_pp >= 0 ? "+" : "") + s.relative_spread_pp + "pp" : "—"} (${dir})`;
-  }
-  let ethaExtensionLine = null;
-  if (isETHA && md.price?.current && md.technicals?.sma200) {
-    const pct = ((md.price.current - md.technicals.sma200) / md.technicals.sma200) * 100;
-    ethaExtensionLine = `ETH vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
   }
 
   // KOF MXN/USD line
@@ -313,7 +298,7 @@ function buildPrompt(h, detScores) {
     msftEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
-  // ── V7.5: LHX-specific data lines ────────────────────────────────────────
+  // ── LHX-specific data lines ────────────────────────────────────────────
   let lhxDrawdownLine = null;
   if (isLHX && md.price?.current && md.price?.week52_high) {
     const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
@@ -361,7 +346,7 @@ function buildPrompt(h, detScores) {
     lhxEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
-  // ── V7.5: TMO-specific data lines ────────────────────────────────────────
+  // ── TMO-specific data lines ────────────────────────────────────────────
   let tmoDrawdownLine = null;
   if (isTMO && md.price?.current && md.price?.week52_high) {
     const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
@@ -428,22 +413,85 @@ function buildPrompt(h, detScores) {
     tmoEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
+  // ── V7.6: NOW-specific data lines ────────────────────────────────────────
+  let nowDrawdownLine = null;
+  if (isNOW && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 25 ? "EXTREME (rare conviction buy)" : ddMag > 20 ? "DEEP (high-conviction setup)" : ddMag > 15 ? "MEANINGFUL (compounder buy interest)" : ddMag > 12 ? "SETUP territory" : ddMag > 8 ? "MILD" : ddMag < 2 ? "AT/NEAR HIGHS (normal compounder)" : "MODEST";
+    nowDrawdownLine = `NOW drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal for AI workflow compounder`;
+  }
+  let nowCohortValuationLine = null;
+  if (isNOW && md.cohort_valuation) {
+    const cv = md.cohort_valuation;
+    const prem = cv.premium_pct;
+    const regime = prem == null ? "" : prem < -8 ? " — DISCOUNT TO COHORT (BUY)" : prem < 0 ? " — BELOW COHORT" : prem <= 20 ? " — DESERVED QUALITY PREMIUM" : " — RICH (TRIM — rare)";
+    nowCohortValuationLine = `NOW P/E: ${cv.now_pe ?? "—"}x | CRM: ${cv.crm_pe ?? "—"}x | WDAY: ${cv.wday_pe ?? "—"}x | ADBE: ${cv.adbe_pe ?? "—"}x | Cohort avg: ${cv.cohort_avg_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${regime} (trailing — see your search for forward P/E + EV/Sales)`;
+  }
+  let nowCohortRelativeLine = null;
+  if (isNOW && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const rp = cr.rotation_pressure_pp;
+    const status = cr.rotation_pressure_active
+      ? (rp != null && rp < -10 ? "ACTIVE/STRONG (capital chasing higher-beta AI/SaaS — buy setup)" : "ACTIVE (mild buy setup)")
+      : (rp != null && rp > 5 ? "NOW LEADING COHORT (quality leadership)" : "INLINE");
+    nowCohortRelativeLine = `NOW 30d: ${cr.now_30d_return_pct != null ? (cr.now_30d_return_pct >= 0 ? "+" : "") + cr.now_30d_return_pct + "%" : "—"} | Cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation pressure: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status})`;
+  }
+  let nowFactorFlowLine = null;
+  if (isNOW && md.factor_flow?.igv_vs_spy_30d_pp != null) {
+    const i = md.factor_flow.igv_vs_spy_30d_pp;
+    const dir = i > 1 ? "SOFTWARE BID ACTIVE (NOW benefits)" : i < -1 ? "SOFTWARE UNDER PRESSURE" : "INLINE";
+    nowFactorFlowLine = `IGV vs SPY (30d): ${i >= 0 ? "+" : ""}${i.toFixed(1)}pp (${dir})`;
+  }
+  let nowRealRateLine = null;
+  if (isNOW && macro.fed_funds != null && macro.tips10y != null) {
+    const rr = +(macro.fed_funds - macro.tips10y).toFixed(2);
+    const regime = rr > 2 ? "RESTRICTIVE (long-duration HEADWIND)" : rr > 1 ? "TIGHT" : rr > 0.5 ? "NEUTRAL" : "ACCOMMODATIVE (TAILWIND)";
+    nowRealRateLine = `Real rate (Fed funds − TIPS 10Y): ${rr >= 0 ? "+" : ""}${rr}% (${regime}) — NOW long-duration cash-flow sensitivity`;
+  }
+  let nowDxyLine = null;
+  if (isNOW && macro.dxy != null) {
+    const dxy = macro.dxy;
+    const regime = dxy > 130 ? "VERY STRONG USD (FX HEADWIND)" : dxy > 125 ? "STRONG USD (HEADWIND)" : dxy > 120 ? "NORMAL" : dxy > 115 ? "MILD WEAKNESS (TAILWIND)" : "WEAK USD (TAILWIND)";
+    nowDxyLine = `DXY: ${dxy} (${regime}) — NOW ~30% non-US revenue`;
+  }
+  let nowFundamentalsLine = null;
+  if (isNOW && md.fundamentals && (md.fundamentals.crpo_growth_pct != null || md.fundamentals.subscription_revenue_growth_pct != null || md.fundamentals.operating_margin_pct != null || md.fundamentals.fcf_margin_pct != null || md.fundamentals.deals_1m_plus_yoy_pct != null || md.fundamentals.federal_growth_pct != null)) {
+    const f = md.fundamentals;
+    const cRpo = f.crpo_growth_pct != null ? `cRPO YoY: ${f.crpo_growth_pct.toFixed(1)}%` : null;
+    const sub = f.subscription_revenue_growth_pct != null ? `Sub rev YoY: ${f.subscription_revenue_growth_pct.toFixed(1)}%` : null;
+    const om = f.operating_margin_pct != null ? `Op margin: ${f.operating_margin_pct.toFixed(1)}%` : null;
+    const fcf = f.fcf_margin_pct != null ? `FCF margin: ${f.fcf_margin_pct.toFixed(1)}%` : null;
+    const deals = f.deals_1m_plus_yoy_pct != null ? `$1M+ deals YoY: ${f.deals_1m_plus_yoy_pct >= 0 ? "+" : ""}${f.deals_1m_plus_yoy_pct.toFixed(0)}%` : null;
+    const fed = f.federal_growth_pct != null ? `Federal YoY: ${f.federal_growth_pct >= 0 ? "+" : ""}${f.federal_growth_pct.toFixed(0)}%` : null;
+    const parts = [cRpo, sub, om, fcf, deals, fed].filter(Boolean);
+    if (parts.length > 0) nowFundamentalsLine = `NOW fundamentals: ${parts.join(" | ")}`;
+  }
+  let nowEpsRevLine = null;
+  if (isNOW && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 1 ? " (UPWARD)" : r90 < -1 ? " (DOWNWARD)" : " (STABLE)";
+    nowEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
     md.price?.week52_high ? `52-Week: High $${md.price.week52_high} | Low $${md.price.week52_low} | Position: ${md.price.week52_position_pct}%` : null,
     md.technicals?.rsi14 != null ? `RSI(14): ${md.technicals.rsi14}` : null,
     md.technicals?.sma50 ? `SMA 50: $${md.technicals.sma50} | SMA 200: $${md.technicals.sma200 ?? "N/A"} | Signal: ${md.technicals.ma_signal}` : null,
-    ibitExtensionLine, ethaExtensionLine,
+    ibitExtensionLine,
     md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
-    enbYieldSpreadLine, amkbyGscpiLine, ethaAltSeasonLine, kofMxnLine, glncyCopxLine,
+    enbYieldSpreadLine, amkbyGscpiLine, kofMxnLine, glncyCopxLine,
     linPeerValuationLine, linBacklogLine, linFundamentalsLine, linPeerRelativeLine, linDxyLine, linPmiLine,
     linBbbOasLine, linOpsLine, linEpsRevLine, linPeerAipaLine, linPremiumDeltaLine, linH2Line, linTacticalExtrasLine, linRegimeLine,
     msftDrawdownLine, msftCohortValuationLine, msftCohortRelativeLine, msftFactorFlowLine, msftDxyLine, msftFundamentalsLine, msftEpsRevLine,
-    lhxDrawdownLine, lhxCohortValuationLine, lhxCohortRelativeLine, lhxFactorFlowLine, lhxFundamentalsLine, lhxEpsRevLine,           // ← V7.5
-    tmoDrawdownLine, tmoPeerValuationLine, tmoPeerRelativeLine, tmoBiotechLine, tmoTacticalExtrasLine, tmoFactorFlowLine, tmoDxyLine, tmoFundamentalsLine, tmoEpsRevLine,  // ← V7.5
+    lhxDrawdownLine, lhxCohortValuationLine, lhxCohortRelativeLine, lhxFactorFlowLine, lhxFundamentalsLine, lhxEpsRevLine,
+    tmoDrawdownLine, tmoPeerValuationLine, tmoPeerRelativeLine, tmoBiotechLine, tmoTacticalExtrasLine, tmoFactorFlowLine, tmoDxyLine, tmoFundamentalsLine, tmoEpsRevLine,
+    nowDrawdownLine, nowCohortValuationLine, nowCohortRelativeLine, nowFactorFlowLine, nowRealRateLine, nowDxyLine, nowFundamentalsLine, nowEpsRevLine,   // ← V7.6
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
@@ -520,16 +568,6 @@ Market often prices logistics segment at ZERO during freight troughs. Logistics 
 
 GSCPI CONTEXT: >1.5 = supply chain stress, <-0.5 = calm markets.
 SCORES MORE VOLATILE: ±15-25 during active freight markets.
-` : "";
-
-  const ethaGuidance = isETHA ? `
-CRITICAL — ETHA-SPECIFIC SCORING GUIDANCE:
-ETHA is a spot Ethereum ETF. ETH runs 1.3-1.5x BTC's vol, further out on risk curve. No halving cycle, no "digital gold" thesis, no meaningful valuation metrics.
-
-DRIVERS: BTC direction (0.85-0.95 correlation), risk appetite (VIX/HY OAS/real rates), ETH/BTC ratio (alt-season).
-DO NOT PENALIZE: RSI 70-80, 52w proximity, P/E/P/B/yield (meaningless), golden cross MA.
-YOUR VALUE-ADD: DeFi/L2 TVL growth, regulatory catalysts (SEC staking ETFs), network upgrades (Pectra/Dencun), Solana competitive threat, BTC→ETH rotation legs, ETHA flow dynamics.
-SCORES: ±15-20 during active crypto markets.
 ` : "";
 
   const kofGuidance = isKOF ? `
@@ -746,6 +784,49 @@ YOUR VALUE-ADD: Forward P/E + PE-vs-5Y, bioprocessing cycle phase (engine null �
 MOST DAYS NEUTRAL — BUT CURRENT DRAWDOWN TILTS BUY: ±5 roughly 75% of days under normal conditions. CURRENT context (~15-25% drawdown + bioprocessing trough) = high-conviction buy SETUP zone — expect scores tilted negative (buy) until cycle confirmation drives multiple expansion.
 ` : "";
 
+  const nowGuidance = isNOW ? `
+CRITICAL — NOW-SPECIFIC SCORING GUIDANCE (V1):
+NOW is ServiceNow — AI workflow quality compounder. HYBRID archetype: LIN/MSFT-like quality compounder + ASML-like secular agentic-AI workflow cycle + SPY-like long-duration rate sensitivity. Best-in-class non-GAAP operating margins (~30%), gross margins ~80%+, FCF margin ~32%, durable 20%+ subscription revenue growth. Now Assist Pro Plus SKU monetizes GenAI across IT/HR/Customer workflows; AI Agent Studio platforms the next wave of agentic automation. Tuned for premium-SaaS multiple math — lives at forward PE 55-65x, EV/Sales 14-17x as the normal compounder zone.
+
+V1 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI tightened bands (40/65 — compounder, not single-stock generic)
+• Drawdown-from-52w-high primary tactical (>12% setup, >20% strong, >25% rare conviction)
+• Cohort rotation pressure vs CRM/WDAY/ADBE avg 30d (NOW lagging by >5pp = capital chasing higher-beta AI/SaaS = BUY setup, not warning)
+• IGV (software ETF) factor flow vs SPY (>1pp/30d = software bid active = positional positive)
+• Compounder MA + 52w (no penalty at golden cross or near highs)
+• Cohort P/E premium vs CRM/WDAY/ADBE (TRAILING P/E via Finnhub free tier)
+• Real rate overlay (Fed funds − TIPS 10Y) — long-duration cash-flow sensitivity (>2% restrictive = headwind, <0.5% accommodative = tailwind)
+• DXY overlay (~30% non-US revenue)
+• Static composite weights 20/35/45 — NO regime conditioning in v1
+
+IMPORTANT — TRAILING vs FORWARD P/E AND EV/SALES:
+Engine uses TRAILING P/E. YOUR primary valuation contribution is FORWARD P/E, EV/Sales, forward PEG, and own-history percentiles (PE % of 3Y/5Y avg). Premium SaaS multiple math:
+• Forward PE: <50x exceptional buy (rare), 55-65x fair compounder zone, >70x stretched
+• EV/Sales: <12x deep value (rare), 14-17x fair compounder zone, >19x stretched
+• Forward PEG: <1.5 exceptional, 1.5-2.5 fair, >3.5 stretched
+• PE < 80% of 3Y avg = own-history buy zone
+• PE > 110% of 3Y avg = own-history trim zone
+If forward PE tells a different story than trailing (engine sees the trailing — you see the forward + own-history), call it out clearly.
+
+WHAT DRIVES NOW:
+1. cRPO GROWTH (THE operational metric — equivalent to Azure CC for MSFT, ASU util for LIN, B/B for LHX). Current Remaining Performance Obligations YoY is THE leading indicator of subscription cohort health. Acceleration = thesis intact; deceleration to <18% = thesis air-pocket. Search for latest earnings disclosure.
+2. AGENTIC AI COMMERCIALIZATION PHASE: Categorical (early_commercialization / mid_commercialization / saturation). Now Assist Pro Plus revenue contribution, AI Agent Studio adoption, $1M+ deals YoY growth, federal contract wins. Early phase = thesis still pricing in (buy bias). Saturation = thesis fully priced (trim bias).
+3. COHORT ROTATION DYNAMIC: When engine flags rotation_pressure_active = TRUE (capital rotating NOW → higher-beta AI/SaaS names), historically a BUY setup, not a warning. Quality workflow-automation franchise catches the rotation back. Don't fight engine; reinforce buy bias.
+4. REAL RATE SENSITIVITY (SPY-style overlay): NOW is a long-duration cash flow story. Real rate >2% = multiple compression headwind. Falling real rates / Fed pivot = multiple expansion tailwind. Engine scores the regime.
+5. FEDERAL CONTRACTS: ServiceNow has built a meaningful federal vertical (FedRAMP High, DoD, civilian). Federal YoY growth + major contract announcements = structural positional tailwind. Government shutdown risk = transient headwind.
+6. EPS REVISIONS: 30d/60d/90d trend is cleanest positional factor.
+
+DO NOT PENALIZE: 52w proximity, RSI 50-65 (low-vol compounder), trailing P/E 55-70x (NORMAL premium SaaS — not "expensive"), P/B (high due to capitalized R&D / acquired tech goodwill — uninformative for SaaS), cohort premium 0-20% (NOW carries a deserved quality premium over CRM/WDAY/ADBE), EV/Sales 14-17x (fair compounder zone).
+
+BUY BIAS (in addition to engine signals): cRPO re-acceleration off a low (you flag), Now Assist Pro Plus attach-rate or ASP inflection (you flag — engine null), AI Agent Studio enterprise win at scale (single multi-hundred-million deal = multi-day move), major federal contract win (CACI / Booz Allen-style displacement, DoD enterprise rollout), forward PE compressing toward 50x with cRPO intact, real rate falling toward 0.5% (multiple expansion tailwind), cohort discount to CRM/WDAY/ADBE (rare — engine flags), drawdown >12% on macro noise + cohort rotation active.
+
+TRIM BIAS: cRPO decel to <18% with no catalyst, Now Assist Pro Plus monetization stalling (slow ASP growth despite seat expansion), AI cycle hitting saturation phase, forward PE >70x with cohort premium >20% AND cRPO decelerating simultaneously, real rate >2% sustained (multiple compression headwind), major federal contract loss, op margin compression with AI-cost root cause that doesn't show absorption.
+
+YOUR VALUE-ADD: Forward PE + own-history PE percentile + EV/Sales (engine trailing only), cRPO YoY trajectory (engine null — earnings call), Now Assist Pro Plus revenue/ASP/attach-rate (engine null), AI Agent Studio adoption pace, $1M+ deals YoY (engine null — earnings disclosure), federal contract pipeline + wins, EPS revisions (engine null), AI commercialization phase reading, op + FCF margin trend (signals AI-cost absorption — engine null), Fed/real-rate trajectory interpretation, GenAI competitive landscape (CRM Agentforce, MSFT Copilot Studio displacement risk), CEO commentary at Knowledge / FY guidance.
+
+MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on cohort rotation extremes (engine flags), drawdown setups (engine flags), cRPO inflection (you flag), agentic-AI commercialization milestones (you flag), real-rate regime shifts (engine flags + you interpret), AI cycle phase pivots (you flag).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
@@ -766,7 +847,7 @@ Your job: provide YOUR OWN independent scores considering what numbers CANNOT ca
 • Macro regime interpretation (is VIX elevated for good reason?)
 • Whether the technical signals are "right" in current context
 • News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${confidenceNote}${calibrationBlock}
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${confidenceNote}${calibrationBlock}
 SCORING RULES:
 • Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
 • Your scores will be BLENDED 50/50 with the deterministic scores above.
@@ -796,14 +877,14 @@ function buildSearchPrompt(h) {
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
-  const isETHA = h.archetype === "high_beta_crypto";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
   const isPBRA = h.archetype === "em_state_oil_dividend";
   const isLIN = h.archetype === "oligopoly_quality_compounder";
   const isMSFT = h.archetype === "ai_infra_quality_compounder";
-  const isLHX = h.archetype === "defense_prime_backlog_compounder";       // ← V7.5
-  const isTMO = h.archetype === "life_sciences_quality_compounder";       // ← V7.5
+  const isLHX = h.archetype === "defense_prime_backlog_compounder";
+  const isTMO = h.archetype === "life_sciences_quality_compounder";
+  const isNOW = h.archetype === "ai_workflow_quality_compounder";       // ← V7.6
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
@@ -815,8 +896,6 @@ function buildSearchPrompt(h) {
   const enbGuidance = isENB ? `\nCRITICAL — ENB SCORING: Dividend compounder / toll-road infrastructure — NOT an oil producer. Do NOT penalize 52w proximity or RSI 55-70 (normal for yield stock). P/E 18-24x is NORMAL. The #1 signal is yield spread vs US 10Y (>300bps = buy, <150bps = rich). ENB is a hold-forever income name — trim is rare and mainly opportunity cost. Search for: ENB dividend yield vs 10Y spread, rate outlook, LNG Canada buildout, WCS-WTI spread, pipeline permitting, dividend growth guidance. Gas volumes and LNG export buildout are real earnings drivers (not just "noise").\n` : "";
 
   const amkbyGuidance = isAMKBY ? `\nCRITICAL — AMKBY SCORING: Cyclical trade bellwether (world's largest container shipping). INVERTED P/E applies — high PE = trough = BUY, low PE = peak = TRIM. Shipping cycles are more extreme than commodities: PE 2-5x = peak, PE 50+ = trough. P/B matters (asset-heavy fleet): P/B <0.7 = below replacement cost = strong buy. Search for: WCI/SCFI container freight rates (THE primary signal), BDI, global trade volumes, Red Sea/Suez disruptions, Maersk logistics vs DSV/Kuehne+Nagel valuation gap, tariff/trade war impacts. Scores can be ±15 to ±25 during active freight markets.\n` : "";
-
-  const ethaGuidance = isETHA ? `\nCRITICAL — ETHA SCORING: Spot Ethereum ETF. ETH runs at 1.3-1.5x BTC's volatility, further out on risk curve. Do NOT penalize RSI 70-80 or 52w proximity. P/E, P/B, yield are all MEANINGLESS for crypto. Key drivers: BTC direction (0.85-0.95 correlation), risk appetite (VIX/HY OAS), and ETH/BTC ratio (alt-season indicator). Search for: ETH/BTC ratio trend, ETF flow data, DeFi TVL trends, L2 ecosystem growth, regulatory stance on ETH, network upgrades, competitive L1 threats (Solana). Scores can be ±15-20 during active crypto markets.\n` : "";
 
   const kofGuidance = isKOF ? `\nCRITICAL — KOF SCORING: Coca-Cola FEMSA, largest Coke bottler in LatAm. Consumer staples compounder. Do NOT penalize 52w proximity or RSI 50-65 (normal for staples). P/E 15-22x is NORMAL. The #1 non-fundamental driver is MXN/USD — KOF earns ~60% in MXN. Strong peso = ADR tailwind, weak peso = headwind. Search for: MXN/USD direction, Banxico rate decisions, Mexican consumer spending, retail sales, nearshoring impact on peso, sugar/PET resin costs, volume growth by geography, dividend growth trajectory. Most days = NEUTRAL.\n` : "";
 
@@ -831,6 +910,8 @@ function buildSearchPrompt(h) {
   const lhxGuidance = isLHX ? `\nCRITICAL — LHX SCORING (V1): L3Harris Technologies, defense prime backlog compounder. HYBRID: LIN-like quality + ASML-like DoD capex cycle + geopolitical regime overlay. Smallest of Big 5 primes (LMT/RTX/NOC/GD/LHX), historically -5 to -15% PE discount to cohort — compression is the central re-rating thesis. Aerojet SRM duopoly with NOC. Do NOT penalize 52w proximity, RSI 50-70, trailing P/E 22-28x, cohort discount -5 to -15% (normal). Static composite weights 20/40/40 — positional+strategic co-equal. PRIMARY SIGNALS: book-to-bill (>1.10 strong, <0.95 thesis risk), backlog YoY (>8% expansion, <0% erosion), cohort PE compression vs LMT/NOC/RTX/GD, drawdown from 52w high (>10% setup, >18% strong), cohort rotation pressure (LHX lagging cohort >5pp/30d = BUY setup, capital flowing to larger primes), ITA vs SPY 30d (>1pp = defense bid active). Engine has TRAILING P/E only; your forward P/E + PE-vs-3Y is critical. Search for: LHX forward P/E + PE-vs-3Y-history, latest book-to-bill ratio (from earnings call disclosure), backlog YoY (dollar value delta), op margin + FCF margin trend, EPS revisions 30d/60d/90d (FactSet/Refinitiv), LMT/NOC/RTX/GD forward PE (defense cohort average), DoD budget cycle phase (FY27 NDAA progress, CR risk, supplemental funding flow Ukraine/Israel/Taiwan, sequester probability, BCA dynamics), geopolitical regime phase (great_power_competition / regional_conflict / transition / peace_dividend), Aerojet Rocketdyne integration progress + propellant supply chain, major program awards (F-35 mission systems, NGAD/6th-gen, Golden Dome / homeland missile defense, ISR programs, tactical radios, space C4ISR), defense-industrial supply chain (titanium, semiconductors, energetics, rare earths), dividend growth trajectory. Most days = NEUTRAL. Meaningful scores: cohort rotation extremes, drawdown setups, B/B inflection, DoD budget moments, geopolitical regime shifts, major program/earnings catalysts.\n` : "";
 
   const tmoGuidance = isTMO ? `\nCRITICAL — TMO SCORING (V1): Thermo Fisher Scientific, "ASML of life sciences" — picks-and-shovels supplier. HYBRID: LIN-like quality + ASML-like secular monopoly + cyclical end-market exposure (bioprocessing, biotech funding, China capex). Strategic dominates (45%) — cycle inflection thesis: bioprocessing destocking ending, biotech funding thawing, COVID comps lapped. Do NOT penalize 52w proximity, RSI 50-65, trailing P/E 22-30x, bioprocessing destocking by itself (late-trough setup), organic growth at 1% trough (cycle bottom). Static composite weights 20/35/45. PRIMARY SIGNALS: bioprocessing cycle phase (destocking/bottoming/early_recovery/expansion/peak), organic growth trajectory off the 1% Q1 2026 trough, peer triangulation DHR+Sartorius+Repligen, XBI 90d return (leads TMO bookings 2-3Q — >+10% thawing, <-10% frozen), biotech sympathy setup (TMO+XBI both down = collateral buy), drawdown from 52w high (>15% setup, >25% strong), DHR peer P/E + daily spread, QUAL vs SPY 30d (quality bid), forward PE vs 5Y avg. Engine has TRAILING P/E only; your forward P/E + PE-vs-5Y is critical. Search for: TMO forward P/E + PE-vs-5Y-history, current bioprocessing cycle phase (TMO + DHR + Sartorius + Repligen commentary triangulation), organic growth YoY (latest quarter print), op margin + FCF margin + EPS revisions (FactSet/Refinitiv), XBI 30d / 90d performance, China life sciences capex direction, NIH funding outlook, Wave 4 AI life sciences activation (AI biologics bioproduction, mass spec for AI research, lab automation), GLP-1 disruption to diagnostics narrative, PPD clinical research competitive position, dividend growth. CURRENT context: ~15-25% drawdown + organic growth trough = high-conviction buy SETUP zone. Most days = NEUTRAL but current setup tilts buy bias until cycle confirmation drives multiple expansion.\n` : "";
+
+  const nowGuidance = isNOW ? `\nCRITICAL — NOW SCORING (V1): ServiceNow, AI workflow quality compounder. HYBRID: LIN/MSFT-like quality compounder + ASML-like secular agentic-AI workflow cycle + SPY-like long-duration rate sensitivity. Best-in-class non-GAAP op margins (~30%), gross margins ~80%+, FCF margin ~32%, durable 20%+ subscription revenue growth. Now Assist Pro Plus + AI Agent Studio drive agentic-AI monetization. Premium SaaS multiple math: forward PE 55-65x and EV/Sales 14-17x are the NORMAL compounder zone — do NOT score those levels as expensive. Do NOT penalize 52w proximity, RSI 50-65, trailing P/E 55-70x, cohort premium 0-20% vs CRM/WDAY/ADBE (deserved quality premium), EV/Sales 14-17x. Static composite weights 20/35/45 (no regime conditioning in v1). PRIMARY SIGNALS: cRPO YoY growth (THE operational metric — acceleration confirms thesis, decel <18% = thesis air-pocket), drawdown from 52w high (>12% setup, >20% strong, >25% rare conviction), cohort PE compression vs CRM/WDAY/ADBE, cohort rotation pressure (NOW lagging cohort >5pp/30d = capital chasing higher-beta AI/SaaS = BUY setup, not warning), IGV (software ETF) vs SPY 30d (>1pp = software bid active), real rate overlay (Fed funds − TIPS 10Y; >2% restrictive = headwind, <0.5% accommodative = tailwind for long-duration cash flows). Engine has TRAILING P/E only; your forward PE + EV/Sales + PE-vs-3Y/5Y own-history + forward PEG are critical. Search for: NOW forward PE + PE % of 3y/5y avg, EV/Sales current + 3y avg + 5y avg, forward PEG, latest cRPO YoY growth (from earnings call disclosure), subscription revenue YoY growth, Now Assist Pro Plus revenue contribution + attach rate + ASP (CEO commentary at earnings / Knowledge conference / FY guidance), AI Agent Studio adoption / enterprise wins, $1M+ deals YoY growth, federal contract growth (FedRAMP High wins, DoD enterprise rollouts, civilian agency contracts), op + FCF margin trend (signals AI-cost absorption), EPS revisions 30d/60d/90d (FactSet/Refinitiv), CRM / WDAY / ADBE forward PE (enterprise SaaS quality cohort average), real rate trajectory (Fed funds − TIPS 10Y), Fed pivot expectations, agentic AI commercialization phase (early / mid / saturation), GenAI competitive landscape (CRM Agentforce displacement risk, MSFT Copilot Studio overlap), dividend (NOW does not pay one — buyback discipline only). Most days = NEUTRAL. Meaningful scores: cohort rotation extremes, drawdown setups, cRPO inflection, agentic-AI monetization milestones, real-rate regime shifts, AI cycle phase pivots.\n` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
@@ -847,7 +928,7 @@ ${(() => {
 
 Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
 CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${ethaGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${calibrationBlock}
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${calibrationBlock}
 SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
 Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
 Every string field must be non-empty.
@@ -929,7 +1010,7 @@ async function scoreHolding(holding, useWebSearch) {
     console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok)`);
 
     // V3: pass archetype so blendScores activates per-archetype overrides (LIN gets 65/60/40 vs default 70/50/30).
-    // V7.4-V7.5: MSFT/LHX/TMO use defaults (no per-archetype override) — strategic 30/70 lean-LLM matches qualitative density.
+    // V7.4-V7.6: MSFT/LHX/TMO/NOW use defaults (no per-archetype override) — strategic 30/70 lean-LLM matches qualitative density.
     // Use detScores.weights so LIN's regime-conditional composite weights win over upstream holding.weights.
     const blended = blendScores(detScores, llm, detScores.weights || holding.weights, holding.archetype);
 
@@ -1066,13 +1147,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.5 — ${HOLDINGS.length} holdings. LHX added (defense_prime_backlog_compounder: LIN-like quality + ASML-like DoD capex cycle + geopolitical regime overlay). TMO added (life_sciences_quality_compounder: "ASML of life sciences" — bioprocessing cycle inflection thesis). MOS and SPY retired. MSFT (ai_infra_quality_compounder) and LIN v3 (regime-conditional weights, BBB OAS, ASU util, EPS revisions, AI.PA peer triangulation, H2 layer) retained.</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.6 — ${HOLDINGS.length} holdings. NOW added (ai_workflow_quality_compounder: LIN/MSFT-like quality + ASML-like agentic-AI workflow cycle + SPY-like long-duration rate sensitivity, premium-SaaS multiple math, cRPO as THE positional metric). ETHA retired. MSFT, LHX, TMO, and LIN v3 (regime-conditional weights, BBB OAS, ASU util, EPS revisions, AI.PA peer triangulation, H2 layer) retained.</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v7.5");
+  console.log("Portfolio Strategy Signal Generator v7.6");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
