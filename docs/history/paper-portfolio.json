@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 49,
-  "cash": 12926.58,
-  "total_deposited": 1490000,
+  "day_count": 50,
+  "cash": 14802.24,
+  "total_deposited": 1500000,
   "holdings": {
     "ASML": {
       "shares": 34.3445,
@@ -15,24 +15,19 @@
       "avg_price": 509.9999
     },
     "ENB": {
-      "shares": 1278.4298,
-      "cost_basis": 69111.93,
+      "shares": 1240.0769,
+      "cost_basis": 67038.57,
       "avg_price": 54.06
     },
-    "ETHA": {
-      "shares": 12572.3597,
-      "cost_basis": 197856.15,
-      "avg_price": 15.7374
-    },
     "GLNCY": {
-      "shares": 10569.9343,
-      "cost_basis": 159299.86,
-      "avg_price": 15.071
+      "shares": 10734.557,
+      "cost_basis": 161808.71,
+      "avg_price": 15.0736
     },
     "IBIT": {
-      "shares": 4652.6428,
-      "cost_basis": 184650.98,
-      "avg_price": 39.6873
+      "shares": 4733.3318,
+      "cost_basis": 188163.37,
+      "avg_price": 39.7528
     },
     "KOF": {
       "shares": 1225.4913,
@@ -60,9 +55,14 @@
       "avg_price": 302.6345
     },
     "TMO": {
-      "shares": 313.2397,
-      "cost_basis": 139841.56,
-      "avg_price": 446.4363
+      "shares": 322.8891,
+      "cost_basis": 144106.61,
+      "avg_price": 446.3037
+    },
+    "NOW": {
+      "shares": 1913.1324,
+      "cost_basis": 197856.15,
+      "avg_price": 103.42
     }
   },
   "history": [
@@ -3002,7 +3002,105 @@
       "regimes": {
         "LIN": "neutral"
       }
+    },
+    {
+      "date": "2026-05-19",
+      "day": 50,
+      "total_value": 1575525.65,
+      "total_deposited": 1500000,
+      "cash": 14802.24,
+      "holdings_value": 1560723.41,
+      "pnl": 75525.65,
+      "pnl_pct": 5.04,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ENB",
+          "shares": -38.3529,
+          "price": 56.37,
+          "value": 2161.95,
+          "composite_score": 18,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "TMO",
+          "shares": 9.6494,
+          "price": 442,
+          "value": 4265.05,
+          "confidence": 1,
+          "score_magnitude": 0.425,
+          "composite_score": -37,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "IBIT",
+          "shares": 80.689,
+          "price": 43.53,
+          "value": 3512.39,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -26,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "GLNCY",
+          "shares": 164.6227,
+          "price": 15.24,
+          "value": 2508.85,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -15,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "TMO",
+        "positionalBuy": "IBIT",
+        "strategicBuy": "GLNCY",
+        "trim": "ENB"
+      },
+      "composite_scores": {
+        "LHX": -21,
+        "ASML": -3,
+        "LIN": 11,
+        "MSFT": -21,
+        "TMO": -37,
+        "NOW": -22,
+        "ENB": 18,
+        "GLNCY": -15,
+        "IBIT": -26,
+        "KOF": -1,
+        "PBR.A": -14,
+        "AMKBY": -7
+      },
+      "regimes": {
+        "LIN": "neutral"
+      },
+      "swaps": [
+        {
+          "from": "ETHA",
+          "to": "NOW",
+          "old_shares": 12572.3597,
+          "old_cost_basis": 197856.15,
+          "new_shares": 1913.1324,
+          "new_price": 103.42
+        }
+      ]
     }
   ],
-  "total_value": 1556602.18
+  "total_value": 1575525.65
 }
