@@ -3,7 +3,7 @@
 //
 // What it does:
 //   1. Reads every logged signal from docs/history/daily-log.jsonl
-//      (one line per DAY containing all 11 holdings; flattens to per-symbol rows)
+//      (one line per DAY containing all 12 holdings; flattens to per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
 //   4. Computes forward returns at 1d, 3d, 5d, 10d, 20d, 40d, 60d, 120d
@@ -22,6 +22,11 @@
 //     (rather than the intra-day logged price) for clean daily alignment.
 //   • Rate-limited symbol fetches (200ms between calls) to stay well under
 //     Alpaca's 200 req/min data API limit.
+//   • Symbol-agnostic — the script processes whatever tickers appear in the
+//     log, so holdings swaps (e.g. V7.6 ETHA → NOW) require no code changes
+//     here; attribution coverage for new tickers simply begins from their
+//     first logged date forward. Historical ETHA rows in the log keep being
+//     re-attributed against their now-frozen forward windows, which is fine.
 //
 // Env vars required:
 //   ALPK, ALPS  — Alpaca API key + secret (already in GitHub Secrets)
@@ -63,7 +68,8 @@ const NEUTRAL_BAND = 5;
 
 // Alpaca ticker overrides (if any). Most match 1:1. PBR.A works as-is on Alpaca.
 // OTC/ADR symbols (AMKBY, GLNCY) may need free IEX data or delayed quotes —
-// adjust here if/when the symbol fetch fails.
+// adjust here if/when the symbol fetch fails. NOW (ServiceNow, NYSE) added
+// in V7.6 — no override needed, fetches natively.
 const SYMBOL_MAP = {};
 
 // ─── US MARKET CALENDAR ───────────────────────────────────────────────────────
@@ -309,7 +315,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has 11 holdings nested inside)
+  // 2. Flatten daily-log entries (each entry has 12 holdings nested inside)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
