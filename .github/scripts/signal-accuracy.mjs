@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.1 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.2 — Forward-looking signal accuracy tracker.
 //
 // Reads the signal history CSV, computes N-day forward returns for each
 // past signal, and generates accuracy statistics per holding, per layer,
@@ -18,13 +18,26 @@
 //   Positional:  5-day, 10-day, 20-day
 //   Strategic:  20-day, 40-day, 60-day
 //
+// Symbol handling: this script is symbol-agnostic — it processes whatever
+// tickers appear in the CSV. Holdings swaps (e.g. V7.6 ETHA → NOW) require
+// no changes to the aggregation logic; per-symbol stats simply begin
+// accumulating for new tickers from their first logged date forward.
+//
 // v1.1 — LIN v3 regime propagation:
-// Yesterday-snapshot now propagates regime / regime_pmi / weights from the
+// Yesterday-snapshot propagates regime / regime_pmi / weights from the
 // CSV (columns added in log-signals v3 — currently LIN-only, blank elsewhere)
 // into accuracy.json so calibration-loader v1.1 can surface them in the
 // LLM prompt's CALIBRATION FEEDBACK block. Forward-compatible: if the CSV
 // header doesn't include those columns yet (older history mid-upgrade),
 // every check no-ops and behavior matches v1.0.
+//
+// v1.2 — NOW v7.6 cohort context propagation:
+// Yesterday-snapshot also propagates NOW-specific context fields from the
+// CSV (columns added in log-signals v4 — currently NOW-only, blank elsewhere)
+// into accuracy.json: cohort P/E premium vs CRM/WDAY/ADBE, rotation pressure
+// pp vs cohort 30d, IGV-vs-SPY factor flow, and cRPO YoY growth (NOW's
+// signature operational metric). Same forward-compatibility pattern as v1.1:
+// if those CSV columns aren't present yet, all checks no-op cleanly.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -289,6 +302,13 @@ function aggregateStats(forwardReturns) {
 // and are LIN-only in current builds — blank cells elsewhere produce empty
 // strings from the CSV parser, which the helpers below convert to null and
 // then omit from the output object so non-LIN holdings stay clean.
+//
+// v1.2: Also propagates NOW v7.6 cohort context (cohort_premium_pct,
+// rotation_pressure_pp, igv_vs_spy_30d_pp, crpo_growth_pct) when the CSV
+// row carries those columns. Added by log-signals v4 and currently NOW-only.
+// Same forward-compatibility pattern: helpers coerce blanks to null and
+// fields only attach when populated, so non-NOW holdings stay clean and
+// pre-v4 CSV history is a no-op.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -336,6 +356,19 @@ function getYesterdaySnapshot(rows, tradingDates) {
     if (wt != null && wp != null && ws != null) {
       holding.weights = { t: wt, p: wp, s: ws };
     }
+
+    // v1.2: NOW v7.6 cohort context — only attached when CSV cells are
+    // populated (NOW-only in current builds). Pre-v4 log-signals CSV history
+    // leaves these columns undefined, helpers no-op, non-NOW rows stay clean.
+    const cohortPremium = numOrNull(row.cohort_premium_pct);
+    const rotationPressure = numOrNull(row.rotation_pressure_pp);
+    const igvVsSpy = numOrNull(row.igv_vs_spy_30d_pp);
+    const crpoGrowth = numOrNull(row.crpo_growth_pct);
+
+    if (cohortPremium != null) holding.cohort_premium_pct = cohortPremium;
+    if (rotationPressure != null) holding.rotation_pressure_pp = rotationPressure;
+    if (igvVsSpy != null) holding.igv_vs_spy_30d_pp = igvVsSpy;
+    if (crpoGrowth != null) holding.crpo_growth_pct = crpoGrowth;
 
     snapshot.holdings[row.symbol] = holding;
   }
