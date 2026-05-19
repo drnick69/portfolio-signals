@@ -9,7 +9,7 @@
 //   {
 //     generated_at, signal_count, date_range,
 //     per_ticker: {
-//       MOS: {
+//       NOW: {
 //         n, data_through,
 //         layers: {
 //           tactical:   { native_horizon, buckets: [...], scatter: [...], hit_rate, mean_return, n_scored },
@@ -23,6 +23,12 @@
 //     },
 //     portfolio: { hit_rate, mean_return, n_scored }  // aggregated across all tickers
 //   }
+//
+// Symbol handling: fully symbol-agnostic — groups by whatever tickers appear
+// in signals_with_returns.jsonl. Holdings swaps (e.g. V7.6 ETHA → NOW) need
+// no code changes here; new tickers begin accumulating calibration coverage
+// from their first attributed date forward, while retired tickers' historical
+// stats persist until the underlying log entries age out.
 //
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
