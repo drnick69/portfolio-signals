@@ -17,7 +17,7 @@ const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "ETHA", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -29,7 +29,7 @@ const TICKER_IDENTITY = {
   "MSFT":  { name: "Microsoft",            business: "the software giant behind Windows, Office, and Xbox — but its biggest growth engine now is the Azure cloud service, which rents out the computing power that AI companies need, plus a major partnership with OpenAI (the maker of ChatGPT)" },
   "TMO":   { name: "Thermo Fisher Scientific", business: "the world's largest supplier of laboratory equipment and bioprocessing tools — sells to biotech companies, pharma, hospitals, and research labs. Often called the 'picks-and-shovels' supplier for the entire life sciences industry" },
   "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
-  "ETHA":  { name: "iShares Ethereum ETF", business: "spot Ethereum exposure (ETHA tracks the price of ether, the second-largest cryptocurrency)" },
+  "NOW":   { name: "ServiceNow",           business: "enterprise software company that helps large organizations automate their internal workflows — IT operations, HR requests, customer service ticketing — and is now a leading provider of 'agentic AI' tools that let companies deploy AI assistants for routine business tasks. Used heavily by Fortune 500 companies and the US federal government" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
   "IBIT":  { name: "iShares Bitcoin ETF",  business: "spot Bitcoin exposure" },
   "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
@@ -49,7 +49,7 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - MSFT    = Microsoft (Windows/Office/Xbox plus Azure cloud powering AI plus OpenAI partnership)
 - TMO     = Thermo Fisher Scientific (world's largest life sciences lab equipment and bioprocessing supplier)
 - ENB     = Enbridge (Canadian oil & gas pipeline operator)
-- ETHA    = iShares Ethereum ETF (spot Ethereum / ether exposure)
+- NOW     = ServiceNow (enterprise software that automates IT/HR/customer service workflows, increasingly via AI agents; heavy Fortune 500 and US federal government customer base)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
 - IBIT    = iShares Bitcoin ETF (spot Bitcoin exposure)
 - KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
@@ -61,6 +61,7 @@ CRITICAL DISAMBIGUATION:
 - GLNCY is Glencore, not Glencoe or anything else.
 - PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
 - LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
+- NOW is the ticker for ServiceNow, the enterprise workflow-automation software company. It is NEVER a generic adverb and NEVER any retail or consumer brand. ServiceNow's product helps big companies and government agencies automate the boring, repetitive parts of running an organization — IT tickets, HR forms, employee onboarding — and they're now leaders in deploying AI agents to do this work autonomously.
 
 RULES:
 - One sentence per holding. Natural, conversational, not breezy.
@@ -78,6 +79,7 @@ EXAMPLES of the voice:
 - "Bitcoin has been quiet, which after a big run-up is actually what you want to see."
 - "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
 - "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
+- "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
 
 OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
 {
