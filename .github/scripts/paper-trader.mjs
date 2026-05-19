@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// paper-trader.mjs v7.5 — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v7.6 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across 12 holdings.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
@@ -14,12 +14,12 @@
 //   - Prices come from /tmp/signal-data.json + /tmp/market-data.json
 //   - State persists in docs/history/paper-portfolio.json
 //
-// V7.5: One-time HOLDINGS SWAP migration on first run post-deployment.
-//       MOS → LHX and SPY → TMO. Cost basis transfers to the new symbol;
-//       shares recomputed at the new symbol's current price. Cash position
-//       unchanged → total portfolio value preserved at the swap moment.
-//       P&L for the new positions starts at 0% and tracks LHX/TMO going
-//       forward. Idempotent: no-ops once MOS/SPY are gone from holdings.
+// V7.6: One-time HOLDINGS SWAP migration on first run post-deployment.
+//       ETHA → NOW. Cost basis transfers from ETHA to NOW; NOW shares
+//       computed at the new symbol's current price. Cash position unchanged
+//       → total portfolio value preserved at the swap moment. P&L for the
+//       NOW position starts at 0% and tracks NOW going forward. Idempotent:
+//       no-ops once ETHA is gone from holdings.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -144,14 +144,14 @@ if (portfolio.history.some(h => h.date === date)) {
   process.exit(0);
 }
 
-// ─── V7.5 HOLDINGS SWAP (one-time migration) ────────────────────────────────
-// MOS → LHX, SPY → TMO. Cost basis transfers; shares recomputed at the new
-// symbol's current price. Cash unchanged, so total portfolio value is preserved
-// at the swap moment. P&L resets to 0% for the new positions and tracks the
-// new tickers going forward.
-// Idempotent: no-ops once MOS/SPY are no longer present in portfolio.holdings.
+// ─── V7.6 HOLDINGS SWAP (one-time migration) ────────────────────────────────
+// ETHA → NOW. Cost basis transfers from ETHA to NOW; NOW shares computed at
+// the new symbol's current price. Cash unchanged, so total portfolio value
+// is preserved at the swap moment. P&L resets to 0% for the new position
+// and tracks NOW going forward.
+// Idempotent: no-ops once ETHA is no longer present in portfolio.holdings.
 // Safe to leave in indefinitely — can be removed after one successful run.
-const HOLDINGS_MIGRATION = { "MOS": "LHX", "SPY": "TMO" };
+const HOLDINGS_MIGRATION = { "ETHA": "NOW" };
 const swaps = [];
 for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
   const old = portfolio.holdings[oldSym];
@@ -298,7 +298,7 @@ const snapshot = {
   assignments: { ...assignments },
   composite_scores,
   ...(Object.keys(regimes).length > 0 ? { regimes } : {}),
-  ...(swaps.length > 0 ? { swaps } : {}),                  // ← V7.5: only present on migration day
+  ...(swaps.length > 0 ? { swaps } : {}),                  // ← V7.6: only present on migration day
 };
 portfolio.history.push(snapshot);
 
