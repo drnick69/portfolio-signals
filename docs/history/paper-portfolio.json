@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 64,
-  "cash": 10307.15,
-  "total_deposited": 1640000,
+  "day_count": 65,
+  "cash": 10937.19,
+  "total_deposited": 1650000,
   "holdings": {
     "ASML": {
       "shares": 34.3445,
@@ -15,19 +15,19 @@
       "avg_price": 509.9999
     },
     "ENB": {
-      "shares": 860.4179,
-      "cost_basis": 46514.19,
+      "shares": 834.6054,
+      "cost_basis": 45118.77,
       "avg_price": 54.06
     },
     "GLNCY": {
-      "shares": 12058.7417,
-      "cost_basis": 182295.81,
-      "avg_price": 15.1173
+      "shares": 12201.5606,
+      "cost_basis": 184472.37,
+      "avg_price": 15.1188
     },
     "IBIT": {
-      "shares": 6641.3215,
-      "cost_basis": 262114.36,
-      "avg_price": 39.4672
+      "shares": 6789.3864,
+      "cost_basis": 267338.09,
+      "avg_price": 39.3759
     },
     "KOF": {
       "shares": 1225.4913,
@@ -45,9 +45,9 @@
       "avg_price": 12.698
     },
     "MSFT": {
-      "shares": 43.8981,
-      "cost_basis": 18198.64,
-      "avg_price": 414.5656
+      "shares": 52.4346,
+      "cost_basis": 21626.72,
+      "avg_price": 412.4513
     },
     "LHX": {
       "shares": 632.6186,
@@ -4332,7 +4332,95 @@
       "regimes": {
         "LIN": "neutral"
       }
+    },
+    {
+      "date": "2026-06-10",
+      "day": 65,
+      "total_value": 1707104.76,
+      "total_deposited": 1650000,
+      "cash": 10937.19,
+      "holdings_value": 1696167.57,
+      "pnl": 57104.76,
+      "pnl_pct": 3.46,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ENB",
+          "shares": -25.8125,
+          "price": 56.5,
+          "value": 1458.41,
+          "composite_score": 23,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "IBIT",
+          "shares": 148.0649,
+          "price": 35.28,
+          "value": 5223.73,
+          "confidence": 1,
+          "score_magnitude": 0.6,
+          "composite_score": -44,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "MSFT",
+          "shares": 8.5365,
+          "price": 401.58,
+          "value": 3428.08,
+          "confidence": 1,
+          "score_magnitude": 0.45,
+          "composite_score": -38,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "GLNCY",
+          "shares": 142.8189,
+          "price": 15.24,
+          "value": 2176.56,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -20,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "IBIT",
+        "positionalBuy": "MSFT",
+        "strategicBuy": "GLNCY",
+        "trim": "ENB"
+      },
+      "composite_scores": {
+        "LHX": -11,
+        "ASML": 12,
+        "LIN": 0,
+        "MSFT": -38,
+        "TMO": -24,
+        "NOW": -8,
+        "ENB": 23,
+        "GLNCY": -20,
+        "IBIT": -44,
+        "KOF": -5,
+        "PBR.A": -12,
+        "AMKBY": -2
+      },
+      "regimes": {
+        "LIN": "neutral"
+      }
     }
   ],
-  "total_value": 1696252.37
+  "total_value": 1707104.76
 }
