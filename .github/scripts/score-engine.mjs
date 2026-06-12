@@ -44,7 +44,9 @@
 //     inverted 52w, drawdown-from-52w-high primary tactical (>12% setup, >20% strong),
 //     cohort rotation vs GOOGL/META/AAPL avg 30d (BUY setup when MSFT lags), QUAL
 //     factor flow, cohort P/E premium primary strategic, TIPS + DXY overlays.
-//     STATIC weights 20/35/45 — no regime conditioning in v1.
+//     V8.1: composite weights regime-conditional on real rate (fed funds − 10Y
+//     TIPS): <0.5% accommodative 25/40/35 · 0.5–2% neutral 20/35/45 · >2%
+//     restrictive 15/30/55.
 //   - DEFENSE_PRIME_BACKLOG_COMPOUNDER (LHX) — V1: tightened RSI 40/70, compounder
 //     MA + inverted 52w, drawdown-from-52w-high primary tactical (>10% setup, >18%
 //     strong), cohort rotation vs LMT/NOC/RTX/GD avg 30d (BUY setup when LHX lags
@@ -52,7 +54,9 @@
 //     premium primary strategic (LHX historically -5 to -15% discount, compression
 //     thesis), book-to-bill + backlog YoY + op/FCF margin + EPS revs positional
 //     (null-safe — LLM sources via web search), dividend yield (aristocrat-track),
-//     TIPS + VIX overlays. STATIC weights 20/40/40.
+//     TIPS + VIX overlays. V8.1: composite weights regime-conditional on ITA vs
+//     SPY 30d factor flow: >+1pp bid_active 25/45/30 · ±1pp neutral 20/40/40 ·
+//     <−1pp bid_absent 15/35/50.
 //   - LIFE_SCIENCES_QUALITY_COMPOUNDER (TMO) — V1: tightened RSI 35/70, compounder
 //     MA + inverted 52w, drawdown-from-52w-high primary tactical (>15% setup, >25%
 //     strong), biotech sympathy setup (TMO+XBI both down = collateral buy), DHR
@@ -60,7 +64,9 @@
 //     peer_valuation), XBI 90d biotech overlay positional (funding leads bookings
 //     2-3Q), QUAL factor flow (reused from LIN), organic growth + bioprocessing
 //     phase + op/FCF margin + EPS revs positional (null-safe — LLM sources),
-//     TIPS + DXY + VIX overlays. STATIC weights 20/35/45.
+//     TIPS + DXY + VIX overlays. V8.1: composite weights regime-conditional on
+//     XBI 90d return: >+10% thawing 25/40/35 · ±10% neutral 20/35/45 · <−10%
+//     frozen 15/30/55.
 //   - AI_WORKFLOW_QUALITY_COMPOUNDER (NOW) — V1: tightened RSI 40/65, compounder MA +
 //     inverted 52w, drawdown-from-52w-high primary tactical (>12% setup, >20% strong),
 //     cohort rotation vs CRM/WDAY/ADBE avg 30d (BUY setup when NOW lags higher-beta
@@ -69,8 +75,22 @@
 //     cohort as BASELINE (higher growth + higher quality, structural), so <60% =
 //     unusual discount = buy, >150% = stretched. cRPO growth (THE ops metric) +
 //     subscription growth + $1M+ deals + federal contract growth + op/FCF margin
-//     positional (null-safe — LLM sources). TIPS + DXY + VIX overlays. STATIC
-//     weights 20/35/45.
+//     positional (null-safe — LLM sources). TIPS + DXY + VIX overlays.
+//     V8.1: composite weights regime-conditional on real rate — see below.
+//
+// V8.1 (June 2026): regime-conditional composite weights extended from LIN to the
+// V1 compounders, mirroring the LIN V3 three-state pattern (±5pp shifts off each
+// archetype's static base; missing driver data → static base + "neutral" + null):
+//   - MSFT + NOW gated on real rate (fed funds − 10Y TIPS): <0.5% accommodative
+//     25/40/35 · 0.5–2% neutral 20/35/45 · >2% restrictive 15/30/55.
+//   - LHX gated on ITA vs SPY 30d factor flow: >+1pp bid_active 25/45/30 ·
+//     ±1pp neutral 20/40/40 · <−1pp bid_absent 15/35/50.
+//   - TMO gated on XBI 90d return: >+10% thawing 25/40/35 · ±10% neutral
+//     20/35/45 · <−10% frozen 15/30/55.
+//   Blend weights (det/llm per layer) deliberately untouched — held until accuracy
+//   data justifies changes. New return fields regimeDriver (numeric) + regimeBasis
+//   (string) are additive; regimePmi keeps its LIN-only meaning for contract
+//   stability. Layer scoring logic unchanged.
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
@@ -108,6 +128,54 @@ function computeLINRegimeWeights(macro) {
   if (wAvg >= 55) return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "expansion",   pmi: wAvg };
   if (wAvg < 48)  return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "contraction", pmi: wAvg };
   return            { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     pmi: wAvg };
+}
+
+// ─── V8.1 REGIME-CONDITIONAL WEIGHTS — MSFT/NOW/LHX/TMO ─────────────────────
+// Extends the LIN V3 pattern to the V1 compounders: same three-state structure,
+// same ±5pp shift magnitude off each archetype's static base. Missing driver
+// data → static base + "neutral" + null driver (matches LIN fallback behavior).
+// Blend weights (det/llm per layer) deliberately untouched in V8.1.
+
+// MSFT + NOW: real-rate regime (fed funds − 10Y TIPS). Long-duration cash-flow
+// sensitivity per archetype guidance: >2% restrictive = rate-driven multiple
+// compression (valuation anchor dominates → strategic up), <0.5% accommodative =
+// multiple-expansion tailwind (momentum/cycle layers carry more signal).
+function computeRealRateRegimeWeights(macro) {
+  const ff = macro?.fed_funds;
+  const tips = macro?.tips10y;
+  if (ff == null || tips == null) {
+    return { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: null };
+  }
+  const rr = +(ff - tips).toFixed(2);
+  if (rr < 0.5) return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "accommodative", driver: rr };
+  if (rr > 2.0) return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "restrictive",   driver: rr };
+  return            { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",       driver: rr };
+}
+
+// LHX: defense factor-flow regime (ITA vs SPY 30d, pp). >+1pp = defense bid
+// active (flow/momentum layers carry signal), <−1pp = bid absent (sector out of
+// favor — discount-compression thesis dominates → strategic anchor). Base 20/40/40.
+function computeLHXRegimeWeights(data) {
+  const i = data?.factor_flow?.ita_vs_spy_30d_pp;
+  if (i == null) {
+    return { weights: { t: 0.20, p: 0.40, s: 0.40 }, regime: "neutral", driver: null };
+  }
+  if (i > 1)  return { weights: { t: 0.25, p: 0.45, s: 0.30 }, regime: "bid_active", driver: i };
+  if (i < -1) return { weights: { t: 0.15, p: 0.35, s: 0.50 }, regime: "bid_absent", driver: i };
+  return          { weights: { t: 0.20, p: 0.40, s: 0.40 }, regime: "neutral",     driver: i };
+}
+
+// TMO: biotech funding regime (XBI 90d return — leads TMO bookings 2-3Q per
+// archetype guidance). >+10% thawing = recovery underway (cycle layers carry
+// signal), <−10% frozen = cycle-trough valuation thesis dominates. Base 20/35/45.
+function computeTMORegimeWeights(data) {
+  const x = data?.biotech_overlay?.xbi_90d_return_pct;
+  if (x == null) {
+    return { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: null };
+  }
+  if (x > 10)  return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "thawing", driver: x };
+  if (x < -10) return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "frozen",  driver: x };
+  return           { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: x };
 }
 
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
@@ -2244,16 +2312,28 @@ export function computeDeterministicScores(data, macro) {
   const strategic = scoreStrategic(data, macro);
 
   // V3: LIN regime-conditional weights override based on global PMI.
-  // MSFT/LHX/TMO/NOW V1: static weights via data._weights (set by generate-signals.mjs).
-  // Other archetypes use their pre-set _weights, or the default 25/35/40.
+  // V8.1: regime conditioning extended to MSFT/NOW (real rate), LHX (ITA vs SPY
+  // 30d factor flow), TMO (XBI 90d funding) — LIN V3 pattern, ±5pp shifts off
+  // each static base. Other archetypes use their pre-set _weights, or the
+  // default 25/35/40.
   let weights = data._weights || { t: 0.25, p: 0.35, s: 0.40 };
   let regime = null;
-  let regimePmi = null;
+  let regimePmi = null;     // LIN only — numeric geo-weighted PMI (name kept for contract stability)
+  let regimeDriver = null;  // V8.1 — numeric driver behind the regime choice
+  let regimeBasis = null;   // V8.1 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct"
   if (data._archetype === "oligopoly_quality_compounder") {
     const r = computeLINRegimeWeights(macro);
-    weights = r.weights;
-    regime = r.regime;
-    regimePmi = r.pmi;
+    weights = r.weights; regime = r.regime; regimePmi = r.pmi;
+    regimeDriver = r.pmi; regimeBasis = "pmi";
+  } else if (data._archetype === "ai_infra_quality_compounder" || data._archetype === "ai_workflow_quality_compounder") {
+    const r = computeRealRateRegimeWeights(macro);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "real_rate";
+  } else if (data._archetype === "defense_prime_backlog_compounder") {
+    const r = computeLHXRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "ita_vs_spy_30d_pp";
+  } else if (data._archetype === "life_sciences_quality_compounder") {
+    const r = computeTMORegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "xbi_90d_return_pct";
   }
 
   const composite = Math.round(
@@ -2268,8 +2348,12 @@ export function computeDeterministicScores(data, macro) {
     strategic,
     composite: { score: clamp(composite) },
     weights,
-    regime,    // null for non-LIN, "expansion" | "neutral" | "contraction" for LIN
-    regimePmi, // numeric geo-weighted PMI used to choose regime (LIN only)
+    regime,       // null for non-regime archetypes. LIN: expansion|neutral|contraction.
+                  // MSFT/NOW: accommodative|neutral|restrictive. LHX: bid_active|neutral|bid_absent.
+                  // TMO: thawing|neutral|frozen.
+    regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
+    regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
+    regimeBasis,  // V8.1 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct"
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
