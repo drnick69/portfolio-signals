@@ -240,6 +240,16 @@ function normalizeSignal(raw) {
     role:      raw.role      ?? null,
     archetype: raw.archetype ?? null,
     weights:   raw.weights   ?? null,
+    // V8.0 telemetry propagation (null for pre-v8 daily-log entries):
+    // divergence + hostile_review + V8.1 regime gates flow through to
+    // signals_with_returns.jsonl so calibration v2 can condition on them
+    // (who-was-right-on-divergence, falsifier audit, regime hit rates).
+    regime:         raw.regime         ?? null,
+    regime_pmi:     raw.regime_pmi     ?? null,
+    regime_driver:  raw.regime_driver  ?? null,
+    regime_basis:   raw.regime_basis   ?? null,
+    divergence:     raw.divergence     ?? null,
+    hostile_review: raw.hostile_review ?? null,
   };
 }
 
@@ -379,6 +389,13 @@ async function main() {
       role:                sig.role,
       archetype:           sig.archetype,
       weights:             sig.weights,
+      // V8.0 telemetry (additive; null for pre-v8 entries)
+      regime:              sig.regime,
+      regime_pmi:          sig.regime_pmi,
+      regime_driver:       sig.regime_driver,
+      regime_basis:        sig.regime_basis,
+      divergence:          sig.divergence,
+      hostile_review:      sig.hostile_review,
       entry_price:         entryPrice,
       entry_price_source:  entrySource,
       scores:              sig.scores,
