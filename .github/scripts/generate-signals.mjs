@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v7.6 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -19,6 +19,28 @@
 //            AI commercialization phase + AI Agent Platform structural moat.
 //       Removals: isETHA flag, ethaGuidance (full + search), ETHA alt-season + ETH
 //       200DMA data lines. "high_beta_crypto" archetype no longer in book.
+// v8.0: LLM-LAYER UPGRADE — model claude-sonnet-4-20250514 → claude-opus-4-8.
+//       PROMPT RESTRUCTURE FOR CACHING: static content moved to system blocks with
+//       cache_control (ephemeral): block 1 = shared role + portfolio context +
+//       scoring rules + hostile-review protocol + output contract (identical across
+//       holdings within a track → cache hits from the 2nd holding onward); block 2 =
+//       per-ticker archetype guidance + weights (cache hits across retries). Dynamic
+//       content (det scores, market data lines, confidence note, calibration block,
+//       verified data) moved to the user message. Prompt TEXT preserved verbatim
+//       where moved; h.weights still quoted (static), regime weights still win in
+//       blending via detScores.weights as before.
+//       HOSTILE-REVIEW CONTRACT: each layer must return bear_case, bull_case, and
+//       falsifier alongside score + rationale (single-pass adversarial self-review).
+//       Hoisted to result.hostile_review for downstream telemetry (logger wiring is
+//       a separate task; additive field, no consumer contract changes).
+//       STRUCTURED OUTPUT: record_scores tool (schema-validated). Qualitative mode
+//       forces tool_choice; search mode keeps tool_choice auto (forcing would block
+//       web_search) + legacy text-JSON extraction retained as fallback.
+//       DIVERGENCE TELEMETRY: per-layer |det − llm| gap on result.divergence;
+//       layers with gap >40 flagged + console warning (calibration analysis input).
+//       max_tokens qualitative 1000 → 2500 (hostile-review fields). Cache usage
+//       logged per call (cache r{read}/w{write}). No deterministic engine changes;
+//       no holdings changes; output contract additive-only.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -71,7 +93,115 @@ function getIBITPhaseContext() {
 }
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
-const JSON_TEMPLATE = (sym) => `{"tactical":{"score":0,"rationale":""},"positional":{"score":0,"rationale":""},"strategic":{"score":0,"rationale":""},"composite":{"score":0,"summary":""},"key_metric":{"name":"","value":""},"risks":["",""],"catalysts":["",""]}`;
+// v8.0: model + structured-output contract ──────────────────────────────────
+const MODEL_ID = "claude-opus-4-8";
+
+// Raw-JSON shape — kept as the text-output fallback contract for search mode.
+const JSON_TEMPLATE = `{"tactical":{"score":0,"rationale":"","bear_case":"","bull_case":"","falsifier":""},"positional":{"score":0,"rationale":"","bear_case":"","bull_case":"","falsifier":""},"strategic":{"score":0,"rationale":"","bear_case":"","bull_case":"","falsifier":""},"composite":{"score":0,"summary":""},"key_metric":{"name":"","value":""},"risks":["",""],"catalysts":["",""]}`;
+
+const LAYER_SCORE_SCHEMA = {
+  type: "object",
+  properties: {
+    score: { type: "integer", minimum: -100, maximum: 100, description: "-100 max buy … +100 max sell. 0 = no edge." },
+    rationale: { type: "string", description: "Qualitative reasoning with specifics. Non-empty." },
+    bear_case: { type: "string", description: "Strongest honest case the stock underperforms from here (pushes score POSITIVE / trim side). Non-empty, specific to today's setup." },
+    bull_case: { type: "string", description: "Strongest honest case the stock outperforms from here (pushes score NEGATIVE / buy side). Non-empty, specific to today's setup." },
+    falsifier: { type: "string", description: "The specific observable development that would flip the SIGN of your score. Non-empty." },
+  },
+  required: ["score", "rationale", "bear_case", "bull_case", "falsifier"],
+};
+
+const RECORD_SCORES_TOOL = {
+  name: "record_scores",
+  description: "Record the final structured analysis for this holding. Must be called exactly once, after the hostile review, with the complete scores.",
+  input_schema: {
+    type: "object",
+    properties: {
+      tactical: LAYER_SCORE_SCHEMA,
+      positional: LAYER_SCORE_SCHEMA,
+      strategic: LAYER_SCORE_SCHEMA,
+      composite: {
+        type: "object",
+        properties: {
+          score: { type: "integer", minimum: -100, maximum: 100 },
+          summary: { type: "string", description: "1-2 sentences on overall thesis including both quant and your judgment. Non-empty." },
+        },
+        required: ["score", "summary"],
+      },
+      key_metric: {
+        type: "object",
+        properties: { name: { type: "string" }, value: { type: "string" } },
+        required: ["name", "value"],
+        description: "The single most telling data point for this holding right now.",
+      },
+      risks: { type: "array", items: { type: "string" }, minItems: 2, description: "At least 2 real, current risks." },
+      catalysts: { type: "array", items: { type: "string" }, minItems: 2, description: "At least 2 real, upcoming catalysts." },
+      price: {
+        type: "object",
+        properties: { current: { type: "number" }, change_pct: { type: "number" } },
+        description: "ONLY in web-search mode when no verified API price was provided: the current price found via search. Omit otherwise.",
+      },
+    },
+    required: ["tactical", "positional", "strategic", "composite", "key_metric", "risks", "catalysts"],
+  },
+};
+
+// v8.0: hostile-review protocol — single-pass adversarial self-review, shared by both modes.
+const HOSTILE_REVIEW_PROTOCOL = `HOSTILE REVIEW PROTOCOL (mandatory, per layer, BEFORE finalizing each score):
+1. Draft the score.
+2. Attack it. Construct the strongest honest opposing cases: bear_case (case the stock underperforms — pushes score positive/trim side) and bull_case (case it outperforms — pushes score negative/buy side). Both must be specific to today's setup, not generic boilerplate.
+3. State the falsifier: the specific, observable development that would flip the sign of your score.
+4. Re-test the draft against both cases. If the opposing case survives contact with the data, move the score toward zero.
+A layer whose bear_case/bull_case/falsifier could have been written on any day for any stock is a failed analysis.`;
+
+// v8.0: static portfolio map — shared system-block context (also keeps the shared
+// prefix above the prompt-caching minimum length so cross-holding cache hits land).
+const PORTFOLIO_CONTEXT = `PORTFOLIO CONTEXT — 12 holdings, best-in-class name per fixed category. Category membership is an upstream decision: signals adjust weight WITHIN the book, never entry/exit on membership. Scores are ranked cross-sectionally across holdings each day, so calibration consistency matters more than absolute levels.
+${HOLDINGS.map(hh => `• ${hh.symbol} — ${hh.name} (${hh.sector}) | ${hh.archetype} | weights t${Math.round(hh.weights.t*100)}/p${Math.round(hh.weights.p*100)}/s${Math.round(hh.weights.s*100)}`).join("\n")}`;
+
+const SHARED_SYSTEM_QUALITATIVE = `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for one holding in a 12-name portfolio.
+
+${PORTFOLIO_CONTEXT}
+
+Your job: provide YOUR OWN independent scores for the assigned holding, considering what numbers CANNOT capture:
+• Sector trends, competitive dynamics, catalysts, management quality
+• Macro regime interpretation (is VIX elevated for good reason?)
+• Whether the technical signals are "right" in current context
+• News, geopolitical factors, earnings trajectory
+
+SCORING RULES:
+• Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
+• Your scores will be BLENDED 50/50 with the deterministic scores provided in the task message.
+• If you agree with the quant score, return a similar number. If you disagree, explain why.
+• NEUTRAL (0) is correct when you have no qualitative edge to add.
+• Signals: ≤-60 STRONG_BUY, -59 to -25 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
+
+${HOSTILE_REVIEW_PROTOCOL}
+
+OUTPUT CONTRACT:
+MANDATORY: Every string field must have substantive text. No empty strings.
+• rationale: explain your qualitative reasoning with specifics.
+• summary: 1-2 sentences on overall thesis including both quant and your judgment.
+• key_metric: the single most telling data point for this holding right now.
+• risks/catalysts: at least 2 real items each.
+Record your analysis by calling the record_scores tool exactly once.`;
+
+const SHARED_SYSTEM_SEARCH = `You are a SKEPTICAL quantitative analyst scoring one holding in a 12-name portfolio. Pre-fetched API data for this holding was insufficient, so research it with web search before scoring.
+
+${PORTFOLIO_CONTEXT}
+
+Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
+CRITICAL: Do NOT override VERIFIED prices (provided in the task message) with search results.
+
+SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
+Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
+
+${HOSTILE_REVIEW_PROTOCOL}
+
+OUTPUT CONTRACT:
+Every string field must be non-empty.
+When research is complete, you MUST finish by calling the record_scores tool exactly once with your final analysis. If no verified API price was provided, include the price object with the current price found via search.
+Fallback ONLY if the tool is unavailable: return ONLY raw JSON in this exact shape (no markdown): ${JSON_TEMPLATE}`;
 
 function buildPrompt(h, detScores) {
   const md = MARKET_DATA[h.symbol] || {};
@@ -835,39 +965,28 @@ MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on cohort rotation
     ? `\nDATA CONFIDENCE: MEDIUM (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Exercise caution in extreme scores.\n`
     : "";
 
-  return `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for ${h.symbol}.
+  // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
+  const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
+Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}`;
 
-A deterministic engine has already scored the quantitative data:
+  const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
   Positional (quant): ${detScores.positional.score} — ${detScores.positional.notes.join(", ")}
   Strategic (quant): ${detScores.strategic.score} — ${detScores.strategic.notes.join(", ")}
-
-Your job: provide YOUR OWN independent scores considering what numbers CANNOT capture:
-• Sector trends, competitive dynamics, catalysts, management quality
-• Macro regime interpretation (is VIX elevated for good reason?)
-• Whether the technical signals are "right" in current context
-• News, geopolitical factors, earnings trajectory
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${confidenceNote}${calibrationBlock}
-SCORING RULES:
-• Scores: -100 (max buy) to +100 (max sell). ZERO = no edge.
-• Your scores will be BLENDED 50/50 with the deterministic scores above.
-• If you agree with the quant score, return a similar number. If you disagree, explain why.
-• NEUTRAL (0) is correct when you have no qualitative edge to add.
-• Signals: ≤-60 STRONG_BUY, -59 to -25 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
-
+${confidenceNote}${calibrationBlock}
 MARKET DATA:
 ${dataLines}
 
-MANDATORY: Every string field must have substantive text. No empty strings.
-• rationale: explain your qualitative reasoning with specifics.
-• summary: 1-2 sentences on overall thesis including both quant and your judgment.
-• key_metric: the single most telling data point for this holding right now.
-• risks/catalysts: at least 2 real items each.
+Apply the HOSTILE REVIEW PROTOCOL to each layer, then call record_scores exactly once.`;
 
-Return ONLY valid JSON (no markdown):
-${JSON_TEMPLATE(h.symbol)}
-
-Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.`;
+  return {
+    system: [
+      { type: "text", text: SHARED_SYSTEM_QUALITATIVE, cache_control: { type: "ephemeral" } },
+      { type: "text", text: perTickerSystem, cache_control: { type: "ephemeral" } },
+    ],
+    user,
+  };
 }
 
 // Web search prompt for symbols with insufficient data
@@ -915,9 +1034,12 @@ function buildSearchPrompt(h) {
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
 
-  return `You are a SKEPTICAL quantitative analyst scoring ${h.symbol} (${h.name} — ${h.sector}).
+  // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
+  const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
+Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}`;
 
-VERIFIED DATA (from APIs — do NOT override these):
+  const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
   return [
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -925,32 +1047,41 @@ ${(() => {
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
   ].filter(Boolean).join("\n") || "No verified data available.";
 })()}
+${calibrationBlock}
+Research this holding now. Apply the HOSTILE REVIEW PROTOCOL to each layer, then call record_scores exactly once.`;
 
-Search for MISSING data: RSI(14), 52-week range, moving averages, recent news/catalysts.
-CRITICAL: Do NOT override VERIFIED prices with search results.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${calibrationBlock}
-SCORING: -100 (buy) to +100 (sell). ZERO = no edge. NEUTRAL most days.
-Signals: ≤-60 STRONG_BUY, -25 to -59 BUY, -24 to +24 NEUTRAL, +25 to +59 SELL, ≥+60 STRONG_SELL.
-Every string field must be non-empty.
-
-Return ONLY JSON: ${JSON_TEMPLATE(h.symbol)}
-Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.`;
+  return {
+    system: [
+      { type: "text", text: SHARED_SYSTEM_SEARCH, cache_control: { type: "ephemeral" } },
+      { type: "text", text: perTickerSystem, cache_control: { type: "ephemeral" } },
+    ],
+    user,
+  };
 }
 
 // ─── FETCH LLM SCORE ────────────────────────────────────────────────────────
-async function fetchLLMScore(holding, prompt, useWebSearch) {
+async function fetchLLMScore(holding, promptParts, useWebSearch) {
   const MAX_RETRIES = 5;
   const mode = useWebSearch ? "WEB SEARCH" : "qualitative";
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const start = Date.now();
     try {
+      // v8.0: static system blocks carry cache_control (ephemeral, 5-min TTL).
+      // Shared block is identical across holdings within a track → cache hits from
+      // the 2nd holding onward; per-ticker block additionally caches across retries.
       const body = {
-        model: "claude-sonnet-4-20250514",
-        max_tokens: useWebSearch ? 16000 : 1000,
-        messages: [{ role: "user", content: prompt }],
+        model: MODEL_ID,
+        max_tokens: useWebSearch ? 16000 : 2500,
+        system: promptParts.system,
+        messages: [{ role: "user", content: promptParts.user }],
+        tools: useWebSearch
+          ? [{ type: "web_search_20250305", name: "web_search" }, RECORD_SCORES_TOOL]
+          : [RECORD_SCORES_TOOL],
       };
-      if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+      // Qualitative mode: force the schema-validated tool call (deterministic structure).
+      // Search mode: tool_choice stays auto — forcing it would block web_search use.
+      if (!useWebSearch) body.tool_choice = { type: "tool", name: "record_scores" };
 
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -970,20 +1101,29 @@ async function fetchLLMScore(holding, prompt, useWebSearch) {
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
       if (result.stop_reason === "max_tokens") { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("Truncated"); }
 
-      const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-      const sanitized = text.replace(/:\s*\+(\d)/g, ': $1');
-      const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON"); }
-
-      const cleaned = jsonMatch[0].replace(/```json\s*/g,"").replace(/```\s*/g,"").replace(/,\s*}/g,"}").replace(/,\s*]/g,"]");
-      const parsed = JSON.parse(cleaned);
+      // v8.0: prefer the schema-validated record_scores tool call.
+      let parsed = null;
+      const toolBlocks = (result.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
+      if (toolBlocks.length > 0) {
+        parsed = toolBlocks[toolBlocks.length - 1].input;
+      } else {
+        // Legacy fallback — search mode may end with text instead of the tool call.
+        const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+        const sanitized = text.replace(/:\s*\+(\d)/g, ': $1');
+        const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON"); }
+        const cleaned = jsonMatch[0].replace(/```json\s*/g,"").replace(/```\s*/g,"").replace(/,\s*}/g,"}").replace(/,\s*]/g,"]");
+        parsed = JSON.parse(cleaned);
+      }
 
       const valid = ["tactical","positional","strategic"].every(l => typeof parsed[l]?.score === "number");
       if (!valid) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("Invalid structure"); }
 
       const tokIn = result.usage?.input_tokens || "?";
       const tokOut = result.usage?.output_tokens || "?";
-      return { parsed, elapsed, tokIn, tokOut, mode };
+      const cacheRead = result.usage?.cache_read_input_tokens || 0;
+      const cacheWrite = result.usage?.cache_creation_input_tokens || 0;
+      return { parsed, elapsed, tokIn, tokOut, cacheRead, cacheWrite, mode };
     } catch (e) {
       if (attempt === MAX_RETRIES) throw e;
       console.log(`    ⚠ ${e.message.slice(0, 80)}. Retry ${attempt+1}...`);
@@ -1002,17 +1142,29 @@ async function scoreHolding(holding, useWebSearch) {
 
   console.log(`  [DET] tac=${detScores.tactical.score} pos=${detScores.positional.score} str=${detScores.strategic.score} comp=${detScores.composite.score}`);
 
-  const prompt = useWebSearch ? buildSearchPrompt(holding) : buildPrompt(holding, detScores);
+  const promptParts = useWebSearch ? buildSearchPrompt(holding) : buildPrompt(holding, detScores);
   console.log(`  [LLM] scoring [${useWebSearch ? "web search" : "qualitative"}]...`);
 
   try {
-    const { parsed: llm, elapsed, tokIn, tokOut } = await fetchLLMScore(holding, prompt, useWebSearch);
-    console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok)`);
+    const { parsed: llm, elapsed, tokIn, tokOut, cacheRead, cacheWrite } = await fetchLLMScore(holding, promptParts, useWebSearch);
+    console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok, cache r${cacheRead}/w${cacheWrite})`);
 
     // V3: pass archetype so blendScores activates per-archetype overrides (LIN gets 65/60/40 vs default 70/50/30).
     // V7.4-V7.6: MSFT/LHX/TMO/NOW use defaults (no per-archetype override) — strategic 30/70 lean-LLM matches qualitative density.
     // Use detScores.weights so LIN's regime-conditional composite weights win over upstream holding.weights.
     const blended = blendScores(detScores, llm, detScores.weights || holding.weights, holding.archetype);
+
+    // v8.0: divergence telemetry — per-layer |det − llm| gap; >40 flagged for calibration analysis.
+    const DIVERGENCE_FLAG_THRESHOLD = 40;
+    const divergence = { tactical: 0, positional: 0, strategic: 0, flagged: [] };
+    for (const tf of ["tactical", "positional", "strategic"]) {
+      const gap = Math.abs((detScores[tf]?.score ?? 0) - (llm[tf]?.score ?? 0));
+      divergence[tf] = gap;
+      if (gap > DIVERGENCE_FLAG_THRESHOLD) divergence.flagged.push(tf);
+    }
+
+    // v8.0: hostile-review fields hoisted for downstream telemetry (logger wiring is a separate task).
+    const hr = (tf) => ({ bear_case: llm[tf]?.bear_case || "", bull_case: llm[tf]?.bull_case || "", falsifier: llm[tf]?.falsifier || "" });
 
     const price = {};
     if (md.price?.current) price.current = md.price.current;
@@ -1033,6 +1185,8 @@ async function scoreHolding(holding, useWebSearch) {
       regime_pmi: detScores.regimePmi,
       weights: detScores.weights,
       confidence,
+      divergence,
+      hostile_review: { tactical: hr("tactical"), positional: hr("positional"), strategic: hr("strategic") },
       key_metric: llm.key_metric || { name: "", value: "" },
       risks: llm.risks || [],
       catalysts: llm.catalysts || [],
@@ -1041,6 +1195,10 @@ async function scoreHolding(holding, useWebSearch) {
 
     if (md.price?.current) result.price.current = md.price.current;
     if (md.price?.change_pct != null) result.price.change_pct = md.price.change_pct;
+
+    if (divergence.flagged.length > 0) {
+      console.log(`  ⚠ DIVERGENCE >${DIVERGENCE_FLAG_THRESHOLD}: ${divergence.flagged.map(tf => `${tf} (det ${detScores[tf].score} vs llm ${llm[tf]?.score})`).join(", ")}`);
+    }
 
     const regimeStr = detScores.regime ? ` [regime: ${detScores.regime}]` : "";
     console.log(`  ✓ ${holding.symbol}: DET=${detScores.composite.score} + LLM=${llm.composite?.score ?? 0} → BLENDED=${blended.composite.score} [confidence: ${confidence.level}]${regimeStr}`);
@@ -1153,11 +1311,11 @@ ${accuracySection}
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v7.6");
+  console.log("Portfolio Strategy Signal Generator v8.0");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
-  console.log(`Scoring: 50% deterministic + 50% LLM (archetype-aware)\n`);
+  console.log(`Scoring: 50% deterministic + 50% LLM (archetype-aware, ${MODEL_ID})\n`);
 
   const meta = MARKET_DATA._meta || {};
   const needsSearch = new Set(meta.needsWebSearch || []);
