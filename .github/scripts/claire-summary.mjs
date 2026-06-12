@@ -6,6 +6,30 @@
 // Voice: conversational but grounded, descriptive not prescriptive, assumes
 // intelligence but zero market vocabulary. One sentence each. No jargon, no
 // numbers unless they genuinely aid understanding.
+//
+// v2.0 (June 2026): ENSEMBLE VOTING + VERIFICATION GATE.
+//   - Model claude-sonnet-4-20250514 → claude-opus-4-8.
+//   - Ensemble: N independent candidate sets (CLAIRE_ENSEMBLE_N, default 3),
+//     generated sequentially so calls 2..N read the cached prompt. Per ticker,
+//     the winning sentence is the consensus medoid — the candidate most similar
+//     (token Jaccard) to the other candidates — so a single hallucinated outlier
+//     gets outvoted instead of shipped.
+//   - Verification gate, run on every candidate before voting:
+//       HARD (disqualifies candidate): per-ticker identity violations (the
+//       documented AMKBY/LIN/GLNCY confusions), and direction contradictions —
+//       sentence says the stock moved one way while price_change_pct moved the
+//       other way beyond ±2pp (idiom-guarded: "wind down" etc. don't trip it).
+//       SOFT (selection penalty): jargon blacklist from the prompt rules,
+//       prescriptive phrasing ("you should buy"), and numeric claims that don't
+//       match price_change_pct within 2pp — numbers are the verbatim "quotes" of
+//       this layer and must match the data or stay out.
+//     All candidates hard-fail → "No update today." + console warning (never
+//     ship an unverified sentence to Claire's tab).
+//   - Prompt caching: cache_control on system + user blocks; identical across
+//     the N calls within a run, so candidates 2..N are nearly all cache reads.
+//   - One retry per candidate call; ensemble proceeds with whatever succeeded.
+//   - Output additive: per-ticker gate ("pass" | "soft" | "fallback"), top-level
+//     ensemble { samples_requested, samples_ok }. Existing fields unchanged.
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -16,6 +40,9 @@ const LOG_FILE     = process.env.LOG_FILE     || path.join(HISTORY_DIR, "daily-l
 const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.json");
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+
+const MODEL_ID = "claude-opus-4-8";
+const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
 
 const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
 
@@ -71,6 +98,7 @@ RULES:
 - Vary the sentence structure across the 12 holdings — don't start every line with "X is..."
 - If nothing interesting is happening, say that honestly. Boring is fine. "Microsoft is quiet — the AI infrastructure story keeps grinding along without any drama" is a good output.
 - Ground the sentence in what's actually driving the ticker (the business, the commodity, the macro factor) rather than the score itself. She cares about why, not the number.
+- Any number you state must come directly from the data rows provided — never from memory. If you can't point to it in the row, leave the number out.
 
 EXAMPLES of the voice:
 - "L3Harris is down a bit, but defense spending is on a steady tailwind, so nothing has really changed about the business."
@@ -137,42 +165,195 @@ function buildInputForClaude(dailyEntry) {
   return rows;
 }
 
+// ─── VERIFICATION GATE (v2.0) ─────────────────────────────────────────────────
+// Verifies each candidate sentence against the authoritative input row before it
+// is allowed to compete in the ensemble vote. Numbers and direction words are
+// this layer's verbatim "quotes" — they must match the data or the sentence
+// doesn't ship. HARD violations disqualify a candidate; SOFT violations only
+// penalize selection.
+
+// Per-ticker identity poison words (from CRITICAL DISAMBIGUATION). Hard.
+const HARD_BANNED_BY_TICKER = {
+  "AMKBY": [/\bbeer\b/i, /\bbrewer\w*\b/i, /\bbrewing\b/i, /\bambev\b/i, /\babev\b/i, /\bbeverage\w*\b/i],
+  "LIN":   [/\blinkedin\b/i],
+  "GLNCY": [/\bglencoe\b/i],
+};
+
+// Jargon blacklist (from prompt RULES). Soft.
+const JARGON_RES = [
+  /\bP\/E\b/i, /\bRSI\b/, /\byield spread\b/i, /\bforward multiple\b/i,
+  /\boversold\b/i, /\boverbought\b/i, /\bbasis points?\b/i, /\bbeta\b/i,
+  /\bcomposite score\b/i, /\bEBITDA\b/i,
+];
+
+// Prescriptive phrasing (descriptive-not-prescriptive rule). Soft.
+const PRESCRIPTIVE_RES = [/\byou should\b/i, /\bbuy more\b/i, /\btime to (?:buy|sell|trim)\b/i];
+
+// Direction word lists for contradiction checks. Idioms that contain direction
+// words but don't describe price movement are neutralized before scanning.
+const IDIOM_GUARDS = [/wind(?:ing|s)? down/gi, /slow(?:ing|s)? down/gi, /calm(?:ing|s)? down/gi, /cool(?:ing|s)? down/gi, /settl(?:e|es|ing) down/gi, /down the road/gi, /up to\b/gi, /sign(?:ing|s|ed)? up\b/gi, /hold(?:ing|s)? up\b/gi, /set(?:ting)? up\b/gi, /make(?:s)? up\b/gi, /up and running/gi];
+const DOWN_RE = /\b(?:down|dropp?ed|dropping|fell|falling|declined?|declining|slipp?ed|slipping|slid|sliding|pull(?:ed|ing)? back|sold off|sell-?off|tumbl(?:ed|ing))\b/i;
+const UP_RE   = /\b(?:up|climb(?:ed|ing|s)?|rose|rising|rall(?:ied|ying)|jump(?:ed|ing)?|gain(?:ed|ing|s)?|surg(?:ed|ing)|popp?ed)\b/i;
+const DIRECTION_TOLERANCE_PP = 2.0;   // contradiction only counts beyond ±2pp
+const NUMERIC_TOLERANCE_PP   = 2.0;   // % claims must land within 2pp of actual
+
+function verifySentence(symbol, sentence, row) {
+  const hard = [];
+  const soft = [];
+  if (typeof sentence !== "string" || !sentence.trim()) {
+    return { hard: ["empty"], soft: [] };
+  }
+
+  // Identity gate (hard)
+  for (const re of (HARD_BANNED_BY_TICKER[symbol] || [])) {
+    if (re.test(sentence)) hard.push(`identity:${re.source}`);
+  }
+
+  // Direction gate (hard, idiom-guarded, only when the move is unambiguous)
+  const chg = row?.price_change_pct;
+  if (typeof chg === "number") {
+    let scan = sentence;
+    for (const g of IDIOM_GUARDS) scan = scan.replace(g, " ");
+    if (chg >= DIRECTION_TOLERANCE_PP && DOWN_RE.test(scan) && !UP_RE.test(scan)) {
+      hard.push(`direction:says_down_actual_+${chg}`);
+    }
+    if (chg <= -DIRECTION_TOLERANCE_PP && UP_RE.test(scan) && !DOWN_RE.test(scan)) {
+      hard.push(`direction:says_up_actual_${chg}`);
+    }
+  }
+
+  // Numeric gate (soft): any % stated must match |price_change_pct| within 2pp.
+  const pctMatches = [...sentence.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map(m => parseFloat(m[1]));
+  for (const n of pctMatches) {
+    if (typeof chg === "number" && Math.abs(n - Math.abs(chg)) <= NUMERIC_TOLERANCE_PP) continue;
+    soft.push(`number:unverified_${n}%`);
+  }
+
+  // Jargon gate (soft)
+  for (const re of JARGON_RES) if (re.test(sentence)) soft.push(`jargon:${re.source}`);
+
+  // Prescriptive gate (soft)
+  for (const re of PRESCRIPTIVE_RES) if (re.test(sentence)) soft.push(`prescriptive:${re.source}`);
+
+  return { hard, soft };
+}
+
+// ─── ENSEMBLE VOTE (v2.0) ─────────────────────────────────────────────────────
+// Per ticker: gate every candidate; among hard-passing candidates pick the
+// consensus medoid (highest summed token-Jaccard similarity to the other
+// candidates), with soft violations as a penalty. A lone hallucination diverges
+// from the consensus and loses; if everything hard-fails, ship the fallback.
+
+function tokenize(s) {
+  return new Set(String(s).toLowerCase().replace(/[^a-z0-9\s%]/g, " ").split(/\s+/).filter(Boolean));
+}
+
+function jaccard(aSet, bSet) {
+  if (aSet.size === 0 && bSet.size === 0) return 0;
+  let inter = 0;
+  for (const t of aSet) if (bSet.has(t)) inter++;
+  return inter / (aSet.size + bSet.size - inter);
+}
+
+const SOFT_PENALTY = 10;
+
+function voteOnSentences(symbol, candidates, row) {
+  const gated = candidates.map((sentence, i) => ({ i, sentence, ...verifySentence(symbol, sentence, row) }));
+  const eligible = gated.filter(c => c.hard.length === 0);
+  const rejected = gated.filter(c => c.hard.length > 0);
+
+  if (eligible.length === 0) {
+    return { sentence: null, gate: "fallback", rejected, picked: null };
+  }
+
+  const tokens = eligible.map(c => tokenize(c.sentence));
+  let best = null;
+  for (let k = 0; k < eligible.length; k++) {
+    let consensus = 0;
+    for (let j = 0; j < eligible.length; j++) {
+      if (j !== k) consensus += jaccard(tokens[k], tokens[j]);
+    }
+    const score = consensus - SOFT_PENALTY * eligible[k].soft.length;
+    if (
+      best === null ||
+      score > best.score ||
+      (score === best.score && eligible[k].soft.length < best.cand.soft.length)
+    ) {
+      best = { score, cand: eligible[k] };
+    }
+  }
+
+  return {
+    sentence: best.cand.sentence.trim(),
+    gate: best.cand.soft.length > 0 ? "soft" : "pass",
+    rejected,
+    picked: best.cand.i,
+  };
+}
+
 // ─── CLAUDE CALL ──────────────────────────────────────────────────────────────
-async function callClaude(inputRows) {
+// One call = one full candidate set (all 12 tickers). System + user blocks carry
+// cache_control and are identical across the run, so candidates 2..N are nearly
+// all cache reads. One retry per candidate; ensemble proceeds with successes.
+async function callClaudeOnce(userMessage) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type":      "application/json",
+          "x-api-key":         ANTHROPIC_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: MODEL_ID,
+          max_tokens: 2000,
+          system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          messages: [{ role: "user", content: [{ type: "text", text: userMessage, cache_control: { type: "ephemeral" } }] }],
+        }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Anthropic API ${resp.status}: ${(await resp.text()).slice(0, 150)}`);
+      }
+
+      const data = await resp.json();
+      const text = (data.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n")
+        .trim();
+
+      const cleaned = text.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("Could not extract JSON from Claude response: " + text.slice(0, 200));
+      const parsed = JSON.parse(match[0]);
+      const cacheRead = data.usage?.cache_read_input_tokens || 0;
+      return { parsed, cacheRead };
+    } catch (e) {
+      if (attempt === 2) throw e;
+      console.log(`  [claire-summary] candidate call failed (${e.message.slice(0, 80)}) — retrying...`);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+}
+
+async function gatherCandidates(inputRows) {
   const userMessage = `Here are today's analyst summaries for Claire's portfolio. Each row includes the ticker, the exact company name, and what the business actually does — use those as the source of truth for identifying each holding. Translate each into one plain-English sentence per the rules.
 
 ${JSON.stringify(inputRows, null, 2)}`;
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type":      "application/json",
-      "x-api-key":         ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Anthropic API ${resp.status}: ${await resp.text()}`);
+  const candidateSets = [];
+  for (let n = 1; n <= ENSEMBLE_N; n++) {
+    try {
+      const { parsed, cacheRead } = await callClaudeOnce(userMessage);
+      candidateSets.push(parsed);
+      console.log(`  [claire-summary] candidate set ${n}/${ENSEMBLE_N} ok (cache r${cacheRead})`);
+    } catch (e) {
+      console.log(`  [claire-summary] candidate set ${n}/${ENSEMBLE_N} FAILED: ${e.message.slice(0, 100)}`);
+    }
   }
-
-  const data = await resp.json();
-  const text = (data.content || [])
-    .filter(b => b.type === "text")
-    .map(b => b.text)
-    .join("\n")
-    .trim();
-
-  const cleaned = text.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("Could not extract JSON from Claude response: " + text.slice(0, 200));
-  return JSON.parse(match[0]);
+  return candidateSets;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -191,14 +372,13 @@ async function main() {
   console.log(`  latest entry: ${daily.date} with ${daily.holdings?.length ?? 0} holdings`);
 
   const input = buildInputForClaude(daily);
+  const rowsBySymbol = {};
+  for (const r of input) rowsBySymbol[r.symbol] = r;
 
-  console.log("[claire-summary] calling Claude for batched translation...");
-  let translations = {};
-  try {
-    translations = await callClaude(input);
-  } catch (e) {
-    console.error("[claire-summary] Claude call failed:", e.message);
-    // Fall through — "No update today" per ticker below
+  console.log(`[claire-summary] gathering ${ENSEMBLE_N} candidate set(s) [${MODEL_ID}]...`);
+  const candidateSets = await gatherCandidates(input);
+  if (candidateSets.length === 0) {
+    console.error("[claire-summary] all candidate calls failed — falling back per ticker");
   }
 
   // Build final output
@@ -208,12 +388,34 @@ async function main() {
   const summaries = {};
   for (const symbol of PORTFOLIO) {
     const h = byHolding[symbol];
-    const sentence = translations[symbol];
+    const candidates = candidateSets
+      .map(set => set?.[symbol])
+      .filter(s => typeof s === "string" && s.trim());
+
+    let sentence = "No update today.";
+    let gate = "fallback";
+    if (candidates.length > 0) {
+      const vote = voteOnSentences(symbol, candidates, rowsBySymbol[symbol]);
+      for (const rej of vote.rejected) {
+        console.log(`  ⚠ ${symbol}: candidate ${rej.i + 1} rejected [${rej.hard.join("; ")}] — "${String(rej.sentence).slice(0, 70)}..."`);
+      }
+      if (vote.sentence) {
+        sentence = vote.sentence;
+        gate = vote.gate;
+        if (gate === "soft") {
+          console.log(`  ~ ${symbol}: winner carries soft flags (picked candidate ${vote.picked + 1})`);
+        }
+      } else {
+        console.log(`  ⚠ ${symbol}: ALL candidates hard-failed — shipping fallback`);
+      }
+    }
+
     summaries[symbol] = {
-      sentence: (typeof sentence === "string" && sentence.trim()) ? sentence.trim() : "No update today.",
+      sentence,
       recommendation:  h?.composite?.recommendation ?? null,
       composite_score: h?.composite?.blended ?? null,
       signal_date:     daily.date ?? null,
+      gate,            // v2.0: "pass" | "soft" | "fallback"
     };
   }
 
@@ -221,6 +423,7 @@ async function main() {
     generated_at: new Date().toISOString(),
     signal_date:  daily.date,
     portfolio:    PORTFOLIO,
+    ensemble:     { samples_requested: ENSEMBLE_N, samples_ok: candidateSets.length },  // v2.0
     summaries,
   };
 
@@ -229,7 +432,7 @@ async function main() {
 
   console.log(`[claire-summary] wrote ${OUTPUT_FILE}`);
   for (const sym of PORTFOLIO) {
-    console.log(`  ${sym.padEnd(8)} ${summaries[sym].sentence}`);
+    console.log(`  ${sym.padEnd(8)} [${summaries[sym].gate.padEnd(8)}] ${summaries[sym].sentence}`);
   }
 }
 
