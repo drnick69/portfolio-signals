@@ -24,6 +24,16 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 
+// ── V8.0 (June 2026): telemetry wiring for generate-signals v8.0/v8.0.1 +
+// score-engine v8.1 — persists the new self-improvement telemetry:
+//   • divergence (per-layer |det − llm| gap + flagged list)  → CSV + JSONL
+//   • regime_driver / regime_basis (V8.1 regime gates)       → CSV + JSONL
+//   • hostile_review (bear/bull/falsifier per layer)         → JSONL only
+//     (long prose — CSV-hostile; daily-log.jsonl is the authoritative
+//     full-fidelity record and feeds attribute-signals → calibration)
+// New CSV columns appended at the end per established back-compat convention.
+// All fields additive; rows for pre-v8 runs simply leave them blank/null.
+
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
 const JSONL_PATH = `${HISTORY_DIR}/daily-log.jsonl`;
@@ -39,6 +49,9 @@ function resolveRegime(s) {
     regime: s.regime ?? s.composite?.regime ?? null,
     regime_pmi: s.regime_pmi ?? s.composite?.regime_pmi ?? null,
     weights: s.weights ?? s.composite?.weights ?? null,
+    // V8.0: V8.1 regime telemetry (MSFT/NOW/LHX/TMO drivers; null pre-v8)
+    regime_driver: s.regime_driver ?? s.composite?.regime_driver ?? null,
+    regime_basis: s.regime_basis ?? s.composite?.regime_basis ?? null,
   };
 }
 
@@ -159,6 +172,12 @@ const CSV_HEADERS = [
   "subscription_revenue_growth_pct",
   "deals_1m_plus_yoy_pct",
   "federal_growth_pct",
+
+  // ─── V8.0 telemetry additions (appended for CSV back-compat) ────────────
+  // Divergence: per-layer |det − llm| gap; flagged = layers with gap >40
+  "div_tactical", "div_positional", "div_strategic", "div_flagged",
+  // V8.1 regime gate telemetry (numeric driver + basis string)
+  "regime_driver", "regime_basis",
 ].join(",");
 
 const csvExists = existsSync(CSV_PATH);
@@ -329,6 +348,16 @@ for (const s of normalized) {
     md.fundamentals?.subscription_revenue_growth_pct ?? "",
     md.fundamentals?.deals_1m_plus_yoy_pct ?? "",
     md.fundamentals?.federal_growth_pct ?? "",
+
+    // ─── V8.0 telemetry additions ────────────────────────────────────────
+    s.divergence?.tactical ?? "",
+    s.divergence?.positional ?? "",
+    s.divergence?.strategic ?? "",
+    esc((s.divergence?.flagged || []).join(";")),
+    (() => { const r = resolveRegime(s); return [
+      r.regime_driver ?? "",
+      esc(r.regime_basis ?? ""),
+    ].join(","); })(),
   ].join(",");
 
   csvContent += row + "\n";
@@ -480,12 +509,19 @@ const dailyEntry = {
         recommendation: s.composite?.recommendation ?? null,
       },
 
-      // V3: regime context (LIN-only, null elsewhere — propagated from score-engine)
+      // V3: regime context (propagated from score-engine; V8.1 extends beyond LIN)
       ...(() => { const r = resolveRegime(s); return {
-        regime:     r.regime,
-        regime_pmi: r.regime_pmi,
-        weights:    r.weights,
+        regime:        r.regime,
+        regime_pmi:    r.regime_pmi,
+        weights:       r.weights,
+        // V8.0: V8.1 regime gate telemetry
+        regime_driver: r.regime_driver,
+        regime_basis:  r.regime_basis,
       }; })(),
+
+      // V8.0: self-improvement telemetry (full fidelity — calibration v2 inputs)
+      divergence:     s.divergence ?? null,
+      hostile_review: s.hostile_review ?? null,
 
       z_composite: s.z?.composite ?? null,
       role:
