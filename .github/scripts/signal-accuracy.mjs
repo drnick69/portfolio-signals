@@ -1,5 +1,20 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.2 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.3 — Forward-looking signal accuracy tracker.
+//
+// v1.3 (June 2026) — CSV PARSE HARDENING:
+//   The naive split(",") parser accepted rows WIDER than the header and read
+//   them by header position — so when signals.csv accumulated appended-column
+//   schemas under the original 30-column header, every post-change row was
+//   silently misparsed (scores read from valuation columns, regime/cohort
+//   snapshot propagation dead). v1.3:
+//   • Quote-aware line splitting (handles esc()-quoted fields with commas).
+//   • EXACT width contract: rows whose field count ≠ header width are
+//     SKIPPED, never misparsed — counted per width and reported loudly with
+//     instructions to run rebuild-signals-csv.mjs.
+//   • accuracy.json gains a top-level data_quality block so corruption is
+//     visible downstream instead of silent.
+//   Run .github/scripts/rebuild-signals-csv.mjs once (Rebuild signals.csv
+//   workflow) to unify the historical file; v1.3 then parses full history.
 //
 // Reads the signal history CSV, computes N-day forward returns for each
 // past signal, and generates accuracy statistics per holding, per layer,
@@ -77,6 +92,35 @@ function normalizeRole(v) {
 }
 
 // ─── PARSE CSV ───────────────────────────────────────────────────────────────
+// v1.3: quote-aware CSV line splitter — esc() in log-signals quotes fields
+// containing commas; naive split(",") miscounts those rows.
+function splitCSVLine(line) {
+  const out = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// v1.3: parse stats surfaced into accuracy.json (data_quality) + console.
+const csvDataQuality = {
+  header_width: null,
+  rows_total: 0,
+  rows_parsed: 0,
+  rows_skipped: 0,
+  skipped_by_width: {},   // { "30": n, "87": n, ... }
+};
+
 function parseCSV(path) {
   if (!existsSync(path)) return [];
 
@@ -84,22 +128,45 @@ function parseCSV(path) {
   const lines = raw.split("\n");
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",");
+  const headers = splitCSVLine(lines[0]);
+  csvDataQuality.header_width = headers.length;
   const rows = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(",");
-    if (vals.length < headers.length) continue;
+    const vals = splitCSVLine(lines[i]);
+    csvDataQuality.rows_total++;
+
+    // v1.3 EXACT width contract: a row that doesn't match the header width
+    // cannot be safely read by position — skip it rather than misparse it.
+    if (vals.length !== headers.length) {
+      csvDataQuality.rows_skipped++;
+      const w = String(vals.length);
+      csvDataQuality.skipped_by_width[w] = (csvDataQuality.skipped_by_width[w] || 0) + 1;
+      continue;
+    }
 
     const row = {};
     for (let j = 0; j < headers.length; j++) {
       const key = headers[j].trim();
-      let val = (vals[j] || "").trim().replace(/^"|"$/g, "");
+      let val = (vals[j] || "").trim();
       // Try to parse numbers
       if (val !== "" && !isNaN(val)) val = parseFloat(val);
       row[key] = val;
     }
     rows.push(row);
+    csvDataQuality.rows_parsed++;
+  }
+
+  if (csvDataQuality.rows_skipped > 0) {
+    console.warn("");
+    console.warn("⚠".repeat(34));
+    console.warn(`⚠ CSV SCHEMA MISMATCH: skipped ${csvDataQuality.rows_skipped}/${csvDataQuality.rows_total} rows whose width ≠ header (${headers.length} cols).`);
+    console.warn(`⚠ Skipped widths: ${Object.entries(csvDataQuality.skipped_by_width).map(([w, n]) => `${w}-field × ${n}`).join(", ")}`);
+    console.warn("⚠ These rows were NOT misparsed — they were excluded from accuracy stats.");
+    console.warn("⚠ FIX: run the 'Rebuild signals.csv' workflow (rebuild-signals-csv.mjs) once");
+    console.warn("⚠ to unify the historical file under the current header.");
+    console.warn("⚠".repeat(34));
+    console.warn("");
   }
 
   return rows;
@@ -510,6 +577,7 @@ const reliability = layerReliability(portfolio);
 // ─── OUTPUT ──────────────────────────────────────────────────────────────────
 const accuracy = {
   generated: new Date().toISOString(),
+  data_quality: csvDataQuality,   // v1.3: parse integrity — nonzero rows_skipped means run the rebuild
   totalSignalDays: tradingDates.length,
   dateRange: {
     first: tradingDates[0],
