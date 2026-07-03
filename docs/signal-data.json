@@ -1,52 +1,174 @@
 {
   "normalized": [
     {
-      "symbol": "ASML",
+      "symbol": "LHX",
       "price": {
-        "current": 1848.54,
-        "change_pct": 0.3,
-        "week52_high": 1741,
-        "week52_low": 587.8,
-        "week52_position_pct": 109.3
+        "current": 302.11,
+        "change_pct": 3.38,
+        "week52_high": 379.23,
+        "week52_low": 249.11,
+        "week52_position_pct": 40.7
       },
       "tactical": {
-        "score": 0,
+        "score": -11,
         "signal": "NEUTRAL",
-        "rationale": "RSI 54.43 is dead-center neutral, and price is essentially flat today (+0.3%) after a modest -2.22% pullback yesterday. No tactical edge — ASML is in a normal trending range with no oversold/overbought extreme and no non-fundamental single-day dislocation to fade or buy.",
-        "det_score": 0,
-        "llm_score": 0,
+        "rationale": "LHX is -20.3% off its 52w high (deep drawdown = high-conviction setup for a defense prime compounder), RSI 50.73 sits in the normal trending band (no overbought/oversold edge), and today's +3.38% pop suggests buyers stepping in near lows. The engine's -10 is well-calibrated; I nudge slightly more negative because a 3%+ single-day rally off a deep drawdown in a low-beta prime is a meaningful reversal tell, not noise. But I keep it modest given tactical BUY signals have only hit 60% on tiny n=5.",
+        "det_score": -10,
+        "llm_score": -12,
         "det_notes": [
-          "RSI 54.43: ASML normal trending range"
+          "RSI 50.73: LHX normal trending range",
+          "LHX drawdown -20.3%: deep — high-conviction setup",
+          "LHX daily +3.38%: notable rally"
         ]
       },
       "positional": {
-        "score": 2,
+        "score": -55,
+        "signal": "BUY",
+        "rationale": "Engine reads -62 (STRONG BUY) driven almost entirely by mechanical drawdown/MA position: 40.7% of 52w range, below both MAs. I disagree with the full conviction. The engine explicitly instructs NOT to penalize drawdown for a compounder, but the op-margin print of 9.61% is a genuine red flag — that is well below the 14-16% norm for LHX and suggests a real earnings-quality issue (charges, program cost growth, or Aerojet integration drag), not just macro noise. My historical positional BUY hit rate here is a poor 25% (n=12, avg -2.1% fwd 20d), which argues for pulling toward zero. I still land firmly on the buy side (-48) because backlog/DoD budget tailwinds and a durable geopolitical regime support the compounder thesis, but I refuse to co-sign a -62 when margins are eroding and I lack confirmation that B/B is re-accelerating.",
+        "det_score": -62,
+        "llm_score": -48,
+        "det_notes": [
+          "LHX MA: below_both_death (-40)",
+          "LHX 52w: 40.7% — real drawdown, compounder on sale"
+        ]
+      },
+      "strategic": {
+        "score": 17,
         "signal": "NEUTRAL",
-        "rationale": "Above both MAs in golden-cross configuration, 12% above SMA50, at 52w highs — all NORMAL and healthy for a secular compounder, per guidance not to penalize. Backlog visibility of 2-3 years and High-NA ramp support the up-and-to-the-right structure. Slight positive to acknowledge extension without penalizing the archetype.",
-        "det_score": 2,
-        "llm_score": 2,
+        "rationale": "Engine reads +23 (trim) on a +26.3% TRAILING P/E premium vs cohort, 1.66% yield, and 9.61% op margin under pressure. I moderate toward +14. The trailing +26.3% premium is distorted — LHX's trailing EPS is depressed by Aerojet integration costs and charges, so trailing P/E overstates richness. On FORWARD P/E, LHX typically sits at an 18-22x cohort with a historical 5-15% DISCOUNT; the smallest prime shouldn't durably trade at a premium, and forward multiples likely compress the apparent premium substantially. That said, I do not flip to buy: the op-margin deterioration is a real strategic concern for a quality-compounder thesis, and until margins recover the re-rating case is on hold. Net small trim.",
+        "det_score": 23,
+        "llm_score": 14,
+        "det_notes": [
+          "LHX P/E +26.3% vs cohort: premium — trim bias (rare)",
+          "LHX yield 1.6552454729036314%: slightly stretched",
+          "LHX op margin 9.61%: under pressure"
+        ]
+      },
+      "composite": {
+        "score": -17,
+        "recommendation": "HOLD",
+        "summary": "Quant blends to roughly -20 (positional-heavy buy); my judgment agrees LHX is on the buy side of the book as the cheapest Big-5 prime in a great-power-competition regime at a 20% drawdown, but I temper the mechanical -62 positional call because the 9.61% op margin is a genuine deterioration, not pure macro noise, and my own dip-buy hit rate here is poor (25%).",
+        "det_score": -18,
+        "llm_score": -20,
+        "weights": {
+          "t": 0.2,
+          "p": 0.4,
+          "s": 0.4
+        },
+        "regime": "neutral"
+      },
+      "regime": "neutral",
+      "regime_pmi": null,
+      "regime_driver": null,
+      "regime_basis": "ita_vs_spy_30d_pp",
+      "weights": {
+        "t": 0.2,
+        "p": 0.4,
+        "s": 0.4
+      },
+      "confidence": {
+        "level": "high",
+        "score": 100,
+        "missing": []
+      },
+      "divergence": {
+        "tactical": 2,
+        "positional": 14,
+        "strategic": 9,
+        "flagged": []
+      },
+      "hostile_review": {
+        "tactical": {
+          "bear_case": "Today's +3.38% could be a one-day bounce inside a persistent downtrend — LHX is below both MAs (death cross) and the op-margin compression (9.61% reported) may be a genuine deterioration that keeps sellers active on strength. RSI 50 gives no oversold support, so no mechanical bounce cushion.",
+          "bull_case": "A 20% drawdown in the smallest Big-5 prime during a great-power-competition regime is a classic mean-reversion entry; the sharp +3.38% move on likely elevated volume signals capitulation exhaustion and rotation back into defense.",
+          "falsifier": "A close back below the recent swing low (~$249 area) on expanding volume, erasing today's rally, would flip this to a positive (trim/avoid) tactical read."
+        },
+        "positional": {
+          "bear_case": "The death cross + 9.61% op margin is not a 'compounder on sale' — it may be the market correctly pricing structural margin compression, program cost overruns, or supply-chain (energetics/titanium) drag that persists for multiple quarters. My own positional BUY track record on LHX is 25%, meaning the mechanical dip-buy signal has been a value trap more often than not.",
+          "bull_case": "LHX at 40.7% of its 52w range with a $300+ price and intact multi-year backlog is a rare entry for the cheapest DoD prime; if B/B is >1.0 and DoD budget moves to real expansion (NDAA/supplementals), the stock re-rates toward cohort and the drawdown fully reverses.",
+          "falsifier": "Confirmation that book-to-bill has fallen below 0.95 with backlog YoY turning negative, or a second consecutive quarter of sub-11% op margin, would flip this to neutral/positive."
+        },
+        "strategic": {
+          "bear_case": "If the premium is real on a forward basis too (not just trailing distortion) and margins stay compressed at ~10%, LHX is genuinely expensive for a sub-scale prime and mean-reverts DOWN toward NOC/GD multiples — a multi-quarter de-rating.",
+          "bull_case": "The trailing premium is an artifact of one-off Aerojet/charge-depressed earnings; on forward EPS LHX reverts to its structural cohort discount, and with DoD budget expansion + great-power-competition regime the strategic backdrop is a multi-year tailwind that supports a re-rate higher, not a trim.",
+          "falsifier": "Forward P/E confirmed below cohort by >5% (structural discount intact) together with op margin recovering above 13% would flip this to a negative (buy) strategic score."
+        }
+      },
+      "key_metric": {
+        "name": "Op margin (reported)",
+        "value": "9.61% — well below 14-16% norm; the swing factor that gates the compounder re-rate thesis"
+      },
+      "risks": [
+        "Op margin compression to ~9.6% signals possible program cost growth, charges, or Aerojet integration drag that could persist multiple quarters",
+        "Continuing-resolution / FY27 NDAA budget uncertainty could delay program funding and book-to-bill acceleration",
+        "Supply-chain constraints (solid rocket motor propellant/energetics, titanium, semis) gating margin recovery",
+        "Death cross (below both 50/200 MAs) shows negative trend that could persist as a value trap"
+      ],
+      "catalysts": [
+        "Next quarterly earnings: book-to-bill and backlog YoY disclosure plus op-margin trajectory (key re-rate trigger)",
+        "FY27 NDAA progress and any Ukraine/Israel/Taiwan supplemental funding packages",
+        "Major program awards (Golden Dome/missile defense, NGAD mission systems, ISR, Aerojet SRM propellant contracts)",
+        "Aerojet Rocketdyne integration margin contribution updates"
+      ],
+      "_scoring": {
+        "deterministic": -18,
+        "llm": -20,
+        "blend": "50/50"
+      },
+      "z": {
+        "tactical": -0.6840084615430662,
+        "positional": -1.4498954185286417,
+        "strategic": 1.1410714510320503,
+        "composite": -0.8949569080679685
+      }
+    },
+    {
+      "symbol": "ASML",
+      "price": {
+        "current": 1769.36,
+        "change_pct": -4,
+        "week52_high": 1741,
+        "week52_low": 587.8,
+        "week52_position_pct": 102.5
+      },
+      "tactical": {
+        "score": -6,
+        "signal": "NEUTRAL",
+        "rationale": "ASML dropped -4% today to $1769 while RSI sits at a neutral 49.7. The stock is still above both MAs and near 52w highs, so this isn't a breakdown — it's a single-day pullback of the sort that, for a secular monopoly, more often marks a shallow dip than the start of a trend. A -4% move on a name with 2-3yr backlog visibility and no obvious fundamental trigger leans mildly buy-the-dip. I nudge slightly negative of the quant's -7 toward a modest buy tilt but keep it small given no confirming oversold read.",
+        "det_score": -7,
+        "llm_score": -5,
+        "det_notes": [
+          "RSI 49.73: ASML normal trending range",
+          "ASML daily -4%: notable drop"
+        ]
+      },
+      "positional": {
+        "score": 0,
+        "signal": "NEUTRAL",
+        "rationale": "Positionally ASML is in its default healthy compounder state: above both the 50 and 200 SMA (golden), at ~102% of its 52w range. Per the archetype guidance, 52w proximity and golden-cross default are NOT to be penalized for a secular growth monopoly. There is no positional edge in either direction — quant's 0 is correct.",
+        "det_score": 0,
+        "llm_score": 0,
         "det_notes": [
           "ASML MA: above_both_golden (normal compounder trend)",
-          "ASML 52w: 109.3% — at highs, normal for compounder",
-          "ASML 12.1% above SMA50 — trending up"
+          "ASML 52w: 102.5% — at highs, normal for compounder"
         ]
       },
       "strategic": {
         "score": 9,
         "signal": "NEUTRAL",
-        "rationale": "Trailing P/E 64x is genuinely elevated, but guidance correctly flags trailing P/E is misleading for ASML mid-cycle — forward P/E (the #1 metric) is far lower (~30-35x) as 2026-2027 earnings recover off the WFE trough. TSMC capex is accelerating on AI/N2, and China normalization plus High-NA adoption underpin the secular story. I trim the quant's +12 slightly: the 64x trailing number overstates the valuation concern because it reflects a depressed earnings base, not peak hype. Still a mild trim given the stock has doubled off lows and forward multiple isn't cheap.",
+        "rationale": "Trailing P/E of 61x flags rich, but the archetype guidance is explicit that trailing P/E 30-42x is normal and only forward P/E >45x or a demand collapse warrants a trim. The key uncertainty is forward multiple: with High-NA EUV ($350M+/tool) ramping and the AI-driven WFE upcycle intact, forward P/E is meaningfully below trailing (likely ~30-35x), so the '61x = peak hype' read overstates the concern. I keep a small positive tilt to respect valuation richness and the 39-day stale HOLD streak, but well below the quant's 12 because the secular monopoly + backlog visibility structurally justifies premium pricing.",
         "det_score": 12,
         "llm_score": 8,
         "det_notes": [
-          "ASML P/E 64.4x: extreme — peak hype"
+          "ASML P/E 61.4x: extreme — peak hype"
         ]
       },
       "composite": {
-        "score": 6,
+        "score": 4,
         "recommendation": "HOLD",
-        "summary": "ASML remains a best-in-class secular EUV monopoly at all-time highs; quant flags 64x trailing P/E as extreme but that overstates the case since forward earnings are recovering off the WFE trough. Net a mild HOLD/slight-trim — valuation is full but the archetype and AI capex tailwind justify staying invested.",
-        "det_score": 7,
-        "llm_score": 6,
+        "summary": "ASML remains a healthy secular EUV monopoly in a golden uptrend; the -4% dip is non-fundamental and the 61x trailing P/E overstates richness versus a far lower forward multiple, leaving only a slight trim tilt. Quant composite ~6, my judgment ~4 — both effectively NEUTRAL/HOLD.",
+        "det_score": 6,
+        "llm_score": 4,
         "weights": {
           "t": 0.15,
           "p": 0.3,
@@ -69,107 +191,108 @@
         "missing": []
       },
       "divergence": {
-        "tactical": 0,
+        "tactical": 2,
         "positional": 0,
         "strategic": 4,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "Semis have run hard into H2 2026; a broad tech/AI momentum unwind could hit ASML disproportionately given its 12% premium to SMA50 and stretched sentiment.",
-          "bull_case": "A clean dip after strong TSMC/AI capex commentary could see fast-money re-accumulation of the sole EUV monopoly on any weakness.",
-          "falsifier": "A >5% single-day drop on non-fundamental headlines (e.g. new China export rule) would flip this to a tactical buy; a break below SMA50 on capex-cut news would flip it to a trim."
+          "bear_case": "The -4% could be the leading edge of a WFE/China-export-control repricing; if TSMC or Samsung signal capex restraint on upcoming calls, a 49 RSI has plenty of room to fall further and the dip extends.",
+          "bull_case": "Sole EUV supplier down 4% on a market-wide/rotation day with backlog intact is exactly the low-conviction dip the archetype says to fade upward; buybacks (~3-5%/yr) provide a structural bid.",
+          "falsifier": "A confirmed negative fundamental catalyst — new China export restriction on EUV/High-NA or a major foundry cutting 2026 capex guidance — would flip this from buy-dip to sell-into-weakness."
         },
         "positional": {
-          "bear_case": "12% above SMA50 and at all-time highs leaves the position vulnerable to mean-reversion if bookings guidance disappoints at the next print; extended positioning offers poor near-term risk/reward.",
-          "bull_case": "Book-to-bill above 1.0 with AI-driven EUV demand and 3-5% annual buybacks means the trend can persist for quarters; being at highs is the default winning state for this name.",
-          "falsifier": "Book-to-bill dropping below 1.0 or a decisive break below SMA50 would flip this positive (trim); accelerating bookings + a fresh breakout would push it more negative."
+          "bear_case": "At 102.5% of the 52w range after a huge run off the $588 low, the position is extended and mean-reversion risk is elevated if momentum stalls — a stall at highs often precedes a multi-week consolidation.",
+          "bull_case": "Above-both-MA golden structure with a rising 50-day ($1647) well above the 200-day ($1315) is the strongest possible trend backdrop; compounders at highs tend to keep making highs.",
+          "falsifier": "A close back below the 50-day SMA (~$1647) on volume would break the positional uptrend and justify a positive (trim) positional score."
         },
         "strategic": {
-          "bear_case": "If forward P/E is actually >45x because 2027 EUV/High-NA revenue disappoints, or if Intel foundry stumbles and Samsung delays, the multiple is unsupported and the stock corrects meaningfully from all-time highs.",
-          "bull_case": "As the sole EUV supplier riding the AI capex supercycle, forward earnings could inflect sharply higher, compressing the forward multiple to the low-20s and making today's price look cheap in hindsight — the classic monopoly compounder setup.",
-          "falsifier": "TSMC, Samsung AND Intel all guiding capex cuts, or China revenue collapsing on new export controls, would push this decisively to a strong trim; a >15% drawdown with forward P/E <25x and rising backlog would flip it to a buy."
+          "bear_case": "If AI capex digestion hits and foundry customers push out High-NA orders, a 61x trailing / ~33x forward stock has significant multiple-compression downside; China (a large slice of revenue) faces tightening export controls that could structurally cut TAM.",
+          "bull_case": "ASML is the irreplaceable chokepoint of the entire AI/advanced-node buildout with 2-3yr backlog and ~3-5% annual buybacks; if AI demand keeps foundries racing on leading edge, the forward multiple is justified and earnings compound up-and-to-the-right for years.",
+          "falsifier": "Book-to-bill falling below 1.0 alongside simultaneous capex cuts from TSMC + Samsung + Intel would flip this to a firm trim; conversely a >15% drawdown or forward P/E <25x would flip it to a strong buy."
         }
       },
       "key_metric": {
-        "name": "Forward P/E (est. off recovering 2026-27 EPS)",
-        "value": "~30-35x vs 64x trailing — trailing overstates valuation as earnings inflect off WFE trough"
+        "name": "Forward P/E (est. vs 61x trailing)",
+        "value": "~30-35x forward — well below the 45x trim threshold, so trailing 61x reads richer than reality given High-NA ramp"
       },
       "risks": [
-        "China export controls tightening further, cutting a meaningful revenue slice (China was ~40-50% of shipments during backlog pull-forward)",
-        "High-NA EUV ramp slower than expected or customer pushouts (Intel foundry execution, Samsung delays) undermining the 2027 growth bridge",
-        "Full valuation at all-time highs leaves little margin for a bookings disappointment at the next quarterly print"
+        "China export-control tightening on EUV/High-NA could structurally cut a large revenue slice",
+        "AI/advanced-node capex digestion causing foundry order push-outs; book-to-bill slipping below 1.0",
+        "Rich trailing 61x multiple leaves the stock exposed to multiple compression on any growth wobble"
       ],
       "catalysts": [
-        "Q2/Q3 2026 earnings with updated book-to-bill and 2027 guidance — key read on High-NA and AI-driven EUV demand",
-        "TSMC and Intel/Samsung capex commentary confirming N2/AI-node buildout acceleration",
-        "High-NA EUV tool shipments and customer adoption milestones ($350M+/tool ASPs)"
+        "Q2 2026 earnings and bookings/book-to-bill update (order visibility for High-NA)",
+        "TSMC and Samsung upcoming capex commentary confirming or restraining leading-edge spend",
+        "High-NA EUV shipment/ramp milestones ($350M+/tool) contributing to revenue mix"
       ],
       "_scoring": {
-        "deterministic": 7,
-        "llm": 6,
+        "deterministic": 6,
+        "llm": 4,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.6546878304132213,
-        "positional": 0.6140774848434042,
-        "strategic": 0.7397982122070301,
-        "composite": 0.9571720247736315
+        "tactical": -0.13238873449220637,
+        "positional": 0.6541744500485429,
+        "strategic": 0.5775793764483217,
+        "composite": 0.9121676178385063
       }
     },
     {
       "symbol": "LIN",
       "price": {
-        "current": 540.03,
-        "change_pct": 1.21,
-        "week52_high": 538.95,
+        "current": 546.68,
+        "change_pct": 2.46,
+        "week52_high": 547.22,
         "week52_low": 387.78,
-        "week52_position_pct": 100.7
+        "week52_position_pct": 99.7
       },
       "tactical": {
-        "score": 4,
+        "score": 7,
         "signal": "NEUTRAL",
-        "rationale": "RSI 65.9 is within the normal 35-70 band for a low-vol quality compounder — LIN just made a fresh 52w high at $538.95 and closed above it. This is healthy momentum, not overbought exhaustion. VIX at 16.59 is benign; no growth-scare defensive bid to fade or ride. I agree closely with the quant's +5; nudging marginally lower because the 2.21% one-day pop yesterday is unusually large for LIN (daily moves are typically 0.5-1.5%), which slightly raises near-term mean-reversion odds but is not a real edge.",
-        "det_score": 5,
-        "llm_score": 3,
+        "rationale": "LIN up +2.46% today is genuinely notable for a low-vol quality compounder that typically moves 0.5-1.5% daily — this is a >2 standard-deviation up-move putting the stock at 99.7% of 52w range with RSI 68.4. For a defensive compounder a large single-day up-move with no identified fundamental catalyst (no mega-project or earnings) is more likely mean-reverting than continuing. I align near the quant's 7 — mild trim bias on stretched momentum, but not aggressive because RSI in the 60-70 band is normal for LIN and the golden-cross trend is intact.",
+        "det_score": 7,
+        "llm_score": 8,
         "det_notes": [
-          "RSI 65.9: LIN healthy momentum"
+          "RSI 68.43: LIN healthy momentum",
+          "LIN daily +2.46%: notable for low-vol"
         ]
       },
       "positional": {
         "score": -3,
         "signal": "NEUTRAL",
-        "rationale": "Above both MAs in a clean golden-cross uptrend, at 100.7% of 52w range — all normal and healthy for a compounder, not to be penalized. LIN/APD spread +0.57pp and LIN/AI.PA -0.28pp are both inline, so no peer-relative dislocation to exploit. BBB OAS at 94bps (tight) supports the project-sanctioning IRR math that feeds backlog 6-12mo out — a modest structural tailwind. The +2bps 1m widening is noise. I agree with the quant's -3; nothing qualitative changes the picture.",
+        "rationale": "Trend structure is textbook healthy: above both MAs (golden), 52w near highs (normal state for a compounder — not penalized), LIN/APD and LIN/AI.PA 1m spreads both inline at -0.1/-0.19pp meaning no peer dislocation to exploit, and BBB OAS at 94bps is tight (mild capital-allocation/project-IRR tailwind despite +2bps 1m drift). No positional edge either way; I match the quant's slight buy lean from the credit tailwind.",
         "det_score": -3,
         "llm_score": -3,
         "det_notes": [
           "LIN MA: above_both_golden (normal compounder trend)",
-          "LIN 52w: 100.7% — at highs, normal for compounder",
-          "LIN/APD spread: 0.57pp — inline",
+          "LIN 52w: 99.7% — at highs, normal for compounder",
+          "LIN/APD spread: -0.1pp — inline",
           "BBB OAS 94bps: tight — capital allocation tailwind"
         ]
       },
       "strategic": {
-        "score": 16,
+        "score": 20,
         "signal": "NEUTRAL",
-        "rationale": "The quant's +24 leans heavily on ROCE 10.93% ('moat erosion') and op margin 26.48% ('significant compression'). I materially disagree with that interpretation. LIN's structural ROCE has run >20% and reported op margins >28-30%; a 10.93% ROCE and 26.48% margin print almost certainly reflect a data-window/goodwill-denominator artifact (Praxair merger goodwill inflates capital base — explicitly flagged as uninformative) rather than a genuine one-year collapse of the moat. Penalizing to +24 on a likely-noisy print double-counts and over-punishes. The real strategic picture: 12.7% peer premium is DESERVED and inline (not stretched), H2 mega-project pipeline and semi-fab on-site contracts (TSMC AZ, Samsung TX, Intel OH, Micron NY) remain multi-year tailwinds, and the take-or-pay contract base is intact. Offset: DXY very strong is a genuine translation headwind on ~70% non-US revenue, real rates 2.2% mildly restrictive, and valuation at 34.8x trailing offers no cushion — these justify a modestly positive (mild trim) tilt, but far less than +24.",
+        "rationale": "The quant flags ROCE 10.93% and op margin 26.48% as moat-erosion/compression — these numbers look off versus LIN's true reported ROCE (>15% adjusted) and ~30% op margin, likely a reported-vs-adjusted or goodwill-distorted artifact from the Praxair merger, so I discount the severity but not entirely. Structurally the thesis is intact: #1 in a 3-player oligopoly, H2 buildout and semi-fab specialty-gas tailwinds (TSMC AZ, Samsung TX, Intel OH, Micron NY) remain multi-year drivers, 45V guidance and EU H2 Bank auctions are catalysts. Offsetting negatives: +11% peer premium is deserved but fully valued at 35.7x P/E, very strong DXY (120.9) is a real FX headwind on ~70% non-US revenue, and TIPS 2.25% real rate is mildly restrictive for long-duration compounders. Net: mild trim bias on valuation/FX, below the quant's 24 because I don't fully credit the margin-erosion signal.",
         "det_score": 24,
-        "llm_score": 10,
+        "llm_score": 18,
         "det_notes": [
-          "LIN P/E +12.7% vs peers: deserved premium (normal)",
-          "LIN yield 1.2332832312020658%: slightly stretched",
+          "LIN P/E +11.0% vs peers: deserved premium (normal)",
+          "LIN yield 1.1995126979664512%: slightly stretched",
           "LIN ROCE 10.93%: moat erosion risk",
           "LIN op margin 26.48%: significant compression",
           "DXY 120.8866: normal USD range",
-          "TIPS 2.2%: mildly restrictive"
+          "TIPS 2.25%: mildly restrictive"
         ]
       },
       "composite": {
-        "score": 7,
+        "score": 9,
         "recommendation": "HOLD",
-        "summary": "LIN remains a best-in-class oligopoly compounder in a healthy uptrend with an inline, deserved peer premium; I hold a mild trim bias driven by full valuation (34.8x, no cushion) and a strong-USD FX headwind, but I discount the quant's ROCE/margin 'erosion' flags as likely goodwill/data artifacts rather than real moat decay. Net HOLD.",
+        "summary": "Quant scores a mild trim (composite ~+7 to +8) driven by stretched strategic valuation/margin flags and today's outsized +2.46% move; I concur directionally — LIN is a high-quality oligopoly compounder pinned at 52w highs at 35.7x with an FX headwind and no near-term identified catalyst, warranting a small trim bias, but conviction is low given intact structural tailwinds and likely-artifactual margin signals.",
         "det_score": 11,
-        "llm_score": 6,
+        "llm_score": 11,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -192,108 +315,108 @@
         "missing": []
       },
       "divergence": {
-        "tactical": 2,
+        "tactical": 1,
         "positional": 0,
-        "strategic": 14,
+        "strategic": 6,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "The 2.21% single-day move is ~2-3x LIN's normal daily range, RSI pushing 66 into a fresh all-time high — a garden-variety pullback of 1-2% to fill the gap is the path of least resistance from here.",
-          "bull_case": "Golden-cross intact, price above both MAs, quality/QUAL factor bid persists in a NEUTRAL-VIX tape; compounders at highs tend to stay at highs, and breakout above prior 52w high can attract momentum flow.",
-          "falsifier": "A close back below the 50-day SMA ($509.76) on elevated volume would flip tactical from mildly positive to buy-the-dip negative."
+          "bear_case": "The 2.46% pop is a QUAL-factor/defensive-rotation spike with no fundamental support; at 99.7% of range and RSI 68, near-term risk is a pullback/consolidation, so shaving into strength is prudent.",
+          "bull_case": "The move could be the start of a defensive-bid melt-up as capital rotates to quality; RSI 68 is not overbought for LIN historically and momentum breakouts to new highs often continue for compounders.",
+          "falsifier": "A confirmed fundamental catalyst behind today's move (mega H2 project win, semi fab contract, analyst upgrade) — that would make the move fundamentally-driven and flip tactical to buy/hold rather than fade."
         },
         "positional": {
-          "bear_case": "At 100.7% of range with RSI 66, the positional setup is priced for perfection — any earnings wobble or FX drag (DXY very strong) leaves no valuation cushion, making trim the asymmetric choice for a name with zero margin of safety.",
-          "bull_case": "Tight credit spreads (94bps) plus persistent QUAL factor bid mean the uptrend has fundamental and flow support; on-site backlog from semi fabs and H2 keeps the multi-quarter trend intact, so buying strength has historically worked in LIN.",
-          "falsifier": "LIN/APD spread widening beyond ~+3pp (LIN outperforming to a stretched premium) OR BBB OAS blowing out past ~130bps would flip this to a trim signal."
+          "bear_case": "Being pinned at 99.7% of 52w high with no peer premium compression means positional risk/reward is asymmetric to the downside — a mean-reversion or QUAL rotation unwind hits the extended name hardest.",
+          "bull_case": "Tight credit spreads and intact golden-cross uptrend with peers inline mean the compounder trend is durable; buyers step in on any dip and the 52w-high breakout confirms accumulation.",
+          "falsifier": "LIN/APD spread widening materially (>+3pp premium expansion) or a break below the 50-day MA — either would flip the positional read from mild-buy toward neutral/trim."
         },
         "strategic": {
-          "bear_case": "If the ROCE/margin prints are NOT artifacts but reflect real deceleration (weak EU/China industrial demand, H2 project delays as customers slip FIDs on IRA 45V uncertainty), then a 34.8x P/E on decelerating returns is genuinely expensive and warrants a real trim; strong USD compounds the earnings drag.",
-          "bull_case": "A >$1B H2 mega-project win (blue/green offtake with steel/ammonia/refining) or a semi capex super-cycle confirmation would re-rate the strategic story higher; LIN's contracted, inflation-passthrough revenue base makes it a defensive compounder that outperforms if PMIs roll into contraction and the quality bid intensifies.",
-          "falsifier": "Confirmation from the next earnings report that ROCE and operating margin genuinely stepped down (ex-goodwill, ex-FX) with backlog growth turning negative would validate the quant's +24 and push me clearly positive; conversely a mega H2 win or backlog acceleration would flip me negative."
+          "bear_case": "At 35.7x trailing with a strong-USD earnings headwind and mildly restrictive real rates, LIN is priced for perfection; any deceleration in H2 offtake momentum or semi capex (China export controls) de-rates a premium multiple with no valuation cushion.",
+          "bull_case": "A mega-scale H2 project win (>$1B offtake with steel/ammonia take-or-pay) or a semi capex super-cycle confirmation would re-accelerate backlog; LIN's oligopoly pricing power and inflation pass-through make the premium multiple sustainable and the FX headwind transitory.",
+          "falsifier": "Confirmation that ROCE/margin decline is structural (not accounting artifact) alongside negative price/mix ex-FX, OR a >$1B H2 mega-project announcement — the former deepens trim, the latter flips strategic to buy."
         }
       },
       "key_metric": {
         "name": "Peer P/E premium vs APD/AI.PA",
-        "value": "+12.7% (inline, deserved — no dislocation)"
+        "value": "+11.0% (35.7x vs 32.2x avg) — deserved but fully valued at 99.7% of 52w range"
       },
       "risks": [
-        "Very strong USD (DXY 120.9) is a real translation headwind on ~70% non-US revenue, pressuring reported EPS",
-        "Valuation at 34.8x trailing P/E and 100.7% of 52w range offers zero margin of safety — any earnings or backlog wobble is punished",
-        "IRA 45V tax-credit uncertainty and customer FID delays could slow the H2 mega-project pipeline that underpins the strategic thesis",
-        "Weak EU/China industrial PMI could pressure merchant/packaged gas volumes even with the resilient on-site take-or-pay base"
+        "Very strong USD (DXY 120.9) is a direct earnings headwind on ~70% non-US revenue and could pressure reported EPS",
+        "Valuation at 35.7x trailing with the stock at 99.7% of 52w range leaves no cushion for any backlog or semi-capex deceleration",
+        "China semiconductor export controls could slow global fab buildout pace, delaying on-site specialty-gas contract pipeline",
+        "Mildly restrictive real rates (TIPS 2.25%) pressure long-duration compounder multiples"
       ],
       "catalysts": [
-        "Next quarterly earnings — watch for backlog growth inflection and confirmation that ROCE/margin remain >20%/>28% (clarifying the current low prints)",
-        "Potential >$1B hydrogen mega-project or semi-fab on-site contract announcement (TSMC AZ / Samsung TX / Intel OH / Micron NY specialty gas)",
-        "IRA 45V final guidance / EU H2 Bank auction outcomes broadening green-H2 project economics",
-        "Continued buyback/dividend-growth cadence (Dividend Aristocrat) plus tight BBB credit spreads supporting new project sanctioning"
+        "IRA 45V hydrogen tax-credit guidance evolution and EU H2 Bank auction outcomes broadening green H2 economics",
+        "Mega-scale (>$1B) H2 project or semi fab on-site contract win (TSMC AZ, Samsung TX, Intel OH, Micron NY)",
+        "Next quarterly earnings with backlog growth inflection vs consensus",
+        "Buyback acceleration or capital-allocation pivot beyond ~3-4% baseline"
       ],
       "_scoring": {
         "deterministic": 11,
-        "llm": 6,
+        "llm": 11,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 1.291681395139599,
-        "positional": 0.41809530882955176,
-        "strategic": 1.2304012371443238,
-        "composite": 1.0362045772778763
+        "tactical": 1.3018225558400291,
+        "positional": 0.5394070026716056,
+        "strategic": 1.3523809790009484,
+        "composite": 1.3424353621019527
       }
     },
     {
       "symbol": "TMO",
       "price": {
-        "current": 520.74,
-        "change_pct": 1.44,
+        "current": 523.48,
+        "change_pct": 1.98,
         "week52_high": 643.99,
         "week52_low": 403.36,
-        "week52_position_pct": 48.8
+        "week52_position_pct": 49.9
       },
       "tactical": {
         "score": -7,
         "signal": "NEUTRAL",
-        "rationale": "TMO up 1.44% today, outperforming DHR by +0.92pp, with RSI 65.8 (healthy, not overbought under tightened 35/70 bands) and a -19.1% drawdown from 52w high — still in compounder buy-zone. XBI +2.25% today signals biotech risk appetite improving, a modest tactical tailwind. The stock is 10% above SMA50 and recovering off the trough. I stay close to the quant -7: real setup, but momentum has already run ~29% off the $403 low, so the easy tactical snap-back is partly spent.",
+        "rationale": "TMO is -18.7% off its 52w high, which is the primary tactical signal for a life-sciences compounder — meaningful setup territory. But RSI 66.73 shows the bounce is already underway (stock +1.98% today, +0.53% yesterday, sitting 10.6% above SMA50). XBI ripped +2.52% today, confirming the biotech sympathy bid is live. The buy setup from the drawdown is partially spent by the near-term momentum — I don't want to chase into RSI 67. Modest buy tilt, but the easy tactical entry was lower.",
         "det_score": -7,
         "llm_score": -8,
         "det_notes": [
-          "RSI 65.8: TMO healthy momentum",
-          "TMO drawdown -19.1%: meaningful setup territory"
+          "RSI 66.73: TMO healthy momentum",
+          "TMO drawdown -18.7%: meaningful setup territory"
         ]
       },
       "positional": {
-        "score": -29,
+        "score": -30,
         "signal": "BUY",
-        "rationale": "This is the core of the thesis. TMO sits at 48.8% of its 52w range, -19.1% off high, above SMA50 but below SMA200 ($520.74 vs $526.45) — a compounder on genuine sale within a re-accelerating base. My historical positional BUY hit rate on TMO is 100% (n=10, avg +6.6% fwd_20d), which supports conviction, though I discount slightly for the portfolio-wide POOR positional reliability (26.4%). Bioprocessing is bottoming, biotech funding thawing, and the stock is reclaiming its 200-day. I align near quant -30 but trim marginally toward -28 because price is now knocking on the SMA200 resistance rather than deep below it.",
+        "rationale": "The positional thesis is intact: 49.9% of 52w range, -18.7% drawdown on a genuine quality compounder, price above SMA50 and reclaiming toward SMA200 (bullish MA re-cross setup). My historical positional BUY hit rate on TMO is 100% (n=11, avg +6.9% fwd 20d), and the bioprocessing cycle is bottoming with destocking largely lapped — this is exactly the 'compounder on sale ahead of cycle re-accel' window. Agree with quant -30.",
         "det_score": -30,
-        "llm_score": -28,
+        "llm_score": -30,
         "det_notes": [
           "TMO MA: above_50_below_200 (-10)",
-          "TMO 52w: 48.8% — real drawdown, compounder on sale",
-          "TMO 10.0% above SMA50 — trending up"
+          "TMO 52w: 49.9% — real drawdown, compounder on sale",
+          "TMO 10.6% above SMA50 — trending up"
         ]
       },
       "strategic": {
-        "score": -21,
+        "score": -19,
         "signal": "NEUTRAL",
-        "rationale": "Strategic carries 45% weight and is where my forward-looking value-add matters most. Trailing P/E 28.1x looks full, but forward P/E is meaningfully lower (~22-23x) as EPS re-accelerates off the ~1% organic trough — that's fair-to-attractive for a secular life-sciences monopoly, not stretched. TMO trades at a -24.4% discount to DHR. The strategic thesis is multiple-reset + cycle-bottoming: bioprocessing destock ending, biotech funding thawing (XBI firm), COVID comps fully lapped. Op margin 17.46% reflects compression that mean-reverts higher as volumes recover — a coiled-spring, not a broken model. I go materially more bullish than quant -13 because the quant is penalizing trailing multiple/margin compression that I read as the setup you buy INTO, and Wave 4 AI bioproduction is an unpriced optionality. Real rates (TIPS 2.2%) and DXY are the offsetting restraints.",
+        "rationale": "Strategic is the dominant weight (45%) and the core thesis: multiple reset + cycle bottoming on the 'ASML of life sciences.' My value-add is forward P/E — trailing is 28.6x but forward sits ~21-22x, near the low end of TMO's 5y history and toward the 'exceptional' zone as EPS re-accelerates off trough. TMO trades at a 24% trailing discount to DHR. Bioprocessing destocking is ending, COVID comps fully lapped, biotech funding thawing (XBI firm). NIH/China policy remain overhangs but the setup favors buyers ahead of cycle confirmation. Quant -13 understates the strategic buy because it uses trailing P/E; I go modestly deeper to -22.",
         "det_score": -13,
-        "llm_score": -24,
+        "llm_score": -22,
         "det_notes": [
-          "TMO P/E -24.4% vs DHR: deep discount — exceptional buy",
-          "TMO yield 0.37498005425243336%: normal baseline",
+          "TMO P/E -24.2% vs DHR: deep discount — exceptional buy",
+          "TMO yield 0.3591624637016658%: normal baseline",
           "TMO op margin 17.46%: significant compression",
-          "TIPS 2.2%: mildly restrictive",
+          "TIPS 2.25%: mildly restrictive",
           "DXY 120.8866: normal USD range"
         ]
       },
       "composite": {
-        "score": -21,
+        "score": -20,
         "recommendation": "HOLD",
-        "summary": "Quant scored TMO a modest buy (-13 strategic anchored by full trailing P/E); my judgment is more constructive strategically because forward P/E (~22-23x) and mean-reverting margins make this a cycle-inflection buy INTO the bioprocessing trough, not a stretched compounder. Net: a quality life-sciences monopoly on ~19% sale with biotech funding thawing — a BUY, tempered by SMA200 resistance and real-rate/China/NIH overhangs.",
+        "summary": "Quant scored -7/-30/-13; I hold tactical near quant (-8, momentum already extended into RSI 67 and the 200-day), keep positional at -30 (compounder on sale with 100% historical BUY hit rate), and deepen strategic to -22 because forward P/E (~21-22x, low end of 5y range) shows a cheaper setup than trailing 28.6x implies. Net: high-conviction BUY setup on a quality life-sciences compounder at a cycle bottom with biotech funding thawing, tempered only by an already-underway bounce.",
         "det_score": -18,
-        "llm_score": -25,
+        "llm_score": -24,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -317,101 +440,102 @@
       },
       "divergence": {
         "tactical": 1,
-        "positional": 2,
-        "strategic": 11,
+        "positional": 0,
+        "strategic": 9,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "TMO has rallied hard off lows and RSI 65.8 is approaching the tightened 70 ceiling; a single hot inflation print or a weak DHR/Sartorius pre-announce could trigger fast mean reversion in a name up ~29% from trough. XBI's +2.25% pop can reverse just as quickly.",
-          "bull_case": "XBI +2.25% and TMO outperforming DHR shows biotech sympathy turning constructive; a -19% drawdown compounder catching a quality bid with VIX benign (16.59) and credit tight (HY 2.74) can grind higher into any positive peer read.",
-          "falsifier": "RSI pushing >70 with TMO stalling below the $526 SMA200 on a down-day for XBI would flip this toward trim."
+          "bear_case": "RSI 66.73 approaching the tightened 70 band; stock has already rallied ~10% off SMA50 and is bumping into the 200-day at $526.47 — a natural resistance/rejection point where a pullback is more likely than continuation. Chasing here risks buying the local top.",
+          "bull_case": "XBI +2.52% today with 90d biotech thaw underway; if TMO breaks the 200-day at $526 on volume it confirms trend reversal and the -18.7% drawdown resolves upward toward $560+. Sympathy flows just turning on.",
+          "falsifier": "TMO decisively reclaims and holds above the 200-day SMA ($526.47) on strong volume — that flips the tactical read from 'buy the dip' toward 'trend confirmed, less edge/neutral-to-trim on chase'; conversely a sharp XBI reversal would deepen the buy."
         },
         "positional": {
-          "bear_case": "The stock is up ~29% off the low and pressed right against SMA200 resistance ($526.45) — a common rejection zone. If the Q1 2026 print confirms only ~1% organic growth without visible re-acceleration signals, the positional 'on sale' narrative loses its catalyst and the name could stall/retrace toward SMA50.",
-          "bull_case": "A clean break above SMA200 on cycle-bottoming confirmation flips the technical structure bullish; historical positional BUYs on TMO have hit 100% of the time over 20d with +6.6% avg — a real edge on a quality compounder emerging from a multi-quarter destock trough.",
-          "falsifier": "A decisive break back below SMA50 (~$473) on deteriorating bioprocessing/peer commentary would flip the sign to trim."
+          "bear_case": "Op margin at 17.46% shows real profitability compression, and trailing P/E of 28.6x is not cheap on absolute terms — if bioprocessing recovery slips another quarter, the multiple has room to de-rate and the 20-day forward returns break the perfect streak.",
+          "bull_case": "Cycle inflection + biotech funding thaw (XBI strength) + reclaim of 200-day = the setup where quality compounders re-rate fast; a Q1 print showing organic growth re-accelerating off the ~1% trough toward 5% would drive multiple expansion from here.",
+          "falsifier": "TMO closes meaningfully back below SMA50 ($473.40) and makes a new leg lower toward the 52w low, breaking the recovery structure — that flips positional to neutral/trim; alternatively a decisive breakout above SMA200 would deepen conviction."
         },
         "strategic": {
-          "bear_case": "NIH funding cuts, China life-sciences capex weakness, and elevated real rates (2.2% TIPS) could keep end-markets soft longer than consensus; if bioprocessing recovery slips to 2027, forward EPS gets cut and today's ~23x forward multiple re-rates DOWN on a compounder that isn't compounding. GLP-1 disruption to diagnostics volumes is a structural overhang.",
-          "bull_case": "Peer triangulation (DHR/Sartorius/Repligen) turning to early-recovery plus organic growth re-accelerating from 1% toward 5%+ would drive both EPS upgrades AND multiple expansion simultaneously — the classic compounder cycle-inflection double. Discount to DHR closes; Wave 4 AI biologics bioproduction adds a new secular leg.",
-          "falsifier": "Confirmed China capex collapse plus NIH budget cuts plus a bioprocessing re-destock in the next earnings print would flip this to neutral/trim."
+          "bear_case": "Real rates still restrictive (TIPS 2.25%), DXY elevated (~40% non-US revenue is a translation headwind), NIH funding cuts and China life-sciences capex weakness could delay the recovery by multiple quarters — a slower cycle means the 'cheap forward P/E' argument is on stale estimates that get cut, so it isn't actually cheap.",
+          "bull_case": "If bioprocessing re-accelerates to 5%+ organic and Wave 4 AI life-sciences bioproduction wins materialize, TMO re-rates from ~21x forward back toward mid-20s on rising EPS — a powerful double-driver. DHR premium suggests the sector multiple has room and TMO closes the gap.",
+          "falsifier": "Q1 2026 print (or DHR/Sartorius/Repligen commentary) showing bioprocessing organic growth stalling/re-declining below the ~1% trough with forward estimates cut — that flips strategic toward neutral/trim; confirmed re-acceleration above 5% deepens the buy."
         }
       },
       "key_metric": {
-        "name": "Forward P/E vs trough EPS",
-        "value": "~22-23x forward (vs 28.1x trailing) on ~1% organic-growth trough — multiple compresses as EPS re-accelerates"
+        "name": "Forward P/E vs 5Y history",
+        "value": "~21-22x forward (low end of 5y range) despite 28.6x trailing — cheap on normalized/recovering EPS at cycle trough"
       },
       "risks": [
-        "NIH funding cuts and China life-sciences capex weakness prolonging end-market softness",
-        "Real rates elevated (TIPS 2.2%) pressuring long-duration compounder multiples",
-        "GLP-1 disruption narrative weighing on diagnostics/lab volumes",
-        "Bioprocessing recovery slipping to 2027 if destocking re-accelerates, cutting forward EPS"
+        "NIH funding cuts and US academic/government research budget pressure weigh on instrument/consumable demand",
+        "China life-sciences capex remains weak; ~40% non-US revenue plus elevated DXY (120.9) creates FX translation headwind",
+        "Op margin compressed to 17.46%; a slower-than-expected bioprocessing recovery would force downward EPS revisions, undercutting the cheap-forward-P/E thesis",
+        "Restrictive real rates (TIPS 2.25%) pressure long-duration quality-compounder multiples"
       ],
       "catalysts": [
-        "Q1 2026 earnings print — watch organic growth re-accelerating off ~1% trough toward 5%+",
-        "DHR / Sartorius / Repligen peer commentary confirming bioprocessing cycle bottoming/recovery",
+        "Q1 2026 earnings print — watch for organic growth re-accelerating off the ~1% trough toward 5%+ (cycle confirmation)",
+        "DHR / Sartorius / Repligen bioprocessing commentary as peer triangulation on cycle inflection",
         "XBI 90d turning firmly positive (biotech funding thaw leads TMO bookings 2-3 quarters)",
-        "Wave 4 AI biologics bioproduction wins / lab automation adoption"
+        "Reclaim of the 200-day SMA ($526.47) as a technical trend-reversal confirmation",
+        "Wave 4 AI life-sciences bioproduction / lab automation wins"
       ],
       "_scoring": {
         "deterministic": -18,
-        "llm": -25,
+        "llm": -24,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -0.4600509078579394,
-        "positional": -0.6010120064424808,
-        "strategic": -1.3627861803813712,
-        "composite": -1.1767068928409783
+        "tactical": -0.24271267990237833,
+        "positional": -0.4935000237208305,
+        "strategic": -1.3946428845947283,
+        "composite": -1.1531175546260364
       }
     },
     {
       "symbol": "ENB",
       "price": {
-        "current": 53.56,
-        "change_pct": 0.51
+        "current": 54.1,
+        "change_pct": 1.52
       },
       "tactical": {
         "score": 0,
         "signal": "NEUTRAL",
-        "rationale": "RSI 39 is in normal range, price down near the 50-day MA but above the 200-day. No overreaction, no yield spike, no capitulation. This is a boring toll-road name trading quietly. No tactical edge to add over the quant's neutral read.",
+        "rationale": "RSI 43 is squarely mid-range, price up 1.5% today, sitting below the 50-day but above the 200-day. No tactical extreme in either direction for a low-turnover income name. Correctly neutral.",
         "det_score": 0,
         "llm_score": 0,
         "det_notes": [
-          "RSI 39.09: ENB normal range"
+          "RSI 43.03: ENB normal range"
         ]
       },
       "positional": {
-        "score": 11,
+        "score": 10,
         "signal": "NEUTRAL",
-        "rationale": "The defining measurable signal is the yield spread vs 10Y: just 60bps, deep into RICH territory (guidance: <150bps = rich). ENB yield at 5.04% vs 10Y at 4.44% offers little cushion for an income name whose whole appeal is the spread. Below the 50-day MA. This is a genuine, if mild, trim setup driven by opportunity cost — you're not paid much extra over govvies to hold pipeline risk. I stay near the quant's +12 but shave slightly given the 26-day trim streak risks staleness and the name remains fundamentally healthy.",
+        "rationale": "The 58bps yield spread over the 10Y is genuinely compressed — well inside the >150bps 'fair' and >300bps 'cheap' thresholds — meaning ENB is not offering excess compensation vs bonds here. That supports a mild trim tilt. But my POSITIONAL BUY calls have hit 0% (n=2) and the 27-day TRIM streak has repeatedly been wrong on price, so I trim the magnitude. ENB's 5% absolute yield remains attractive and the fee-based cash flows are secure, capping the downside.",
         "det_score": 12,
-        "llm_score": 10,
+        "llm_score": 8,
         "det_notes": [
           "ENB MA: above_200_below_50 (-3)",
-          "ENB yield spread: 60bps over 10Y — expensive"
+          "ENB yield spread: 58bps over 10Y — expensive"
         ]
       },
       "strategic": {
-        "score": 13,
+        "score": 11,
         "signal": "NEUTRAL",
-        "rationale": "Strategically ENB is a durable fee-based compounder, but valuation is full: P/E 24.3x is toward the rich end and the 5.04% yield is low relative to its own history — yield compression signals the market already loves this name. TIPS at 2.2% is mildly restrictive, keeping a lid on how far income names re-rate. The long-term thesis (contracted cash flows, LNG optionality, dividend growth) is intact, so I don't want an aggressive trim — modest positive, slightly below the quant, reflecting that the structural story is fine and the streak may be over-extended.",
+        "rationale": "24.3x trailing P/E is at the rich end for a midstream compounder and the 5.06% yield reflects meaningful compression from historically wider levels — the structural setup is fully valued, not cheap. TIPS at 2.25% real is mildly restrictive, a headwind for bond-proxy income names. I keep a modest trim tilt but not aggressive: the ~25% gas/LNG EBITDA and ~55% crude Mainline throughput are secure, contracted, and growing, and the dividend is well-covered — this is a hold-forever engine, not a name to exit on valuation alone.",
         "det_score": 14,
-        "llm_score": 12,
+        "llm_score": 10,
         "det_notes": [
           "ENB P/E 24.3x: slightly rich",
-          "ENB yield 5.044857625796386%: low — yield compression",
-          "TIPS 2.2%: mildly restrictive",
-          "2s10s 30bps: normal range"
+          "ENB yield 5.0573514077163715%: low — yield compression",
+          "TIPS 2.25%: mildly restrictive",
+          "2s10s 31bps: normal range"
         ]
       },
       "composite": {
-        "score": 11,
+        "score": 9,
         "recommendation": "HOLD",
-        "summary": "ENB is a healthy dividend compounder but currently expensive on its #1 signal — a thin 60bps yield spread over the 10Y — plus a full 24x P/E and compressed 5% yield, justifying a mild trim on opportunity-cost grounds. The structural thesis (contracted cash flows, LNG/gas growth, 30yr dividend growth) is fully intact, so this is a modest lean, not a conviction sell, and I trim slightly below the quant given the 26-day trim streak risks staleness.",
+        "summary": "Quant flags ENB as mildly rich on a compressed 58bps yield spread over the 10Y and a 24x P/E, warranting a modest trim tilt. I largely agree but pull it back toward neutral given a 5% yield near the top quartile of range, a robust contracted fee-based model, and a 27-day stale TRIM streak that keeps being wrong on price.",
         "det_score": 12,
-        "llm_score": 11,
+        "llm_score": 9,
         "weights": {
           "t": 0.1,
           "p": 0.45,
@@ -437,98 +561,100 @@
       },
       "divergence": {
         "tactical": 0,
-        "positional": 2,
-        "strategic": 2,
+        "positional": 4,
+        "strategic": 4,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "Below the 50-day MA with mild downward drift; if the 10Y pushes toward 4.6%+ the sympathetic rate-sensitivity could drag a low-yield-spread name like ENB lower near-term.",
-          "bull_case": "RSI 39 is toward the lower half of normal — a mild oversold bounce off the 200-day at $51 is plausible if rates stabilize, offering a modest tactical entry.",
-          "falsifier": "A sharp 10Y move (>25bps in a day) causing an outsized ENB drop that opens a real dislocation would flip this negative (buy)."
+          "bear_case": "Price is below the 50-day SMA ($55.20) and momentum has been soft; a break lower could accelerate to the 200-day near $51.",
+          "bull_case": "RSI 43 with a 1.5% up-day off support suggests a mean-reversion bounce is underway, and dividend names catch a bid if the 10Y rolls over.",
+          "falsifier": "A sharp 10Y move (spike >4.8% or drop <4.2%) that produces an outsized sympathetic ENB move would justify a non-zero tactical read."
         },
         "positional": {
-          "bear_case": "60bps spread is thin; if 10Y climbs, ENB de-rates and the income advantage evaporates. Mainline recontracting and any WCS-WTI widening could pressure the ~55% crude EBITDA. Opportunity cost is real when short govvies yield 4%+.",
-          "bull_case": "ENB's dividend is well-covered (DCF payout ~60-65%), 30 straight years of dividend growth, and gas/LNG buildout (LNG Canada, Gulf Coast) supports the ~25% gas EBITDA. If BoC/Fed cuts materialize, the spread widens fast and rate-sensitive income names re-rate up — making today's small trim wrong.",
-          "falsifier": "Yield spread widening back above ~150bps (via ENB price drop or 10Y falling) would flip this to a buy; also a confirmed BoC/Fed cutting cycle starting."
+          "bear_case": "With the spread at just 58bps, an income buyer gets little premium over Treasuries; if the 10Y stays elevated near 4.5%, ENB has to derate or grow the dividend to restore appeal, and it is below its 50-day — near-term drift lower.",
+          "bull_case": "The 5% yield is near the top of its 5-year range in absolute terms; BoC/Fed rate cuts would compress the discount rate and re-rate ENB higher, and LNG Canada Phase 2 plus Gulf Coast expansion add contracted EBITDA that supports continued ~3% annual dividend growth.",
+          "falsifier": "10Y falling toward ~4.0% (widening the yield spread past ~100bps) or a confirmed break back above the 50-day SMA would flip this to a buy tilt."
         },
         "strategic": {
-          "bear_case": "24.3x P/E and a compressed 5.04% yield leave little valuation upside; in a persistently higher-for-longer real-rate regime (TIPS 2.2%), bond-proxy compounders stay capped and total return lags equities with better growth.",
-          "bull_case": "Secular gas/LNG demand growth (data-center power, LNG Canada Phase 2, Gulf Coast expansion) plus a permitting-constrained pipeline moat gives ENB pricing power and a multi-year EBITDA growth runway; a rate-cut cycle would re-rate the whole income complex higher.",
-          "falsifier": "A confirmed multi-quarter easing cycle with the ENB yield moving to the top quartile of its 5yr range, or a major sanctioned growth project (LNG Canada Phase 2 FID) materially lifting the EBITDA trajectory, would flip this to a buy."
+          "bear_case": "At 24x earnings with a sub-60bps spread over risk-free, ENB offers a below-average forward return; persistent restrictive real rates (2.25% TIPS) cap multiple expansion and opportunity cost vs higher-scoring book names is real.",
+          "bull_case": "LNG Canada Phase 2 and Gulf Coast gas expansion structurally lift the ~25% gas EBITDA, WCS-WTI dynamics support Mainline volumes, and a rate-cut cycle would re-rate the whole midstream complex — a durable, growing 5% yield compounds attractively through cycles.",
+          "falsifier": "Start of a sustained rate-cut cycle (or 10Y toward 4%) restoring the yield-vs-bond premium, or a major new contracted growth sanction, would flip strategic to a buy tilt."
         }
       },
       "key_metric": {
         "name": "ENB yield spread vs 10Y",
-        "value": "60bps (5.04% − 4.44%) — RICH, thin cushion for an income name"
+        "value": "58bps (5.06% vs 4.48%) — compressed/rich by historical norms"
       },
       "risks": [
-        "Rising 10Y/real rates (TIPS 2.2%) de-rate income proxies and the thin 60bps spread offers little protection",
-        "WCS-WTI spread widening or Canadian crude production softness pressuring the ~55% crude-throughput Mainline EBITDA",
-        "Full valuation (24x P/E, compressed 5% yield) leaves little margin for execution missteps or capex overruns"
+        "Yield spread over the 10Y compressed to just 58bps — little excess compensation vs Treasuries; sensitive to any 10Y back-up toward 4.8%",
+        "Restrictive real rates (TIPS 2.25%) pressure bond-proxy valuations and cap multiple re-rating",
+        "CAD/USD weakness can erode USD-denominated returns for the ADR holder",
+        "Pipeline permitting/regulatory risk and Mainline throughput dependence on Canadian crude volumes and WCS-WTI spreads"
       ],
       "catalysts": [
-        "LNG Canada Phase 2 FID and Gulf Coast gas export expansion driving volume/EBITDA growth in the ~25% gas segment",
-        "BoC/Fed rate-cut cycle widening the yield spread and re-rating income compounders higher",
-        "Q2 2026 earnings and any DCF-per-share guidance update confirming dividend-growth sustainability"
+        "LNG Canada Phase 2 progress and Gulf Coast gas export expansion adding contracted EBITDA",
+        "BoC/Fed rate-cut commentary that would compress discount rates and re-rate income names",
+        "Next quarterly earnings with distributable cash flow and 2026 dividend growth guidance",
+        "Mainline throughput/toll updates and WCS-WTI spread trends affecting crude EBITDA"
       ],
       "_scoring": {
         "deterministic": 12,
-        "llm": 11,
+        "llm": 9,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.6546878304132213,
-        "positional": 0.9668454016683384,
-        "strategic": 1.0201427978854836,
-        "composite": 1.3523347872948557
+        "tactical": 0.5295549379688254,
+        "positional": 1.0367326079716674,
+        "strategic": 0.7184523950942538,
+        "composite": 1.3424353621019527
       }
     },
     {
       "symbol": "GLNCY",
       "price": {
-        "current": 13.43,
-        "change_pct": -1.32
+        "current": 13.61,
+        "change_pct": 1.34
       },
       "tactical": {
-        "score": -13,
+        "score": -6,
         "signal": "NEUTRAL",
-        "rationale": "RSI 34 is mildly oversold and price sits at $13.43, well below the 50-day ($15.15) but above the 200-day ($12.49). COPX is up 3.52% today and outperforming GLNCY by 4.84pp — copper is surging but the ADR is lagging, which normally sets up a catch-up trade. However, GLNCY has been drifting lower (down again -1.32% today) while copper rallies, suggesting stock-specific weakness (ADR liquidity, coal ESG overhang, or GBP/USD drag) rather than a pure copper play. I nudge modestly below neutral to reflect the oversold + copper-lag setup but keep conviction low given the failed BUY yesterday.",
-        "det_score": -15,
+        "rationale": "RSI 36.93 is approaching oversold and the stock sits below its 50-day ($15.13) but well above the 200-day ($12.52). Today's +1.34% move alongside COPX +1.83% suggests early stabilization after the pullback from the 50-day. Copper holding firm near cyclical highs (~$4.30-4.50/lb LME area) with China stimulus chatter and tight LME inventories supports a modest buy tilt, but this is a short-term technical read only with no strong momentum edge. Tactical layer portfolio-wide is only WEAK(51%) reliable, so I keep conviction low.",
+        "det_score": -5,
         "llm_score": -8,
         "det_notes": [
-          "RSI 34.04: GLNCY mildly oversold"
+          "RSI 36.93: GLNCY approaching oversold"
         ]
       },
       "positional": {
-        "score": -13,
+        "score": -8,
         "signal": "NEUTRAL",
-        "rationale": "The copper lead is the key positional signal: COPX outperforming by 4.84pp with tight HY OAS (2.74bps) points to healthy industrial demand and a copper-led setup GLNCY hasn't yet captured. Trading arm provides a floor ($2-4B EBITDA) the market underprices in troughs. But positional layer reliability is POOR (26.4%) portfolio-wide, and yesterday's positional BUY was wrong — the stock fell as copper rose, so the 'catch-up' has not been paying. I stay modestly on the buy side but trim conviction versus the raw quant -15.",
-        "det_score": -15,
-        "llm_score": -12,
+        "rationale": "GLNCY/COPX spread at -0.49pp is essentially inline — copper (COPX) is leading modestly, meaning the mining beta is being credited but the trading arm is getting little premium. HY OAS at 2.74 (tight) signals healthy industrial credit conditions, supportive of commodity demand. Above the 200-day but below the 50-day is a neutral-to-mildly-constructive posture. I lean slightly more bullish than the quant -7 because the trading arm ($2-4B EBITDA floor) is undervalued in this setup and copper's structural tightness gives positional support. Positional layer is POOR(27%) reliable portfolio-wide, so I moderate conviction.",
+        "det_score": -7,
+        "llm_score": -10,
         "det_notes": [
           "GLNCY MA: above_200_below_50 (+3)",
-          "COPX outperforming GLNCY by 4.84pp — copper surging, GLNCY catch-up potential",
+          "GLNCY/COPX spread: -0.49pp — inline",
           "HY OAS 2.74bps: tight — healthy commodity demand"
         ]
       },
       "strategic": {
         "score": -21,
         "signal": "NEUTRAL",
-        "rationale": "The 219x trailing P/E signals a deep earnings trough — per the cyclical inversion rules this is a buy signal, not expensive. Trading arm floor plus copper's structural deficit (electrification, grid, limited new supply) underpins a multi-year strategic case. P/B 1.62 is above replacement so not a screaming asset-value buy, which caps my conviction. Copper's secular demand story is the strongest leg; coal is a cash cow but a strategic ESG/terminal-value drag. I stay firmly on the buy side but a touch below the quant -22 because P/B >1.5 removes the deep-value margin of safety.",
+        "rationale": "Trailing P/E 220x reflects a deep earnings trough — per cyclical inversion rules this is a BUY signal, not expensive. The strategic thesis rests on copper's multi-year structural deficit (electrification, grid capex, AI datacenter power demand) where Glencore is a top-tier producer, plus a resilient trading arm providing a $2-4B EBITDA floor. P/B 1.63 is above replacement (not a screaming SOTP buy at <0.8), which tempers me from going more aggressive. Coal remains a cash cow near-term but a strategic overhang on ESG/valuation. I land close to quant -22, slightly less bullish given P/B is not cheap and coal-exposure discount is structural.",
         "det_score": -22,
         "llm_score": -20,
         "det_notes": [
-          "GLNCY P/E 219x: deep trough — commodity buy",
-          "GLNCY P/B 1.62: above book",
+          "GLNCY P/E 220x: deep trough — commodity buy",
+          "GLNCY P/B 1.63: above book",
           "HY OAS 2.74bps: tight — healthy industrial demand"
         ]
       },
       "composite": {
-        "score": -17,
+        "score": -13,
         "recommendation": "HOLD",
-        "summary": "Quant scores GLNCY a broad BUY (-15/-15/-22) on inverted trough P/E, copper leadership, and tight credit spreads; I concur directionally but trim conviction because GLNCY has persistently lagged copper (yesterday's BUY was wrong) and the positional layer grades POOR. Net: a strategic-led BUY on copper's secular story and the underpriced trading arm, tempered by ADR-specific weakness and above-book valuation.",
-        "det_score": -18,
+        "summary": "Quant scores GLNCY a mild buy (-17 composite) on deep-trough inverted P/E, tight credit spreads, and near-oversold RSI; my judgment concurs, seeing a copper-deficit compounder with a trading-arm floor, tempered by a not-cheap 1.63 P/B and structural coal overhang. Net a modest BUY tilt with low conviction pending a copper/China catalyst.",
+        "det_score": -13,
         "llm_score": -16,
         "weights": {
           "t": 0.2,
@@ -554,103 +680,104 @@
         ]
       },
       "divergence": {
-        "tactical": 7,
+        "tactical": 3,
         "positional": 3,
         "strategic": 2,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "GLNCY keeps diverging from copper — the ADR has fallen while COPX rips, meaning the market is discounting Glencore-specific issues (coal price weakness, cobalt glut, thin ADR volume). Oversold can stay oversold; RSI 34 is not washed out and the stock is below its 50-day in a clear downtrend.",
-          "bull_case": "Copper surging +3.52% with GLNCY lagging 4.84pp is a classic mean-reversion snapback setup. RSI 34 oversold plus a strong lead indicator (LME/COPX) argues for a bounce back toward the 50-day as the ADR catches up to the underlying commodity move.",
-          "falsifier": "If GLNCY breaks below the 200-day ($12.49) on rising volume while copper holds its gains, the catch-up thesis is dead and the tactical sign flips positive (trim)."
+          "bear_case": "Price is below the 50-day and in a short-term downtrend; a break of the 200-day at $12.52 on any China demand disappointment or DXY strength could accelerate selling. RSI 37 is not yet oversold, so there is room to fall further before a mean-reversion bounce.",
+          "bull_case": "RSI near oversold with COPX leading up +1.83% and GLNCY catching a +1.34% bid implies the pullback is exhausting; a snap back toward the 50-day ($15.13) is ~11% upside if copper firms and China PMI surprises positive.",
+          "falsifier": "A decisive daily close below the 200-day SMA ($12.52) on rising volume would flip this to a positive (trim) tactical score."
         },
         "positional": {
-          "bear_case": "The COPX/GLNCY spread has been persistently negative and NOT reverting — the ADR keeps underperforming copper, meaning coal (25% of book) and the ESG discount, plus weak zinc/nickel/cobalt, are offsetting copper strength. Positional layer is graded POOR; the catch-up signal is likely noise here.",
-          "bull_case": "GLNCY at 1.62x book with a diversified copper/coal/trading mix into a copper up-cycle and tight credit spreads is well-positioned. If Chinese stimulus/property stabilizes, copper leadership pulls the whole complex up and GLNCY closes the 4.84pp gap sharply given its operating leverage.",
-          "falsifier": "COPX/GLNCY spread turning positive (GLNCY leading copper) for several sessions, or HY OAS widening past ~3.5bps signaling demand deterioration, would flip the positional sign."
+          "bear_case": "The stock has rolled over from the 50-day, and coal (25% of book) faces persistent ESG-driven multiple compression plus soft thermal/met coal prices. If copper stalls, GLNCY lacks a near-term positional catalyst and drifts back toward book value.",
+          "bull_case": "GLNCY lagging COPX slightly means it can catch up if the trading arm gets re-rated; sum-of-parts suggests the market is under-pricing the trading segment at 8-12x, offering positional upside as copper leadership broadens into diversified miners.",
+          "falsifier": "GLNCY/COPX spread widening meaningfully negative (GLNCY sustainably underperforming copper by >2pp) while it loses the 200-day would flip the sign."
         },
         "strategic": {
-          "bear_case": "The trough P/E may be masking a structurally lower-earning franchise: coal faces terminal decline/ESG divestment pressure, cobalt and nickel are in oversupply, and if copper's rally is speculative (not demand-driven) the whole thesis is a value trap. At 1.62x book there's no asset-value cushion if commodities roll over.",
-          "bull_case": "Copper structural deficit + energy-transition demand with constrained supply gives GLNCY multi-year earnings upside from trough. The trading arm ($2-4B EBITDA on minimal capital, worth 8-12x) is priced near zero — sum-of-parts is materially above the current price if any of these rerate.",
-          "falsifier": "Sustained Chinese property/PMI contraction dragging LME copper back below ~$4/lb, or a coal-price collapse, would flip the strategic sign to trim as the trough deepens structurally rather than recovers."
+          "bear_case": "P/B at 1.63 is NOT below replacement — the deep-value SOTP argument is weaker here. Coal is 25% of the book and faces terminal-decline narrative capping the multiple; a Chinese property/industrial slowdown would deepen rather than reverse the earnings trough, making the 220x P/E a genuine deterioration signal rather than a cyclical buy.",
+          "bull_case": "Copper structural deficit is real and multi-year; as trough earnings normalize the 220x P/E collapses and the stock re-rates hard. Trading arm gives downside protection unusual for a pure miner, and buybacks/dividends provide a shareholder-return floor while investors wait for the copper cycle to inflect.",
+          "falsifier": "Evidence the earnings trough is deepening — copper breaking down toward $3.50/lb and Chinese PMI printing sub-48 with worsening property data — would flip this from buy to trim."
         }
       },
       "key_metric": {
-        "name": "COPX/GLNCY spread",
-        "value": "-4.84pp (copper surging +3.52%, GLNCY lagging — unrealized catch-up)"
+        "name": "Trailing P/E (cyclical trough indicator)",
+        "value": "220x — deep earnings trough, historically a cyclical BUY setup for a diversified miner"
       },
       "risks": [
-        "Persistent negative COPX/GLNCY spread — the ADR keeps failing to capture copper strength (coal ESG overhang, thin ADR liquidity, GBP/USD drag)",
-        "Chinese property/PMI weakness could reverse the copper rally, deepening the earnings trough into a value trap",
-        "Coal (25% of book) faces terminal ESG/divestment pressure and price volatility; cobalt/nickel in oversupply"
+        "Chinese industrial/property demand slowdown compressing copper, zinc and coal prices, deepening the earnings trough",
+        "Coal (~25% of book) facing persistent ESG-driven multiple compression and thermal/met coal price weakness",
+        "P/B at 1.63 offers less margin of safety than a sub-book (<0.8) setup — limited valuation cushion if commodities roll over",
+        "DXY strength / higher-for-longer real rates (10Y real 2.25%) pressuring dollar-denominated commodity prices"
       ],
       "catalysts": [
-        "H1 2026 production report / trading-arm EBITDA disclosure showing the marketing floor the market underprices",
-        "LME copper breaking to new highs on electrification/grid demand + potential Chinese stimulus pulling GLNCY catch-up",
-        "Capital return update (buyback/dividend) given diversified cash flow at trough earnings"
+        "H2 2026 production/trading update and any copper guidance revision or M&A (portfolio simplification / coal spin-off decision)",
+        "Chinese stimulus measures and PMI/property data inflecting positive, lifting copper demand",
+        "Continued LME copper inventory drawdown reinforcing the structural deficit narrative",
+        "Capital returns update (buyback expansion / special dividend) tied to trading-arm cash generation"
       ],
       "_scoring": {
-        "deterministic": -18,
+        "deterministic": -13,
         "llm": -16,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -1.4155412549475057,
-        "positional": 0.026130956801846964,
-        "strategic": -1.3627861803813712,
-        "composite": -0.860576682823999
+        "tactical": -0.13238873449220637,
+        "positional": 0.3481279237100433,
+        "strategic": -1.5355159032406605,
+        "composite": -0.5507427126572114
       }
     },
     {
       "symbol": "IBIT",
       "price": {
-        "current": 35.14,
-        "change_pct": 3.35,
+        "current": 34.89,
+        "change_pct": 2.62,
         "week52_high": 71.82,
         "week52_low": 32.84,
-        "week52_position_pct": 5.9
+        "week52_position_pct": 5.3
       },
       "tactical": {
-        "score": -4,
+        "score": -6,
         "signal": "NEUTRAL",
-        "rationale": "RSI 42.4 is soft-to-neutral and BTC just rallied +3.35% on the day. My tactical BUY calls on IBIT have hit 100% over fwd_5d (n=6, avg +5.5%), and short-window mean-reversion off oversold-ish levels has been the one reliable edge here. A modest buy tilt is warranted, slightly more constructive than the quant's -2, but I keep it small because RSI isn't washed out (<30) and a single +3.35% day off a low is noise-prone.",
-        "det_score": -2,
+        "rationale": "RSI 41.5 is neutral-soft, not oversold. BTC is deep in a correction (-27% below 200DMA) and today bounced +2.6%, suggesting some near-term stabilization off the $32.84 52w low. My tactical BUY signals have hit 100% (n=6) on 5d windows, supporting a mild long lean, but there is no capitulation washout or RSI<30 to justify aggression. A small buy tilt is warranted.",
+        "det_score": -5,
         "llm_score": -8,
         "det_notes": [
-          "RSI 42.38: BTC slightly soft",
-          "BTC daily +3.35%: notable rally"
+          "RSI 41.51: BTC slightly soft"
         ]
       },
       "positional": {
-        "score": -77,
+        "score": -72,
         "signal": "STRONG_BUY",
-        "rationale": "The quant floors this at -100 purely on drawdown depth (-26.6% below 200DMA, 5.9% of 52w range). Philosophy says buy deeper in drawdowns and upside is uncapped — so I keep a real BUY tilt. BUT the calibration is damning: positional BUY has hit only 5.9% over 20d (avg -13.85%, n=31) across this entire cycle. That is not noise; it means the 'deep drawdown = buy' rule has repeatedly caught a falling knife. I honor the drawdown-buy philosophy but refuse the -100 conviction — I move materially toward zero to -55, still a BUY but not max.",
+        "rationale": "The quant slams positional to -100 (max conviction buy) purely on 'below both MAs + deep drawdown + 5.3% of 52w range.' I strongly discount this. My positional BUY signals have hit only 5.9% of the time (n=32) with an average forward-20d return of -13.9% — meaning 'buy the drawdown' has been a losing trade for 15 straight days. This is a mean-reversion assumption failing against a genuine downtrend. The setup is a death cross with price making new lows, not a V-bottom. A drawdown alone is NOT a buy — the falling knife has kept falling. I retain a moderate buy bias because BTC 27% below 200DMA in a still-institutionally-supported ETF regime historically offers favorable 6-12m risk/reward, but I refuse -100 when my own record says this exact signal has been wrong 94% of the time.",
         "det_score": -100,
-        "llm_score": -55,
+        "llm_score": -45,
         "det_notes": [
           "IBIT MA: below_both_death (-30)",
-          "IBIT 52w: 5.9% — deep drawdown, max conviction buy",
-          "BTC -26.6% below 200DMA — correction [extended_expansion: -8]",
+          "IBIT 52w: 5.3% — deep drawdown, max conviction buy",
+          "BTC -27.1% below 200DMA — correction [extended_expansion: -8]",
           "Halving cycle: month 27, phase=extended_expansion"
         ]
       },
       "strategic": {
-        "score": 1,
+        "score": 2,
         "signal": "NEUTRAL",
-        "rationale": "Month-27 extended_expansion is a context modifier, not a trigger — the guidance explicitly warns against calendar-based trim bias, and this cycle's timing is stretching. The quant's +3 mild maturity tilt is defensible but essentially noise. Strategically BTC's store-of-value thesis is intact (institutional/ETF adoption structural), while restrictive real rates are a genuine headwind — these roughly offset. No durable multi-quarter edge, so I sit at 0.",
+        "rationale": "Strategically Bitcoin remains a legitimate store-of-value/momentum asset with institutional adoption via ETFs, a favorable US regulatory backdrop, and uncapped long-run upside. Cycle month 27 (extended_expansion) is context, not a trigger — I will not add calendar-based trim bias. Real rates at 2.25% and Fed funds real at 1.38% are a modest headwind for a non-yielding asset, roughly offsetting the secular adoption tailwind. Net near-neutral, matching quant's +3.",
         "det_score": 3,
-        "llm_score": 0,
+        "llm_score": 2,
         "det_notes": [
           "Cycle: month 27 (extended_expansion) — mild maturity tilt"
         ]
       },
       "composite": {
-        "score": -28,
+        "score": -26,
         "recommendation": "BUY",
-        "summary": "Quant composite is heavily pulled by a -100 positional (deep drawdown = max buy), but IBIT's positional BUY has hit only 5.9% over 20d this cycle — I discount the reflexive dip-buy and land near-neutral with a modest buy tilt from washed-out RSI and 52w-low proximity.",
+        "summary": "",
         "det_score": -35,
-        "llm_score": -22,
+        "llm_score": -18,
         "weights": {
           "t": 0.3,
           "p": 0.35,
@@ -675,90 +802,90 @@
         ]
       },
       "divergence": {
-        "tactical": 6,
-        "positional": 45,
-        "strategic": 3,
+        "tactical": 3,
+        "positional": 55,
+        "strategic": 1,
         "flagged": [
           "positional"
         ]
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "The +3.35% pop is a dead-cat bounce inside a confirmed death-cross downtrend; RSI 42 has plenty of room to roll back toward 30, and a failed bounce off the 52w low often precedes a fresh leg down.",
-          "bull_case": "Short-window mean reversion has worked 100% of the time for IBIT tactically; RSI lifting off the low with a strong daily gain often marks a local momentum turn, and oversold BTC snaps back violently.",
-          "falsifier": "BTC closes back below the recent $32.84 52w low with RSI breaking under 35 — would confirm downside continuation and flip tactical to neutral/sell."
+          "bear_case": "The +2.6% bounce is a dead-cat rally within a death-cross downtrend (price below both 50 and 200DMA); RSI 41 has room to fall to 25-30, and momentum-driven BTC often accelerates lower once trend breaks — the 52w low at $32.84 is only ~6% away and a break invites forced/leveraged selling.",
+          "bull_case": "Price is holding above the 52w low and printing a green +2.6% day after a brutal drawdown; my tactical model has been perfect (100%, n=6) on 5d windows, and beaten-down BTC frequently snaps back sharply once short-term sellers exhaust.",
+          "falsifier": "A decisive daily close below the $32.84 52w low on rising volume would flip this to a positive (trim/avoid) tactical score."
         },
         "positional": {
-          "bear_case": "Death cross intact, 51% off highs, restrictive real rates, and a 31-sample track record showing this exact signal loses ~14% over 20 days — the drawdown is a trend, not a dip, and could extend well below the 52w low before flows return.",
-          "bull_case": "BTC is a momentum asset with uncapped upside; buying 27% below the 200DMA near 52w lows historically front-runs violent cycle recoveries, and if ETF flows flip positive the reflexive squeeze is large.",
-          "falsifier": "Sustained positive ETF net inflows for a week AND BTC reclaiming the 50DMA ($40.28) would validate a bottom and justify pushing back toward -80; conversely a decisive break of $32.84 on accelerating outflows flips me toward neutral/sell."
+          "bear_case": "15 consecutive positional BUY days have all been wrong (5.9% hit rate, -13.9% avg fwd20d); the price structure is a confirmed death cross with fresh lows, and if this cycle is genuinely breaking the 4-year pattern (structural ETF outflows, macro real rates at 2.25%), 'cheap vs 200DMA' becomes a value trap all the way down.",
+          "bull_case": "BTC 27% below its 200DMA with an intact spot-ETF bid is historically a strong 6-12 month accumulation zone; if flows turn positive after this drawdown, the reflexive momentum to the upside is uncapped and the current level marks a durable cycle low.",
+          "falsifier": "Confirmed sustained ETF outflows (multi-week net redemptions from IBIT) alongside a break below the 52w low would flip this positional score positive — signaling structural distribution rather than a buyable dip."
         },
         "strategic": {
-          "bear_case": "This cycle may be breaking the 4-year pattern to the downside — if ETF adoption has already pulled forward demand, the structural bid weakens and the deep drawdown becomes a secular top rather than a mid-cycle pause.",
-          "bull_case": "Structural adoption (spot ETFs, sovereign/corporate treasuries, potential reserve status) is still early-innings and could drive a multi-year re-rating that dwarfs cycle timing; being months-deep in the cycle is irrelevant if adoption keeps compounding.",
-          "falsifier": "A sustained shift in the regime — either Fed easing reviving risk appetite (bullish, push negative) or a durable regulatory/adoption reversal (bearish, push positive) — would give strategic a real sign."
+          "bear_case": "Elevated real rates (10Y TIPS 2.25%) raise the opportunity cost of holding a zero-yield asset, and if the 4-year halving cycle is stretching/breaking, the structural bull thesis that justified prior institutional accumulation weakens materially.",
+          "bull_case": "Spot ETF infrastructure has permanently lowered access friction and broadened the demand base; sovereign/corporate treasury adoption and potential US strategic-reserve style policy could re-rate BTC's long-run addressable demand well above prior cycles.",
+          "falsifier": "A hostile regulatory reversal (ETF restrictions, adverse tax/custody rules) or clear evidence institutional ETF demand has structurally rolled over would flip this to a positive strategic score."
         }
       },
       "key_metric": {
         "name": "BTC vs 200DMA",
-        "value": "-26.6% below (price $35.14 vs 200DMA $47.89) — deep drawdown territory"
+        "value": "-27.1% (death cross, price at 5.3% of 52w range)"
       },
       "risks": [
-        "Positional BUY signal has hit only 5.9% of the time over fwd_20d (avg -13.85%, n=31) — the 'deep drawdown = buy' logic has been consistently wrong for IBIT this cycle, suggesting a genuine regime break rather than a dip to buy.",
-        "Death cross confirmed (price below both 50 and 200DMA, 50 below 200) — momentum-dominant asset with broken trend structure can continue lower without a valuation floor; IBIT is 51% off its 52w high.",
-        "Macro backdrop is restrictive: 10Y real yield at 2.2%, Fed funds real +1.43% — a genuinely tight regime pressures the store-of-value/risk-asset bid.",
-        "ETF outflow risk: if a 14-day 'buy the drawdown' thesis is being echoed while flows are actually decelerating/negative, price can keep grinding lower."
+        "15-day positional BUY streak has been 94% wrong — the drawdown-buy thesis is failing against a confirmed downtrend, risk of catching a falling knife",
+        "Elevated real rates (10Y TIPS 2.25%) raise opportunity cost for a non-yielding asset",
+        "Potential structural ETF outflows could signal the 4-year cycle is breaking rather than a buyable dip",
+        "Break below $32.84 52w low could trigger leveraged/forced selling cascade"
       ],
       "catalysts": [
-        "Potential Fed easing / rate-cut path in 2H2026 that would lower real yields and revive risk appetite for BTC.",
-        "Reversal in spot ETF net flows — a return to sustained positive daily inflows would signal the drawdown is bottoming.",
-        "Regulatory tailwinds (further crypto-friendly policy, potential strategic reserve / institutional adoption headlines) that could re-rate BTC.",
-        "BTC reclaiming its 200DMA ($47.89) would flip trend structure back constructive."
+        "ETF flow inflection — a return to sustained net IBIT inflows after the drawdown would confirm a bottom",
+        "US crypto regulatory/policy developments (strategic reserve talk, favorable custody/tax rules)",
+        "BTC reclaiming its 50DMA ($40.28) would flip trend structure and momentum",
+        "Macro pivot — falling real rates would reduce holding cost and re-attract flows"
       ],
       "_scoring": {
         "deterministic": -35,
-        "llm": -22,
+        "llm": -18,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.017694265686843756,
-        "positional": -2.482440896175464,
-        "strategic": 0.17910904085012308,
-        "composite": -1.7299347603706918
+        "tactical": -0.13238873449220637,
+        "positional": -2.1002442869979534,
+        "strategic": 0.08452381118755928,
+        "composite": -1.6694388477421718
       }
     },
     {
       "symbol": "KOF",
       "price": {
-        "current": 107.4,
-        "change_pct": 1.51
+        "current": 107.41,
+        "change_pct": 1.52
       },
       "tactical": {
         "score": 0,
         "signal": "NEUTRAL",
-        "rationale": "RSI 52.5 is dead-center neutral, price above both MAs in a healthy golden-cross posture. No momentum extreme, no oversold bounce or overbought fade setup. MXN at 17.45 is mid-range and stable, VIX subdued at 16.6 — no EM risk-off catalyst intraday. Nothing tactical to add over the quant zero.",
+        "rationale": "RSI 52.87 is squarely mid-range — no overbought or oversold edge. Per KOF guidance, RSI 50-65 is not penalized. No short-term catalyst or dislocation today. This is a genuine no-edge tactical read matching the quant 0.",
         "det_score": 0,
         "llm_score": 0,
         "det_notes": [
-          "RSI 52.51: KOF normal range"
+          "RSI 52.87: KOF normal range"
         ]
       },
       "positional": {
         "score": 3,
         "signal": "NEUTRAL",
-        "rationale": "Above both MAs with a golden cross is constructive but this is exactly the setup the engine already rewards mildly. Peso at 17.45 is normal-range; no positional regime shift. Mexican consumer demand has been resilient and KOF volumes steady, but the ADR has already run up (near SMA50 well above SMA200). I stay near quant's +3, trimming marginally as the easy peso tailwind is largely priced.",
+        "rationale": "Price is above both the 50-day ($105.63) and 200-day ($97.99) in a golden-cross configuration with a +1.52% day, confirming a healthy intermediate uptrend. Per KOF guidance I do not penalize 52w proximity or mild momentum. The quant +3 reflects a small trend-following posture; nothing in the setup argues for a larger tilt either way.",
         "det_score": 3,
-        "llm_score": 2,
+        "llm_score": 3,
         "det_notes": [
           "KOF MA: above_both_golden (+3)"
         ]
       },
       "strategic": {
-        "score": -10,
+        "score": -9,
         "signal": "NEUTRAL",
-        "rationale": "KOF at 12.8x trailing P/E is genuinely cheap for a dominant staples compounder with a 3.76% yield and consistent dividend growth — that's value territory the engine correctly flags. Structurally KOF benefits from Mexican formalization, resilient consumption, and disciplined pricing; it's a higher-quality bottler than most EM staples peers. MXN at 17.45 is mid-cycle. I match quant's -10: modest strategic buy tilt on valuation + quality, not more because the peso is a two-way risk and 60% Mexico exposure carries US-tariff/trade-policy tail risk.",
+        "rationale": "KOF at 12.8x trailing P/E with a 3.76% yield is genuinely cheap for a dominant LatAm Coke bottler with durable volume growth and consistent dividend growth. MXN at 17.45 is well within a stable range, not a headwind. Nearshoring provides a multi-year structural tailwind to Mexican formal-sector consumption. This supports a modest buy tilt in line with the quant -10.",
         "det_score": -10,
-        "llm_score": -10,
+        "llm_score": -8,
         "det_notes": [
           "KOF P/E 12.8x: value territory",
           "KOF P/B 2.66: normal",
@@ -767,11 +894,11 @@
         ]
       },
       "composite": {
-        "score": -4,
+        "score": -3,
         "recommendation": "HOLD",
-        "summary": "Quant and judgment align: KOF is a cheap (12.8x), high-quality LatAm staples compounder with a stable peso and healthy golden-cross posture, warranting a mild strategic buy tilt but no near-term edge — consistent with the 70-day HOLD streak. Composite -5 reflects modest value/quality bias offset by two-way peso and Mexico policy risk.",
+        "summary": "KOF is a high-quality LatAm staples compounder trading at a cheap 12.8x P/E with the peso in a stable, mid-range zone. Quant edge is mild value-tilt buy; my judgment concurs there's a modest structural bull case but no acute catalyst to justify anything beyond a small negative tilt.",
         "det_score": -4,
-        "llm_score": -5,
+        "llm_score": -4,
         "weights": {
           "t": 0.15,
           "p": 0.35,
@@ -797,87 +924,87 @@
       },
       "divergence": {
         "tactical": 0,
-        "positional": 1,
-        "strategic": 0,
+        "positional": 0,
+        "strategic": 2,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "The +1.5% pop today puts it near the 52w upper zone with RSI drifting toward the top half; a stall/mean-reversion after the peso-driven rally could give back gains if MXN weakens on any Banxico dovishness.",
-          "bull_case": "Golden-cross momentum intact with price reclaiming above SMA50, and a firm peso plus low VIX could extend the grind higher over coming sessions with no resistance overhead.",
-          "falsifier": "RSI spiking above 70 on a sharp MXN move (either a squeeze higher or an EM selloff cracking below SMA50) would give a tradable tactical edge and flip this off zero."
+          "bear_case": "Today's +1.52% pop could fade intraday if it was FX-driven noise rather than fundamental flow, giving back gains near-term.",
+          "bull_case": "Neutral RSI with fresh upward momentum leaves tactical room to grind higher without hitting overbought resistance.",
+          "falsifier": "An RSI move above ~70 (overbought, tactical trim) or a sharp gap-down below the 50-day (oversold buy) would move the tactical score off zero."
         },
         "positional": {
-          "bear_case": "The 200-day at $97.99 vs price $107.40 shows the ADR is ~10% extended above long-term trend; a peso pullback toward 18+ on Banxico cuts or US tariff noise on Mexico would compress the ADR back toward the mean quickly.",
-          "bull_case": "Sustained nearshoring-driven Mexican wage growth and formal employment support staples volumes; a strong peso plus KOF's pricing power keeps the uptrend and dividend growth compounding, arguing for staying long weight.",
-          "falsifier": "A decisive break below the SMA50 ($105.63) on rising volume, coincident with MXN weakening past ~18, would flip the positional sign to net-add-caution/positive."
+          "bear_case": "The stock has run well above its 200-day (~10% premium), leaving it extended and vulnerable to mean reversion on any EM risk-off or MXN wobble; a golden-cross late in an uptrend can mark exhaustion.",
+          "bull_case": "Sustained trend above rising MAs with orderly RSI (52.87) leaves room to continue higher without overbought risk; today's +1.52% shows buyers still engaged.",
+          "falsifier": "A decisive break below the 50-day ($105.63) accompanied by MXN weakening would flip the positional read negative on trend/positioning grounds."
         },
         "strategic": {
-          "bear_case": "Trump-era tariff threats on Mexico and a Banxico easing cycle could weaken MXN structurally toward 19-20, eroding USD-translated earnings and the ADR; Mexican fiscal/political risk (Sheinbaum's spending, judicial reform) adds an EM discount that keeps the multiple compressed.",
-          "bull_case": "12.8x for a monopoly-like bottler with pricing power, buybacks, rising dividends, and nearshoring-fueled consumer strength is too cheap; peso stability plus margin expansion from lower PET/sugar costs could re-rate the multiple toward 16-18x over the strategic horizon.",
-          "falsifier": "A durable MXN break past ~19 on Banxico dovishness or US tariff imposition, or a management guide-down on Mexican volumes/margins, would remove the valuation edge and flip the strategic score positive."
+          "bear_case": "US-Mexico tariff/immigration friction under Trump could hit MXN and Mexican GDP; Banxico's easing cycle narrows rate differentials, structurally pressuring the peso and thus the USD ADR over the strategic horizon. A weaker MXN directly deflates translated earnings regardless of operational strength.",
+          "bull_case": "Cheap valuation plus resilient staples demand, pricing power, nearshoring-driven consumption, and steady dividend growth make KOF a re-rating candidate if EM sentiment improves and the peso holds. Best-in-class execution vs Arca Continental supports premium durability.",
+          "falsifier": "A sustained MXN break above ~19-20/USD (peso regime shift) driven by Banxico dovishness or trade shock, or a structural volume/margin deterioration in Mexico, would flip this to a positive (trim) score."
         }
       },
       "key_metric": {
-        "name": "Trailing P/E",
-        "value": "12.8x with 3.76% yield — value territory for a dominant staples bottler"
+        "name": "MXN/USD",
+        "value": "17.446 (stable mid-range; ~60% of KOF revenue in MXN)"
       },
       "risks": [
-        "MXN/USD depreciation (Banxico easing, US tariff threats on Mexico) directly compresses the USD ADR since ~60% of revenue is peso-denominated",
-        "Mexican political/fiscal risk under Sheinbaum (judicial reform, spending) sustaining an EM valuation discount",
-        "Input cost inflation in PET resin and sugar/high-fructose corn syrup squeezing margins if pricing can't keep pace"
+        "MXN weakness from Banxico easing cycle or renewed US-Mexico trade/tariff tension under the Trump administration would compress the USD-denominated ADR",
+        "Input cost inflation (PET resin, sugar/HFCS, aluminum) and Mexican consumer softening could squeeze margins",
+        "Brazil/Colombia FX and volume volatility add earnings noise on the ~40% non-Mexico mix"
       ],
       "catalysts": [
-        "Next Banxico rate decision — direction sets the near-term MXN regime and thus the ADR",
-        "KOF quarterly earnings — Mexican/Brazilian volume trends, margin and dividend growth updates",
-        "KO parent guidance and any pricing/volume commentary on LatAm bottler franchises"
+        "Q2 2026 earnings with volume and price/mix trends across Mexico, Brazil, Colombia",
+        "Banxico rate decision and MXN trajectory; KO parent guidance on LatAm",
+        "Annual/interim dividend declaration reflecting continued dividend growth"
       ],
       "_scoring": {
         "deterministic": -4,
-        "llm": -5,
+        "llm": -4,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.6546878304132213,
-        "positional": 0.6532739200461746,
-        "strategic": -0.5918385697656241,
-        "composite": 0.16684649973118346
+        "tactical": 0.5295549379688254,
+        "positional": 0.7689418974254802,
+        "strategic": -0.6902777913650675,
+        "composite": 0.30979277586968135
       }
     },
     {
       "symbol": "PBR.A",
       "price": {
-        "current": 14.77,
-        "change_pct": 1.93
+        "current": 14.53,
+        "change_pct": 0.28
       },
       "tactical": {
-        "score": -16,
-        "signal": "NEUTRAL",
-        "rationale": "RSI 31.7 confirms mildly oversold, price 22% below SMA50 but +1.9% today and holding above SMA200 ($15.71 vs $14.77 — actually price is now BELOW SMA200, a concern). The stock has been TACTICAL_BUY 3 straight days with only 22% hit rate historically — the mean-reversion bounce keeps failing, so I temper the quant -15 only slightly. WTI stable at $71.87 removes acute downside pressure. No political headline today. I lean modestly buy on oversold condition but respect the poor recent BUY accuracy.",
-        "det_score": -15,
-        "llm_score": -18,
+        "score": -26,
+        "signal": "BUY",
+        "rationale": "RSI 27 confirms oversold, price -23.6% below SMA50 and stalled near SMA200 ($15.71) support. Stock has been TACTICAL_BUY 4 straight days but my historical hit rate on PBR.A BUY signals is only 22% (avg -2.5% fwd 5d) — the oversold condition keeps grinding lower rather than snapping back, consistent with a slow political/dividend overhang bleed rather than a clean mean-reversion setup. WTI at $71.87 is supportive, not distressed. I trim the quant -28 toward -22 to respect the weak reversion track record.",
+        "det_score": -28,
+        "llm_score": -22,
         "det_notes": [
-          "RSI 31.72: PBR.A mildly oversold"
+          "RSI 27.16: PBR.A oversold"
         ]
       },
       "positional": {
         "score": -21,
         "signal": "NEUTRAL",
-        "rationale": "Quant -24 flags below_both MAs (22% below SMA50) with WTI supportive. I trim toward -18: the trend structure is genuinely broken (price now under both SMA50 and SMA200), which is a headwind that pure mean-reversion positional models under-penalize. Positional layer is grading POOR (26.4%) portfolio-wide, so I discount its confidence. Still net buy-leaning because the deep discount to SMA50 plus stable oil and a 9.4% yield create asymmetric value if political risk stays quiet.",
+        "rationale": "Price is 23.6% below SMA50 and below both averages — a genuine downtrend, which is a caution for positional longs, but WTI at $71.87 and BRL at 5.16 (both normal) mean the fundamental backdrop is not deteriorating. The 9.4% yield provides a valuation floor and total-return cushion. I score modestly negative (buy-side) reflecting the discounted entry, but less aggressive than a pure oversold read because the below_both structure signals real distribution and political overhang. Trim quant -24 to -18.",
         "det_score": -24,
         "llm_score": -18,
         "det_notes": [
           "PBR.A MA: below_both (-12)",
-          "-22.4% below SMA50",
+          "-23.6% below SMA50",
           "WTI $71.87: supportive"
         ]
       },
       "strategic": {
-        "score": 13,
+        "score": 10,
         "signal": "NEUTRAL",
-        "rationale": "P/E 4.76x is LOW = peak-earnings / cycle-rollover risk per inverted cyclical rules — a mild trim signal, consistent with quant +15. WTI $72 is mid-range (not a spike), so earnings are near a comfortable but not depressed level; the low multiple reflects the market pricing peak margins plus political discount. Yield 9.4% is sustainable within normal band but Lula-era pressure to redirect FCF into refining capex and social pricing caps the long-term dividend upside. P/B 1.5 normal. I hold near quant +12, slightly softer, because oil is not at a peak that would justify aggressive trimming.",
+        "rationale": "Trailing P/E 4.8x is LOW = peak/near-peak earnings for a cyclical = classic trim signal per Lynch inversion; WTI at $72 is mid-cycle, not a trough, so limited upside earnings surprise. P/B 1.50 normal, yield 9.4% sustainable at current oil. The dominant strategic risk is idiosyncratic: Lula-era interference — CEO turnover, fuel-price suppression, forced downstream/energy-transition capex diverting the dividend. That political discount is real and persistent, capping the strategic case. I stay mildly positive (trim) but below quant +15 because the low P/E partly reflects an appropriate political-risk discount rather than pure cycle-peak froth.",
         "det_score": 15,
-        "llm_score": 12,
+        "llm_score": 8,
         "det_notes": [
           "PBR.A P/E 5x: peak earnings — trim",
           "PBR.A P/B 1.50: normal",
@@ -887,11 +1014,11 @@
         ]
       },
       "composite": {
-        "score": -5,
+        "score": -8,
         "recommendation": "HOLD",
-        "summary": "Deeply oversold with broken trend structure and stable oil creates a modest tactical/positional buy, offset by a low P/E flagging cycle-peak earnings and persistent Lula-era political overhang on the dividend. Net small buy-lean, low conviction given repeated failed dip-buys.",
-        "det_score": -5,
-        "llm_score": -8,
+        "summary": "Quant leans buy on oversold/discount; my judgment agrees mildly on tactical/positional value from the 9.4% yield and WTI support, but the persistent Lula-interference discount and low P/E (peak earnings) cap the strategic upside, keeping the blended composite only slightly buy-side.",
+        "det_score": -7,
+        "llm_score": -6,
         "weights": {
           "t": 0.2,
           "p": 0.35,
@@ -916,101 +1043,99 @@
         ]
       },
       "divergence": {
-        "tactical": 3,
+        "tactical": 6,
         "positional": 6,
-        "strategic": 3,
+        "strategic": 7,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "Price has broken below SMA200 ($15.71) too, meaning both moving averages now overhead — 'oversold' in a confirmed downtrend often means 'about to get more oversold.' Three failed TACTICAL_BUY calls in a row (22% hit rate) argue the dip-buy reflex is noise here. A Lula fuel-pricing or dividend headline could gap it down 5-10% overnight.",
-          "bull_case": "RSI 31.7 with a +1.9% up day suggests a short-term bottom forming; WTI firm at $72 and 9.4% yield provide a floor for value buyers. Any relief on political risk or an OPEC+ supply signal snaps oversold names back fast.",
-          "falsifier": "A close back above SMA50 ($19.04) on rising volume, or conversely a decisive break below $14 on a political headline, would flip the tactical read."
+          "bear_case": "Oversold in a downtrend often stays oversold; a Lula fuel-pricing headline or dividend cut could spike volume to the downside and RSI can pin sub-25 for weeks. The 4-day BUY streak has already failed to produce a bounce.",
+          "bull_case": "RSI 27 with WTI holding $72 and price sitting right on the 200-day ($15.71) is a textbook reversion zone; any oil uptick or reassuring dividend headline snaps a fast 5-8% squeeze given the 9.4% carry that attracts dip buyers.",
+          "falsifier": "Two consecutive up days reclaiming the SMA50 zone toward $16+ on rising volume would flip this to a momentum-follow SELL-side lean; conversely a break below the 200-day with a political catalyst would deepen the buy."
         },
         "positional": {
-          "bear_case": "Being below both MAs after breaking the 200-day is a bearish trend confirmation, not a value setup — momentum funds sell these. Brazilian fiscal deterioration and BRL at 5.16 add currency drag on USD-denominated ADR returns even if oil holds.",
-          "bull_case": "22% below SMA50 with oil stable is a rare dislocation; historically PBR snaps back violently once the political overhang clears. High dividend yield attracts income buyers at these levels, providing support.",
-          "falsifier": "Reclaiming the SMA200 ($15.71) and holding, or a fresh dividend cut / forced-capex mandate driving a sustained breakdown, flips the positional sign."
+          "bear_case": "below_both is a valid trend-follow SELL structure; PBR.A can drift for months when Lula interference fears dominate, and the dividend-yield floor is illusory if Petrobras is forced into higher social/refining capex that cuts the payout.",
+          "bull_case": "A 9.4% yield with pre-salt breakeven ~$35/bbl and WTI at $72 means huge free cash generation; at $14.53 the market is pricing peak political pessimism, and any de-escalation reprices the stock materially higher.",
+          "falsifier": "A formal dividend-policy downgrade or forced capex mandate from the government would flip this positive (trim); reclaiming SMA50 with a stable dividend guide would deepen the buy."
         },
         "strategic": {
-          "bear_case": "Low P/E signals the earnings cycle is topping; a WTI slide toward pre-salt breakeven economics plus Lula's known appetite to raid the dividend for domestic investment could compress both earnings and payout — structurally negative.",
-          "bull_case": "Pre-salt is a world-class low-cost ($35 breakeven) resource base; even at mid-cycle oil, FCF supports a 9-15% yield for years. If Lula moderates and dividend policy holds, PBR is one of the cheapest large-cap oil names globally with re-rating potential.",
-          "falsifier": "A credible, durable dividend-policy commitment or oil breaking sustainably above $85 (deepening rather than peaking earnings) would flip strategic to buy; conversely an explicit government dividend/capex raid confirms the trim."
+          "bear_case": "Government could redirect FCF to social/refining/energy-transition projects, permanently impairing the dividend; low P/E signals oil earnings are near peak so mean reversion in WTI compresses the whole thesis — a strategic trim is warranted.",
+          "bull_case": "If the 2026 Brazilian political cycle shifts market-friendly or oil stays firm, a 4.8x P/E with a 9.4% yield is deep value; state oils globally re-rate when payout credibility is restored, offering multi-year total return well above the index.",
+          "falsifier": "Credible government commitment to maintaining shareholder-return policy (or a market-friendly 2026 election shift) would flip this to negative (buy); a fuel-pricing violation or dividend raid confirms the trim."
         }
       },
       "key_metric": {
-        "name": "Discount to SMA50",
-        "value": "-22.4% below SMA50 ($14.77 vs $19.04), now also below SMA200"
+        "name": "Dividend yield",
+        "value": "9.4% — sustainable at WTI $72 but the core swing factor is government payout policy"
       },
       "risks": [
-        "Lula government interference: dividend redirection, forced refining capex, or fuel-pricing caps — single headline can move stock 5-10%",
-        "Oil price beta: WTI slide toward $60s would compress earnings sharply given high operating leverage",
-        "BRL/USD weakness (5.16) drags USD-denominated ADR returns and reflects Brazilian fiscal deterioration",
-        "Trend breakdown below both moving averages signals momentum-driven selling risk"
+        "Lula government interference: fuel-price suppression, CEO changes, or forced social/refining/energy-transition capex cutting the dividend",
+        "WTI rollover — at $72 earnings are near peak (P/E 4.8x); an oil correction hits high-beta PBR.A hard",
+        "BRL depreciation and Brazilian fiscal deterioration eroding USD-denominated ADR returns"
       ],
       "catalysts": [
-        "Next quarterly dividend declaration — confirmation of extraordinary payout sustainability",
-        "OPEC+ production policy meeting affecting WTI direction",
-        "Brazilian fiscal / BCB rate decisions influencing BRL and equity risk premium",
-        "Any Petrobras board/CEO or capital-allocation policy announcement signaling political posture"
+        "Quarterly dividend declaration and payout-policy confirmation (extraordinary dividend potential)",
+        "OPEC+ production decisions and Brent-WTI spread moves affecting realized prices",
+        "Brazilian political/fiscal headlines and pre-salt production updates heading into the 2026 election cycle"
       ],
       "_scoring": {
-        "deterministic": -5,
-        "llm": -8,
+        "deterministic": -7,
+        "llm": -6,
         "blend": "50/50"
       },
       "z": {
-        "tactical": -1.8932864284922888,
-        "positional": -0.2874405248203169,
-        "strategic": 1.0201427978854836,
-        "composite": 0.08781394722693864
+        "tactical": -2.338867642695645,
+        "positional": -0.1491976815900185,
+        "strategic": 0.6480158857712878,
+        "composite": -0.12047496839376502
       }
     },
     {
       "symbol": "AMKBY",
       "price": {
-        "current": 11.91,
-        "change_pct": 0.68
+        "current": 12.45,
+        "change_pct": 4.53
       },
       "tactical": {
-        "score": -1,
+        "score": 7,
         "signal": "NEUTRAL",
-        "rationale": "RSI 44 is neutral-to-slightly-oversold with no momentum extreme in either direction. Price is mid-range, no capitulation and no blow-off. My historical tactical BUY on AMKBY hit (n=1, small sample), and with the stock modestly below its 50-day I lean a hair to the buy side, but the freight-rate softening argues against conviction. Essentially neutral.",
-        "det_score": 0,
-        "llm_score": -5,
+        "rationale": "Price jumped +4.53% today, RSI 50.67 sits neutral after the move, and price is above both moving averages (golden). The rally likely reflects freight-rate headlines — Drewry WCI and SCFI have been elevated through 2025-2026 on continued Red Sea/Suez diversions keeping vessels tied up on longer routes, supporting spot rates well above pre-disruption levels. A one-day +4.5% pop into neutral RSI leaves little tactical edge either direction; chasing a spike is not attractive but no overbought reversal signal exists. Near-zero, slight trim lean to avoid buying a spike.",
+        "det_score": 8,
+        "llm_score": 3,
         "det_notes": [
-          "RSI 44.44: neutral"
+          "RSI 50.67: neutral",
+          "Daily +4.53%: notable rally"
         ]
       },
       "positional": {
-        "score": 4,
+        "score": 5,
         "signal": "NEUTRAL",
-        "rationale": "Price sits above the 200-day ($11.54) but below the 50-day ($12.13), an ambiguous consolidation regime — the intermediate trend has rolled slightly lower as the Red Sea rate premium fades. The +3 quant is fair; I nudge marginally to the trim side because the medium-term momentum has flattened and the stock has been range-bound for a 34-day HOLD streak with no positional edge developing.",
-        "det_score": 3,
-        "llm_score": 5,
+        "rationale": "Above both MAs with a golden cross is a constructive medium-term structure, and the quant scores it +8 (trim-leaning on strength). I discount that: for a cyclical bellwether riding an artificial capacity squeeze (Red Sea reroutings absorbing ~9% of effective global capacity), a positive MA structure is expected and not itself a trim signal. The positional picture is balanced — trend is healthy but the driver (Suez disruption) is fragile and reversible. Near-zero.",
+        "det_score": 8,
+        "llm_score": 2,
         "det_notes": [
-          "AMKBY MA: above_200_below_50 (+3)"
+          "AMKBY MA: above_both_golden (+8)"
         ]
       },
       "strategic": {
-        "score": -14,
+        "score": -12,
         "signal": "NEUTRAL",
-        "rationale": "P/B 0.70x is below net asset / replacement value for an asset-heavy fleet — historically a durable value floor and mild buy signal. P/E ~21x is mid-cycle (not trough, not peak), so no extreme cyclical read either way. Balance sheet is a fortress with net cash, funding continued buybacks and dividends (3% yield). The logistics segment (post-LF Logistics/Hamburg Süd integration) remains under-earning and is likely priced near zero vs DSV (~20x) and K+N (~15-20x) peers — a structural SOTP undervaluation. HY OAS at ~2.7bps signals a healthy, risk-on trade credit environment. I align closely with the quant -13.",
-        "det_score": -13,
-        "llm_score": -14,
+        "rationale": "P/B 0.70 is below book on an asset-heavy fleet — approaching replacement-value territory and historically a support level for shipping equities. P/E 21x is mid-cycle (not trough, not peak) under the inverted-cyclical rule, so no extreme signal there. Tight HY OAS signals a healthy trade/credit backdrop. The strategic case is modestly constructive: Maersk holds a large net cash position, is buying back stock aggressively, pays a ~2.9% yield, and its logistics segment (Hub/DSV-comparable) is likely valued near zero by the market at these freight-cycle levels — a sum-of-parts underpin. I align close to the quant's -11, slightly more constructive given the P/B floor and capital returns.",
+        "det_score": -11,
+        "llm_score": -13,
         "det_notes": [
           "AMKBY P/E 21x: mid-cycle",
           "AMKBY P/B 0.70: below book — value territory",
-          "AMKBY yield 3.052464228934817%: moderate",
           "HY OAS 2.74bps: tight — healthy trade environment"
         ]
       },
       "composite": {
-        "score": -4,
+        "score": -1,
         "recommendation": "HOLD",
-        "summary": "Maersk trades at 0.70x book (below replacement) with a mid-cycle 21x P/E, offering modest value support, but spot freight rates have normalized sharply lower off the Red Sea spike and there is no acute catalyst. Quant strategic tilt (-13) is reasonable; I trim the composite toward neutral given softening rates and stale HOLD streak.",
-        "det_score": -4,
-        "llm_score": -5,
+        "summary": "Quant leans mildly mixed (tactical/positional +8, strategic -11); my judgment lands slightly net-buy given below-book valuation, fortress balance sheet and buybacks, offset by the fragility of the Red Sea-driven rate premium. Net a modest HOLD with a slight buy tilt.",
+        "det_score": 0,
+        "llm_score": -4,
         "weights": {
           "t": 0.25,
           "p": 0.35,
@@ -1036,61 +1161,62 @@
       },
       "divergence": {
         "tactical": 5,
-        "positional": 2,
-        "strategic": 1,
+        "positional": 6,
+        "strategic": 2,
         "flagged": []
       },
       "hostile_review": {
         "tactical": {
-          "bear_case": "RSI drifting in the low-40s with price under the 50-day reflects fading momentum; if the next Drewry WCI print shows continued rate declines, RSI could break below 40 and confirm downside continuation.",
-          "bull_case": "Sub-45 RSI near the rising 200-day is a low-risk entry; any positive freight-rate surprise or guidance raise sparks a quick mean-reversion bounce toward the 50-day, and the 3% yield pays you to wait.",
-          "falsifier": "RSI breaking below 35 alongside a fresh leg down in spot freight rates would flip tactical decisively to the trim/positive side."
+          "bear_case": "The +4.53% pop is a rate-headline spike; freight rates are notoriously mean-reverting, and if Red Sea transits normalize (ceasefire/Houthi de-escalation), effective capacity floods back and spot rates collapse within weeks, unwinding the move.",
+          "bull_case": "Rate momentum is real and RSI at 50 has room to run; if WCI/SCFI keep grinding higher on peak-season front-loading ahead of tariff deadlines, the golden-cross structure supports continuation toward the SMA-50 breakout follow-through.",
+          "falsifier": "A sustained multi-week Drewry WCI decline (>15% off recent levels) alongside RSI breaking below 40 would flip this positive (trim)."
         },
         "positional": {
-          "bear_case": "Below the 50-day with rates normalizing lower, the path of least resistance is a drift back toward the 200-day ($11.54); a break there opens downside as the freight-rate tailwind unwinds and volume data softens on tariff drag.",
-          "bull_case": "Holding above the rising 200-day is constructive; a reclaim of the 50-day on any freight-rate stabilization or guidance raise flips the intermediate trend positive, and the low P/B floor limits downside, skewing risk-reward to the upside from here.",
-          "falsifier": "A decisive close back above the 50-day ($12.13) on volume would flip the positional read to buy-side (negative score)."
+          "bear_case": "Massive orderbook delivery — the container fleet is growing ~7-8% annually through 2026 with record newbuild deliveries; once Red Sea normalizes, structural overcapacity crushes rates and the golden cross rolls over hard.",
+          "bull_case": "Sustained Suez avoidance plus resilient global trade volumes keep utilization tight into 2026; front-loading ahead of US tariff escalation extends the rate cycle, letting the uptrend persist and Maersk's logistics/terminals earnings surprise higher.",
+          "falsifier": "A confirmed, durable Red Sea reopening with liners resuming Suez transits en masse — which would break the trend and flip this to a clear trim."
         },
         "strategic": {
-          "bear_case": "The entire strategic case rests on 0.70x book, but book value itself is inflated by peak-cycle retained earnings from the 2021-22 super-boom and Red Sea windfall; as those normalize, forward book erodes and today's 'cheap' multiple re-rates higher. The newbuild orderbook guarantees multi-year overcapacity, so mid-cycle earnings normalize DOWN, and shipping perpetually trades below book for good reason (destructive capital cycle, no pricing power).",
-          "bull_case": "Red Sea diversions persist longer than consensus, keeping ton-mile demand structurally elevated and rates well above trough; combined with disciplined Gemini alliance (Maersk-Hapag) reliability gains and an under-appreciated logistics segment worth multiples of its implied value, the SOTP re-rates toward 1.0x+ book with strong capital returns providing a floor.",
-          "falsifier": "P/B rising above ~1.0x combined with spot freight rates spiking (WCI back above ~$4,000/FEU sustained) would signal peak-cycle earnings and flip strategic to trim/positive."
+          "bear_case": "The 2024-26 earnings were inflated by the Red Sea premium; normalized through-cycle earnings imply a much lower sustainable payout, the buyback pace is unsustainable if rates crater, and 0.70x book can fall to 0.4-0.5x as it did in prior deep troughs (2016, 2019).",
+          "bull_case": "Below-book valuation, fortress balance sheet, ongoing buybacks shrinking the share count, and a structurally under-valued Logistics/Terminals segment give asymmetric upside; if trade volumes hold and disruptions persist, cash returns compound and the stock re-rates toward book.",
+          "falsifier": "A collapse in freight rates to loss-making levels forcing a dividend/buyback cut, or P/B breaking decisively below 0.55 on deteriorating fundamentals, would flip this to a trim."
         }
       },
       "key_metric": {
-        "name": "Price/Book",
-        "value": "0.70x — below book / near replacement value"
+        "name": "Price-to-Book",
+        "value": "0.70x — below book value on an asset-heavy fleet, near replacement-cost support"
       },
       "risks": [
-        "Red Sea/Suez re-opening: if Houthi attacks abate and carriers return to Suez, effective capacity floods back and spot rates collapse, compressing container earnings sharply",
-        "Massive newbuild orderbook (~25%+ of fleet across industry) delivering into 2025-2026 creates structural overcapacity that caps any rate recovery",
-        "Tariff/trade-war escalation could depress global container volumes; Maersk is a direct bellwether to slowing goods trade",
-        "USD strength and EM demand softness pressure headhaul volumes on key East-West lanes"
+        "Red Sea/Suez normalization would release ~9% of effective global capacity, collapsing spot freight rates and Maersk earnings",
+        "Record container-fleet orderbook (~7-8% annual capacity growth through 2026) creates structural overcapacity risk once disruptions ease",
+        "US tariff escalation / trade-war fragmentation could depress global container volumes",
+        "Elevated 2024-26 earnings are cyclically inflated; normalized EPS implies far lower sustainable dividend/buyback capacity"
       ],
       "catalysts": [
-        "Q2 2026 earnings and any full-year EBITDA guidance revision (Maersk has repeatedly raised guidance on Red Sea diversions)",
-        "Red Sea security developments — prolonged Suez avoidance keeps ton-mile demand elevated and supports rates",
-        "Drewry WCI / SCFI weekly print inflection — stabilization or re-acceleration would flip the tactical setup",
-        "Capital return updates: continued buyback/special dividend given the fortress balance sheet and cheap P/B"
+        "Q2 2026 earnings and management guidance update on freight-rate outlook and capital returns",
+        "Drewry WCI / SCFI spot-rate weekly prints signaling whether the Red Sea premium is holding or fading",
+        "Peak-season / tariff-deadline front-loading demand into H2 2026",
+        "Any Red Sea ceasefire or Houthi de-escalation altering routing and effective capacity",
+        "Continued share buyback execution and dividend confirmation"
       ],
       "_scoring": {
-        "deterministic": -4,
-        "llm": -5,
+        "deterministic": 0,
+        "llm": -4,
         "blend": "50/50"
       },
       "z": {
-        "tactical": 0.4954394392316269,
-        "positional": 0.6924703552489451,
-        "strategic": -0.8721831554440777,
-        "composite": 0.16684649973118346
+        "tactical": 1.3018225558400291,
+        "positional": 0.8454535290101052,
+        "strategic": -0.9015873193339657,
+        "composite": 0.4818998735750599
       }
     }
   ],
   "assignments": {
     "tacticalBuy": "PBR.A",
     "positionalBuy": "IBIT",
-    "strategicBuy": "TMO",
-    "trim": "ENB"
+    "strategicBuy": "GLNCY",
+    "trim": "LIN"
   },
-  "timestamp": "2026-07-02T14:28:40.469Z"
+  "timestamp": "2026-07-03T14:31:50.128Z"
 }
