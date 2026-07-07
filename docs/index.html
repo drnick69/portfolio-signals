@@ -22,6 +22,8 @@
     .tabs { display: flex; gap: 0; margin-bottom: 28px; border-bottom: 1px solid #141e2e; }
     .dq-banner { background: #1a0808; border: 1px solid #5a1a1a; border-radius: 10px; padding: 14px 20px; margin-bottom: 28px; font-size: 12px; color: #ff8888; line-height: 1.6; }
     .dq-banner strong { color: #ff6b6b; font-weight: 800; }
+    .dq-fail-list { margin-top: 8px; }
+    .dq-fail-list > div { font-size: 11px; color: #cc8888; padding: 1px 0; line-height: 1.6; }
     .tab { padding: 14px 24px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #556677; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
     .tab:hover { color: #889aaa; }
     .tab.active { color: #e0e8f0; border-bottom-color: #5b8dee; }
@@ -167,12 +169,13 @@
       const find = sym => normalized.find(s => s.symbol === sym);
       const getRole = sym => sym===assignments.tacticalBuy?"tacticalBuy":sym===assignments.positionalBuy?"positionalBuy":sym===assignments.strategicBuy?"strategicBuy":sym===assignments.trim?"trim":null;
 
-      // v8.1.1: surface a partial run loudly. Only shown when a holding failed scoring
-      // and was dropped from the rankings (data_quality.complete === false). Absent on
-      // legacy data files that predate the data_quality block.
+      // v8.1.3: surface a partial run loudly, listing each dropped holding with its
+      // failure reason (data_quality.failures). Falls back to bare symbols when failures
+      // is absent (legacy files). Suppressed on complete runs and pre-audit data.
       const dq = DATA?.data_quality;
+      const escHtml = t => String(t).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
       const dqBanner = (dq && dq.complete === false)
-        ? `<div class="dq-banner">⚠️ INCOMPLETE RUN — ${dq.scored}/${dq.expected} holdings scored. Missing: <strong>${(dq.missing||[]).join(", ")}</strong>. The rankings below are partial — the full book was not scored this run.</div>`
+        ? `<div class="dq-banner"><div>⚠️ INCOMPLETE RUN — ${dq.scored}/${dq.expected} holdings scored. The rankings below are partial — the full book was not scored this run.</div><div class="dq-fail-list">${(dq.missing||[]).map(sym => `<div><strong>${escHtml(sym)}</strong>${dq.failures && dq.failures[sym] ? ` — ${escHtml(dq.failures[sym])}` : ""}</div>`).join("")}</div></div>`
         : "";
 
       const cards = ["tacticalBuy","positionalBuy","strategicBuy","trim"].map(key => {
