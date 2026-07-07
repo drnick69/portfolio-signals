@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.1.4 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.2.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -90,10 +90,38 @@
 //       is a ceiling not a target, so the holdings that finish at ~2000-2400 cost nothing
 //       more; TMO gets headroom to complete, which also recovers the ~3 min its 5 identical
 //       truncation retries were wasting. The forced-turn call (v8.1.0) bumped to match.
+// v8.2.0: VERIFICATION GATE + TEMPORAL Z CONTEXT.
+//       (a) IN-RUN VERIFICATION LOOP (generate → verify → corrective retry). Blind retries
+//       (v8.1.x) catch structural misses; nothing caught SEMANTIC failures — the AMKBY→AmBev
+//       class of identity hallucination, or hostile-review fields returned as empty husks
+//       that satisfy the schema but carry no content. New verifyParsed() gate runs on every
+//       accepted record_scores payload: score bounds/integrity (the prose-scrape last resort
+//       bypasses schema validation, so bounds are re-checked here), non-trivial rationale +
+//       bear/bull/falsifier per layer, risks/catalysts minimums, and per-ticker banned-term
+//       identity checks (TICKER_NEGATIVE_CONSTRAINTS — the documented AMKBY/LIN/GLNCY
+//       confusions). On violation, a corrective turn echoes the model's own output back with
+//       the specific violations as a tool_result and FORCES record_scores again. HARD CAPS
+//       (non-negotiable, cost control): VERIFY_MAX_TURNS=2 corrective turns per holding,
+//       VERIFY_RUN_BUDGET=6 corrective turns per run (both env-tunable); corrective turns
+//       reuse the cached system blocks so marginal cost is output tokens only. Exhausted
+//       caps: identity violations THROW (a wrong-company analysis is worse than a recorded
+//       drop — it flows into data_quality.failures and the v8.1.1 banners); all other
+//       residual violations ship with a console warning. Every result now carries a
+//       verification { passed, violations, corrective_turns } block for the logger.
+//       (b) TEMPORAL Z CONTEXT (calibration-v2.mjs consumer). Cross-sectional z (normalize())
+//       ranks a score across the book today; temporal z measures it against the NAME'S OWN
+//       trailing 60-session distribution (calibration-loader v1.2: loadTemporalZ /
+//       buildTemporalLine / computeTz reading docs/history/calibration-v2.json). Eligible
+//       tickers (≥60 obs — 7 today, auto roll-in as names cross the threshold) get one
+//       TEMPORAL CONTEXT line in both Track A and Track B prompts; every result gets a tz
+//       { tactical, positional, strategic, composite } block (nulls when ineligible) computed
+//       post-blend for the logger. File absent → clean no-op (first-run safe). Assignments,
+//       weights, and engine parameters are UNCHANGED — temporal z informs the LLM and the
+//       telemetry; it moves no thresholds.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
-import { loadCalibration, buildCalibrationBlock, computeConfidence } from "./calibration-loader.mjs";
+import { loadCalibration, buildCalibrationBlock, computeConfidence, loadTemporalZ, buildTemporalLine, computeTz } from "./calibration-loader.mjs";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) { console.error("Missing ANTHROPIC_API_KEY"); process.exit(1); }
@@ -107,6 +135,82 @@ const scoreFailures = {};
 
 const CALIBRATION = loadCalibration();
 console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} days of history loaded` : "no history yet"}`);
+
+// v8.2.0: temporal-z baselines from calibration-v2.mjs (nightly). Clean no-op when absent.
+const TEMPORAL_Z = loadTemporalZ();
+
+// ─── v8.2.0: VERIFICATION GATE ───────────────────────────────────────────────
+// Hard caps — non-negotiable cost control on the corrective loop.
+const VERIFY_MAX_TURNS = Math.max(0, parseInt(process.env.VERIFY_MAX_TURNS || "2", 10));   // per holding
+const VERIFY_RUN_BUDGET = Math.max(0, parseInt(process.env.VERIFY_RUN_BUDGET || "6", 10)); // per run
+let verifyCorrectionsUsed = 0; // module-level run counter
+
+// Documented identity-confusion classes only (the failure modes this book has
+// actually produced), lowercase substrings. Deliberately conservative: a false
+// positive here burns a corrective turn, so no speculative entries.
+const TICKER_NEGATIVE_CONSTRAINTS = {
+  "AMKBY": ["ambev", "brewer", "brewery", " beer", "beverage"], // AMKBY is Maersk (shipping), never AmBev
+  "LIN":   ["linkedin"],                                        // LIN is Linde, never LinkedIn
+  "GLNCY": ["glencoe"],                                         // GLNCY is Glencore
+};
+
+// Semantic + integrity checks on an accepted record_scores payload. Returns an
+// array of human-readable violation strings (empty = pass). Prefixes:
+//   [IDENTITY]  hard — never ship a wrong-company analysis (throws if uncorrectable)
+//   [SCORE]     hard-ish — bounds/type integrity (prose-scrape path bypasses the schema)
+//   [CONTRACT]  soft — hostile-review/summary/risks content minimums (ships with warning)
+function verifyParsed(symbol, parsed) {
+  const violations = [];
+  const layers = ["tactical", "positional", "strategic"];
+
+  for (const l of layers) {
+    const layer = parsed?.[l];
+    const s = layer?.score;
+    if (typeof s !== "number" || !Number.isFinite(s) || s < -100 || s > 100) {
+      violations.push(`[SCORE] ${l}.score must be a number in [-100, 100]; got ${JSON.stringify(s)}`);
+    }
+    for (const field of ["rationale", "bear_case", "bull_case", "falsifier"]) {
+      const v = layer?.[field];
+      const min = field === "rationale" ? 20 : 15;
+      if (typeof v !== "string" || v.trim().length < min) {
+        violations.push(`[CONTRACT] ${l}.${field} must be a specific, non-trivial string (>=${min} chars)`);
+      }
+    }
+  }
+  const cs = parsed?.composite?.score;
+  if (typeof cs !== "number" || !Number.isFinite(cs) || cs < -100 || cs > 100) {
+    violations.push(`[SCORE] composite.score must be a number in [-100, 100]; got ${JSON.stringify(cs)}`);
+  }
+  if (typeof parsed?.composite?.summary !== "string" || parsed.composite.summary.trim().length < 20) {
+    violations.push(`[CONTRACT] composite.summary must be a non-trivial string (>=20 chars)`);
+  }
+  for (const listField of ["risks", "catalysts"]) {
+    const arr = parsed?.[listField];
+    if (!Array.isArray(arr) || arr.filter(x => typeof x === "string" && x.trim().length >= 10).length < 2) {
+      violations.push(`[CONTRACT] ${listField} must contain at least 2 specific, non-trivial entries`);
+    }
+  }
+
+  // Identity: scan all prose the payload carries for this ticker's banned terms.
+  const banned = TICKER_NEGATIVE_CONSTRAINTS[symbol];
+  if (banned) {
+    const proseParts = [];
+    for (const l of layers) {
+      const layer = parsed?.[l] || {};
+      proseParts.push(layer.rationale, layer.bear_case, layer.bull_case, layer.falsifier);
+    }
+    proseParts.push(parsed?.composite?.summary, parsed?.key_metric?.name, parsed?.key_metric?.value);
+    if (Array.isArray(parsed?.risks)) proseParts.push(...parsed.risks);
+    if (Array.isArray(parsed?.catalysts)) proseParts.push(...parsed.catalysts);
+    const prose = proseParts.filter(x => typeof x === "string").join(" \n ").toLowerCase();
+    for (const term of banned) {
+      if (prose.includes(term)) {
+        violations.push(`[IDENTITY] output mentions "${term.trim()}" — wrong company. ${symbol} is ${HOLDINGS.find(h => h.symbol === symbol)?.name || symbol}; rewrite every affected field for the correct company.`);
+      }
+    }
+  }
+  return violations;
+}
 
 const HOLDINGS = [
   { symbol: "LHX",   name: "L3Harris",        sector: "Defense Prime",      archetype: "defense_prime_backlog_compounder", weights: { t:.20, p:.40, s:.40 } },
@@ -1011,6 +1115,7 @@ MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on cohort rotation
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
+  const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
   const confidenceNote = confidence.level === "low"
     ? `\n⚠️ DATA CONFIDENCE: LOW (${confidence.score}%). Missing: ${confidence.missing.join(", ")}. Lean toward NEUTRAL when data is incomplete.\n`
@@ -1027,7 +1132,7 @@ ${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
   Positional (quant): ${detScores.positional.score} — ${detScores.positional.notes.join(", ")}
   Strategic (quant): ${detScores.strategic.score} — ${detScores.strategic.notes.join(", ")}
-${confidenceNote}${calibrationBlock}
+${confidenceNote}${calibrationBlock}${temporalLine}
 MARKET DATA:
 ${dataLines}
 
@@ -1086,6 +1191,7 @@ function buildSearchPrompt(h) {
   const nowGuidance = isNOW ? `\nCRITICAL — NOW SCORING (V1): ServiceNow, AI workflow quality compounder. HYBRID: LIN/MSFT-like quality compounder + ASML-like secular agentic-AI workflow cycle + SPY-like long-duration rate sensitivity. Best-in-class non-GAAP op margins (~30%), gross margins ~80%+, FCF margin ~32%, durable 20%+ subscription revenue growth. Now Assist Pro Plus + AI Agent Studio drive agentic-AI monetization. Premium SaaS multiple math: forward PE 55-65x and EV/Sales 14-17x are the NORMAL compounder zone — do NOT score those levels as expensive. Do NOT penalize 52w proximity, RSI 50-65, trailing P/E 55-70x, cohort premium 0-20% vs CRM/WDAY/ADBE (deserved quality premium), EV/Sales 14-17x. Composite weights regime-conditional on real rate (fed funds − 10Y TIPS), engine V8.1: <0.5% accommodative 25/40/35, 0.5–2% neutral 20/35/45, >2% restrictive 15/30/55. PRIMARY SIGNALS: cRPO YoY growth (THE operational metric — acceleration confirms thesis, decel <18% = thesis air-pocket), drawdown from 52w high (>12% setup, >20% strong, >25% rare conviction), cohort PE compression vs CRM/WDAY/ADBE, cohort rotation pressure (NOW lagging cohort >5pp/30d = capital chasing higher-beta AI/SaaS = BUY setup, not warning), IGV (software ETF) vs SPY 30d (>1pp = software bid active), real rate overlay (Fed funds − TIPS 10Y; >2% restrictive = headwind, <0.5% accommodative = tailwind for long-duration cash flows). Engine has TRAILING P/E only; your forward PE + EV/Sales + PE-vs-3Y/5Y own-history + forward PEG are critical. Search for: NOW forward PE + PE % of 3y/5y avg, EV/Sales current + 3y avg + 5y avg, forward PEG, latest cRPO YoY growth (from earnings call disclosure), subscription revenue YoY growth, Now Assist Pro Plus revenue contribution + attach rate + ASP (CEO commentary at earnings / Knowledge conference / FY guidance), AI Agent Studio adoption / enterprise wins, $1M+ deals YoY growth, federal contract growth (FedRAMP High wins, DoD enterprise rollouts, civilian agency contracts), op + FCF margin trend (signals AI-cost absorption), EPS revisions 30d/60d/90d (FactSet/Refinitiv), CRM / WDAY / ADBE forward PE (enterprise SaaS quality cohort average), real rate trajectory (Fed funds − TIPS 10Y), Fed pivot expectations, agentic AI commercialization phase (early / mid / saturation), GenAI competitive landscape (CRM Agentforce displacement risk, MSFT Copilot Studio overlap), dividend (NOW does not pay one — buyback discipline only). Most days = NEUTRAL. Meaningful scores: cohort rotation extremes, drawdown setups, cRPO inflection, agentic-AI monetization milestones, real-rate regime shifts, AI cycle phase pivots.\n` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
+  const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
 
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
@@ -1100,7 +1206,7 @@ ${(() => {
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
   ].filter(Boolean).join("\n") || "No verified data available.";
 })()}
-${calibrationBlock}
+${calibrationBlock}${temporalLine}
 Research this holding now. Apply the HOSTILE REVIEW PROTOCOL to each layer, then call record_scores exactly once.`;
 
   return {
@@ -1157,10 +1263,21 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
       if (result.stop_reason === "max_tokens") { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("Truncated"); }
 
       // v8.0: prefer the schema-validated record_scores tool call.
+      // v8.2.0: track the conversation and the accepted tool_use id so the
+      // verification gate below can run corrective turns against the model's
+      // own output (a tool_use in an echoed assistant turn must be answered
+      // with a tool_result, so the id is required for a valid follow-up).
       let parsed = null;
+      let verifyConvo = null;      // messages array up to and including the assistant turn that produced `parsed`
+      let verifyToolUseId = null;  // id of the accepted record_scores block (null on the prose-scrape path)
       const toolBlocks = (result.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
       if (toolBlocks.length > 0) {
         parsed = toolBlocks[toolBlocks.length - 1].input;
+        verifyToolUseId = toolBlocks[toolBlocks.length - 1].id;
+        verifyConvo = [
+          { role: "user", content: promptParts.user },
+          { role: "assistant", content: result.content },
+        ];
       } else if (useWebSearch) {
         // v8.1.0: Track B durable fix. The search turn ended without record_scores
         // (tool_choice is auto in search mode so web_search isn't blocked). Instead of
@@ -1169,6 +1286,12 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
         // unscored → null → silent drop from the composite rankings. Legacy prose-scrape
         // is kept only as a last resort, so this path can never do worse than before.
         console.log("    ↻ search turn ended without record_scores — forcing structured call...");
+        // v8.2.0: hoisted so the verification gate can extend this exact history.
+        const forcedMessages = [
+          { role: "user", content: promptParts.user },
+          { role: "assistant", content: result.content },
+          { role: "user", content: "You completed your research but did not call record_scores. Call record_scores exactly once now, using ONLY the research and verified data above. Do not search again." },
+        ];
         const forceResp = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
@@ -1176,11 +1299,7 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
             model: MODEL_ID,
             max_tokens: 4096,
             system: promptParts.system,
-            messages: [
-              { role: "user", content: promptParts.user },
-              { role: "assistant", content: result.content },
-              { role: "user", content: "You completed your research but did not call record_scores. Call record_scores exactly once now, using ONLY the research and verified data above. Do not search again." },
-            ],
+            messages: forcedMessages,
             // web_search stays declared so the echoed web_search_tool_result blocks
             // validate; tool_choice forces the structured call so the turn cannot end
             // in prose again.
@@ -1194,6 +1313,8 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
         const forceTool = (forceResult.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
         if (forceTool.length > 0) {
           parsed = forceTool[forceTool.length - 1].input;
+          verifyToolUseId = forceTool[forceTool.length - 1].id;
+          verifyConvo = [...forcedMessages, { role: "assistant", content: forceResult.content }];
         } else {
           // last resort: scrape JSON from the original search prose (legacy behavior).
           const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -1202,6 +1323,13 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
           if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON after forced turn"); }
           const cleaned = jsonMatch[0].replace(/```json\s*/g,"").replace(/```\s*/g,"").replace(/,\s*}/g,"}").replace(/,\s*]/g,"]");
           parsed = JSON.parse(cleaned);
+          // Prose-scrape: no tool_use to answer — corrective turns (if any) use a
+          // plain-text user message against the original assistant turn.
+          verifyToolUseId = null;
+          verifyConvo = [
+            { role: "user", content: promptParts.user },
+            { role: "assistant", content: result.content },
+          ];
         }
       } else {
         // Qualitative mode already forces record_scores upstream; a miss here means a
@@ -1213,11 +1341,81 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
       const valid = ["tactical","positional","strategic"].every(l => typeof parsed[l]?.score === "number");
       if (!valid) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("Invalid structure"); }
 
+      // ── v8.2.0: VERIFICATION GATE (generate → verify → corrective retry) ──
+      // Semantic checks the schema can't express: identity, content minimums,
+      // bounds on the schema-bypassing prose-scrape path. Violations go back to
+      // the model as a tool_result on its own record_scores call, with
+      // record_scores forced again. Hard caps: VERIFY_MAX_TURNS per holding,
+      // VERIFY_RUN_BUDGET per run — both non-negotiable cost controls.
+      const verification = { passed: true, violations: [], corrective_turns: 0 };
+      let violations = verifyParsed(holding.symbol, parsed);
+      while (violations.length > 0 && verification.corrective_turns < VERIFY_MAX_TURNS) {
+        if (verifyCorrectionsUsed >= VERIFY_RUN_BUDGET) {
+          console.log(`    ⚠ verify: run budget exhausted (${VERIFY_RUN_BUDGET}) — accepting with ${violations.length} violation(s).`);
+          break;
+        }
+        verification.corrective_turns++;
+        verifyCorrectionsUsed++;
+        console.log(`    ↻ verify: ${violations.length} violation(s) — corrective turn ${verification.corrective_turns}/${VERIFY_MAX_TURNS} (run ${verifyCorrectionsUsed}/${VERIFY_RUN_BUDGET})`);
+        for (const v of violations) console.log(`        • ${v.slice(0, 140)}`);
+
+        const correctionText = `Your record_scores call failed the verification gate. Violations:\n${violations.map(v => `- ${v}`).join("\n")}\nCall record_scores exactly once now with a fully corrected payload. Fix ONLY what the violations require; keep every field that was not flagged identical. Do not search again.`;
+        const correctiveUser = verifyToolUseId
+          ? { role: "user", content: [
+              { type: "tool_result", tool_use_id: verifyToolUseId, content: "Rejected by verification gate — corrections required (see next message content)." },
+              { type: "text", text: correctionText },
+            ] }
+          : { role: "user", content: correctionText };
+        const correctiveMessages = [...verifyConvo, correctiveUser];
+
+        const vResp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({
+            model: MODEL_ID,
+            max_tokens: 4096,
+            system: promptParts.system, // cached blocks — corrective input cost is ~all cache reads
+            messages: correctiveMessages,
+            // web_search stays declared in search mode so echoed web_search_tool_result
+            // blocks validate (same constraint as the v8.1.0 forced turn).
+            tools: useWebSearch
+              ? [{ type: "web_search_20250305", name: "web_search" }, RECORD_SCORES_TOOL]
+              : [RECORD_SCORES_TOOL],
+            tool_choice: { type: "tool", name: "record_scores" },
+          }),
+        });
+        if (vResp.status === 429) { console.log("    ⚠ verify: rate limited — accepting current payload."); break; }
+        if (!vResp.ok) { console.log(`    ⚠ verify: API ${vResp.status} on corrective turn — accepting current payload.`); break; }
+        const vResult = await vResp.json();
+        const vTool = (vResult.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
+        if (vTool.length === 0) { console.log("    ⚠ verify: corrective turn returned no record_scores — accepting current payload."); break; }
+
+        const corrected = vTool[vTool.length - 1].input;
+        // Corrected payload must still be structurally sound before it replaces the original.
+        const correctedValid = ["tactical","positional","strategic"].every(l => typeof corrected[l]?.score === "number");
+        if (!correctedValid) { console.log("    ⚠ verify: corrected payload structurally invalid — keeping previous payload."); break; }
+        parsed = corrected;
+        verifyToolUseId = vTool[vTool.length - 1].id;
+        verifyConvo = [...correctiveMessages, { role: "assistant", content: vResult.content }];
+        violations = verifyParsed(holding.symbol, parsed);
+      }
+      verification.violations = violations;
+      verification.passed = violations.length === 0;
+      if (!verification.passed) {
+        const identity = violations.filter(v => v.startsWith("[IDENTITY]"));
+        if (identity.length > 0) {
+          // A wrong-company analysis must never ship. Throwing routes this into
+          // scoreHolding's catch → data_quality.failures → the v8.1.1 banners.
+          throw new Error(`Verification failed (identity): ${identity[0].slice(0, 120)}`);
+        }
+        console.log(`    ⚠ verify: shipping with ${violations.length} residual non-identity violation(s).`);
+      }
+
       const tokIn = result.usage?.input_tokens || "?";
       const tokOut = result.usage?.output_tokens || "?";
       const cacheRead = result.usage?.cache_read_input_tokens || 0;
       const cacheWrite = result.usage?.cache_creation_input_tokens || 0;
-      return { parsed, elapsed, tokIn, tokOut, cacheRead, cacheWrite, mode };
+      return { parsed, elapsed, tokIn, tokOut, cacheRead, cacheWrite, mode, verification };
     } catch (e) {
       if (attempt === MAX_RETRIES) throw e;
       console.log(`    ⚠ ${e.message.slice(0, 80)}. Retry ${attempt+1}...`);
@@ -1240,7 +1438,7 @@ async function scoreHolding(holding, useWebSearch) {
   console.log(`  [LLM] scoring [${useWebSearch ? "web search" : "qualitative"}]...`);
 
   try {
-    const { parsed: llm, elapsed, tokIn, tokOut, cacheRead, cacheWrite } = await fetchLLMScore(holding, promptParts, useWebSearch);
+    const { parsed: llm, elapsed, tokIn, tokOut, cacheRead, cacheWrite, verification } = await fetchLLMScore(holding, promptParts, useWebSearch);
     console.log(`  [LLM] tac=${llm.tactical?.score} pos=${llm.positional?.score} str=${llm.strategic?.score} comp=${llm.composite?.score} (${elapsed}s, ${tokIn}+${tokOut} tok, cache r${cacheRead}/w${cacheWrite})`);
 
     // V3: pass archetype so blendScores activates per-archetype overrides (LIN gets 65/60/40 vs default 70/50/30).
@@ -1282,6 +1480,11 @@ async function scoreHolding(holding, useWebSearch) {
       weights: detScores.weights,
       confidence,
       divergence,
+      // v8.2.0: verification gate outcome (logger persists to JSONL for telemetry).
+      verification: verification || { passed: true, violations: [], corrective_turns: 0 },
+      // v8.2.0: temporal z per layer vs this name's own trailing baseline
+      // (calibration-v2.mjs nightly); nulls when ineligible or file absent.
+      tz: computeTz(holding.symbol, TEMPORAL_Z, blended),
       hostile_review: { tactical: hr("tactical"), positional: hr("positional"), strategic: hr("strategic") },
       key_metric: llm.key_metric || { name: "", value: "" },
       risks: llm.risks || [],
