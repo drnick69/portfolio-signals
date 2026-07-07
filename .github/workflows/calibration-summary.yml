@@ -30,11 +30,17 @@ jobs:
       - name: Run calibration summary
         run: node .github/scripts/calibration-summary.mjs
 
-      - name: Commit calibration.json
+      # v2 (July 2026): temporal z baselines + divergence/falsifier/regime audits.
+      # Reporting only — writes calibration-v2.json; changes no parameters.
+      # generate-signals v8.2.0 reads the temporal-z section next morning.
+      - name: Run calibration v2
+        run: node .github/scripts/calibration-v2.mjs
+
+      - name: Commit calibration output
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/history/calibration.json
+          git add docs/history/calibration.json docs/history/calibration-v2.json
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
