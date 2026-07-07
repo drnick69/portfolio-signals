@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.1.3 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.1.4 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -82,6 +82,14 @@
 //       bare symbol list; reasons are HTML-escaped (they carry raw API error text). Falls
 //       back to bare symbols when failures is absent (legacy). The dashboard banner
 //       (docs/index.html) gets the same treatment. Presentation only — no data changes.
+// v8.1.4: TRUNCATION FIX — qualitative (Track A) max_tokens 2500 → 4096. The hostile-review
+//       contract (bear/bull/falsifier × 3 layers + summaries + risks + catalysts) for a dense
+//       holding overruns 2500 output tokens: TMO exceeded it and hit stop_reason:max_tokens
+//       ("Truncated") on all 5 retries → dropped (07-07 run, 11/12). PBR.A was already
+//       brushing the ceiling at 2424/2500. Not a timeout — an output-budget cap. max_tokens
+//       is a ceiling not a target, so the holdings that finish at ~2000-2400 cost nothing
+//       more; TMO gets headroom to complete, which also recovers the ~3 min its 5 identical
+//       truncation retries were wasting. The forced-turn call (v8.1.0) bumped to match.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -1117,7 +1125,7 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
       // the 2nd holding onward; per-ticker block additionally caches across retries.
       const body = {
         model: MODEL_ID,
-        max_tokens: useWebSearch ? 16000 : 2500,
+        max_tokens: useWebSearch ? 16000 : 4096,
         system: promptParts.system,
         messages: [{ role: "user", content: promptParts.user }],
         tools: useWebSearch
@@ -1166,7 +1174,7 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
           headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({
             model: MODEL_ID,
-            max_tokens: 2500,
+            max_tokens: 4096,
             system: promptParts.system,
             messages: [
               { role: "user", content: promptParts.user },
