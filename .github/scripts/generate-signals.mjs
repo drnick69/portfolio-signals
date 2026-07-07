@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.1.2 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.1.3 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -77,6 +77,11 @@
 //       future drop is self-diagnosing from committed artifacts — no Actions log required.
 //       data_quality.missing stays a string[] (existing consumers unchanged); failures is
 //       additive. No scoring/engine/routing changes.
+// v8.1.3: The email INCOMPLETE-RUN banner now lists each dropped holding with its failure
+//       reason from data_quality.failures (e.g. "MSFT — Rate limited (force)") instead of a
+//       bare symbol list; reasons are HTML-escaped (they carry raw API error text). Falls
+//       back to bare symbols when failures is absent (legacy). The dashboard banner
+//       (docs/index.html) gets the same treatment. Presentation only — no data changes.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -1378,9 +1383,11 @@ function buildEmailHTML(normalized, assignments, dataQuality = null) {
     accuracySection = `<div style="margin-bottom:28px;padding:12px 16px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;font-size:11px;color:#556677;">Signal accuracy tracking: ${CALIBRATION.totalDays} day(s) logged. Grades appear after 3+ days.</div>`;
   }
 
-  // v8.1.1: loud partial-run banner — only rendered when a holding failed scoring.
+  // v8.1.3: loud partial-run banner — lists each dropped holding with its failure reason
+  // (data_quality.failures). Falls back to bare symbols when failures is absent (legacy).
+  const escHtml = t => String(t).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
   const dqBanner = (dataQuality && !dataQuality.complete)
-    ? `<div style="margin-bottom:28px;padding:14px 18px;background:#1a0808;border:1px solid #5a1a1a;border-radius:8px;"><div style="font-size:13px;font-weight:800;color:#ff6b6b;letter-spacing:0.04em;">⚠️ INCOMPLETE RUN — ${dataQuality.scored}/${dataQuality.expected} HOLDINGS SCORED</div><div style="font-size:11px;color:#cc8888;margin-top:6px;line-height:1.6;">Missing (scoring failed, dropped from the rankings below): <span style="font-weight:700;color:#ff8888;">${dataQuality.missing.join(", ")}</span>. The tables below are partial — the full book was not scored today.</div></div>`
+    ? `<div style="margin-bottom:28px;padding:14px 18px;background:#1a0808;border:1px solid #5a1a1a;border-radius:8px;"><div style="font-size:13px;font-weight:800;color:#ff6b6b;letter-spacing:0.04em;">⚠️ INCOMPLETE RUN — ${dataQuality.scored}/${dataQuality.expected} HOLDINGS SCORED</div><div style="font-size:11px;color:#cc8888;margin-top:6px;line-height:1.7;">The tables below are partial — these holdings failed scoring and were dropped:</div>${(dataQuality.missing||[]).map(sym => `<div style="font-size:11px;color:#cc8888;line-height:1.7;"><span style="font-weight:700;color:#ff8888;">${escHtml(sym)}</span>${dataQuality.failures && dataQuality.failures[sym] ? ` — ${escHtml(dataQuality.failures[sym])}` : ""}</div>`).join("")}</div>`
     : "";
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
