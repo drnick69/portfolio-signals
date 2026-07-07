@@ -384,10 +384,17 @@
         </tr>`;
       }).join("");
 
+      // v2.1 (claire-summary): plain-English incomplete-run notice. run_note is
+      // deterministic (never LLM-generated) and only present when the run was short.
+      const runNoteBanner = CLAIRE.run_note
+        ? `<div class="dq-banner">${CLAIRE.run_note.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`
+        : "";
+
       document.getElementById("app").innerHTML = `
         <div class="header"><div><h1>PORTFOLIO STRATEGY HUB</h1><div class="sub">TODAY IN THE PORTFOLIO — PLAIN ENGLISH UPDATE</div></div>
           <div class="meta"><div class="timestamp">Updated: ${ts}</div><button class="refresh-btn" onclick="loadData()">REFRESH</button></div></div>
         ${tabsHTML}
+        ${runNoteBanner}
         <div class="ranking"><div class="section-title">CLAIRE'S DAILY BRIEF</div>
           <div class="section-sub">Generated ${generated}</div>
           <table><tbody>${rows}</tbody></table></div>`;
