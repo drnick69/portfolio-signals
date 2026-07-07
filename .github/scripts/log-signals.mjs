@@ -33,6 +33,14 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //     full-fidelity record and feeds attribute-signals → calibration)
 // New CSV columns appended at the end per established back-compat convention.
 // All fields additive; rows for pre-v8 runs simply leave them blank/null.
+//
+// ── V8.1.1 (July 2026): data_quality persistence for generate-signals v8.1.1.
+//   The top-level completeness audit { expected, scored, missing[], complete } is now
+//   recorded on each daily-log entry, so partial runs (a holding that failed scoring
+//   and was dropped from the rankings — e.g. the 9/12 MSFT/NOW/LHX drop) are captured
+//   historically and can be trended. JSONL only — daily-log is the authoritative
+//   full-fidelity record. Additive; a legacy signal-data.json without the block falls
+//   back to { complete: null } (completeness unknown, predates the audit).
 
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
@@ -65,7 +73,7 @@ try {
   process.exit(1);
 }
 
-const { normalized, assignments, timestamp } = signalData;
+const { normalized, assignments, timestamp, data_quality } = signalData;
 const date = new Date(timestamp).toISOString().split("T")[0]; // YYYY-MM-DD
 const macro = marketData._macro || {};
 
@@ -73,6 +81,9 @@ console.log("Signal History Logger");
 console.log("=====================");
 console.log(`Date: ${date}`);
 console.log(`Holdings: ${normalized.length}`);
+if (data_quality && data_quality.complete === false) {
+  console.log(`⚠ Partial run recorded: ${data_quality.scored}/${data_quality.expected} scored — missing ${(data_quality.missing || []).join(", ")}`);
+}
 
 // ─── 1. CSV LOG ──────────────────────────────────────────────────────────────
 // One row per holding per day. Easy to analyze in Excel/Sheets/pandas.
@@ -379,6 +390,9 @@ const dailyEntry = {
   date,
   timestamp,
   assignments,
+  // v8.1.1: run-level completeness audit (present from generate-signals v8.1.1 on).
+  // Legacy inputs without the block record complete:null (completeness unknown).
+  data_quality: data_quality ?? { expected: null, scored: normalized.length, missing: [], complete: null },
   macro: {
     vix: macro.vix ?? null,
     us10y: macro.us10y ?? null,
