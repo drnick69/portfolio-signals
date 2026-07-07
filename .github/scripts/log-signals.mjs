@@ -41,6 +41,15 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //   historically and can be trended. JSONL only — daily-log is the authoritative
 //   full-fidelity record. Additive; a legacy signal-data.json without the block falls
 //   back to { complete: null } (completeness unknown, predates the audit).
+//
+// ── V8.2.0 (July 2026): persistence for generate-signals v8.2.0 telemetry.
+//   • tz — temporal z per layer (score vs the NAME'S OWN trailing 60-session
+//     baseline from calibration-v2.mjs; orthogonal to the cross-sectional
+//     z_* columns) → CSV (tz_tactical..tz_composite, appended per back-compat
+//     convention) + JSONL (full object).
+//   • verification — verification-gate outcome { passed, violations,
+//     corrective_turns } → CSV (verify_passed, verify_turns) + JSONL (full
+//     object incl. violation strings). Pre-v8.2 rows leave all blank/null.
 
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
@@ -189,13 +198,62 @@ const CSV_HEADERS = [
   "div_tactical", "div_positional", "div_strategic", "div_flagged",
   // V8.1 regime gate telemetry (numeric driver + basis string)
   "regime_driver", "regime_basis",
+  // ─── V8.2.0 telemetry additions (appended for CSV back-compat) ──────────
+  // Temporal z: layer score vs this name's own trailing baseline (calibration-v2)
+  "tz_tactical", "tz_positional", "tz_strategic", "tz_composite",
+  // Verification gate outcome (violation strings live in the JSONL only)
+  "verify_passed", "verify_turns",
 ].join(",");
+
+// ── V8.2.0: CSV HEADER MIGRATION (pure-append schema evolution) ──────────────
+// signal-accuracy v1.3 enforces an EXACT-width contract against the on-disk
+// header: any row whose field count ≠ header width is skipped, loudly. That
+// contract is what ended the June misparse era — but it also means appending
+// columns HERE without migrating the on-disk header would get every NEW row
+// skipped (the same failure class, inverted; the V8.0 column additions only
+// worked because the June rebuild wrote them into the unified header).
+// So: when the on-disk header is a strict PREFIX of CSV_HEADERS (pure append —
+// the only schema change the back-compat convention permits), rewrite the file
+// once: new header + every existing data row padded with empty trailing fields
+// to the new width. Rows keep their original values at their original named
+// columns (signal-accuracy keys by header name), new columns read blank for
+// pre-migration history — exactly the semantics the convention promises.
+// Idempotent (no-op when the header already matches); REFUSES to touch the
+// file on any non-prefix mismatch and warns loudly instead — this script never
+// silently rewrites a schema it doesn't recognize (that's rebuild-signals-csv's
+// job, run deliberately).
+function migrateCsvHeader() {
+  const raw = readFileSync(CSV_PATH, "utf-8");
+  const nlIdx = raw.indexOf("\n");
+  const diskHeader = (nlIdx === -1 ? raw : raw.slice(0, nlIdx)).replace(/\r$/, "");
+  if (diskHeader === CSV_HEADERS) return;
+  const diskCols = diskHeader.split(",");
+  const newCols = CSV_HEADERS.split(",");
+  const isPrefix = diskCols.length < newCols.length && diskCols.every((c, i) => c === newCols[i]);
+  if (!isPrefix) {
+    console.warn(`⚠ CSV header mismatch that is NOT a pure append (disk ${diskCols.length} cols vs code ${newCols.length}). File left untouched — run rebuild-signals-csv.mjs (rebuild-csv.yml) to reconcile.`);
+    return;
+  }
+  const pad = ",".repeat(newCols.length - diskCols.length);
+  const lines = raw.split("\n");
+  const migrated = [
+    CSV_HEADERS,
+    ...lines.slice(1).map(l => {
+      if (l.trim() === "") return l; // preserve trailing/blank lines untouched
+      return l.endsWith("\r") ? l.slice(0, -1) + pad + "\r" : l + pad;
+    }),
+  ].join("\n");
+  writeFileSync(CSV_PATH, migrated);
+  console.log(`✓ CSV schema migrated: header ${diskCols.length} → ${newCols.length} cols; existing rows padded with ${newCols.length - diskCols.length} blank field(s).`);
+}
 
 const csvExists = existsSync(CSV_PATH);
 let csvContent = "";
 
 if (!csvExists) {
   csvContent = CSV_HEADERS + "\n";
+} else {
+  migrateCsvHeader(); // v8.2.0: runs before the append below reads the file back
 }
 
 for (const s of normalized) {
@@ -369,6 +427,14 @@ for (const s of normalized) {
       r.regime_driver ?? "",
       esc(r.regime_basis ?? ""),
     ].join(","); })(),
+
+    // ─── V8.2.0 telemetry additions ──────────────────────────────────────
+    s.tz?.tactical ?? "",
+    s.tz?.positional ?? "",
+    s.tz?.strategic ?? "",
+    s.tz?.composite ?? "",
+    s.verification ? (s.verification.passed ? "true" : "false") : "",
+    s.verification?.corrective_turns ?? "",
   ].join(",");
 
   csvContent += row + "\n";
@@ -536,6 +602,10 @@ const dailyEntry = {
       // V8.0: self-improvement telemetry (full fidelity — calibration v2 inputs)
       divergence:     s.divergence ?? null,
       hostile_review: s.hostile_review ?? null,
+
+      // V8.2.0: temporal z (vs own trailing baseline) + verification-gate outcome
+      tz:             s.tz ?? null,
+      verification:   s.verification ?? null,
 
       z_composite: s.z?.composite ?? null,
       role:
