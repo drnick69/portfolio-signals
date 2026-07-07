@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.0.1 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.1.1 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -57,6 +57,17 @@
 //       declared so the echoed web_search_tool_result blocks validate). Legacy
 //       prose-scrape retained as a last resort, so this path can never do worse than
 //       before. Track A (qualitative) unchanged. No engine/holdings/output changes.
+// v8.1.1: COMPLETENESS AUDIT — a run short of the full book (any holding that failed
+//       scoring and returned null) previously vanished silently: normalize() filtered
+//       the nulls, validCount<4 was the only floor, and nothing recorded WHAT went
+//       missing. Now main() computes a data_quality block { expected, scored, missing[],
+//       complete } from HOLDINGS minus the scored symbols, logs a loud console error
+//       naming the dropped tickers, embeds the block in signal-data.json, and renders a
+//       red INCOMPLETE RUN banner at the top of the email when short. Good signals are
+//       still published (no hard fail in the 4–11 band); the partial state can no longer
+//       look healthy. Additive field + email banner only; no scoring/engine changes.
+//       (Downstream: dashboard + Claire rendering of data_quality, and log-signals.mjs
+//       persistence into daily-log, are separate follow-ups.)
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -1298,7 +1309,7 @@ function normalize(signals) {
 }
 
 // ─── EMAIL HTML ──────────────────────────────────────────────────────────────
-function buildEmailHTML(normalized, assignments) {
+function buildEmailHTML(normalized, assignments, dataQuality = null) {
   const date = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
   const find = sym => normalized.find(s => s.symbol === sym);
   const scoreClr = v => v<=-60?"#00ff88":v<=-25?"#4ecdc4":v<=24?"#8899aa":v<=59?"#f4a261":"#ff6b6b";
@@ -1353,10 +1364,16 @@ function buildEmailHTML(normalized, assignments) {
     accuracySection = `<div style="margin-bottom:28px;padding:12px 16px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;font-size:11px;color:#556677;">Signal accuracy tracking: ${CALIBRATION.totalDays} day(s) logged. Grades appear after 3+ days.</div>`;
   }
 
+  // v8.1.1: loud partial-run banner — only rendered when a holding failed scoring.
+  const dqBanner = (dataQuality && !dataQuality.complete)
+    ? `<div style="margin-bottom:28px;padding:14px 18px;background:#1a0808;border:1px solid #5a1a1a;border-radius:8px;"><div style="font-size:13px;font-weight:800;color:#ff6b6b;letter-spacing:0.04em;">⚠️ INCOMPLETE RUN — ${dataQuality.scored}/${dataQuality.expected} HOLDINGS SCORED</div><div style="font-size:11px;color:#cc8888;margin-top:6px;line-height:1.6;">Missing (scoring failed, dropped from the rankings below): <span style="font-weight:700;color:#ff8888;">${dataQuality.missing.join(", ")}</span>. The tables below are partial — the full book was not scored today.</div></div>`
+    : "";
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#05080e;font-family:'SF Mono','Fira Code','Consolas',monospace;">
 <div style="max-width:800px;margin:0 auto;padding:32px 24px;">
 <div style="border-bottom:2px solid #1a2332;padding-bottom:20px;margin-bottom:28px;"><h1 style="margin:0;font-size:20px;color:#e0e8f0;">PORTFOLIO STRATEGY SIGNAL</h1><p style="margin:6px 0 0;font-size:12px;color:#556677;">${date} • ${HOLDINGS.length} Holdings • Hybrid Scoring (50% Quant + 50% LLM) • Z-Score Normalized</p></div>
+${dqBanner}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">SIGNAL</th><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">TICKER</th><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">NAME</th><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">PRICE</th><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">CHG</th><th style="padding:12px 16px;text-align:left;font-size:10px;color:#445566;">THESIS</th></tr></thead>
 <tbody>${signalRow("TACTICAL BUY","⚡","#00ff88",assignments.tacticalBuy)}${signalRow("POSITIONAL BUY","📐","#4ecdc4",assignments.positionalBuy)}${signalRow("STRATEGIC BUY","🏗️","#5b8dee",assignments.strategicBuy)}${signalRow("TRIM","✂️","#ff6b6b",assignments.trim)}</tbody></table>
 ${accuracySection}
@@ -1411,6 +1428,19 @@ async function main() {
   console.log(`\n✓ Scored ${validCount}/${HOLDINGS.length}`);
   if (validCount < 4) { console.error("Too few signals."); process.exit(1); }
 
+  // v8.1.1: completeness audit. A run short of the full book keeps its good signals
+  // but records exactly which holdings were dropped, so a partial run can never look
+  // healthy on the dashboard, in the email, or in signal-data.json.
+  const scoredSymbols = new Set(allSignals.filter(Boolean).map(s => s.symbol));
+  const missing = HOLDINGS.filter(h => !scoredSymbols.has(h.symbol)).map(h => h.symbol);
+  const dataQuality = { expected: HOLDINGS.length, scored: scoredSymbols.size, missing, complete: missing.length === 0 };
+  if (!dataQuality.complete) {
+    console.error(`\n⚠️  INCOMPLETE RUN: ${dataQuality.scored}/${dataQuality.expected} holdings scored. MISSING: ${missing.join(", ")}`);
+    console.error("   These holdings failed scoring and are absent from the rankings — see the per-ticker ✗ lines above for cause.");
+  } else {
+    console.log(`✓ Complete book: all ${dataQuality.expected} holdings scored.`);
+  }
+
   const { normalized, assignments } = normalize(allSignals);
 
   console.log("\n─── DAILY SIGNAL ───────────────────────");
@@ -1420,8 +1450,8 @@ async function main() {
   console.log(`  TRIM:           ${assignments.trim}`);
   console.log("────────────────────────────────────────\n");
 
-  writeFileSync("/tmp/signal-email.html", buildEmailHTML(normalized, assignments));
-  writeFileSync("/tmp/signal-data.json", JSON.stringify({ normalized, assignments, timestamp: new Date().toISOString() }, null, 2));
+  writeFileSync("/tmp/signal-email.html", buildEmailHTML(normalized, assignments, dataQuality));
+  writeFileSync("/tmp/signal-data.json", JSON.stringify({ normalized, assignments, data_quality: dataQuality, timestamp: new Date().toISOString() }, null, 2));
   console.log("✓ Email + data written");
 }
 
