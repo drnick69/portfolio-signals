@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.1.1 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.1.2 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -68,6 +68,15 @@
 //       look healthy. Additive field + email banner only; no scoring/engine changes.
 //       (Downstream: dashboard + Claire rendering of data_quality, and log-signals.mjs
 //       persistence into daily-log, are separate follow-ups.)
+// v8.1.2: FAILURE-REASON CAPTURE — the completeness audit (v8.1.1) named WHICH holdings
+//       dropped but not WHY; the reason was logged to console by scoreHolding's catch and
+//       then discarded, so diagnosing a drop needed the authenticated Actions log. Now the
+//       catch records symbol → reason in a module-level map, and main() surfaces it as
+//       data_quality.failures { SYMBOL: reason }. Because data_quality already propagates
+//       to signal-data.json → the dashboard and (via log-signals) the daily-log, every
+//       future drop is self-diagnosing from committed artifacts — no Actions log required.
+//       data_quality.missing stays a string[] (existing consumers unchanged); failures is
+//       additive. No scoring/engine/routing changes.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -78,6 +87,10 @@ if (!ANTHROPIC_API_KEY) { console.error("Missing ANTHROPIC_API_KEY"); process.ex
 
 let MARKET_DATA = {};
 try { MARKET_DATA = JSON.parse(readFileSync("/tmp/market-data.json", "utf-8")); } catch {}
+
+// v8.1.2: symbol → failure reason for holdings that fail scoring (populated in
+// scoreHolding's catch, read by main() to build data_quality.failures).
+const scoreFailures = {};
 
 const CALIBRATION = loadCalibration();
 console.log(`Calibration: ${CALIBRATION.available ? `${CALIBRATION.totalDays} days of history loaded` : "no history yet"}`);
@@ -1275,6 +1288,7 @@ async function scoreHolding(holding, useWebSearch) {
     return result;
   } catch (e) {
     console.error(`  ✗ ${holding.symbol}: ${e.message}`);
+    scoreFailures[holding.symbol] = e.message;   // v8.1.2: capture reason for data_quality.failures
     return null;
   }
 }
@@ -1433,10 +1447,15 @@ async function main() {
   // healthy on the dashboard, in the email, or in signal-data.json.
   const scoredSymbols = new Set(allSignals.filter(Boolean).map(s => s.symbol));
   const missing = HOLDINGS.filter(h => !scoredSymbols.has(h.symbol)).map(h => h.symbol);
-  const dataQuality = { expected: HOLDINGS.length, scored: scoredSymbols.size, missing, complete: missing.length === 0 };
+  // v8.1.2: pair each dropped symbol with its captured failure reason so the drop is
+  // self-diagnosing downstream (signal-data.json → dashboard, daily-log).
+  const failures = {};
+  for (const sym of missing) failures[sym] = scoreFailures[sym] || "unknown (no error captured)";
+  const dataQuality = { expected: HOLDINGS.length, scored: scoredSymbols.size, missing, failures, complete: missing.length === 0 };
   if (!dataQuality.complete) {
     console.error(`\n⚠️  INCOMPLETE RUN: ${dataQuality.scored}/${dataQuality.expected} holdings scored. MISSING: ${missing.join(", ")}`);
-    console.error("   These holdings failed scoring and are absent from the rankings — see the per-ticker ✗ lines above for cause.");
+    for (const sym of missing) console.error(`     • ${sym}: ${failures[sym]}`);
+    console.error("   These holdings failed scoring and are absent from the rankings.");
   } else {
     console.log(`✓ Complete book: all ${dataQuality.expected} holdings scored.`);
   }
