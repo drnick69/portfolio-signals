@@ -1,0 +1,779 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-07-07T23:26:29.251Z",
+  "stance": "reporting_only_no_parameters_changed",
+  "params": {
+    "temporal_min_obs": 60,
+    "temporal_window": 60,
+    "divergence_gate": 40,
+    "direction_deadband": 10,
+    "regime_min_n": 10
+  },
+  "data_quality": {
+    "daily_log_entries": 87,
+    "daily_log_skipped": 0,
+    "returns_rows": 969,
+    "returns_skipped": 0,
+    "returns_missing": false
+  },
+  "notes": [
+    "Forward returns at 5/20/60d horizons overlap across consecutive daily signals; effective independent sample is far below nominal n. Directional evidence only — not grounds for mechanical parameter changes.",
+    "v8 telemetry (divergence, hostile_review, regime driver/basis) began accruing mid-June 2026; sections 2-4 deepen with time.",
+    "Temporal z baseline excludes the most recent observation; generate-signals consumes the stored baseline next morning (one-day staleness, immaterial at window 60)."
+  ],
+  "temporal_z": {
+    "MOS": {
+      "eligible": false,
+      "observations": 48,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "ASML": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 0.28,
+          "std": 4.6,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -7,
+            "z": -1.58
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 1.73,
+          "std": 4.88,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 0,
+            "z": -0.35
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 9.98,
+          "std": 10.55,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 9,
+            "z": -0.09
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 5.95,
+          "std": 6.58,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 4,
+            "z": -0.3
+          }
+        }
+      }
+    },
+    "SMH": {
+      "eligible": false,
+      "observations": 38,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "ENB": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -0.53,
+          "std": 2.19,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 3,
+            "z": 1.62
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 11.37,
+          "std": 12.32,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 11,
+            "z": -0.03
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 8.85,
+          "std": 9.83,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 13,
+            "z": 0.42
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 9,
+          "std": 9.11,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 11,
+            "z": 0.22
+          }
+        }
+      }
+    },
+    "ETHA": {
+      "eligible": false,
+      "observations": 53,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "GLD": {
+      "eligible": false,
+      "observations": 27,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "IBIT": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -10.05,
+          "std": 13.55,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 0,
+            "z": 0.74
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -67.08,
+          "std": 21.75,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -77,
+            "z": -0.46
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -7.65,
+          "std": 6.48,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -5,
+            "z": 0.41
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -29.18,
+          "std": 9.97,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -29,
+            "z": 0.02
+          }
+        }
+      }
+    },
+    "KOF": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -0.37,
+          "std": 2.87,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 0,
+            "z": 0.13
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": 1.08,
+          "std": 2.39,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 3,
+            "z": 0.8
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -6.47,
+          "std": 3.64,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -9,
+            "z": -0.7
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -2.82,
+          "std": 2.02,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -3,
+            "z": -0.09
+          }
+        }
+      }
+    },
+    "PBR.A": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -8.25,
+          "std": 13.82,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -6,
+            "z": 0.16
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -10.32,
+          "std": 8.71,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -19,
+            "z": -1
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -7.87,
+          "std": 13.05,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 13,
+            "z": 1.6
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -8.75,
+          "std": 6.28,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -2,
+            "z": 1.08
+          }
+        }
+      }
+    },
+    "AMKBY": {
+      "eligible": true,
+      "observations": 87,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -0.28,
+          "std": 13.25,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 1,
+            "z": 0.1
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -0.55,
+          "std": 6.68,
+          "latest": {
+            "date": "2026-07-07",
+            "score": 3,
+            "z": 0.53
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -17.58,
+          "std": 3.87,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -9,
+            "z": 2.22
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 60,
+          "mean": -7.18,
+          "std": 5.65,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -2,
+            "z": 0.92
+          }
+        }
+      }
+    },
+    "SPY": {
+      "eligible": false,
+      "observations": 48,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "GLNCY": {
+      "eligible": true,
+      "observations": 60,
+      "min_obs": 60,
+      "layers": {
+        "tactical": {
+          "eligible": true,
+          "window_n": 59,
+          "mean": -1.29,
+          "std": 7.17,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -4,
+            "z": -0.38
+          }
+        },
+        "positional": {
+          "eligible": true,
+          "window_n": 59,
+          "mean": -6.53,
+          "std": 5.88,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -15,
+            "z": -1.44
+          }
+        },
+        "strategic": {
+          "eligible": true,
+          "window_n": 59,
+          "mean": -23.34,
+          "std": 8.98,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -23,
+            "z": 0.04
+          }
+        },
+        "composite": {
+          "eligible": true,
+          "window_n": 59,
+          "mean": -13.03,
+          "std": 5.94,
+          "latest": {
+            "date": "2026-07-07",
+            "score": -16,
+            "z": -0.5
+          }
+        }
+      }
+    },
+    "LIN": {
+      "eligible": false,
+      "observations": 49,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "MSFT": {
+      "eligible": false,
+      "observations": 32,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "LHX": {
+      "eligible": false,
+      "observations": 37,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "TMO": {
+      "eligible": false,
+      "observations": 34,
+      "min_obs": 60,
+      "layers": {}
+    },
+    "NOW": {
+      "eligible": false,
+      "observations": 21,
+      "min_obs": 60,
+      "layers": {}
+    }
+  },
+  "divergence_attribution": {
+    "gate": 40,
+    "deadband": 10,
+    "joined": 0,
+    "unresolved_pending_returns": 16,
+    "by_layer": {},
+    "by_ticker_layer": {}
+  },
+  "falsifier_coverage": {
+    "LHX": {
+      "days_with_hostile_review": 13,
+      "falsifier_days": {
+        "tactical": 13,
+        "positional": 13,
+        "strategic": 13
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A break below the $250 52w low on rising volume, or RSI failing to hold >40 and rolling toward oversold, would flip this to a momentum-down trim."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A book-to-bill print <0.95 with backlog YoY turning negative, OR continued op-margin erosion below 9% in the next report, would flip this to a trim — conversely a confirmed B/B >1.10 with margin recovery would justify pushing back toward -60."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A shift in geopolitical regime toward de-escalation/peace-dividend, OR a hard continuing-resolution/sequester event stalling the DoD budget, would flip this decisively to a trim; conversely confirmed margin recovery toward 14%+ flips it to a strategic buy."
+        }
+      }
+    },
+    "ASML": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "Confirmation that today's drop stems from a genuine order cancellation or High-NA delay/China export ban tightening would flip this to a trim."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A decisive break below the 50-day SMA ($1639) on volume would flip positional to a trim signal."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A book-to-bill print below 1.0 combined with TSMC AND Intel guiding capex down would flip strategic decisively to trim; conversely a >15% drawdown with backlog still growing flips it to buy."
+        }
+      }
+    },
+    "LIN": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A sharp break below the 50-day SMA ($509) on rising volume, or RSI collapsing below 40, would flip this to a positive (trim/weakness) read."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "LIN/APD or LIN/AI.PA spread blowing out sharply (peer premium re-rating higher against LIN) or a decisive loss of the 50-day MA would flip the sign positive."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A confirmed backlog acceleration or price/mix ex-FX turning firmly positive alongside a beat, or DXY rolling over, would flip this negative (buy); conversely explicit management guidedown on margins would push it more positive."
+        }
+      }
+    },
+    "MSFT": {
+      "days_with_hostile_review": 5,
+      "falsifier_days": {
+        "tactical": 5,
+        "positional": 5,
+        "strategic": 5
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "MSFT reclaiming the 50d SMA (~$408) on strong volume, or conversely breaking decisively below the $349 52w low, would flip the tactical read."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "Azure constant-currency growth decelerating below 22% on the next print, or a capex blowout with margin compression and no revenue acceleration, would confirm thesis impairment and flip this to a trim."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A material OpenAI partnership unwind or exclusivity loss, or forward P/E expanding above 35x with sustained Azure deceleration, would flip the strategic sign to trim."
+        }
+      }
+    },
+    "ENB": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A follow-through rally of another 2%+ on rising volume with 10Y breaking below 4.35% would flip this to a modest buy/hold-momentum read."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "Yield spread widening back above 150bps (either 10Y falling hard or ENB selling off), OR confirmation of accelerated LNG-driven gas volume growth, would flip this toward a buy."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A dividend-growth guidance cut, a Mainline recontracting/volume shock, or 10Y falling below ~4% (making the 5.11% yield attractive again) would flip the strategic sign."
+        }
+      }
+    },
+    "GLNCY": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A close below the 200-day SMA ($12.57) on rising volume would flip this positive (buy) into a trim/avoid tactical read."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "GLNCY reversing to UNDERPERFORM COPX by a widening margin (premium turning to discount) plus HY OAS widening past ~3.5bps would flip the positional sign to trim."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "LME copper breaking decisively below key support with rising inventories AND Chinese PMI printing sub-48 would signal the trough is deepening, flipping strategic to neutral/trim."
+        }
+      }
+    },
+    "IBIT": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "RSI breaking below 30 (flip more negative near-term momentum risk) or a decisive reclaim of the 50DMA at $40.47 on volume (flip to tactical buy)."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "Sustained ETF outflows accelerating alongside a break below the $32.84 52w low would flip this positive (trim), confirming the drawdown is a structural regime change rather than a buyable dip."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "Clear evidence the halving cycle is topping (LTH mass distribution + sustained multi-month ETF outflows) would flip strategic to a trim tilt."
+        }
+      }
+    },
+    "KOF": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "RSI breaking below 35 or above 68 alongside a VIX spike above 22 would create a real tactical directional signal."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A sustained close below the 200-day SMA ($98.21) would flip this to a clear buy-the-dip (negative) or confirm trend break — either way invalidates the mild-trim read."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "A confirmed peso regime shift toward 19+ (Banxico dovish pivot or US tariff shock) would flip the strategic view positive/trim, as USD ADR returns would erode despite operational strength."
+        }
+      }
+    },
+    "PBR.A": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A close back above SMA50 ($19.15) on rising volume, or conversely a break of the SMA200 ($15.7) with WTI under $68, would flip the tactical sign."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A sustained reclaim of SMA50 with WTI holding >$72 flips more bullish; a dividend cut announcement or break below SMA200 flips it to trim."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "Evidence oil is entering an uptrend (WTI sustainably >$85) or a clean pro-shareholder dividend-policy affirmation would flip strategic to a buy tilt; a fuel-pricing-below-parity mandate or forced low-return capex confirms the trim."
+        }
+      }
+    },
+    "AMKBY": {
+      "days_with_hostile_review": 15,
+      "falsifier_days": {
+        "tactical": 15,
+        "positional": 15,
+        "strategic": 15
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A decisive close above the 50-day ($12.16) on strong volume with rising freight-rate prints would flip this to a buy; conversely a break below the 200-day ($11.56) would deepen the trim."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A GSCPI reading falling below 0.5 (calming supply chains) alongside falling SCFI/WCI would push this positive/trim; a re-escalation spiking GSCPI above 2 would push it more negative."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "P/E climbing toward 50x+ (earnings collapsing to trough) with P/B falling below 0.6 would flip this to a strong strategic buy; conversely P/E compressing below 10x on peak earnings would flip it to trim."
+        }
+      }
+    },
+    "TMO": {
+      "days_with_hostile_review": 10,
+      "falsifier_days": {
+        "tactical": 10,
+        "positional": 10,
+        "strategic": 10
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A decisive break back below SMA50 (~$473) with XBI rolling over 90d would flip this to trim/avoid; conversely a clean close above SMA200 ($526) on volume would deepen the buy."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A break below SMA50 combined with a peer (DHR/Sartorius) guiding bioprocessing weakness deeper would flip the sign; sustained hold above SMA50 with an organic-growth re-accel print confirms the buy."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "Simultaneous NIH funding cuts + China life-sciences capex collapse, or a peer signaling structural (not cyclical) bioprocessing demand loss, would flip to trim; confirmed organic re-accel to 5%+ with margin recovery deepens the buy."
+        }
+      }
+    },
+    "NOW": {
+      "days_with_hostile_review": 3,
+      "falsifier_days": {
+        "tactical": 3,
+        "positional": 3,
+        "strategic": 3
+      },
+      "latest": {
+        "tactical": {
+          "date": "2026-07-07",
+          "falsifier": "A break back below SMA50 ($100.09) on rising volume, or RSI rolling under 40, would flip this to a trim/neutral tactical signal."
+        },
+        "positional": {
+          "date": "2026-07-07",
+          "falsifier": "A negative cRPO print (<18% YoY) or a fresh wave of downward EPS revisions would flip positional to neutral/trim; conversely a decisive reclaim of the 200-day would confirm the buy."
+        },
+        "strategic": {
+          "date": "2026-07-07",
+          "falsifier": "cRPO decelerating below 18% YoY with stalling Now Assist ASP growth would confirm the trim thesis and push strategic positive; sustained 20%+ cRPO plus Now Assist attach-rate inflection flips it firmly negative/buy."
+        }
+      }
+    }
+  },
+  "regime_gates": {
+    "LIN": {
+      "basis": "pmi",
+      "states": {
+        "neutral": {
+          "days": 49,
+          "composite_calls": 0,
+          "composite_hits": 0,
+          "hit_rate": null,
+          "sample": "insufficient"
+        }
+      }
+    },
+    "LHX": {
+      "basis": "ita_vs_spy_30d_pp",
+      "states": {
+        "neutral": {
+          "days": 14,
+          "composite_calls": 8,
+          "composite_hits": 4,
+          "hit_rate": null,
+          "sample": "insufficient"
+        }
+      }
+    },
+    "MSFT": {
+      "basis": "real_rate",
+      "states": {
+        "neutral": {
+          "days": 6,
+          "composite_calls": 5,
+          "composite_hits": 2,
+          "hit_rate": null,
+          "sample": "insufficient"
+        }
+      }
+    },
+    "TMO": {
+      "basis": "xbi_90d_return_pct",
+      "states": {
+        "neutral": {
+          "days": 11,
+          "composite_calls": 5,
+          "composite_hits": 4,
+          "hit_rate": null,
+          "sample": "insufficient"
+        }
+      }
+    },
+    "NOW": {
+      "basis": "real_rate",
+      "states": {
+        "neutral": {
+          "days": 3,
+          "composite_calls": 2,
+          "composite_hits": 2,
+          "hit_rate": null,
+          "sample": "insufficient"
+        }
+      }
+    }
+  }
+}
