@@ -1,6 +1,25 @@
 #!/usr/bin/env node
-// calibration-loader.mjs v1.1 — Loads signal accuracy data and yesterday's snapshot
+// calibration-loader.mjs v1.2 — Loads signal accuracy data and yesterday's snapshot
 // for injection into the LLM qualitative prompt.
+//
+// v1.2 (July 2026): TEMPORAL Z SUPPORT for calibration-v2.mjs / generate-signals
+// v8.2.0. Three additive exports, no changes to existing functions:
+//   loadTemporalZ()                  — reads docs/history/calibration-v2.json
+//                                      (nightly output of calibration-v2.mjs);
+//                                      degrades to { available: false } cleanly
+//                                      when the file is absent (first run) or
+//                                      malformed.
+//   buildTemporalLine(symbol, tz)    — one prompt line placing the ticker's own
+//                                      recent score history in front of the LLM
+//                                      ("this name's composite has averaged
+//                                      μ ± σ over its last N sessions"); empty
+//                                      string for ineligible tickers, so pre-
+//                                      threshold names see zero prompt change.
+//   computeTz(symbol, tz, blended)   — today's temporal z per layer from the
+//                                      stored baseline vs today's blended
+//                                      scores; null per layer when ineligible.
+//                                      Attached to results as `tz` for the
+//                                      logger (log-signals persists it).
 //
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
@@ -242,4 +261,63 @@ export function computeConfidence(marketData, symbol) {
                 confidenceScore >= 45 ? "medium" : "low";
 
   return { level, score: confidenceScore, missing };
+}
+
+// ─── TEMPORAL Z (v1.2 — calibration-v2.mjs consumer support) ─────────────────
+
+const CALIBRATION_V2_PATH = "docs/history/calibration-v2.json";
+
+// Loads the temporal-z section of calibration-v2.json. Cleanly degrades when
+// the file doesn't exist yet (calibration-v2.mjs hasn't had its first nightly
+// run) or is malformed — callers see { available: false } and all downstream
+// consumers no-op, so generate-signals never depends on it being present.
+export function loadTemporalZ() {
+  const result = { available: false, generated_at: null, window: null, bySymbol: {} };
+  if (!existsSync(CALIBRATION_V2_PATH)) {
+    console.log("  [temporal-z] No calibration-v2.json yet — temporal context disabled this run.");
+    return result;
+  }
+  try {
+    const data = JSON.parse(readFileSync(CALIBRATION_V2_PATH, "utf-8"));
+    result.bySymbol = data.temporal_z || {};
+    result.generated_at = data.generated_at || null;
+    result.window = data.params?.temporal_window ?? null;
+    result.available = Object.values(result.bySymbol).some(v => v?.eligible);
+    const n = Object.values(result.bySymbol).filter(v => v?.eligible).length;
+    console.log(`  [temporal-z] Loaded calibration-v2 (${data.generated_at || "?"}): ${n} eligible ticker(s).`);
+    return result;
+  } catch (e) {
+    console.error(`  [temporal-z] Error loading calibration-v2.json: ${e.message}`);
+    return result;
+  }
+}
+
+// One line of temporal context for the LLM prompt. Uses only the composite
+// baseline — one honest sentence, not a stats dump. Empty string when the
+// ticker is ineligible (pre-threshold names see zero prompt change).
+export function buildTemporalLine(symbol, tz) {
+  if (!tz?.available) return "";
+  const rec = tz.bySymbol?.[symbol];
+  const c = rec?.eligible ? rec.layers?.composite : null;
+  if (!c?.eligible) return "";
+  const zStr = c.latest?.z != null ? ` (yesterday's ${c.latest.score} was z=${c.latest.z >= 0 ? "+" : ""}${c.latest.z})` : "";
+  return `\nTEMPORAL CONTEXT: over its own last ${c.window_n} sessions, ${symbol}'s composite score has averaged ${c.mean} with a standard deviation of ${c.std}${zStr}. Judge whether today's setup is genuinely unusual FOR THIS NAME, not just vs the rest of the book.\n`;
+}
+
+// Today's temporal z per layer, computed from the stored baseline (built
+// nightly, excludes its own latest observation) against today's blended
+// scores. Returns { tactical, positional, strategic, composite } with nulls
+// where ineligible — safe to attach unconditionally.
+export function computeTz(symbol, tz, blendedScores) {
+  const out = { tactical: null, positional: null, strategic: null, composite: null };
+  const rec = tz?.bySymbol?.[symbol];
+  if (!tz?.available || !rec?.eligible) return out;
+  for (const layer of ["tactical", "positional", "strategic", "composite"]) {
+    const base = rec.layers?.[layer];
+    const score = blendedScores?.[layer]?.score;
+    if (base?.eligible && typeof score === "number" && base.std > 0) {
+      out[layer] = +((score - base.mean) / base.std).toFixed(2);
+    }
+  }
+  return out;
 }
