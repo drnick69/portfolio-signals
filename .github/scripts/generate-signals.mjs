@@ -47,6 +47,16 @@
 //       sentences in both full and search guidance). regime_driver +
 //       regime_basis hoisted from detScores into each result for logger wiring.
 //       Text + two additive fields only — no logic changes.
+// v8.1.0: TRACK B DURABLE FIX — web-search holdings could finish a turn without
+//       calling record_scores (tool_choice stays auto in search mode so web_search
+//       isn't blocked). The old fallback scraped JSON from prose; when that missed,
+//       fetchLLMScore threw, scoreHolding returned null, and the holding was silently
+//       filtered out of the composite rankings (the 9/12 MSFT/NOW/LHX drop). Fix:
+//       when a search turn ends with no record_scores tool call, echo the model's own
+//       research back and FORCE record_scores in a follow-up turn (web_search stays
+//       declared so the echoed web_search_tool_result blocks validate). Legacy
+//       prose-scrape retained as a last resort, so this path can never do worse than
+//       before. Track A (qualitative) unchanged. No engine/holdings/output changes.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -1086,7 +1096,9 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
           : [RECORD_SCORES_TOOL],
       };
       // Qualitative mode: force the schema-validated tool call (deterministic structure).
-      // Search mode: tool_choice stays auto — forcing it would block web_search use.
+      // Search mode: tool_choice stays auto on this first turn — forcing it would block
+      // web_search. If the model ends without record_scores, a forced follow-up turn
+      // below (v8.1.0) guarantees a structured result.
       if (!useWebSearch) body.tool_choice = { type: "tool", name: "record_scores" };
 
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1112,14 +1124,53 @@ async function fetchLLMScore(holding, promptParts, useWebSearch) {
       const toolBlocks = (result.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
       if (toolBlocks.length > 0) {
         parsed = toolBlocks[toolBlocks.length - 1].input;
+      } else if (useWebSearch) {
+        // v8.1.0: Track B durable fix. The search turn ended without record_scores
+        // (tool_choice is auto in search mode so web_search isn't blocked). Instead of
+        // scraping JSON out of prose, echo the assistant's research back and FORCE
+        // record_scores in a follow-up turn so a web-search holding can never finish
+        // unscored → null → silent drop from the composite rankings. Legacy prose-scrape
+        // is kept only as a last resort, so this path can never do worse than before.
+        console.log("    ↻ search turn ended without record_scores — forcing structured call...");
+        const forceResp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({
+            model: MODEL_ID,
+            max_tokens: 2500,
+            system: promptParts.system,
+            messages: [
+              { role: "user", content: promptParts.user },
+              { role: "assistant", content: result.content },
+              { role: "user", content: "You completed your research but did not call record_scores. Call record_scores exactly once now, using ONLY the research and verified data above. Do not search again." },
+            ],
+            // web_search stays declared so the echoed web_search_tool_result blocks
+            // validate; tool_choice forces the structured call so the turn cannot end
+            // in prose again.
+            tools: [{ type: "web_search_20250305", name: "web_search" }, RECORD_SCORES_TOOL],
+            tool_choice: { type: "tool", name: "record_scores" },
+          }),
+        });
+        if (forceResp.status === 429) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 60000)); continue; } throw new Error("Rate limited (force)"); }
+        if (!forceResp.ok) throw new Error(`API ${forceResp.status} (force): ${(await forceResp.text()).slice(0, 150)}`);
+        const forceResult = await forceResp.json();
+        const forceTool = (forceResult.content || []).filter(b => b.type === "tool_use" && b.name === "record_scores");
+        if (forceTool.length > 0) {
+          parsed = forceTool[forceTool.length - 1].input;
+        } else {
+          // last resort: scrape JSON from the original search prose (legacy behavior).
+          const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+          const sanitized = text.replace(/:\s*\+(\d)/g, ': $1');
+          const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON after forced turn"); }
+          const cleaned = jsonMatch[0].replace(/```json\s*/g,"").replace(/```\s*/g,"").replace(/,\s*}/g,"}").replace(/,\s*]/g,"]");
+          parsed = JSON.parse(cleaned);
+        }
       } else {
-        // Legacy fallback — search mode may end with text instead of the tool call.
-        const text = (result.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-        const sanitized = text.replace(/:\s*\+(\d)/g, ': $1');
-        const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) { if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; } throw new Error("No JSON"); }
-        const cleaned = jsonMatch[0].replace(/```json\s*/g,"").replace(/```\s*/g,"").replace(/,\s*}/g,"}").replace(/,\s*]/g,"]");
-        parsed = JSON.parse(cleaned);
+        // Qualitative mode already forces record_scores upstream; a miss here means a
+        // malformed response. Retry, then fail loudly (never a silent null).
+        if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000)); continue; }
+        throw new Error("No record_scores (qualitative)");
       }
 
       const valid = ["tactical","positional","strategic"].every(l => typeof parsed[l]?.score === "number");
