@@ -182,6 +182,13 @@ const COLUMNS = [
   ["div_flagged",    (h) => (h.divergence?.flagged || []).join(";")],
   ["regime_driver",  (h) => h.regime_driver],
   ["regime_basis",   (h) => h.regime_basis],
+  // ── V8.2.0 telemetry (log-signals v8.2.0) ──
+  ["tz_tactical",    (h) => h.tz?.tactical],
+  ["tz_positional",  (h) => h.tz?.positional],
+  ["tz_strategic",   (h) => h.tz?.strategic],
+  ["tz_composite",   (h) => h.tz?.composite],
+  ["verify_passed",  (h) => h.verification ? (h.verification.passed ? "true" : "false") : null],
+  ["verify_turns",   (h) => h.verification?.corrective_turns],
 ];
 
 // ─── quote-aware CSV line splitter (validation pass) ────────────────────────
