@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// calibration-loader.mjs v1.2 — Loads signal accuracy data and yesterday's snapshot
+// calibration-loader.mjs v1.3 — Loads signal accuracy data and yesterday's snapshot
 // for injection into the LLM qualitative prompt.
 //
 // v1.2 (July 2026): TEMPORAL Z SUPPORT for calibration-v2.mjs / generate-signals
@@ -12,14 +12,32 @@
 //   buildTemporalLine(symbol, tz)    — one prompt line placing the ticker's own
 //                                      recent score history in front of the LLM
 //                                      ("this name's composite has averaged
-//                                      μ ± σ over its last N sessions"); empty
-//                                      string for ineligible tickers, so pre-
-//                                      threshold names see zero prompt change.
+//                                      μ ± σ over its last N sessions").
+//                                      v1.3: ineligible tickers now get an
+//                                      explicit one-line CALIBRATION PENDING
+//                                      (n/60) notice instead of silence — see
+//                                      the v1.3 note below.
 //   computeTz(symbol, tz, blended)   — today's temporal z per layer from the
 //                                      stored baseline vs today's blended
 //                                      scores; null per layer when ineligible.
 //                                      Attached to results as `tz` for the
 //                                      logger (log-signals persists it).
+//
+// v1.3 (July 2026): CALIBRATION PENDING surfacing — v8.3 MA/ISRG add support.
+//   New holdings start at n=0 against the 60-observation temporal-z threshold
+//   (MA/ISRG won't be eligible until ~late Sep/Oct 2026). Previously
+//   buildTemporalLine returned "" for ineligible tickers, which reads to the
+//   LLM the same as "temporal context doesn't exist" — indistinguishable from
+//   an eligible name on a quiet day. v1.3 replaces the silence with one
+//   explicit line: "CALIBRATION PENDING — n/60 observations", plus an
+//   instruction not to make own-history-percentile claims for the name. The
+//   count comes from calibration-v2.json, which already records
+//   { eligible:false, observations, min_obs } for every pending ticker;
+//   tickers absent from the file entirely (first days before their first
+//   nightly calibration-v2 run) surface as 0/60. Gating unchanged: the notice
+//   requires tz.available (file present with ≥1 eligible ticker — true since
+//   the first 7 crossed), so pre-first-run behavior is identical to v1.2.
+//   computeTz is UNCHANGED — pending tickers still log tz nulls.
 //
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
@@ -293,12 +311,20 @@ export function loadTemporalZ() {
 }
 
 // One line of temporal context for the LLM prompt. Uses only the composite
-// baseline — one honest sentence, not a stats dump. Empty string when the
+// baseline — one honest sentence, not a stats dump. v1.3: pending (ineligible)
+// tickers get an explicit CALIBRATION PENDING (n/60) line. Empty string when the
 // ticker is ineligible (pre-threshold names see zero prompt change).
 export function buildTemporalLine(symbol, tz) {
   if (!tz?.available) return "";
   const rec = tz.bySymbol?.[symbol];
-  const c = rec?.eligible ? rec.layers?.composite : null;
+  // v1.3: below-threshold names (incl. tickers not yet in calibration-v2.json
+  // at all — 0 observations) get an explicit pending notice instead of silence.
+  if (!rec?.eligible) {
+    const obs = rec?.observations ?? 0;
+    const min = rec?.min_obs ?? 60;
+    return `\nTEMPORAL CONTEXT: CALIBRATION PENDING — ${symbol} has ${obs}/${min} logged observations toward its own-history baseline (activates automatically at ${min}). No own-history percentile exists for this name yet: do NOT make claims about how unusual today's setup is FOR THIS NAME; cross-sectional and archetype context still apply.\n`;
+  }
+  const c = rec.layers?.composite;
   if (!c?.eligible) return "";
   const zStr = c.latest?.z != null ? ` (yesterday's ${c.latest.score} was z=${c.latest.z >= 0 ? "+" : ""}${c.latest.z})` : "";
   return `\nTEMPORAL CONTEXT: over its own last ${c.window_n} sessions, ${symbol}'s composite score has averaged ${c.mean} with a standard deviation of ${c.std}${zStr}. Judge whether today's setup is genuinely unusual FOR THIS NAME, not just vs the rest of the book.\n`;
