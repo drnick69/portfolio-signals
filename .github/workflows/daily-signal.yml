@@ -61,6 +61,12 @@ jobs:
       - name: Run paper trader
         run: node .github/scripts/paper-trader.mjs
 
+      - name: Benchmark scorecard
+        env:
+          ALPK: ${{ secrets.ALPK }}
+          ALPS: ${{ secrets.ALPS }}
+        run: node .github/scripts/benchmark-scorecard.mjs
+
       - name: Commit updated signal data
         run: |
           git config user.name "Portfolio Bot"
