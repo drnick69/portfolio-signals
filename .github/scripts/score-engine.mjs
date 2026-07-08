@@ -77,6 +77,35 @@
 //     subscription growth + $1M+ deals + federal contract growth + op/FCF margin
 //     positional (null-safe — LLM sources). TIPS + DXY + VIX overlays.
 //     V8.1: composite weights regime-conditional on real rate — see below.
+//   - PAYMENTS_NETWORK_QUALITY_COMPOUNDER (MA) — V1: tightened RSI 40/65, compounder
+//     MA-trend + inverted 52w, drawdown-from-52w-high primary tactical (>12% setup,
+//     >20% strong), twin dislocation vs V 30d (duopoly twins rarely diverge — MA
+//     lagging V by >4pp without an MA-specific break = buy setup), duopoly (MA+V avg)
+//     vs SPY 30d fear-regime read (narrative-driven duopoly weakness = buy setup),
+//     QUAL factor flow, twin P/E premium vs V primary strategic with MA-SPECIFIC
+//     BANDS — MA carries 10-20% premium to V as BASELINE (faster grower, larger VAS
+//     mix), so <5% = compressed = buy, >25% = rich. Cross-border volume growth (THE
+//     ops metric) + GDV + switched txns + VAS + rebates discipline + buyback pace +
+//     stablecoin/disruption/regulation categoricals positional/strategic (null-safe —
+//     LLM sources). Interchange regulation "passed" and disruption evidence
+//     "material" are deterministic thesis-break penalties. TIPS + DXY + VIX overlays
+//     (DXY weighted heavier — ~2/3 international revenue). V8.2: composite weights
+//     regime-conditional on duopoly vs SPY 30d — see below.
+//   - SURGICAL_ROBOTICS_MOAT_COMPOUNDER (ISRG) — V1: RSI bands 38/68 (beta ~1.7 —
+//     slightly wider than the low-vol compounders), compounder MA-trend + inverted
+//     52w, drawdown-from-52w-high primary tactical (>15% setup, >25% strong, ladder
+//     extended to >35%), cohort fear-rotation vs MDT/SYK/BSX avg 30d (BUY setup when
+//     ISRG lags on competition/instrument headlines without procedure evidence), IHI
+//     vs SPY 30d factor flow (devices sector bid), cohort P/E premium primary
+//     strategic with ISRG-SPECIFIC BANDS — ISRG carries 60-120% premium to cohort as
+//     BASELINE (category king, ~86% recurring annuity), so <60% = unusual discount =
+//     buy, >150% = stretched; absolute PE is NEVER the signal. Procedure growth (THE
+//     ops metric, guide 13.5-15.5%) + dV placements/dV5 mix + Ion + recurring % +
+//     I&A + installed base + op margin positional (null-safe — LLM sources).
+//     moat_status "eroding"/"breached" and instrument_transition_status
+//     "quantified_material" are deterministic thesis-break penalties;
+//     "quantified_manageable" is a relief-catalyst buy. TIPS + VIX + DXY overlays.
+//     V8.2: composite weights regime-conditional on IHI vs SPY 30d — see below.
 //
 // V8.1 (June 2026): regime-conditional composite weights extended from LIN to the
 // V1 compounders, mirroring the LIN V3 three-state pattern (±5pp shifts off each
@@ -91,6 +120,22 @@
 //   data justifies changes. New return fields regimeDriver (numeric) + regimeBasis
 //   (string) are additive; regimePmi keeps its LIN-only meaning for contract
 //   stability. Layer scoring logic unchanged.
+//
+// V8.2 (July 2026): HOLDINGS ADD — MA (payments_network_quality_compounder) and
+// ISRG (surgical_robotics_moat_compounder). 12 → 14 scored holdings. Two new
+// archetype branches per layer + two new V8.1-pattern regime gates (same
+// three-state structure, same ±5pp shifts off each 20/35/45 base; missing
+// driver data → static base + "neutral" + null driver):
+//   - MA gated on duopoly (MA+V avg) vs SPY 30d relative strength: >+3pp
+//     fear_receding 25/40/35 · −5..+3pp neutral 20/35/45 · <−5pp fear_regime
+//     15/30/55 (fear regime = strategic/valuation anchor dominates — the
+//     narrative-cycle drawdown IS the thesis).
+//   - ISRG gated on IHI vs SPY 30d factor flow: >+1pp bid_active 25/40/35 ·
+//     ±1pp neutral 20/35/45 · <−1pp bid_absent 15/30/55.
+//   Neither added to CYCLICAL_ARCHETYPES (both compounders — standard/premium
+//   PE logic; ISRG explicitly requires high-multiple tolerance, NOW-style).
+//   Blend weights untouched (both archetypes use defaults). Existing layer
+//   scoring logic unchanged — additions only.
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
@@ -178,6 +223,35 @@ function computeTMORegimeWeights(data) {
   return           { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: x };
 }
 
+// V8.2 — MA: duopoly fear-regime gate (MA+V avg 30d vs SPY, pp). <−5pp = the
+// networks are being sold on disruption headlines (stablecoin/interchange) —
+// valuation anchor dominates because the narrative-cycle drawdown IS the thesis
+// (strategic up). >+3pp = fear receding / re-rating underway (flow/cycle layers
+// carry more signal). Base 20/35/45.
+function computeMARegimeWeights(data) {
+  const d = data?.duopoly_relative?.duopoly_vs_spy_pp;
+  if (d == null) {
+    return { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: null };
+  }
+  if (d > 3)  return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "fear_receding", driver: d };
+  if (d < -5) return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "fear_regime",   driver: d };
+  return          { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",       driver: d };
+}
+
+// V8.2 — ISRG: devices factor-flow gate (IHI vs SPY 30d, pp — mirrors the LHX
+// ITA gate). >+1pp = devices bid active (flow/momentum layers carry signal),
+// <−1pp = sector out of favor — own-history multiple-compression thesis
+// dominates (strategic anchor). Base 20/35/45.
+function computeISRGRegimeWeights(data) {
+  const i = data?.factor_flow?.ihi_vs_spy_30d_pp;
+  if (i == null) {
+    return { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral", driver: null };
+  }
+  if (i > 1)  return { weights: { t: 0.25, p: 0.40, s: 0.35 }, regime: "bid_active", driver: i };
+  if (i < -1) return { weights: { t: 0.15, p: 0.30, s: 0.55 }, regime: "bid_absent", driver: i };
+  return          { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     driver: i };
+}
+
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
@@ -205,6 +279,8 @@ export function scoreTactical(data, macro) {
   const isLHX = archetype === "defense_prime_backlog_compounder";
   const isTMO = archetype === "life_sciences_quality_compounder";
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
+  const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
+  const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -721,6 +797,160 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MA-SPECIFIC (V8.2): PAYMENTS NETWORK QUALITY COMPOUNDER ─────────────
+  if (isMA) {
+    // RSI tightened bands 40/65 (low-vol compounder, MSFT-style)
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: Mastercard severe oversold — rare rails-compounder opportunity`); }
+      else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: Mastercard deeply oversold — compounder on sale`); }
+      else if (rsi < 30) { score += -28; notes.push(`RSI ${rsi}: Mastercard oversold`); }
+      else if (rsi < 35) { score += -15; notes.push(`RSI ${rsi}: Mastercard mildly oversold (tightened band)`); }
+      else if (rsi < 40) { score += -8;  notes.push(`RSI ${rsi}: Mastercard approaching oversold`); }
+      else if (rsi <= 60) { score += 0;  notes.push(`RSI ${rsi}: Mastercard normal trending range`); }
+      else if (rsi < 65) { score += 3;   notes.push(`RSI ${rsi}: Mastercard healthy momentum`); }
+      else if (rsi < 70) { score += 12;  notes.push(`RSI ${rsi}: Mastercard overbought (tightened — quality compounder)`); }
+      else if (rsi < 75) { score += 22;  notes.push(`RSI ${rsi}: Mastercard extended`); }
+      else if (rsi < 80) { score += 32;  notes.push(`RSI ${rsi}: Mastercard deeply overbought`); }
+      else               { score += 45;  notes.push(`RSI ${rsi}: Mastercard extreme — trim bias`); }
+    }
+
+    // Drawdown-from-52w-high — primary tactical signal (>12% setup, >20% strong).
+    // Narrative-cycle drawdowns (stablecoin/interchange fear) are the entry for a
+    // beta-0.83 compounder whose volumes don't move with headlines.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 25)       { score += -25; notes.push(`Mastercard drawdown ${dd.toFixed(1)}%: extreme — rare compounder buy`); }
+      else if (ddMag > 20)  { score += -18; notes.push(`Mastercard drawdown ${dd.toFixed(1)}%: deep — high-conviction buy setup`); }
+      else if (ddMag > 15)  { score += -12; notes.push(`Mastercard drawdown ${dd.toFixed(1)}%: meaningful — compounder buy interest`); }
+      else if (ddMag > 12)  { score += -8;  notes.push(`Mastercard drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 8)   { score += -3;  notes.push(`Mastercard drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 2)   { score += 3;   notes.push(`Mastercard at/near 52w highs — normal compounder`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -5)      { score += -15; notes.push(`Mastercard daily ${chg}%: rare big drop — aggressive buy`); }
+      else if (chg < -3) { score += -8;  notes.push(`Mastercard daily ${chg}%: sharp drop`); }
+      else if (chg < -2) { score += -3;  notes.push(`Mastercard daily ${chg}%: notable for low-vol compounder`); }
+      else if (chg > 5)  { score += 10;  notes.push(`Mastercard daily +${chg}%: rare sharp rally`); }
+      else if (chg > 3)  { score += 5;   notes.push(`Mastercard daily +${chg}%: notable rally`); }
+      else if (chg > 2)  { score += 2;   notes.push(`Mastercard daily +${chg}%: notable for low-vol`); }
+    }
+
+    // Twin dislocation vs V (30d) — signature MA tactical setup #1.
+    // Duopoly twins rarely diverge; MA lagging V without an MA-specific
+    // fundamental break = buy setup, not a warning.
+    if (data.duopoly_relative) {
+      const ts = data.duopoly_relative.twin_spread_pp;
+      const active = data.duopoly_relative.twin_dislocation_active;
+      if (ts != null) {
+        if (active && ts < -8)      { score += -12; notes.push(`Twin dislocation ACTIVE: Mastercard lagging V by ${(-ts).toFixed(1)}pp/30d — strong buy setup (twins rarely diverge)`); }
+        else if (active && ts < -6) { score += -8;  notes.push(`Twin dislocation ACTIVE: Mastercard lagging V by ${(-ts).toFixed(1)}pp/30d — buy setup`); }
+        else if (active)            { score += -5;  notes.push(`Twin dislocation ACTIVE: Mastercard lagging V by ${(-ts).toFixed(1)}pp/30d`); }
+        else if (ts < -2)           { score += -2;  notes.push(`Mastercard mildly lagging V (${ts.toFixed(1)}pp/30d)`); }
+        else if (ts > 4)            { score += 4;   notes.push(`Mastercard leading V by ${ts.toFixed(1)}pp/30d — faster-grower premium extending`); }
+      }
+
+      // Duopoly fear regime vs SPY (30d) — signature MA tactical setup #2.
+      // Both networks sold on disruption headlines with volumes intact = the setup.
+      const fr = data.duopoly_relative.disruption_fear_regime;
+      const dv = data.duopoly_relative.duopoly_vs_spy_pp;
+      if (fr === "acute")         { score += -10; notes.push(`Duopoly fear regime ACUTE (MA+V ${dv != null ? dv.toFixed(1) : "—"}pp vs SPY/30d): networks sold on headlines — buy setup`); }
+      else if (fr === "elevated") { score += -6;  notes.push(`Duopoly fear regime ELEVATED (MA+V ${dv != null ? dv.toFixed(1) : "—"}pp vs SPY/30d)`); }
+      else if (fr === "absent")   { score += 3;   notes.push(`Duopoly fear absent (MA+V ${dv != null ? "+" + dv.toFixed(1) : "—"}pp vs SPY/30d) — re-rating underway`); }
+    }
+
+    // QUAL factor flow — market-wide quality bid (MA benefits as a quality compounder)
+    if (data.factor_flow?.qual_vs_spy_30d_pp != null) {
+      const q = data.factor_flow.qual_vs_spy_30d_pp;
+      if (q > 2)       { score += -3; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): strong quality bid — Mastercard benefits`); }
+      else if (q > 1)  { score += -1; notes.push(`QUAL +${q.toFixed(1)}pp vs SPY (30d): quality bid active`); }
+      else if (q < -2) { score += 3;  notes.push(`QUAL ${q.toFixed(1)}pp vs SPY (30d): quality factor under pressure`); }
+      else if (q < -1) { score += 1;  }
+    }
+
+    // VIX overlay — low-beta compounder as collateral damage in broad fear
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -2) {
+        score += -8; notes.push(`VIX ${vix} + Mastercard ${chg}%: broad fear collateral — quality bid will return`);
+      } else if (vix > 25 && chg < -1.5) {
+        score += -4; notes.push(`VIX ${vix} + Mastercard ${chg}%: elevated fear pressure on compounder`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── ISRG-SPECIFIC (V8.2): SURGICAL ROBOTICS MOAT COMPOUNDER ─────────────
+  if (isISRG) {
+    // RSI bands 38/68 — beta ~1.7, slightly wider than the low-vol compounders
+    if (rsi != null) {
+      if (rsi < 20)      { score += -55; notes.push(`RSI ${rsi}: ISRG severe oversold — rare category-king opportunity`); }
+      else if (rsi < 25) { score += -42; notes.push(`RSI ${rsi}: ISRG deeply oversold — moat compounder on sale`); }
+      else if (rsi < 30) { score += -30; notes.push(`RSI ${rsi}: ISRG oversold`); }
+      else if (rsi < 34) { score += -18; notes.push(`RSI ${rsi}: ISRG mildly oversold`); }
+      else if (rsi < 38) { score += -10; notes.push(`RSI ${rsi}: ISRG approaching oversold`); }
+      else if (rsi <= 62) { score += 0;  notes.push(`RSI ${rsi}: ISRG normal trending range`); }
+      else if (rsi < 68) { score += 5;   notes.push(`RSI ${rsi}: ISRG healthy momentum (wider band — beta ~1.7)`); }
+      else if (rsi < 72) { score += 14;  notes.push(`RSI ${rsi}: ISRG overbought`); }
+      else if (rsi < 76) { score += 24;  notes.push(`RSI ${rsi}: ISRG extended`); }
+      else if (rsi < 80) { score += 34;  notes.push(`RSI ${rsi}: ISRG deeply overbought`); }
+      else               { score += 45;  notes.push(`RSI ${rsi}: ISRG extreme — trim bias`); }
+    }
+
+    // Drawdown-from-52w-high — primary tactical signal (>15% setup, >25% strong).
+    // Fear-cycle drawdowns (2027 instrument transition / Hugo-Ottava narrative)
+    // on a beta-1.7 category king are where the alpha lives. Ladder extended to
+    // >35% for the wider trading range.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 35)       { score += -28; notes.push(`ISRG drawdown ${dd.toFixed(1)}%: extreme — rare category-king buy`); }
+      else if (ddMag > 25)  { score += -20; notes.push(`ISRG drawdown ${dd.toFixed(1)}%: deep — high-conviction buy setup`); }
+      else if (ddMag > 20)  { score += -14; notes.push(`ISRG drawdown ${dd.toFixed(1)}%: meaningful — moat compounder buy interest`); }
+      else if (ddMag > 15)  { score += -10; notes.push(`ISRG drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 10)  { score += -4;  notes.push(`ISRG drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 2)   { score += 3;   notes.push(`ISRG at/near 52w highs — normal compounder`); }
+    }
+
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -6)        { score += -14; notes.push(`ISRG daily ${chg}%: capitulation-style drop — aggressive buy`); }
+      else if (chg < -4)   { score += -8;  notes.push(`ISRG daily ${chg}%: sharp drop`); }
+      else if (chg < -2.5) { score += -3;  notes.push(`ISRG daily ${chg}%: notable decline`); }
+      else if (chg > 6)    { score += 10;  notes.push(`ISRG daily +${chg}%: sharp rally`); }
+      else if (chg > 4)    { score += 5;   notes.push(`ISRG daily +${chg}%: notable rally`); }
+      else if (chg > 2.5)  { score += 2;   notes.push(`ISRG daily +${chg}%: notable rally`); }
+    }
+
+    // Cohort fear rotation vs MDT/SYK/BSX — signature ISRG tactical setup.
+    // ISRG sold on competition/instrument headlines while the devices cohort
+    // holds = fear rotation, historically a buy setup absent procedure evidence.
+    if (data.cohort_relative) {
+      const rp = data.cohort_relative.cohort_rotation_pp;
+      const active = data.cohort_relative.cohort_rotation_active;
+      if (rp != null) {
+        if (active && rp < -12)     { score += -12; notes.push(`Fear rotation ACTIVE: ISRG lagging devices cohort by ${(-rp).toFixed(1)}pp/30d — strong buy setup (narrative selling, check procedure evidence)`); }
+        else if (active && rp < -9) { score += -8;  notes.push(`Fear rotation ACTIVE: ISRG lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+        else if (active)            { score += -5;  notes.push(`Fear rotation ACTIVE: ISRG lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+        else if (rp < -3)           { score += -2;  notes.push(`ISRG mildly lagging devices cohort (${rp.toFixed(1)}pp/30d)`); }
+        else if (rp > 6)            { score += 4;   notes.push(`ISRG outperforming cohort by ${rp.toFixed(1)}pp/30d — category-king leadership`); }
+      }
+    }
+
+    // VIX overlay — high-beta quality name takes outsized collateral damage in broad fear
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -3) {
+        score += -8; notes.push(`VIX ${vix} + ISRG ${chg}%: broad fear collateral on beta-1.7 quality — bid will return`);
+      } else if (vix > 25 && chg < -2) {
+        score += -4; notes.push(`VIX ${vix} + ISRG ${chg}%: elevated fear pressure`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -766,6 +996,8 @@ export function scorePositional(data, macro) {
   const isLHX = archetype === "defense_prime_backlog_compounder";
   const isTMO = archetype === "life_sciences_quality_compounder";
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
+  const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
+  const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -808,6 +1040,12 @@ export function scorePositional(data, macro) {
     } else if (isNOW) {
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
       if (m[ma] != null) { score += m[ma]; notes.push(`NOW MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isMA) {
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`Mastercard trend: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isISRG) {
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`ISRG MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -924,6 +1162,22 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`NOW 52w: ${w52}% — real drawdown, compounder on sale`); }
       else if (w52 > 15) { score += -38; notes.push(`NOW 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -50; notes.push(`NOW 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isMA) {
+      if (w52 > 95)      { score += 0;   notes.push(`Mastercard 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`Mastercard 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`Mastercard 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`Mastercard 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`Mastercard 52w: ${w52}% — real drawdown, compounder on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`Mastercard 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`Mastercard 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isISRG) {
+      if (w52 > 95)      { score += 0;   notes.push(`ISRG 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`ISRG 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`ISRG 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`ISRG 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`ISRG 52w: ${w52}% — real drawdown, category king on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`ISRG 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`ISRG 52w: ${w52}% — catastrophic drawdown — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -1036,6 +1290,16 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -5)  { score += -8;  notes.push(`NOW ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 15)  { score += 6;   notes.push(`NOW ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 8)   { score += 2;   notes.push(`NOW ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isMA) {
+      if (pctFromSMA < -10)      { score += -15; notes.push(`Mastercard ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -4)  { score += -8;  notes.push(`Mastercard ${pctFromSMA.toFixed(1)}% below SMA50 — pullback (low-vol compounder)`); }
+      else if (pctFromSMA > 15)  { score += 6;   notes.push(`Mastercard ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`Mastercard ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isISRG) {
+      if (pctFromSMA < -12)      { score += -15; notes.push(`ISRG ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -5)  { score += -8;  notes.push(`ISRG ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 18)  { score += 6;   notes.push(`ISRG ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta ~1.7 band)`); }
+      else if (pctFromSMA > 10)  { score += 2;   notes.push(`ISRG ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -1522,6 +1786,206 @@ export function scorePositional(data, macro) {
     else if (r30 < -1.5) { score += 2;  }
   }
 
+  // ─── MA POSITIONAL (V8.2): VOLUMES + VAS + REBATES + BUYBACK ──────────────
+  // Cross-border volume growth — THE central operational metric for MA.
+  // Highest-yield volume, cleanest read on travel/consumer health, and the
+  // fundamental truth the disruption narrative must eventually answer to.
+  if (isMA && data.fundamentals?.cross_border_growth_pct != null) {
+    const cb = data.fundamentals.cross_border_growth_pct;
+    if (cb > 15)      { score += -10; notes.push(`Cross-border +${cb.toFixed(1)}%: accelerating — volumes refute the disruption narrative`); }
+    else if (cb > 12) { score += -7;  notes.push(`Cross-border +${cb.toFixed(1)}%: strong`); }
+    else if (cb > 10) { score += -4;  notes.push(`Cross-border +${cb.toFixed(1)}%: healthy`); }
+    else if (cb > 8)  { score += 0;   notes.push(`Cross-border +${cb.toFixed(1)}%: normal range`); }
+    else if (cb > 6)  { score += 4;   notes.push(`Cross-border +${cb.toFixed(1)}%: moderating — watch travel/spend cycle`); }
+    else              { score += 10;  notes.push(`Cross-border +${cb.toFixed(1)}%: weak — spend cycle rolling, thesis-risk (a REAL warning, unlike headlines)`); }
+  }
+
+  // Gross dollar volume growth — consumer health confirmation
+  if (isMA && data.fundamentals?.gdv_growth_pct != null) {
+    const g = data.fundamentals.gdv_growth_pct;
+    if (g > 10)      { score += -4; notes.push(`GDV +${g.toFixed(1)}%: strong consumer`); }
+    else if (g > 8)  { score += -2; notes.push(`GDV +${g.toFixed(1)}%: healthy`); }
+    else if (g > 6)  { score += 0;  notes.push(`GDV +${g.toFixed(1)}%: normal`); }
+    else if (g > 5)  { score += 2;  notes.push(`GDV +${g.toFixed(1)}%: softening`); }
+    else             { score += 6;  notes.push(`GDV +${g.toFixed(1)}%: consumer weakening`); }
+  }
+
+  // Switched transactions growth — network share read (actual erosion vs narrative)
+  if (isMA && data.fundamentals?.switched_txn_growth_pct != null) {
+    const st = data.fundamentals.switched_txn_growth_pct;
+    if (st > 10)     { score += -3; notes.push(`Switched txns +${st.toFixed(1)}%: network share intact`); }
+    else if (st > 8) { score += -1; notes.push(`Switched txns +${st.toFixed(1)}%: healthy`); }
+    else if (st > 6) { score += 0;  notes.push(`Switched txns +${st.toFixed(1)}%: normal`); }
+    else             { score += 6;  notes.push(`Switched txns +${st.toFixed(1)}%: share/volume warning — check for actual displacement`); }
+  }
+
+  // Value-added services growth — the ~38%-of-revenue leg the disruption bears ignore
+  if (isMA && data.fundamentals?.vas_growth_pct != null) {
+    const v = data.fundamentals.vas_growth_pct;
+    if (v > 22)      { score += -6; notes.push(`VAS +${v.toFixed(1)}%: compounding leg firing — diversification thesis confirming`); }
+    else if (v > 20) { score += -4; notes.push(`VAS +${v.toFixed(1)}%: strong`); }
+    else if (v > 15) { score += -1; notes.push(`VAS +${v.toFixed(1)}%: healthy`); }
+    else if (v > 12) { score += 0;  notes.push(`VAS +${v.toFixed(1)}%: normal`); }
+    else             { score += 5;  notes.push(`VAS +${v.toFixed(1)}%: diversification thesis stalling`); }
+  }
+
+  // Rebates & incentives discipline — pricing power read
+  if (isMA && data.fundamentals?.rebates_incentives_trend) {
+    const rt = String(data.fundamentals.rebates_incentives_trend).toLowerCase();
+    if (rt === "lagging_gross")        { score += -3; notes.push(`Rebates lagging gross revenue: pricing power intact`); }
+    else if (rt === "in_line")         { score += 0;  notes.push(`Rebates in line with gross revenue: normal`); }
+    else if (rt === "outpacing_gross") { score += 6;  notes.push(`Rebates OUTPACING gross revenue: pricing pressure — issuer bargaining power rising`); }
+  }
+
+  // Adjusted op margin (MA ~58-60% peer-best baseline)
+  if (isMA && data.fundamentals?.op_margin_pct != null) {
+    const om = data.fundamentals.op_margin_pct;
+    if (om > 60)      { score += -3; notes.push(`Mastercard op margin ${om.toFixed(1)}%: peak execution`); }
+    else if (om > 58) { score += -1; notes.push(`Mastercard op margin ${om.toFixed(1)}%: peer-best`); }
+    else if (om > 56) { score += 0;  notes.push(`Mastercard op margin ${om.toFixed(1)}%: normal`); }
+    else if (om > 54) { score += 2;  notes.push(`Mastercard op margin ${om.toFixed(1)}%: compressing (rebate/investment pressure)`); }
+    else              { score += 6;  notes.push(`Mastercard op margin ${om.toFixed(1)}%: significant compression`); }
+  }
+
+  // Buyback pace — ~2.3%/yr share retirement is the compounding baseline
+  if (isMA && data.fundamentals?.buyback_share_reduction_yoy_pct != null) {
+    const bb = data.fundamentals.buyback_share_reduction_yoy_pct;
+    if (bb <= -2.5)     { score += -3; notes.push(`Buyback ${bb.toFixed(1)}% shares YoY: aggressive retirement`); }
+    else if (bb <= -2)  { score += -2; notes.push(`Buyback ${bb.toFixed(1)}% shares YoY: on pace`); }
+    else if (bb <= -1)  { score += 0;  notes.push(`Buyback ${bb.toFixed(1)}% shares YoY: steady`); }
+    else                { score += 2;  notes.push(`Buyback ${bb.toFixed(1)}% shares YoY: pace slowing — watch`); }
+  }
+
+  // Stablecoin strategy execution (categorical — offense vs defense read)
+  if (isMA && data.fundamentals?.stablecoin_strategy_execution) {
+    const se = String(data.fundamentals.stablecoin_strategy_execution).toLowerCase();
+    if (se === "leading")       { score += -4; notes.push(`Stablecoin execution: LEADING — BVNK/consortium/MTN playing offense`); }
+    else if (se === "active")   { score += -2; notes.push(`Stablecoin execution: active`); }
+    else if (se === "reactive") { score += 3;  notes.push(`Stablecoin execution: reactive — playing defense`); }
+    else if (se === "absent")   { score += 7;  notes.push(`Stablecoin execution: ABSENT — disruption response missing`); }
+  }
+
+  // EPS revisions
+  if (isMA && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -1) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -3) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isMA && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 1.5)       { score += -2; }
+    else if (r30 < -1.5) { score += 2;  }
+  }
+
+  // ─── ISRG POSITIONAL (V8.2): PROCEDURES + DV5 + ION + ANNUITY ─────────────
+  // IHI vs SPY 30d — devices sector factor bid
+  if (isISRG && data.factor_flow?.ihi_vs_spy_30d_pp != null) {
+    const i = data.factor_flow.ihi_vs_spy_30d_pp;
+    if (i > 2)       { score += -5; notes.push(`IHI +${i.toFixed(1)}pp vs SPY (30d): strong devices bid — ISRG tailwind`); }
+    else if (i > 1)  { score += -2; notes.push(`IHI +${i.toFixed(1)}pp vs SPY (30d): devices bid active`); }
+    else if (i < -2) { score += 3;  notes.push(`IHI ${i.toFixed(1)}pp vs SPY (30d): devices sector lagging`); }
+    else if (i < -1) { score += 1;  }
+  }
+
+  // Total procedure growth — THE central operational metric for ISRG.
+  // The annuity's heartbeat and the cleanest competitive-erosion read.
+  // 2026 dV guide 13.5-15.5%; <12% is the erosion tripwire (pair with
+  // moat_status in strategic before treating as genuine erosion).
+  if (isISRG && data.fundamentals?.procedure_growth_pct != null) {
+    const pg = data.fundamentals.procedure_growth_pct;
+    if (pg > 17)        { score += -10; notes.push(`Procedures +${pg.toFixed(1)}%: beating guide — annuity thesis confirmation, competition narrative refuted`); }
+    else if (pg > 16)   { score += -7;  notes.push(`Procedures +${pg.toFixed(1)}%: above guide`); }
+    else if (pg > 15)   { score += -4;  notes.push(`Procedures +${pg.toFixed(1)}%: upper guide range`); }
+    else if (pg >= 13.5) { score += 0;  notes.push(`Procedures +${pg.toFixed(1)}%: in guide (13.5-15.5%)`); }
+    else if (pg >= 12.5) { score += 4;  notes.push(`Procedures +${pg.toFixed(1)}%: below guide low — watch`); }
+    else if (pg >= 12)   { score += 7;  notes.push(`Procedures +${pg.toFixed(1)}%: approaching erosion tripwire`); }
+    else                 { score += 14; notes.push(`Procedures +${pg.toFixed(1)}%: EROSION TRIPWIRE (<12%) — check moat_status for competitor share evidence before concluding`); }
+  }
+
+  // dV system placements + dV5 upgrade-cycle mix
+  if (isISRG && data.fundamentals?.dv_placements_qtr != null) {
+    const dp = data.fundamentals.dv_placements_qtr;
+    if (dp > 430)      { score += -3; notes.push(`dV placements ${dp}/qtr: capital cycle firing`); }
+    else if (dp > 400) { score += -2; notes.push(`dV placements ${dp}/qtr: strong`); }
+    else if (dp > 350) { score += 0;  notes.push(`dV placements ${dp}/qtr: normal`); }
+    else if (dp > 300) { score += 2;  notes.push(`dV placements ${dp}/qtr: softening`); }
+    else               { score += 5;  notes.push(`dV placements ${dp}/qtr: weak capital cycle`); }
+  }
+  if (isISRG && data.fundamentals?.dv5_mix_pct != null) {
+    const dm = data.fundamentals.dv5_mix_pct;
+    if (dm > 55)      { score += -3; notes.push(`dV5 mix ${dm.toFixed(0)}%: upgrade cycle firing`); }
+    else if (dm > 50) { score += -2; notes.push(`dV5 mix ${dm.toFixed(0)}%: healthy upgrade demand`); }
+    else if (dm > 40) { score += 0;  notes.push(`dV5 mix ${dm.toFixed(0)}%: normal`); }
+    else              { score += 2;  notes.push(`dV5 mix ${dm.toFixed(0)}%: upgrade cycle slow`); }
+  }
+
+  // Ion — the second growth leg
+  if (isISRG && data.fundamentals?.ion_procedure_growth_pct != null) {
+    const ig = data.fundamentals.ion_procedure_growth_pct;
+    if (ig > 35)      { score += -4; notes.push(`Ion procedures +${ig.toFixed(1)}%: second leg compounding`); }
+    else if (ig > 30) { score += -3; notes.push(`Ion procedures +${ig.toFixed(1)}%: strong`); }
+    else if (ig > 20) { score += -1; notes.push(`Ion procedures +${ig.toFixed(1)}%: healthy`); }
+    else if (ig > 15) { score += 0;  notes.push(`Ion procedures +${ig.toFixed(1)}%: normal`); }
+    else              { score += 3;  notes.push(`Ion procedures +${ig.toFixed(1)}%: second leg slowing`); }
+  }
+
+  // Recurring revenue share — the razor/blade annuity mix (~86% baseline)
+  if (isISRG && data.fundamentals?.recurring_revenue_pct != null) {
+    const rr = data.fundamentals.recurring_revenue_pct;
+    if (rr >= 87)      { score += -3; notes.push(`Recurring ${rr.toFixed(0)}% of revenue: annuity mix strengthening`); }
+    else if (rr >= 86) { score += -2; notes.push(`Recurring ${rr.toFixed(0)}% of revenue: baseline annuity intact`); }
+    else if (rr >= 85) { score += 0;  notes.push(`Recurring ${rr.toFixed(0)}% of revenue: normal`); }
+    else if (rr >= 84) { score += 2;  notes.push(`Recurring ${rr.toFixed(0)}% of revenue: mix softening`); }
+    else               { score += 6;  notes.push(`Recurring ${rr.toFixed(0)}% of revenue: MIX WARNING (<84%) — annuity deteriorating`); }
+  }
+
+  // Instruments & accessories revenue growth — annuity health confirmation
+  if (isISRG && data.fundamentals?.ia_revenue_growth_pct != null) {
+    const ia = data.fundamentals.ia_revenue_growth_pct;
+    if (ia > 18)      { score += -4; notes.push(`I&A revenue +${ia.toFixed(1)}%: annuity compounding`); }
+    else if (ia > 15) { score += -2; notes.push(`I&A revenue +${ia.toFixed(1)}%: healthy`); }
+    else if (ia > 12) { score += 0;  notes.push(`I&A revenue +${ia.toFixed(1)}%: normal`); }
+    else if (ia > 10) { score += 2;  notes.push(`I&A revenue +${ia.toFixed(1)}%: slowing — early instrument-transition read?`); }
+    else              { score += 5;  notes.push(`I&A revenue +${ia.toFixed(1)}%: weak — annuity pressure`); }
+  }
+
+  // Installed base growth — footprint compounding (~11,400 systems baseline)
+  if (isISRG && data.fundamentals?.installed_base_yoy_pct != null) {
+    const ib = data.fundamentals.installed_base_yoy_pct;
+    if (ib > 12)      { score += -2; notes.push(`Installed base +${ib.toFixed(1)}% YoY: footprint compounding`); }
+    else if (ib > 10) { score += -1; notes.push(`Installed base +${ib.toFixed(1)}% YoY: strong`); }
+    else if (ib > 7)  { score += 0;  notes.push(`Installed base +${ib.toFixed(1)}% YoY: normal`); }
+    else              { score += 2;  notes.push(`Installed base +${ib.toFixed(1)}% YoY: slowing`); }
+  }
+
+  // Non-GAAP op margin (ISRG ~37% baseline)
+  if (isISRG && data.fundamentals?.op_margin_pct != null) {
+    const om = data.fundamentals.op_margin_pct;
+    if (om > 38)      { score += -3; notes.push(`ISRG op margin ${om.toFixed(1)}%: peak execution`); }
+    else if (om > 36) { score += -1; notes.push(`ISRG op margin ${om.toFixed(1)}%: peer-best`); }
+    else if (om > 34) { score += 0;  notes.push(`ISRG op margin ${om.toFixed(1)}%: normal`); }
+    else if (om > 32) { score += 2;  notes.push(`ISRG op margin ${om.toFixed(1)}%: compressing (pricing/mix/tariff pressure)`); }
+    else              { score += 6;  notes.push(`ISRG op margin ${om.toFixed(1)}%: significant compression`); }
+  }
+
+  // EPS revisions (ISRG trim threshold −2 per archetype config)
+  if (isISRG && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -2) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -4) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isISRG && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 1.5)     { score += -2; }
+    else if (r30 < -2) { score += 2;  }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -1545,6 +2009,8 @@ export function scoreStrategic(data, macro) {
   const isLHX = archetype === "defense_prime_backlog_compounder";
   const isTMO = archetype === "life_sciences_quality_compounder";
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
+  const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
+  const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -2230,6 +2696,189 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MA STRATEGIC (V8.2): TWIN PREMIUM + DISRUPTION MATRIX ────────────────
+  if (isMA) {
+    // Twin P/E premium vs V — primary strategic lens with MA-SPECIFIC BANDS.
+    // MA carries a 10-20% premium to V as BASELINE (faster grower, larger VAS
+    // mix). Compression toward parity = buy; direction of change > level.
+    if (data.twin_valuation && data.twin_valuation.premium_pct != null) {
+      const prem = data.twin_valuation.premium_pct;
+      if (prem < 0)         { score += -20; notes.push(`Mastercard P/E ${prem.toFixed(1)}% vs V: DISCOUNT to twin (rare) — exceptional buy`); }
+      else if (prem < 5)    { score += -14; notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: COMPRESSED (below 10-20% baseline) — buy`); }
+      else if (prem < 10)   { score += -8;  notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: below normal premium — buy lean`); }
+      else if (prem <= 20)  { score += 0;   notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: NORMAL faster-grower premium`); }
+      else if (prem < 25)   { score += 5;   notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: above normal — mild trim`); }
+      else if (prem < 30)   { score += 12;  notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: rich premium — trim`); }
+      else                  { score += 18;  notes.push(`Mastercard P/E +${prem.toFixed(1)}% vs V: extreme premium — strong trim`); }
+    } else {
+      // Fallback to absolute P/E if twin data unavailable (MA 3y avg ~35.7x, 10y ~37.8x)
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 26)       { score += -12; notes.push(`Mastercard P/E ${pe.toFixed(1)}x: deep own-history discount (twin data unavailable)`); }
+        else if (pe < 29)  { score += -6;  notes.push(`Mastercard P/E ${pe.toFixed(1)}x: below own-history norm`); }
+        else if (pe <= 36) { score += 0;   notes.push(`Mastercard P/E ${pe.toFixed(1)}x: normal own-history range (3y avg ~35.7x)`); }
+        else if (pe < 40)  { score += 5;   notes.push(`Mastercard P/E ${pe.toFixed(1)}x: above own-history norm`); }
+        else if (pe < 45)  { score += 12;  notes.push(`Mastercard P/E ${pe.toFixed(1)}x: stretched`); }
+        else               { score += 18;  notes.push(`Mastercard P/E ${pe.toFixed(1)}x: extreme`); }
+      }
+    }
+
+    // Forward PEG (growth-adjusted) — if available from LLM-sourced fundamentals
+    if (data.fundamentals?.forward_peg != null) {
+      const peg = data.fundamentals.forward_peg;
+      if (peg < 1.4)      { score += -8; notes.push(`Forward PEG ${peg.toFixed(2)}: cheap on growth — strong buy`); }
+      else if (peg < 2.0) { score += -4; notes.push(`Forward PEG ${peg.toFixed(2)}: reasonable compounder pricing`); }
+      else if (peg < 2.2) { score += 0;  notes.push(`Forward PEG ${peg.toFixed(2)}: normal`); }
+      else if (peg < 2.5) { score += 4;  notes.push(`Forward PEG ${peg.toFixed(2)}: rich on growth`); }
+      else                { score += 10; notes.push(`Forward PEG ${peg.toFixed(2)}: expensive on growth — trim bias`); }
+    }
+
+    // Disruption matrix — narrative phase vs fundamental evidence (categoricals,
+    // LLM-sourced, null-safe). The narrative-evidence GAP is the alpha.
+    if (data.fundamentals?.disruption_fundamental_evidence) {
+      const ev = String(data.fundamentals.disruption_fundamental_evidence).toLowerCase();
+      if (ev === "none")            { score += -3; notes.push(`Disruption evidence: NONE — real-economy merchant displacement not observed`); }
+      else if (ev === "anecdotal")  { score += 0;  notes.push(`Disruption evidence: anecdotal only`); }
+      else if (ev === "measurable") { score += 12; notes.push(`Disruption evidence: MEASURABLE real-economy displacement — thesis pressure`); }
+      else if (ev === "material")   { score += 25; notes.push(`Disruption evidence: MATERIAL — THESIS-BREAK territory`); }
+    }
+    if (data.fundamentals?.disruption_narrative_phase) {
+      const ph = String(data.fundamentals.disruption_narrative_phase).toLowerCase();
+      if (ph === "narrative_peak")        { score += -8; notes.push(`Disruption narrative: PEAK fear — maximum narrative-evidence gap (the alpha)`); }
+      else if (ph === "narrative_active") { score += -4; notes.push(`Disruption narrative: active — elevated fear discount persists`); }
+      else if (ph === "narrative_fading") { score += 0;  notes.push(`Disruption narrative: fading`); }
+      else if (ph === "resolved")         { score += 4;  notes.push(`Disruption narrative: resolved — re-rating complete, entry edge gone`); }
+    }
+
+    // Interchange / network-fee regulation — the binary thesis variable
+    if (data.fundamentals?.interchange_regulation_status) {
+      const reg = String(data.fundamentals.interchange_regulation_status).toLowerCase();
+      if (reg === "dormant")               { score += -2; notes.push(`Interchange regulation: dormant`); }
+      else if (reg === "proposed_stalled") { score += 0;  notes.push(`Interchange regulation: proposed but stalled — status quo`); }
+      else if (reg === "advancing")        { score += 10; notes.push(`Interchange regulation: ADVANCING — strategic caution, size by proximity to passage`); }
+      else if (reg === "passed")           { score += 30; notes.push(`Interchange regulation: PASSED — THESIS BREAK`); }
+    }
+
+    // TIPS overlay — mild (MA is less rate-sensitive than the long-duration names)
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 4;  notes.push(`TIPS ${tips}%: very restrictive — consumer-spend headwind`); }
+      else if (tips > 2.5) { score += 2;  notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips < 0)   { score += -4; notes.push(`TIPS ${tips}%: accommodative — spend tailwind`); }
+      else if (tips < 1)   { score += -2; notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // VIX overlay — beta-0.83 quality compounder catches defensive bid in fear
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — Mastercard quality bid in fear regime`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear — quality safe haven`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — vulnerable to rotation`); }
+    }
+
+    // DXY overlay — weighted heavier than NOW (~2/3 of MA revenue is international)
+    if (macro?.dxy != null) {
+      const dxy = macro.dxy;
+      if (dxy > 130)      { score += 4;  notes.push(`DXY ${dxy}: very strong USD — significant FX headwind (~2/3 international revenue)`); }
+      else if (dxy > 125) { score += 2;  notes.push(`DXY ${dxy}: strong USD — FX headwind`); }
+      else if (dxy > 120) { score += 0;  notes.push(`DXY ${dxy}: normal USD range`); }
+      else if (dxy > 115) { score += -2; notes.push(`DXY ${dxy}: mild USD weakness — FX tailwind`); }
+      else                { score += -4; notes.push(`DXY ${dxy}: weak USD — FX tailwind`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── ISRG STRATEGIC (V8.2): COHORT PREMIUM + MOAT MONITOR ─────────────────
+  if (isISRG) {
+    // Cohort P/E premium vs MDT/SYK/BSX — primary strategic lens with
+    // ISRG-SPECIFIC BANDS. ISRG carries 60-120% premium as BASELINE (category
+    // king, ~86% recurring annuity). Absolute PE is NEVER the signal.
+    if (data.cohort_valuation && data.cohort_valuation.premium_pct != null) {
+      const prem = data.cohort_valuation.premium_pct;
+      if (prem < 60)        { score += -25; notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: UNUSUAL DISCOUNT (well below 60-120% baseline) — exceptional buy`); }
+      else if (prem < 90)   { score += -14; notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: below mid-premium — buy bias`); }
+      else if (prem < 105)  { score += -6;  notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: lower-normal — buy lean`); }
+      else if (prem <= 120) { score += 0;   notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: NORMAL category-king premium`); }
+      else if (prem < 150)  { score += 6;   notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: above normal — mild trim`); }
+      else if (prem < 180)  { score += 14;  notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: stretched premium — trim`); }
+      else                  { score += 22;  notes.push(`ISRG P/E +${prem.toFixed(1)}% vs cohort: extreme premium — strong trim`); }
+    } else {
+      // Fallback to absolute P/E with ISRG's own-history bands (3y avg ~72x,
+      // 5y ~69x, 10y ~61x — NEVER generic bands; 50-70x trailing is NORMAL here)
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 45)       { score += -14; notes.push(`ISRG P/E ${pe.toFixed(1)}x: deep own-history discount (cohort data unavailable; 3y avg ~72x)`); }
+        else if (pe < 52)  { score += -8;  notes.push(`ISRG P/E ${pe.toFixed(1)}x: well below own-history norm`); }
+        else if (pe < 58)  { score += -3;  notes.push(`ISRG P/E ${pe.toFixed(1)}x: below own-history norm`); }
+        else if (pe <= 72) { score += 0;   notes.push(`ISRG P/E ${pe.toFixed(1)}x: normal own-history range (premium franchise)`); }
+        else if (pe < 80)  { score += 6;   notes.push(`ISRG P/E ${pe.toFixed(1)}x: above own-history norm`); }
+        else if (pe < 90)  { score += 14;  notes.push(`ISRG P/E ${pe.toFixed(1)}x: stretched`); }
+        else               { score += 20;  notes.push(`ISRG P/E ${pe.toFixed(1)}x: extreme`); }
+      }
+    }
+
+    // Forward PEG (premium-franchise bands) — if available from LLM-sourced fundamentals
+    if (data.fundamentals?.forward_peg != null) {
+      const peg = data.fundamentals.forward_peg;
+      if (peg < 2.0)      { score += -8; notes.push(`Forward PEG ${peg.toFixed(2)}: cheap on growth — strong buy`); }
+      else if (peg < 2.8) { score += -3; notes.push(`Forward PEG ${peg.toFixed(2)}: reasonable for premium franchise`); }
+      else if (peg < 3.0) { score += 0;  notes.push(`Forward PEG ${peg.toFixed(2)}: normal`); }
+      else if (peg < 3.5) { score += 4;  notes.push(`Forward PEG ${peg.toFixed(2)}: rich on growth`); }
+      else                { score += 10; notes.push(`Forward PEG ${peg.toFixed(2)}: expensive on growth — trim bias`); }
+    }
+
+    // Moat status — the structural binary #1 (categorical, LLM-sourced from
+    // Hugo installed-base/procedure evidence + Ottava timeline). "Probing" is
+    // the EXPECTED state with two entrants — neutral, not a warning.
+    if (data.fundamentals?.moat_status) {
+      const ms = String(data.fundamentals.moat_status).toLowerCase();
+      if (ms === "intact")        { score += -4; notes.push(`Moat status: INTACT — no measurable procedure-share erosion`); }
+      else if (ms === "probing")  { score += 0;  notes.push(`Moat status: probing — competitor placements growing, no procedure-share loss (expected state)`); }
+      else if (ms === "eroding")  { score += 18; notes.push(`Moat status: ERODING — measurable procedure-share loss — thesis pressure`); }
+      else if (ms === "breached") { score += 35; notes.push(`Moat status: BREACHED — structural share loss — THESIS BREAK`); }
+    }
+
+    // 2027 instrument-lifespan transition — the structural binary #2.
+    // Unquantified fear while fundamentals beat = the narrative-evidence gap
+    // (buy). Quantified-manageable = relief re-rating catalyst (stronger buy).
+    // Quantified-material = thesis-level annuity impairment.
+    if (data.fundamentals?.instrument_transition_status) {
+      const it = String(data.fundamentals.instrument_transition_status).toLowerCase();
+      if (it === "unquantified_fear")          { score += -5; notes.push(`2027 instrument transition: UNQUANTIFIED FEAR — market can't size it while fundamentals beat (the alpha)`); }
+      else if (it === "quantified_manageable") { score += -8; notes.push(`2027 instrument transition: QUANTIFIED MANAGEABLE — relief re-rating catalyst`); }
+      else if (it === "quantified_material")   { score += 25; notes.push(`2027 instrument transition: QUANTIFIED MATERIAL — annuity impairment, THESIS-LEVEL event`); }
+    }
+
+    // TIPS overlay — premium multiple = long-duration rate sensitivity
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 8;  notes.push(`TIPS ${tips}%: very restrictive — severe premium-multiple headwind`); }
+      else if (tips > 2.5) { score += 4;  notes.push(`TIPS ${tips}%: restrictive — premium-multiple headwind`); }
+      else if (tips > 2)   { score += 2;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -8; notes.push(`TIPS ${tips}%: accommodative — premium multiples expand`); }
+      else if (tips < 1)   { score += -3; notes.push(`TIPS ${tips}%: low real rates — multiple tailwind`); }
+    }
+
+    // VIX overlay
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -5; notes.push(`VIX ${vix}: panic — category-king quality bid in fear regime`); }
+      else if (vix > 25) { score += -2; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — premium multiple vulnerable`); }
+    }
+
+    // DXY overlay — ~1/3 international revenue, mild FX sensitivity
+    if (macro?.dxy != null) {
+      const dxy = macro.dxy;
+      if (dxy > 130)      { score += 2;  notes.push(`DXY ${dxy}: very strong USD — mild FX headwind`); }
+      else if (dxy > 125) { score += 1;  notes.push(`DXY ${dxy}: strong USD`); }
+      else if (dxy < 115) { score += -2; notes.push(`DXY ${dxy}: weak USD — FX tailwind`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -2334,6 +2983,12 @@ export function computeDeterministicScores(data, macro) {
   } else if (data._archetype === "life_sciences_quality_compounder") {
     const r = computeTMORegimeWeights(data);
     weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "xbi_90d_return_pct";
+  } else if (data._archetype === "payments_network_quality_compounder") {
+    const r = computeMARegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "duopoly_vs_spy_pp";
+  } else if (data._archetype === "surgical_robotics_moat_compounder") {
+    const r = computeISRGRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "ihi_vs_spy_30d_pp";
   }
 
   const composite = Math.round(
@@ -2350,10 +3005,11 @@ export function computeDeterministicScores(data, macro) {
     weights,
     regime,       // null for non-regime archetypes. LIN: expansion|neutral|contraction.
                   // MSFT/NOW: accommodative|neutral|restrictive. LHX: bid_active|neutral|bid_absent.
-                  // TMO: thawing|neutral|frozen.
+                  // TMO: thawing|neutral|frozen. MA: fear_receding|neutral|fear_regime (V8.2).
+                  // ISRG: bid_active|neutral|bid_absent (V8.2).
     regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
     regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
-    regimeBasis,  // V8.1 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct"
+    regimeBasis,  // V8.1/V8.2 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp"
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
