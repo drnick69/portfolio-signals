@@ -25,10 +25,12 @@
 //   }
 //
 // Symbol handling: fully symbol-agnostic — groups by whatever tickers appear
-// in signals_with_returns.jsonl. Holdings swaps (e.g. V7.6 ETHA → NOW) need
-// no code changes here; new tickers begin accumulating calibration coverage
-// from their first attributed date forward, while retired tickers' historical
-// stats persist until the underlying log entries age out.
+// in signals_with_returns.jsonl. Holdings swaps (e.g. V7.6 ETHA → NOW) and
+// adds (v8.3.0 MA + ISRG, 12 → 14) need no code changes here; new tickers
+// begin accumulating calibration coverage from their first attributed date
+// forward (expect MA/ISRG panels to show small-n / insufficient-data grades
+// for their first weeks — that is correct behavior, not a bug), while retired
+// tickers' historical stats persist until the underlying log entries age out.
 //
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
