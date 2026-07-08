@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.13 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.14 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -37,6 +37,38 @@
 //            eps_revisions_30d_pct, eps_revisions_90d_pct, ev_sales_current,
 //            now_assist_traction, ai_agent_platform_status
 //          - New fetchNOWHistoricalReturns() (6 Alpaca calls: NOW, CRM, WDAY, ADBE, IGV, SPY)
+// v4.14: HOLDINGS ADD — MA (payments_network_quality_compounder) and
+//        ISRG (surgical_robotics_moat_compounder). 12 → 14 scored holdings.
+//        Additions for MA (twin/duopoly pattern — V is the ONLY comparator):
+//          - V aux quote WITH metrics (duopoly twin trailing P/E)
+//          - twin_valuation (MA vs V trailing P/E premium)
+//            ★ NOTE: MA normally carries a 10-20% premium to V (faster grower).
+//              Premium <5% = compressed = buy; >25% = rich. Direction > level.
+//          - twin_relative (daily MA−V return spread) + duopoly_relative
+//            (30d: twin_spread_pp, dislocation flag, MA+V avg vs SPY →
+//            disruption_fear_regime categorical — the V8.1 weight-gate input)
+//          - fundamentals v1 explicit-null fields: cross_border_growth_pct (THE
+//            ops metric), gdv_growth_pct, switched_txn_growth_pct, vas fields,
+//            rebates_incentives_trend, op_margin_pct, eps_revisions, buyback,
+//            stablecoin/disruption/regulation categoricals
+//          - New fetchMAHistoricalReturns() (3 Alpaca calls: MA, V, SPY)
+//        Additions for ISRG (cohort pattern analogous to NOW premium-multiple math):
+//          - MDT, SYK, BSX aux quotes WITH metrics (devices cohort P/E)
+//          - IHI aux quote (iShares U.S. Medical Devices — devices factor proxy;
+//            the V8.1 weight-gate input for ISRG)
+//          - cohort_valuation (ISRG vs MDT/SYK/BSX avg trailing P/E)
+//            ★ NOTE: ISRG carries 60-120% premium to the cohort as the BASELINE
+//              (category king, ~86% recurring annuity). Premium <60% = unusual
+//              discount = buy; >150% = stretched. Absolute PE is never the signal.
+//          - cohort_relative (cohort_rotation_pp = ISRG 30d − cohort avg 30d;
+//            rotation_active = TRUE if < -6pp — fear rotation without procedure
+//            evidence = historically a buy setup, not a warning)
+//          - factor_flow.ihi_vs_spy_30d_pp (devices sector bid signal)
+//          - fundamentals v1 explicit-null fields: procedure_growth_pct (THE ops
+//            metric) + guide range, dv_placements/dv5_mix, ion fields, recurring
+//            %, I&A growth, installed base, op_margin_pct, eps_revisions,
+//            moat_status / instrument_transition_status categoricals
+//          - New fetchISRGHistoricalReturns() (6 Alpaca calls: ISRG, MDT, SYK, BSX, IHI, SPY)
 
 import { writeFileSync } from "fs";
 
@@ -61,6 +93,8 @@ const SYMBOLS = [
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
+  { symbol: "MA",    finnhub: "MA",    td: "MA" },
+  { symbol: "ISRG",  finnhub: "ISRG",  td: "ISRG" },
 ];
 
 // ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
@@ -83,6 +117,11 @@ const AUX_SYMBOLS = [
   { symbol: "WDAY",  finnhub: "WDAY",  purpose: "now_cohort",        needsMetrics: true },  // SaaS cohort (Workday)
   { symbol: "ADBE",  finnhub: "ADBE",  purpose: "now_cohort",        needsMetrics: true },  // SaaS cohort (Adobe)
   { symbol: "IGV",   finnhub: "IGV",   purpose: "now_software_factor" },                    // iShares Expanded Tech-Software ETF
+  { symbol: "V",     finnhub: "V",     purpose: "ma_twin",           needsMetrics: true },  // Visa — MA duopoly twin (the ONLY comparator)
+  { symbol: "MDT",   finnhub: "MDT",   purpose: "isrg_cohort",       needsMetrics: true },  // Medtronic (Hugo) — devices cohort
+  { symbol: "SYK",   finnhub: "SYK",   purpose: "isrg_cohort",       needsMetrics: true },  // Stryker — devices cohort
+  { symbol: "BSX",   finnhub: "BSX",   purpose: "isrg_cohort",       needsMetrics: true },  // Boston Scientific — devices cohort
+  { symbol: "IHI",   finnhub: "IHI",   purpose: "isrg_devices_factor" },                    // iShares U.S. Medical Devices ETF
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -98,7 +137,7 @@ async function fetchJSON(url, label) {
   }
 }
 
-// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 12 symbols) ────────
+// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 14 symbols) ────────
 // Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
 // Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range, ROI, op margin.
 async function fetchQuotes() {
@@ -202,7 +241,7 @@ async function fetchAuxQuotes() {
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
-// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 36 total.
+// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 42 total.
 // Pacing: 8s between each set of 3, so ~8 calls/min.
 async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
@@ -808,6 +847,182 @@ async function fetchNOWHistoricalReturns() {
   return result;
 }
 
+// ─── STAGE 3h: MA TWIN/DUOPOLY HISTORICAL RETURNS (v4.14) ────────────────────
+// Pulls daily closes for MA, V, SPY and computes:
+//   • twin_spread_pp        = MA 30d − V 30d (twin dislocation read — duopoly
+//                             twins rarely diverge; <-4pp without an MA-specific
+//                             fundamental break = buy setup)
+//   • duopoly_vs_spy_pp     = (MA+V avg 30d) − SPY 30d (disruption-fear gauge)
+//   • disruption_fear_regime categorical — the V8.1 regime-gate input for MA:
+//       acute <-8pp | elevated -8..-5pp | neutral -5..+3pp | absent >+3pp
+async function fetchMAHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-MA] No keys — skipping MA historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-MA] Fetching MA/V/SPY bars for twin spread + duopoly fear regime...");
+  const symbols = ["MA", "V", "SPY"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const maRet30  = retNDays(closes.MA,  30);
+  const vRet30   = retNDays(closes.V,   30);
+  const spyRet30 = retNDays(closes.SPY, 30);
+
+  const twinSpreadPp = (maRet30 != null && vRet30 != null)
+    ? +(maRet30 - vRet30).toFixed(3)
+    : null;
+
+  const duopolyAvg = (maRet30 != null && vRet30 != null)
+    ? +((maRet30 + vRet30) / 2).toFixed(3)
+    : null;
+
+  const duopolyVsSpyPp = (duopolyAvg != null && spyRet30 != null)
+    ? +(duopolyAvg - spyRet30).toFixed(3)
+    : null;
+
+  const fearRegime = duopolyVsSpyPp == null ? null
+    : duopolyVsSpyPp < -8 ? "acute"
+    : duopolyVsSpyPp < -5 ? "elevated"
+    : duopolyVsSpyPp <= 3 ? "neutral"
+    : "absent";
+
+  const result = {
+    ma_30d_return_pct:          maRet30,
+    v_30d_return_pct:           vRet30,
+    spy_30d_return_pct:         spyRet30,
+    twin_spread_pp:             twinSpreadPp,
+    twin_dislocation_active:    twinSpreadPp != null && twinSpreadPp < -4,
+    duopoly_avg_30d_return_pct: duopolyAvg,
+    duopoly_vs_spy_pp:          duopolyVsSpyPp,
+    disruption_fear_regime:     fearRegime,
+  };
+
+  const dislocStr = result.twin_dislocation_active ? " [DISLOCATION — buy setup]" : "";
+  const regimeStr = fearRegime == null ? "—"
+    : fearRegime === "acute" ? `ACUTE fear regime (${duopolyVsSpyPp}pp — buy setup)`
+    : fearRegime === "elevated" ? `elevated fear (${duopolyVsSpyPp}pp)`
+    : fearRegime === "absent" ? `fear absent (+${duopolyVsSpyPp}pp)`
+    : "neutral";
+  console.log(`  [ALPACA-MA] ✓ MA 30d=${maRet30 != null ? (maRet30 >= 0 ? "+" : "") + maRet30 + "%" : "—"} | V 30d=${vRet30 != null ? (vRet30 >= 0 ? "+" : "") + vRet30 + "%" : "—"} | twin Δ=${twinSpreadPp != null ? (twinSpreadPp >= 0 ? "+" : "") + twinSpreadPp + "pp" : "—"}${dislocStr} | duopoly-SPY: ${regimeStr}`);
+  return result;
+}
+
+// ─── STAGE 3i: ISRG COHORT HISTORICAL RETURNS (v4.14) ────────────────────────
+// Pulls daily closes for ISRG, MDT, SYK, BSX, IHI, SPY and computes:
+//   • cohort_rotation_pp = ISRG 30d − MDT/SYK/BSX avg 30d (fear rotation read —
+//     <-6pp without procedure-share evidence = historically a buy setup)
+//   • ihi_vs_spy_30d_pp  = devices sector factor bid — the V8.1 regime-gate
+//     input for ISRG (bid_active >+1pp | neutral ±1pp | bid_absent <-1pp)
+async function fetchISRGHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-ISRG] No keys — skipping ISRG historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-ISRG] Fetching ISRG/MDT/SYK/BSX/IHI/SPY bars for cohort rotation + devices factor...");
+  const symbols = ["ISRG", "MDT", "SYK", "BSX", "IHI", "SPY"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
+        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const isrgRet30 = retNDays(closes.ISRG, 30);
+  const mdtRet30  = retNDays(closes.MDT,  30);
+  const sykRet30  = retNDays(closes.SYK,  30);
+  const bsxRet30  = retNDays(closes.BSX,  30);
+  const ihiRet30  = retNDays(closes.IHI,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const cohortRets = [mdtRet30, sykRet30, bsxRet30].filter(r => r != null);
+  const cohortAvg = cohortRets.length > 0
+    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+    : null;
+
+  const rotationPp = (isrgRet30 != null && cohortAvg != null)
+    ? +(isrgRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const ihiVsSpyPp = (ihiRet30 != null && spyRet30 != null)
+    ? +(ihiRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const result = {
+    isrg_30d_return_pct:       isrgRet30,
+    mdt_30d_return_pct:        mdtRet30,
+    syk_30d_return_pct:        sykRet30,
+    bsx_30d_return_pct:        bsxRet30,
+    cohort_avg_30d_return_pct: cohortAvg,
+    cohort_rotation_pp:        rotationPp,
+    cohort_rotation_active:    rotationPp != null && rotationPp < -6,
+    cohort_count:              cohortRets.length,
+    ihi_30d_return_pct:        ihiRet30,
+    spy_30d_return_pct:        spyRet30,
+    ihi_vs_spy_30d_pp:         ihiVsSpyPp,
+  };
+
+  const activeStr = result.cohort_rotation_active ? " [ACTIVE — buy setup]" : "";
+  const ihiStr = ihiVsSpyPp == null ? "—"
+    : ihiVsSpyPp > 1 ? `devices bid active (+${ihiVsSpyPp}pp)`
+    : ihiVsSpyPp < -1 ? `devices lagging (${ihiVsSpyPp}pp)`
+    : "inline";
+  console.log(`  [ALPACA-ISRG] ✓ ISRG 30d=${isrgRet30 != null ? (isrgRet30 >= 0 ? "+" : "") + isrgRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | IHI-SPY 30d: ${ihiStr}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -919,7 +1134,7 @@ async function fetchGSCPI() {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Market Data Pre-Fetch v4.13");
+  console.log("Market Data Pre-Fetch v4.14");
   console.log("===========================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`APIs: Finnhub=${!!FK} TwelveData=${!!TD_KEY} FRED=${!!FRED_KEY} Alpaca=${!!ALPACA_KEY}\n`);
@@ -932,7 +1147,7 @@ async function main() {
   console.log("\n─── STAGE 1b: AUXILIARY QUOTES (Finnhub) ───");
   const auxQuotes = await fetchAuxQuotes();
 
-  // Stage 2: Technicals (TwelveData — ~5 min with rate limit pacing)
+  // Stage 2: Technicals (TwelveData — ~6 min with rate limit pacing)
   console.log("\n─── STAGE 2: TECHNICALS (TwelveData) ───");
   const technicals = await fetchTechnicals(quotes);
 
@@ -972,6 +1187,14 @@ async function main() {
   // Stage 3g: NOW cohort historical returns (Alpaca — SaaS rotation + IGV factor)
   console.log("\n─── STAGE 3g: NOW COHORT HISTORICAL RETURNS (Alpaca) ───");
   const nowHistReturns = await fetchNOWHistoricalReturns();
+
+  // Stage 3h: MA twin/duopoly historical returns (Alpaca — twin spread + fear regime)
+  console.log("\n─── STAGE 3h: MA TWIN/DUOPOLY HISTORICAL RETURNS (Alpaca) ───");
+  const maHistReturns = await fetchMAHistoricalReturns();
+
+  // Stage 3i: ISRG cohort historical returns (Alpaca — devices rotation + IHI factor)
+  console.log("\n─── STAGE 3i: ISRG COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const isrgHistReturns = await fetchISRGHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -1572,6 +1795,213 @@ async function main() {
     console.log(`  NOW v1 sourced: ${nowCoverage.length > 0 ? nowCoverage.join(", ") : "(none)"} | pending external data: cRPO growth, subs growth, op/FCF margin, $1M+ deals, federal growth, EV/Sales, forward PE, Now Assist traction, AI Agent Platform status`);
   }
 
+  // ── NEW v4.14: MA twin valuation + duopoly fear regime (vs V) ─────────
+  // Payments-network quality compounder. The twin comparison is V ONLY —
+  // the duopoly partner, NOT PayPal/fintech/AXP (closed-loop lender).
+  // ★ NOTE: MA normally carries a 10-20% trailing-P/E premium to V (faster
+  //   grower, larger VAS mix). Premium <5% = compressed = buy; >25% = rich.
+  //   Direction of change > absolute level.
+  if (output.MA) {
+    const maPE = output.MA.valuation?.trailingPE;
+    const vPE = auxQuotes.V?.pe;
+
+    if (maPE && vPE) {
+      const premiumPct = +(((maPE - vPE) / vPE) * 100).toFixed(2);
+
+      output.MA.twin_valuation = {
+        ma_pe: maPE,
+        v_pe: vPE,
+        premium_pct: premiumPct,
+      };
+
+      const zone = premiumPct < 0 ? "DISCOUNT TO V (BUY — rare)"
+        : premiumPct < 5 ? "COMPRESSED (BUY)"
+        : premiumPct < 10 ? "BELOW NORMAL PREMIUM (BUY-leaning)"
+        : premiumPct < 20 ? "NORMAL PREMIUM"
+        : premiumPct < 25 ? "ABOVE NORMAL PREMIUM"
+        : "RICH (TRIM)";
+      console.log(`  MA twin-valuation: MA ${maPE}x | V ${vPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !maPE ? "no MA P/E" : "no V P/E";
+      console.log(`  MA twin-valuation: skipped (${reason})`);
+    }
+
+    // ── MA twin relative (daily return spread vs V) ────────────────────
+    const maChange = output.MA.price?.change_pct;
+    const vChange = auxQuotes.V?.change_pct;
+    const vPrice = auxQuotes.V?.price;
+
+    if (maChange != null && vChange != null) {
+      const spread = +(maChange - vChange).toFixed(3);
+
+      output.MA.twin_relative = {
+        ma_change_pct: maChange,
+        v_change_pct: vChange,
+        v_price: vPrice ?? null,
+        relative_spread_pp: spread,
+      };
+
+      const twinStr = spread > 0.5 ? `MA outperforming V by ${spread}pp`
+        : spread < -0.5 ? `V outperforming MA by ${(-spread).toFixed(2)}pp (twin-divergence watch)`
+        : "inline";
+      console.log(`  MA twin-relative: ${twinStr}`);
+    } else {
+      console.log(`  MA twin-relative: skipped (no V daily change)`);
+    }
+
+    // ── MA duopoly relative (30d twin spread + fear regime — V8.1 gate input) ──
+    if (maHistReturns) {
+      output.MA.duopoly_relative = {
+        ma_30d_return_pct:          maHistReturns.ma_30d_return_pct,
+        v_30d_return_pct:           maHistReturns.v_30d_return_pct,
+        spy_30d_return_pct:         maHistReturns.spy_30d_return_pct,
+        twin_spread_pp:             maHistReturns.twin_spread_pp,
+        twin_dislocation_active:    maHistReturns.twin_dislocation_active,
+        duopoly_avg_30d_return_pct: maHistReturns.duopoly_avg_30d_return_pct,
+        duopoly_vs_spy_pp:          maHistReturns.duopoly_vs_spy_pp,
+        disruption_fear_regime:     maHistReturns.disruption_fear_regime,
+      };
+
+      const ts = maHistReturns.twin_spread_pp;
+      const tsStr = ts == null ? "—"
+        : maHistReturns.twin_dislocation_active ? `MA lagging V by ${(-ts).toFixed(1)}pp/30d (TWIN DISLOCATION ACTIVE — buy setup if no MA-specific break)`
+        : ts < 0 ? `MA lagging V by ${(-ts).toFixed(1)}pp/30d (mild)`
+        : `MA leading V by ${ts.toFixed(1)}pp/30d`;
+      console.log(`  MA duopoly-relative: ${tsStr} | fear regime: ${(maHistReturns.disruption_fear_regime || "—").toUpperCase()}`);
+    } else {
+      console.log(`  MA duopoly-relative: skipped (no historical returns)`);
+      output.MA.duopoly_relative = { ma_30d_return_pct: null, v_30d_return_pct: null, spy_30d_return_pct: null, twin_spread_pp: null, twin_dislocation_active: false, duopoly_avg_30d_return_pct: null, duopoly_vs_spy_pp: null, disruption_fear_regime: null };
+    }
+
+    // factor_flow: QUAL vs SPY 30d — reused from LIN's fetch (market-wide quality bid)
+    output.MA.factor_flow = {
+      qual_vs_spy_30d_pp: linHistReturns?.qual_vs_spy_30d_pp ?? null,
+    };
+
+    // MA fundamentals — explicit nulls for fields needing earnings disclosure.
+    // LLM web-search prompt sources these as fallback fetch targets.
+    output.MA.fundamentals.cross_border_growth_pct        = null;  // earnings release — THE ops metric
+    output.MA.fundamentals.gdv_growth_pct                 = null;  // earnings release (gross dollar volume)
+    output.MA.fundamentals.switched_txn_growth_pct        = null;  // earnings release (network share read)
+    output.MA.fundamentals.vas_growth_pct                 = null;  // earnings release (value-added services net revenue)
+    output.MA.fundamentals.vas_share_of_revenue_pct       = null;  // earnings release (~38% baseline)
+    output.MA.fundamentals.rebates_incentives_trend       = null;  // categorical: outpacing_gross/in_line/lagging_gross (LLM)
+    output.MA.fundamentals.op_margin_pct                  = null;  // adjusted op margin — overrides generic Finnhub field for MA scoring
+    output.MA.fundamentals.eps_revisions_30d_pct          = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.MA.fundamentals.eps_revisions_90d_pct          = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.MA.fundamentals.buyback_share_reduction_yoy_pct = null; // 10-Q share count YoY (~-2.3% baseline)
+    output.MA.fundamentals.stablecoin_strategy_execution  = null;  // categorical: leading/active/reactive/absent (LLM — BVNK, consortium, MTN)
+    output.MA.fundamentals.disruption_narrative_phase     = null;  // categorical: narrative_peak/narrative_active/narrative_fading/resolved (LLM)
+    output.MA.fundamentals.disruption_fundamental_evidence = null; // categorical: none/anecdotal/measurable/material (LLM)
+    output.MA.fundamentals.interchange_regulation_status  = null;  // categorical: dormant/proposed_stalled/advancing/passed (LLM)
+
+    const maCoverage = [
+      output.MA.twin_valuation ? "twin-PE" : null,
+      output.MA.duopoly_relative?.twin_spread_pp != null ? "twin-30d" : null,
+      output.MA.duopoly_relative?.disruption_fear_regime != null ? "fear-regime" : null,
+      output.MA.factor_flow?.qual_vs_spy_30d_pp != null ? "QUAL" : null,
+    ].filter(Boolean);
+    console.log(`  MA v1 sourced: ${maCoverage.length > 0 ? maCoverage.join(", ") : "(none)"} | pending external data: cross-border growth, GDV, switched txns, VAS, rebates trend, op margin, EPS revs, buyback, forward PE, stablecoin/disruption/regulation categoricals`);
+  }
+
+  // ── NEW v4.14: ISRG cohort valuation + devices factor (vs MDT/SYK/BSX) ──
+  // Surgical-robotics moat compounder, analogous to NOW's premium-multiple
+  // cohort pattern. Cohort is large-cap devices — NOT life-science tools
+  // (TMO/DHR are a different category in this portfolio).
+  // ★ CRITICAL: ISRG carries 60-120% premium to MDT/SYK/BSX as the BASELINE
+  //   (category king, ~86% recurring annuity, two-decade moat). This is
+  //   structural, not a warning. Absolute PE is never the signal.
+  //   Premium <60% = unusual discount = buy; >150% = stretched.
+  if (output.ISRG) {
+    const isrgPE = output.ISRG.valuation?.trailingPE;
+    const mdtPE = auxQuotes.MDT?.pe;
+    const sykPE = auxQuotes.SYK?.pe;
+    const bsxPE = auxQuotes.BSX?.pe;
+    const cohortPEs = [mdtPE, sykPE, bsxPE].filter(p => p != null && p > 0);
+
+    if (isrgPE && cohortPEs.length > 0) {
+      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
+      const premiumPct = +(((isrgPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+
+      output.ISRG.cohort_valuation = {
+        isrg_pe: isrgPE,
+        mdt_pe: mdtPE ?? null,
+        syk_pe: sykPE ?? null,
+        bsx_pe: bsxPE ?? null,
+        cohort_avg_pe: +cohortAvg.toFixed(2),
+        premium_pct: premiumPct,
+        cohort_count: cohortPEs.length,
+      };
+
+      const zone = premiumPct < 60 ? "UNUSUAL DISCOUNT (BUY)"
+        : premiumPct < 90 ? "BELOW MID-PREMIUM (BUY-leaning)"
+        : premiumPct < 120 ? "NORMAL PREMIUM"
+        : premiumPct < 150 ? "ABOVE NORMAL PREMIUM"
+        : "STRETCHED (TRIM)";
+      console.log(`  ISRG cohort-valuation: ISRG ${isrgPE}x | MDT ${mdtPE ?? "—"}x | SYK ${sykPE ?? "—"}x | BSX ${bsxPE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone})`);
+    } else {
+      const reason = !isrgPE ? "no ISRG P/E" : "no cohort P/E (MDT/SYK/BSX unavailable)";
+      console.log(`  ISRG cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── ISRG cohort-relative (fear rotation: 30d return spread) ────────
+    if (isrgHistReturns) {
+      output.ISRG.cohort_relative = {
+        isrg_30d_return_pct:       isrgHistReturns.isrg_30d_return_pct,
+        mdt_30d_return_pct:        isrgHistReturns.mdt_30d_return_pct,
+        syk_30d_return_pct:        isrgHistReturns.syk_30d_return_pct,
+        bsx_30d_return_pct:        isrgHistReturns.bsx_30d_return_pct,
+        cohort_avg_30d_return_pct: isrgHistReturns.cohort_avg_30d_return_pct,
+        cohort_rotation_pp:        isrgHistReturns.cohort_rotation_pp,
+        cohort_rotation_active:    isrgHistReturns.cohort_rotation_active,
+        cohort_count:              isrgHistReturns.cohort_count,
+      };
+
+      const rp = isrgHistReturns.cohort_rotation_pp;
+      const rpStr = rp == null ? "—"
+        : isrgHistReturns.cohort_rotation_active ? `ISRG lagging cohort by ${(-rp).toFixed(1)}pp/30d (FEAR ROTATION ACTIVE — buy setup if no procedure-share evidence)`
+        : rp < 0 ? `ISRG lagging cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `ISRG leading cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  ISRG cohort-relative: ${rpStr}`);
+
+      // factor_flow: IHI vs SPY 30d (devices sector bid — V8.1 gate input)
+      output.ISRG.factor_flow = {
+        ihi_vs_spy_30d_pp:  isrgHistReturns.ihi_vs_spy_30d_pp,
+        ihi_30d_return_pct: isrgHistReturns.ihi_30d_return_pct,
+        spy_30d_return_pct: isrgHistReturns.spy_30d_return_pct,
+      };
+    } else {
+      console.log(`  ISRG cohort-relative: skipped (no historical returns)`);
+      output.ISRG.factor_flow = { ihi_vs_spy_30d_pp: null, ihi_30d_return_pct: null, spy_30d_return_pct: null };
+    }
+
+    // ISRG fundamentals — explicit nulls for fields needing earnings disclosure.
+    // LLM web-search prompt sources these as fallback fetch targets.
+    output.ISRG.fundamentals.procedure_growth_pct       = null;  // earnings release — THE ops metric (total procedures YoY)
+    output.ISRG.fundamentals.procedure_guide_low_pct    = null;  // current-year dV procedure guide low (2026: 13.5)
+    output.ISRG.fundamentals.procedure_guide_high_pct   = null;  // current-year dV procedure guide high (2026: 15.5)
+    output.ISRG.fundamentals.dv_placements_qtr          = null;  // earnings release (quarterly dV system placements)
+    output.ISRG.fundamentals.dv5_mix_pct                = null;  // earnings release (dV5 share of placements)
+    output.ISRG.fundamentals.ion_procedure_growth_pct   = null;  // earnings release (Ion second leg)
+    output.ISRG.fundamentals.ion_installed_base         = null;  // earnings release
+    output.ISRG.fundamentals.recurring_revenue_pct      = null;  // earnings release (~86% baseline; <84% = mix warning)
+    output.ISRG.fundamentals.ia_revenue_growth_pct      = null;  // earnings release (instruments & accessories)
+    output.ISRG.fundamentals.installed_base_total       = null;  // earnings release (~11,400 baseline)
+    output.ISRG.fundamentals.installed_base_yoy_pct     = null;  // earnings release
+    output.ISRG.fundamentals.op_margin_pct              = null;  // non-GAAP op margin — overrides generic Finnhub field for ISRG scoring
+    output.ISRG.fundamentals.eps_revisions_30d_pct      = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.ISRG.fundamentals.eps_revisions_90d_pct      = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.ISRG.fundamentals.moat_status                = null;  // categorical: intact/probing/eroding/breached (LLM — Hugo/Ottava evidence)
+    output.ISRG.fundamentals.instrument_transition_status = null; // categorical: unquantified_fear/quantified_manageable/quantified_material (LLM — 2027 lifespan change)
+
+    const isrgCoverage = [
+      output.ISRG.cohort_valuation ? "cohort-PE" : null,
+      output.ISRG.cohort_relative?.cohort_rotation_pp != null ? "rotation" : null,
+      output.ISRG.factor_flow?.ihi_vs_spy_30d_pp != null ? "IHI" : null,
+    ].filter(Boolean);
+    console.log(`  ISRG v1 sourced: ${isrgCoverage.length > 0 ? isrgCoverage.join(", ") : "(none)"} | pending external data: procedure growth + guide, dV placements/dV5 mix, Ion, recurring %, I&A growth, installed base, op margin, EPS revs, forward PE, moat/instrument-transition categoricals`);
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -1609,6 +2039,11 @@ async function main() {
   console.log(`  NOW cohort PE:  ${output.NOW?.cohort_valuation ? `NOW ${output.NOW.cohort_valuation.now_pe}x vs ${output.NOW.cohort_valuation.cohort_count}-name cohort avg ${output.NOW.cohort_valuation.cohort_avg_pe}x = ${output.NOW.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  NOW rotation:   ${output.NOW?.cohort_relative ? `NOW 30d=${output.NOW.cohort_relative.now_30d_return_pct}%, cohort=${output.NOW.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.NOW.cohort_relative.rotation_pressure_pp}pp${output.NOW.cohort_relative.rotation_pressure_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  NOW IGV-SPY:    ${output.NOW?.factor_flow?.igv_vs_spy_30d_pp != null ? `${output.NOW.factor_flow.igv_vs_spy_30d_pp >= 0 ? "+" : ""}${output.NOW.factor_flow.igv_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  MA twin PE:     ${output.MA?.twin_valuation ? `MA ${output.MA.twin_valuation.ma_pe}x vs V ${output.MA.twin_valuation.v_pe}x = ${output.MA.twin_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  MA duopoly:     ${output.MA?.duopoly_relative?.duopoly_vs_spy_pp != null ? `twin Δ=${output.MA.duopoly_relative.twin_spread_pp}pp${output.MA.duopoly_relative.twin_dislocation_active ? " [DISLOCATION]" : ""}, duopoly-SPY=${output.MA.duopoly_relative.duopoly_vs_spy_pp}pp (${output.MA.duopoly_relative.disruption_fear_regime})` : "unavailable"}`);
+  console.log(`  ISRG cohort PE: ${output.ISRG?.cohort_valuation ? `ISRG ${output.ISRG.cohort_valuation.isrg_pe}x vs ${output.ISRG.cohort_valuation.cohort_count}-name cohort avg ${output.ISRG.cohort_valuation.cohort_avg_pe}x = ${output.ISRG.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
+  console.log(`  ISRG rotation:  ${output.ISRG?.cohort_relative ? `ISRG 30d=${output.ISRG.cohort_relative.isrg_30d_return_pct}%, cohort=${output.ISRG.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.ISRG.cohort_relative.cohort_rotation_pp}pp${output.ISRG.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  ISRG IHI-SPY:   ${output.ISRG?.factor_flow?.ihi_vs_spy_30d_pp != null ? `${output.ISRG.factor_flow.ihi_vs_spy_30d_pp >= 0 ? "+" : ""}${output.ISRG.factor_flow.ihi_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
