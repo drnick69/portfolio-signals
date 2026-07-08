@@ -50,6 +50,29 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //   • verification — verification-gate outcome { passed, violations,
 //     corrective_turns } → CSV (verify_passed, verify_turns) + JSONL (full
 //     object incl. violation strings). Pre-v8.2 rows leave all blank/null.
+//
+// ── V8.3.0 (July 2026): HOLDINGS ADD telemetry — MA + ISRG (fetch-market-data
+//   v4.14 / score-engine V8.2 / generate-signals v8.3.0 sync; 12 → 14 holdings).
+//   • MA columns: twin valuation vs V (v_pe, twin_premium_pct), twin daily
+//     spread, 30d twin/duopoly block (ma/v 30d returns, twin_spread_30d_pp,
+//     twin_dislocation_active, duopoly_vs_spy_pp — the V8.2 MA weight-gate
+//     driver, disruption_fear_regime), and MA fundamentals scaffolds
+//     (cross-border/GDV/switched/VAS, rebates trend, buyback pace,
+//     stablecoin/disruption/regulation categoricals).
+//   • ISRG columns: devices cohort PEs (mdt/syk/bsx — cohort avg + premium
+//     reuse the existing shared cohort_avg_pe/cohort_premium_pct columns, same
+//     as MSFT/LHX rows already do), fear-rotation block (isrg_30d,
+//     cohort_rotation_pp/active), ihi_vs_spy_30d_pp (the V8.2 ISRG weight-gate
+//     driver), and ISRG fundamentals scaffolds (procedures + guide, dV
+//     placements/dV5 mix, Ion, recurring %, I&A, installed base, moat_status,
+//     instrument_transition_status).
+//   All appended at the end per the back-compat convention; the v8.2.0
+//   migrateCsvHeader() pure-append migration re-writes the on-disk header once
+//   (115 → new width) and pads pre-v8.3 rows blank. JSONL gains the full
+//   objects (twin_valuation / twin_relative / duopoly_relative for MA; the
+//   cohort_valuation / cohort_relative mappers extended with the ISRG keys —
+//   additive, null on non-applicable rows). signal-accuracy's exact-width
+//   contract MUST be bumped in the same deploy (v8.3 pair).
 
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
@@ -203,6 +226,35 @@ const CSV_HEADERS = [
   "tz_tactical", "tz_positional", "tz_strategic", "tz_composite",
   // Verification gate outcome (violation strings live in the JSONL only)
   "verify_passed", "verify_turns",
+
+  // ─── V8.3.0 MA additions (appended for CSV back-compat; MA row only) ─────
+  // Twin valuation vs V (MA's own PE is the existing trailing_pe column)
+  "v_pe", "twin_premium_pct",
+  // Twin daily spread (MA − V, pp)
+  "twin_daily_spread_pp",
+  // 30d twin/duopoly block — duopoly_vs_spy_pp is the V8.2 MA weight-gate driver
+  "ma_30d_return_pct", "v_30d_return_pct", "twin_spread_30d_pp",
+  "twin_dislocation_active", "duopoly_vs_spy_pp", "disruption_fear_regime",
+  // MA fundamentals scaffolds (LLM-sourced; blank until populated)
+  "cross_border_growth_pct", "gdv_growth_pct", "switched_txn_growth_pct",
+  "vas_growth_pct", "vas_share_of_revenue_pct", "rebates_incentives_trend",
+  "buyback_share_reduction_yoy_pct", "stablecoin_strategy_execution",
+  "disruption_narrative_phase", "disruption_fundamental_evidence",
+  "interchange_regulation_status",
+
+  // ─── V8.3.0 ISRG additions (appended for CSV back-compat; ISRG row only) ──
+  // Devices cohort PEs (cohort avg + premium reuse cohort_avg_pe / cohort_premium_pct)
+  "mdt_pe", "syk_pe", "bsx_pe",
+  // Fear-rotation block (cohort avg 30d reuses cohort_avg_30d_return_pct)
+  "isrg_30d_return_pct", "cohort_rotation_pp", "cohort_rotation_active",
+  // Devices factor flow — the V8.2 ISRG weight-gate driver
+  "ihi_vs_spy_30d_pp",
+  // ISRG fundamentals scaffolds (LLM-sourced; blank until populated)
+  "procedure_growth_pct", "procedure_guide_low_pct", "procedure_guide_high_pct",
+  "dv_placements_qtr", "dv5_mix_pct", "ion_procedure_growth_pct", "ion_installed_base",
+  "recurring_revenue_pct", "ia_revenue_growth_pct",
+  "installed_base_total", "installed_base_yoy_pct",
+  "moat_status", "instrument_transition_status",
 ].join(",");
 
 // ── V8.2.0: CSV HEADER MIGRATION (pure-append schema evolution) ──────────────
@@ -435,6 +487,50 @@ for (const s of normalized) {
     s.tz?.composite ?? "",
     s.verification ? (s.verification.passed ? "true" : "false") : "",
     s.verification?.corrective_turns ?? "",
+
+    // ─── V8.3.0 MA additions (only MA row populates these) ────────────────
+    md.twin_valuation?.v_pe ?? "",
+    md.twin_valuation?.premium_pct ?? "",
+    md.twin_relative?.relative_spread_pp ?? "",
+    md.duopoly_relative?.ma_30d_return_pct ?? "",
+    md.duopoly_relative?.v_30d_return_pct ?? "",
+    md.duopoly_relative?.twin_spread_pp ?? "",
+    md.duopoly_relative?.twin_dislocation_active ?? "",
+    md.duopoly_relative?.duopoly_vs_spy_pp ?? "",
+    esc(md.duopoly_relative?.disruption_fear_regime ?? ""),
+    md.fundamentals?.cross_border_growth_pct ?? "",
+    md.fundamentals?.gdv_growth_pct ?? "",
+    md.fundamentals?.switched_txn_growth_pct ?? "",
+    md.fundamentals?.vas_growth_pct ?? "",
+    md.fundamentals?.vas_share_of_revenue_pct ?? "",
+    esc(md.fundamentals?.rebates_incentives_trend ?? ""),
+    md.fundamentals?.buyback_share_reduction_yoy_pct ?? "",
+    esc(md.fundamentals?.stablecoin_strategy_execution ?? ""),
+    esc(md.fundamentals?.disruption_narrative_phase ?? ""),
+    esc(md.fundamentals?.disruption_fundamental_evidence ?? ""),
+    esc(md.fundamentals?.interchange_regulation_status ?? ""),
+
+    // ─── V8.3.0 ISRG additions (only ISRG row populates these) ────────────
+    md.cohort_valuation?.mdt_pe ?? "",
+    md.cohort_valuation?.syk_pe ?? "",
+    md.cohort_valuation?.bsx_pe ?? "",
+    md.cohort_relative?.isrg_30d_return_pct ?? "",
+    md.cohort_relative?.cohort_rotation_pp ?? "",
+    md.cohort_relative?.cohort_rotation_active ?? "",
+    md.factor_flow?.ihi_vs_spy_30d_pp ?? "",
+    md.fundamentals?.procedure_growth_pct ?? "",
+    md.fundamentals?.procedure_guide_low_pct ?? "",
+    md.fundamentals?.procedure_guide_high_pct ?? "",
+    md.fundamentals?.dv_placements_qtr ?? "",
+    md.fundamentals?.dv5_mix_pct ?? "",
+    md.fundamentals?.ion_procedure_growth_pct ?? "",
+    md.fundamentals?.ion_installed_base ?? "",
+    md.fundamentals?.recurring_revenue_pct ?? "",
+    md.fundamentals?.ia_revenue_growth_pct ?? "",
+    md.fundamentals?.installed_base_total ?? "",
+    md.fundamentals?.installed_base_yoy_pct ?? "",
+    esc(md.fundamentals?.moat_status ?? ""),
+    esc(md.fundamentals?.instrument_transition_status ?? ""),
   ].join(",");
 
   csvContent += row + "\n";
@@ -538,21 +634,31 @@ const dailyEntry = {
       h2_lcoe_gap_6m_delta:   md.h2_layer?.lcoe_gap_6m_delta ?? null,
 
       // ─── V4 / V7.6 NOW additions ───────────────────────────────────────
-      // Cohort valuation (vs CRM / WDAY / ADBE) — NOW row only
+      // Cohort valuation — NOW keys (V7.6) + ISRG keys (V8.3.0); the mapper is
+      // shared and additive: non-applicable keys are null on each row.
       cohort_valuation: md.cohort_valuation ? {
         now_pe:         md.cohort_valuation.now_pe ?? null,
         crm_pe:         md.cohort_valuation.crm_pe ?? null,
         wday_pe:        md.cohort_valuation.wday_pe ?? null,
         adbe_pe:        md.cohort_valuation.adbe_pe ?? null,
+        // V8.3.0: ISRG devices cohort
+        isrg_pe:        md.cohort_valuation.isrg_pe ?? null,
+        mdt_pe:         md.cohort_valuation.mdt_pe ?? null,
+        syk_pe:         md.cohort_valuation.syk_pe ?? null,
+        bsx_pe:         md.cohort_valuation.bsx_pe ?? null,
         cohort_avg_pe:  md.cohort_valuation.cohort_avg_pe ?? null,
         premium_pct:    md.cohort_valuation.premium_pct ?? null,
       } : null,
-      // Cohort relative — 30d returns + rotation pressure
+      // Cohort relative — 30d returns + rotation (NOW keys + V8.3.0 ISRG keys)
       cohort_relative: md.cohort_relative ? {
         now_30d_return_pct:          md.cohort_relative.now_30d_return_pct ?? null,
         cohort_avg_30d_return_pct:   md.cohort_relative.cohort_avg_30d_return_pct ?? null,
         rotation_pressure_pp:        md.cohort_relative.rotation_pressure_pp ?? null,
         rotation_pressure_active:    md.cohort_relative.rotation_pressure_active ?? null,
+        // V8.3.0: ISRG fear rotation
+        isrg_30d_return_pct:         md.cohort_relative.isrg_30d_return_pct ?? null,
+        cohort_rotation_pp:          md.cohort_relative.cohort_rotation_pp ?? null,
+        cohort_rotation_active:      md.cohort_relative.cohort_rotation_active ?? null,
       } : null,
       // Factor flow — software cohort vs SPY (NOW row primarily)
       igv_vs_spy_30d_pp:    md.factor_flow?.igv_vs_spy_30d_pp ?? null,
@@ -562,6 +668,55 @@ const dailyEntry = {
       subscription_revenue_growth_pct: md.fundamentals?.subscription_revenue_growth_pct ?? null,
       deals_1m_plus_yoy_pct:           md.fundamentals?.deals_1m_plus_yoy_pct ?? null,
       federal_growth_pct:              md.fundamentals?.federal_growth_pct ?? null,
+
+      // ─── V8.3.0 MA additions (MA row only; null elsewhere) ─────────────
+      twin_valuation: md.twin_valuation ? {
+        ma_pe:       md.twin_valuation.ma_pe ?? null,
+        v_pe:        md.twin_valuation.v_pe ?? null,
+        premium_pct: md.twin_valuation.premium_pct ?? null,
+      } : null,
+      twin_relative: md.twin_relative ? {
+        ma_change_pct:      md.twin_relative.ma_change_pct ?? null,
+        v_change_pct:       md.twin_relative.v_change_pct ?? null,
+        relative_spread_pp: md.twin_relative.relative_spread_pp ?? null,
+      } : null,
+      duopoly_relative: md.duopoly_relative ? {
+        ma_30d_return_pct:          md.duopoly_relative.ma_30d_return_pct ?? null,
+        v_30d_return_pct:           md.duopoly_relative.v_30d_return_pct ?? null,
+        spy_30d_return_pct:         md.duopoly_relative.spy_30d_return_pct ?? null,
+        twin_spread_pp:             md.duopoly_relative.twin_spread_pp ?? null,
+        twin_dislocation_active:    md.duopoly_relative.twin_dislocation_active ?? null,
+        duopoly_avg_30d_return_pct: md.duopoly_relative.duopoly_avg_30d_return_pct ?? null,
+        duopoly_vs_spy_pp:          md.duopoly_relative.duopoly_vs_spy_pp ?? null,
+        disruption_fear_regime:     md.duopoly_relative.disruption_fear_regime ?? null,
+      } : null,
+      cross_border_growth_pct:         md.fundamentals?.cross_border_growth_pct ?? null,
+      gdv_growth_pct:                  md.fundamentals?.gdv_growth_pct ?? null,
+      switched_txn_growth_pct:         md.fundamentals?.switched_txn_growth_pct ?? null,
+      vas_growth_pct:                  md.fundamentals?.vas_growth_pct ?? null,
+      vas_share_of_revenue_pct:        md.fundamentals?.vas_share_of_revenue_pct ?? null,
+      rebates_incentives_trend:        md.fundamentals?.rebates_incentives_trend ?? null,
+      buyback_share_reduction_yoy_pct: md.fundamentals?.buyback_share_reduction_yoy_pct ?? null,
+      stablecoin_strategy_execution:   md.fundamentals?.stablecoin_strategy_execution ?? null,
+      disruption_narrative_phase:      md.fundamentals?.disruption_narrative_phase ?? null,
+      disruption_fundamental_evidence: md.fundamentals?.disruption_fundamental_evidence ?? null,
+      interchange_regulation_status:   md.fundamentals?.interchange_regulation_status ?? null,
+
+      // ─── V8.3.0 ISRG additions (ISRG row only; null elsewhere) ─────────
+      ihi_vs_spy_30d_pp:               md.factor_flow?.ihi_vs_spy_30d_pp ?? null,
+      procedure_growth_pct:            md.fundamentals?.procedure_growth_pct ?? null,
+      procedure_guide_low_pct:         md.fundamentals?.procedure_guide_low_pct ?? null,
+      procedure_guide_high_pct:        md.fundamentals?.procedure_guide_high_pct ?? null,
+      dv_placements_qtr:               md.fundamentals?.dv_placements_qtr ?? null,
+      dv5_mix_pct:                     md.fundamentals?.dv5_mix_pct ?? null,
+      ion_procedure_growth_pct:        md.fundamentals?.ion_procedure_growth_pct ?? null,
+      ion_installed_base:              md.fundamentals?.ion_installed_base ?? null,
+      recurring_revenue_pct:           md.fundamentals?.recurring_revenue_pct ?? null,
+      ia_revenue_growth_pct:           md.fundamentals?.ia_revenue_growth_pct ?? null,
+      installed_base_total:            md.fundamentals?.installed_base_total ?? null,
+      installed_base_yoy_pct:          md.fundamentals?.installed_base_yoy_pct ?? null,
+      moat_status:                     md.fundamentals?.moat_status ?? null,
+      instrument_transition_status:    md.fundamentals?.instrument_transition_status ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
