@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// paper-trader.mjs v7.6 — Simulates portfolio performance following daily signals.
-// Starting: $1M equally distributed across 12 holdings.
+// paper-trader.mjs v8.3 — Simulates portfolio performance following daily signals.
+// Starting: $1M equally distributed across the holdings present on day one.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
 // Trade rules:
@@ -20,6 +20,25 @@
 //       → total portfolio value preserved at the swap moment. P&L for the
 //       NOW position starts at 0% and tracks NOW going forward. Idempotent:
 //       no-ops once ETHA is gone from holdings.
+//
+// V8.3: HOLDINGS ADD — MA + ISRG (12 → 14) via ORGANIC ENTRY. Unlike the
+//       V7.6 swap, an add gets NO migration and NO seed position: the paper
+//       book measures SIGNAL-FOLLOWING P&L, and the buy path already routes
+//       cash exclusively to the day's assigned signals with no universe list
+//       anywhere in the trading logic — so MA/ISRG become tradeable the
+//       moment they first appear in assignments, entering at real signal
+//       prices with honest cost basis and P&L from $0. This also keeps the
+//       paper book point-in-time consistent with the benchmark scorecard's
+//       membership convention (no retroactive positions). Consequences to
+//       expect, all correct behavior: MA/ISRG start underweight vs the
+//       incumbents and grow only as the system assigns them buys; a TRIM
+//       assignment on a not-yet-held name no-ops (existing guard); the
+//       equal-split initializer is unreachable for the live book and now
+//       divides by the day-one holding count rather than a hardcoded 12.
+//       If a rebalance-mirror of the real book is ever wanted instead, seed
+//       positions require real fill dates/prices + funding trims — done as
+//       a one-time migration block in the V7.6 pattern, deliberately NOT
+//       built here.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -106,7 +125,7 @@ for (const s of normalized) {
 console.log("Paper Trader");
 console.log("============");
 console.log(`Date: ${date}`);
-console.log(`Prices: ${Object.keys(prices).length}/12`);
+console.log(`Prices: ${Object.keys(prices).length}/${normalized.length}`);
 
 // ─── LOAD OR INITIALIZE PORTFOLIO ───────────────────────────────────────────
 let portfolio;
@@ -114,7 +133,10 @@ if (existsSync(PORTFOLIO_PATH)) {
   portfolio = JSON.parse(readFileSync(PORTFOLIO_PATH, "utf-8"));
   console.log(`Portfolio loaded: day ${portfolio.day_count + 1}, $${portfolio.total_value?.toFixed(0) || "?"}`);
 } else {
-  const perHolding = INITIAL_CAPITAL / 12;
+  // V8.3: divide by the day-one holding count (was a hardcoded 12) — this
+  // branch only runs when no portfolio file exists, so it is unreachable for
+  // the live book; corrected for a hypothetical re-initialization at 14.
+  const perHolding = INITIAL_CAPITAL / normalized.length;
   const holdings = {};
   for (const s of normalized) {
     const price = prices[s.symbol];
