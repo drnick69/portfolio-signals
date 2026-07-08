@@ -3,7 +3,8 @@
 //
 // What it does:
 //   1. Reads every logged signal from docs/history/daily-log.jsonl
-//      (one line per DAY containing all 12 holdings; flattens to per-symbol rows)
+//      (one line per DAY containing all holdings — 14 as of v8.3.0's MA/ISRG
+//      add; flattens to per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
 //   4. Computes forward returns at 1d, 3d, 5d, 10d, 20d, 40d, 60d, 120d
@@ -23,10 +24,13 @@
 //   • Rate-limited symbol fetches (200ms between calls) to stay well under
 //     Alpaca's 200 req/min data API limit.
 //   • Symbol-agnostic — the script processes whatever tickers appear in the
-//     log, so holdings swaps (e.g. V7.6 ETHA → NOW) require no code changes
-//     here; attribution coverage for new tickers simply begins from their
-//     first logged date forward. Historical ETHA rows in the log keep being
-//     re-attributed against their now-frozen forward windows, which is fine.
+//     log, so holdings swaps (e.g. V7.6 ETHA → NOW) and adds (v8.3.0 MA +
+//     ISRG, 12 → 14) require no code changes here; attribution coverage for
+//     new tickers simply begins from their first logged date forward (MA and
+//     ISRG start accumulating from their first daily-log entry — both are
+//     plain US listings, so Alpaca bar coverage is complete from day one).
+//     Historical ETHA rows in the log keep being re-attributed against their
+//     now-frozen forward windows, which is fine.
 //
 // Env vars required:
 //   ALPK, ALPS  — Alpaca API key + secret (already in GitHub Secrets)
@@ -325,7 +329,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has 12 holdings nested inside)
+  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 as of v8.3.0)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
