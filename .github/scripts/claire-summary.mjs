@@ -1,7 +1,7 @@
 // ─── claire-summary.mjs ────────────────────────────────────────────────────────
 // Generates plain-English one-line summaries of each holding for the "Claire"
 // tab on the hub. Reads the latest entry from docs/history/daily-log.jsonl,
-// batches all 12 holdings into one Claude call, writes docs/history/claire.json.
+// batches all holdings (14 as of v2.1) into one Claude call, writes docs/history/claire.json.
 //
 // Voice: conversational but grounded, descriptive not prescriptive, assumes
 // intelligence but zero market vocabulary. One sentence each. No jargon, no
@@ -30,6 +30,18 @@
 //   - One retry per candidate call; ensemble proceeds with whatever succeeded.
 //   - Output additive: per-ticker gate ("pass" | "soft" | "fallback"), top-level
 //     ensemble { samples_requested, samples_ok }. Existing fields unchanged.
+//
+// v2.1 (July 2026): HOLDINGS ADD — MA + ISRG (12 -> 14, generate-signals v8.3.0
+//   sync). PORTFOLIO, TICKER_IDENTITY, the prompt glossary/disambiguation, and
+//   two voice examples gain the new names. Hard identity gate: ISRG gains the
+//   Intuitive<->Intuit poison words (turbotax / quickbooks / standalone
+//   "intuit" — the \b boundary deliberately does NOT match "Intuitive"). MA
+//   deliberately gets NO poison words, mirroring generate-signals v8.3.0: the
+//   bare ticker collides with everyday prose and Visa mentions are legitimate
+//   (duopoly twin). Sentence-count phrasing in the prompt made dynamic on
+//   PORTFOLIO.length. Days before MA/ISRG appear in daily-log.jsonl fall
+//   through the existing "no data for this holding today" row — no gap
+//   handling needed.
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -44,7 +56,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL_ID = "claude-opus-4-8";
 const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
 
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY", "MA", "ISRG"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -62,6 +74,8 @@ const TICKER_IDENTITY = {
   "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
   "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
   "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
+  "MA":    { name: "Mastercard",           business: "one of the two big payment networks (Visa is the other) — every time someone taps or swipes a Mastercard, they collect a tiny toll, in every country, millions of times a day. Note: the ticker MA means Mastercard here, never Massachusetts or anything else" },
+  "ISRG":  { name: "Intuitive Surgical",   business: "maker of the da Vinci surgical robot — the machines surgeons use for minimally invasive operations, in over eleven thousand hospitals worldwide. Most of their money comes from the instruments and supplies each surgery uses, not the robots themselves. Note: ISRG is Intuitive SURGICAL, the medical robot company; it is NOT Intuit (the TurboTax/QuickBooks software company, ticker INTU)" },
 };
 
 // ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -82,6 +96,8 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
 - PBR.A   = Petrobras preferred shares (Brazilian state oil major)
 - AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
+- MA      = Mastercard (global payments network — one half of the Visa/Mastercard duopoly)
+- ISRG    = Intuitive Surgical (maker of the da Vinci surgical robot; revenue mostly from per-surgery instruments and supplies)
 
 CRITICAL DISAMBIGUATION:
 - AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
@@ -89,13 +105,15 @@ CRITICAL DISAMBIGUATION:
 - PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
 - LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
 - NOW is the ticker for ServiceNow, the enterprise workflow-automation software company. It is NEVER a generic adverb and NEVER any retail or consumer brand. ServiceNow's product helps big companies and government agencies automate the boring, repetitive parts of running an organization — IT tickets, HR forms, employee onboarding — and they're now leaders in deploying AI agents to do this work autonomously.
+- MA is the ticker for Mastercard, the payments network. It is NEVER Massachusetts, never "moving average," and never any other company. Mentioning Visa in a Mastercard sentence is fine — they're the two halves of the same duopoly and are often compared — but the sentence must be ABOUT Mastercard.
+- ISRG is Intuitive Surgical, the da Vinci surgical robot company. It is NEVER Intuit — Intuit is the TurboTax/QuickBooks software company (ticker INTU), which is not in this portfolio. If you are about to write "TurboTax," "QuickBooks," or "tax software" in an ISRG sentence, STOP — you have the wrong company. Intuitive Surgical makes robots that help surgeons operate. Mentioning Medtronic or Johnson & Johnson as competitors is fine — they're real rivals building competing surgical robots.
 
 RULES:
 - One sentence per holding. Natural, conversational, not breezy.
 - No jargon: avoid "P/E", "RSI", "yield spread", "forward multiple", "oversold", "basis points", "beta", "composite score", "EBITDA", etc.
 - Describe what's happening, don't tell her what to do. "Looks cheap here" not "buy more." "Holding steady" not "hold."
 - No numbers unless a specific number aids understanding. "Down about 8%" is fine; "trading at 32.4x forward earnings" is not.
-- Vary the sentence structure across the 12 holdings — don't start every line with "X is..."
+- Vary the sentence structure across the ${PORTFOLIO.length} holdings — don't start every line with "X is..."
 - If nothing interesting is happening, say that honestly. Boring is fine. "Microsoft is quiet — the AI infrastructure story keeps grinding along without any drama" is a good output.
 - Ground the sentence in what's actually driving the ticker (the business, the commodity, the macro factor) rather than the score itself. She cares about why, not the number.
 - Any number you state must come directly from the data rows provided — never from memory. If you can't point to it in the row, leave the number out.
@@ -108,6 +126,8 @@ EXAMPLES of the voice:
 - "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
 - "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
 - "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
+- "Mastercard slipped again on worries that new payment technology could someday cut out the card networks — but people keep tapping their cards more than ever, so for now it's a fear story, not a business story."
+- "The surgical robot company had a good week — hospitals keep doing more procedures with their machines, and every operation means more supplies sold."
 
 OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
 {
@@ -177,6 +197,12 @@ const HARD_BANNED_BY_TICKER = {
   "AMKBY": [/\bbeer\b/i, /\bbrewer\w*\b/i, /\bbrewing\b/i, /\bambev\b/i, /\babev\b/i, /\bbeverage\w*\b/i],
   "LIN":   [/\blinkedin\b/i],
   "GLNCY": [/\bglencoe\b/i],
+  // v2.1: ISRG is Intuitive Surgical, never Intuit. \bintuit\b deliberately
+  // does NOT match "Intuitive" (no word boundary inside it) — verified in tests.
+  "ISRG":  [/\bturbotax\b/i, /\bquickbooks\b/i, /\bintuit\b/i, /\btax software\b/i],
+  // "MA" — deliberately NO entry (mirrors generate-signals v8.3.0): the bare
+  // ticker collides with everyday prose, and Visa mentions are legitimate
+  // (duopoly twin). Documented-failure classes only.
 };
 
 // Jargon blacklist (from prompt RULES). Soft.
@@ -292,7 +318,7 @@ function voteOnSentences(symbol, candidates, row) {
 }
 
 // ─── CLAUDE CALL ──────────────────────────────────────────────────────────────
-// One call = one full candidate set (all 12 tickers). System + user blocks carry
+// One call = one full candidate set (all tickers — 14 as of v2.1). System + user blocks carry
 // cache_control and are identical across the run, so candidates 2..N are nearly
 // all cache reads. One retry per candidate; ensemble proceeds with successes.
 async function callClaudeOnce(userMessage) {
