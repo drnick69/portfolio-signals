@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.2.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.3.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -118,6 +118,24 @@
 //       post-blend for the logger. File absent → clean no-op (first-run safe). Assignments,
 //       weights, and engine parameters are UNCHANGED — temporal z informs the LLM and the
 //       telemetry; it moves no thresholds.
+// v8.3.0: HOLDINGS ADD — MA (Mastercard, payments_network_quality_compounder, 20/35/45)
+//       and ISRG (Intuitive Surgical, surgical_robotics_moat_compounder, 20/35/45).
+//       12 → 14 holdings. Matches fetch-market-data v4.14 + score-engine V8.2.
+//       (a) Per-holding prompt blocks: MA (twin valuation vs V, twin dislocation +
+//       duopoly-vs-SPY fear regime, volume/VAS/rebates fundamentals, disruption
+//       narrative-vs-evidence + interchange regulation categoricals) and ISRG
+//       (cohort valuation vs MDT/SYK/BSX with 60-120% structural-premium bands,
+//       fear rotation, IHI factor flow, procedure-engine fundamentals, moat +
+//       2027 instrument-transition categoricals, Jul-16 earnings-window discipline).
+//       (b) VERIFY_RUN_BUDGET default 6 → 7: preserves the ~0.5 corrective-turns-
+//       per-holding density at 14 names (per-holding cap stays 2; both env-tunable).
+//       (c) TICKER_NEGATIVE_CONSTRAINTS: ISRG gains the Intuitive↔Intuit class
+//       (turbotax/quickbooks/intuit inc). MA deliberately gets NO entry: V/Visa
+//       mentions are INTENTIONAL (twin comparison is the design), the bare ticker
+//       "MA" collides with "moving average" prose, and the file's stated policy is
+//       documented-failure classes only — no speculative entries.
+//       (d) Portfolio-count strings (PORTFOLIO_CONTEXT, shared system blocks,
+//       email footer) made dynamic on HOLDINGS.length where still hardcoded.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -142,7 +160,7 @@ const TEMPORAL_Z = loadTemporalZ();
 // ─── v8.2.0: VERIFICATION GATE ───────────────────────────────────────────────
 // Hard caps — non-negotiable cost control on the corrective loop.
 const VERIFY_MAX_TURNS = Math.max(0, parseInt(process.env.VERIFY_MAX_TURNS || "2", 10));   // per holding
-const VERIFY_RUN_BUDGET = Math.max(0, parseInt(process.env.VERIFY_RUN_BUDGET || "6", 10)); // per run
+const VERIFY_RUN_BUDGET = Math.max(0, parseInt(process.env.VERIFY_RUN_BUDGET || "7", 10)); // per run — v8.3.0: 6→7 with 12→14 holdings (~0.5/holding density preserved)
 let verifyCorrectionsUsed = 0; // module-level run counter
 
 // Documented identity-confusion classes only (the failure modes this book has
@@ -152,6 +170,12 @@ const TICKER_NEGATIVE_CONSTRAINTS = {
   "AMKBY": ["ambev", "brewer", "brewery", " beer", "beverage"], // AMKBY is Maersk (shipping), never AmBev
   "LIN":   ["linkedin"],                                        // LIN is Linde, never LinkedIn
   "GLNCY": ["glencoe"],                                         // GLNCY is Glencore
+  "ISRG":  ["turbotax", "quickbooks", "intuit inc"],            // ISRG is Intuitive Surgical, never Intuit (INTU).
+                                                                // NOTE: Medtronic/J&J/Hugo/Ottava mentions are CORRECT
+                                                                // (named competitors in the archetype) — never ban them.
+  // "MA" — deliberately NO entry (v8.3.0): V/Visa mentions are INTENTIONAL (the
+  // twin comparison is the archetype design), the bare ticker collides with
+  // "moving average" prose, and policy here is documented-failure classes only.
 };
 
 // Semantic + integrity checks on an accepted record_scores payload. Returns an
@@ -225,6 +249,8 @@ const HOLDINGS = [
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",     archetype: "em_dividend_growth",               weights: { t:.15, p:.35, s:.50 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",          archetype: "em_state_oil_dividend",            weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",    archetype: "cyclical_trade_bellwether",        weights: { t:.25, p:.35, s:.40 } },
+  { symbol: "MA",    name: "Mastercard",      sector: "Payment Networks",   archetype: "payments_network_quality_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
+  { symbol: "ISRG",  name: "Intuitive Surgical", sector: "Surgical Robotics", archetype: "surgical_robotics_moat_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
 ];
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
@@ -313,10 +339,10 @@ A layer whose bear_case/bull_case/falsifier could have been written on any day f
 
 // v8.0: static portfolio map — shared system-block context (also keeps the shared
 // prefix above the prompt-caching minimum length so cross-holding cache hits land).
-const PORTFOLIO_CONTEXT = `PORTFOLIO CONTEXT — 12 holdings, best-in-class name per fixed category. Category membership is an upstream decision: signals adjust weight WITHIN the book, never entry/exit on membership. Scores are ranked cross-sectionally across holdings each day, so calibration consistency matters more than absolute levels.
+const PORTFOLIO_CONTEXT = `PORTFOLIO CONTEXT — ${HOLDINGS.length} holdings, best-in-class name per fixed category. Category membership is an upstream decision: signals adjust weight WITHIN the book, never entry/exit on membership. Scores are ranked cross-sectionally across holdings each day, so calibration consistency matters more than absolute levels.
 ${HOLDINGS.map(hh => `• ${hh.symbol} — ${hh.name} (${hh.sector}) | ${hh.archetype} | weights t${Math.round(hh.weights.t*100)}/p${Math.round(hh.weights.p*100)}/s${Math.round(hh.weights.s*100)}`).join("\n")}`;
 
-const SHARED_SYSTEM_QUALITATIVE = `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for one holding in a 12-name portfolio.
+const SHARED_SYSTEM_QUALITATIVE = `You are a qualitative analyst providing the JUDGMENT half of a hybrid scoring system for one holding in a ${HOLDINGS.length}-name portfolio.
 
 ${PORTFOLIO_CONTEXT}
 
@@ -343,7 +369,7 @@ MANDATORY: Every string field must have substantive text. No empty strings.
 • risks/catalysts: at least 2 real items each.
 Record your analysis by calling the record_scores tool exactly once.`;
 
-const SHARED_SYSTEM_SEARCH = `You are a SKEPTICAL quantitative analyst scoring one holding in a 12-name portfolio. Pre-fetched API data for this holding was insufficient, so research it with web search before scoring.
+const SHARED_SYSTEM_SEARCH = `You are a SKEPTICAL quantitative analyst scoring one holding in a ${HOLDINGS.length}-name portfolio. Pre-fetched API data for this holding was insufficient, so research it with web search before scoring.
 
 ${PORTFOLIO_CONTEXT}
 
@@ -376,6 +402,8 @@ function buildPrompt(h, detScores) {
   const isLHX = h.archetype === "defense_prime_backlog_compounder";
   const isTMO = h.archetype === "life_sciences_quality_compounder";
   const isNOW = h.archetype === "ai_workflow_quality_compounder";  // ← V7.6
+  const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
+  const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -762,6 +790,125 @@ function buildPrompt(h, detScores) {
     nowEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
+  // ── MA-specific data lines (v8.3.0) ────────────────────────────────────
+  let maDrawdownLine = null;
+  if (isMA && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 25 ? "EXTREME (rare conviction buy)" : ddMag > 20 ? "DEEP (high-conviction setup)" : ddMag > 15 ? "MEANINGFUL (compounder buy interest)" : ddMag > 12 ? "SETUP territory" : ddMag > 8 ? "MILD" : ddMag < 2 ? "AT/NEAR HIGHS (normal compounder)" : "MODEST";
+    maDrawdownLine = `Mastercard drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal for payments-rails compounder`;
+  }
+  let maTwinValuationLine = null;
+  if (isMA && md.twin_valuation) {
+    const tv = md.twin_valuation;
+    const prem = tv.premium_pct;
+    const regime = prem == null ? "" : prem < 0 ? " — DISCOUNT TO V (BUY — rare)" : prem < 5 ? " — COMPRESSED (BUY)" : prem < 10 ? " — BELOW NORMAL PREMIUM" : prem <= 20 ? " — NORMAL faster-grower premium" : prem < 25 ? " — ABOVE NORMAL" : " — RICH (TRIM)";
+    maTwinValuationLine = `Mastercard P/E: ${tv.ma_pe ?? "—"}x | Visa: ${tv.v_pe ?? "—"}x | Twin premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${regime} (trailing — see your search for forward P/E; 10-20% is the BASELINE premium)`;
+  }
+  let maTwinRelativeLine = null;
+  if (isMA && md.twin_relative?.relative_spread_pp != null) {
+    const s = md.twin_relative.relative_spread_pp;
+    const dir = s > 0.5 ? "MA outperforming V today" : s < -0.5 ? "V outperforming MA today (twin-divergence watch)" : "INLINE";
+    maTwinRelativeLine = `Twin daily spread (MA − V): ${s >= 0 ? "+" : ""}${s.toFixed(2)}pp (${dir})`;
+  }
+  let maDuopolyRelativeLine = null;
+  if (isMA && md.duopoly_relative) {
+    const dr = md.duopoly_relative;
+    const ts = dr.twin_spread_pp;
+    const tsStatus = dr.twin_dislocation_active
+      ? (ts != null && ts < -8 ? "DISLOCATION ACTIVE/STRONG (twins rarely diverge — buy setup if no MA-specific break)" : "DISLOCATION ACTIVE (mild buy setup)")
+      : (ts != null && ts > 4 ? "MA LEADING TWIN" : "INLINE");
+    const fr = dr.disruption_fear_regime;
+    const frStr = fr == null ? "—" : fr === "acute" ? "ACUTE (networks sold on headlines — buy setup)" : fr === "elevated" ? "ELEVATED" : fr === "absent" ? "ABSENT (re-rating underway)" : "NEUTRAL";
+    maDuopolyRelativeLine = `MA 30d: ${dr.ma_30d_return_pct != null ? (dr.ma_30d_return_pct >= 0 ? "+" : "") + dr.ma_30d_return_pct + "%" : "—"} | V 30d: ${dr.v_30d_return_pct != null ? (dr.v_30d_return_pct >= 0 ? "+" : "") + dr.v_30d_return_pct + "%" : "—"} | Twin spread: ${ts != null ? (ts >= 0 ? "+" : "") + ts.toFixed(1) + "pp" : "—"} (${tsStatus}) | Duopoly vs SPY 30d: ${dr.duopoly_vs_spy_pp != null ? (dr.duopoly_vs_spy_pp >= 0 ? "+" : "") + dr.duopoly_vs_spy_pp.toFixed(1) + "pp" : "—"} — fear regime: ${frStr}`;
+  }
+  let maFactorFlowLine = null;
+  if (isMA && md.factor_flow?.qual_vs_spy_30d_pp != null) {
+    const q = md.factor_flow.qual_vs_spy_30d_pp;
+    const dir = q > 1 ? "QUALITY BID ACTIVE (Mastercard benefits)" : q < -1 ? "QUALITY UNDER PRESSURE" : "INLINE";
+    maFactorFlowLine = `QUAL vs SPY (30d): ${q >= 0 ? "+" : ""}${q.toFixed(1)}pp (${dir})`;
+  }
+  let maDxyLine = null;
+  if (isMA && macro.dxy != null) {
+    const dxy = macro.dxy;
+    const regime = dxy > 130 ? "VERY STRONG USD (FX HEADWIND)" : dxy > 125 ? "STRONG USD (HEADWIND)" : dxy > 120 ? "NORMAL" : dxy > 115 ? "MILD WEAKNESS (TAILWIND)" : "WEAK USD (TAILWIND)";
+    maDxyLine = `DXY: ${dxy} (${regime}) — Mastercard ~2/3 international revenue (heavier FX sensitivity than most US compounders)`;
+  }
+  let maFundamentalsLine = null;
+  if (isMA && md.fundamentals && (md.fundamentals.cross_border_growth_pct != null || md.fundamentals.gdv_growth_pct != null || md.fundamentals.switched_txn_growth_pct != null || md.fundamentals.vas_growth_pct != null || md.fundamentals.op_margin_pct != null || md.fundamentals.buyback_share_reduction_yoy_pct != null || md.fundamentals.rebates_incentives_trend != null || md.fundamentals.stablecoin_strategy_execution != null)) {
+    const f = md.fundamentals;
+    const cb = f.cross_border_growth_pct != null ? `Cross-border YoY: ${f.cross_border_growth_pct.toFixed(1)}%` : null;
+    const gdv = f.gdv_growth_pct != null ? `GDV YoY: ${f.gdv_growth_pct.toFixed(1)}%` : null;
+    const st = f.switched_txn_growth_pct != null ? `Switched txns YoY: ${f.switched_txn_growth_pct.toFixed(1)}%` : null;
+    const vas = f.vas_growth_pct != null ? `VAS YoY: ${f.vas_growth_pct.toFixed(1)}%${f.vas_share_of_revenue_pct != null ? ` (${f.vas_share_of_revenue_pct.toFixed(0)}% of rev)` : ""}` : null;
+    const reb = f.rebates_incentives_trend ? `Rebates: ${f.rebates_incentives_trend}` : null;
+    const om = f.op_margin_pct != null ? `Adj op margin: ${f.op_margin_pct.toFixed(1)}%` : null;
+    const bb = f.buyback_share_reduction_yoy_pct != null ? `Shares YoY: ${f.buyback_share_reduction_yoy_pct.toFixed(1)}%` : null;
+    const sc = f.stablecoin_strategy_execution ? `Stablecoin exec: ${f.stablecoin_strategy_execution}` : null;
+    const parts = [cb, gdv, st, vas, reb, om, bb, sc].filter(Boolean);
+    if (parts.length > 0) maFundamentalsLine = `Mastercard fundamentals: ${parts.join(" | ")}`;
+  }
+  let maEpsRevLine = null;
+  if (isMA && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 1 ? " (UPWARD)" : r90 < -1 ? " (DOWNWARD)" : " (STABLE)";
+    maEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
+  // ── ISRG-specific data lines (v8.3.0) ──────────────────────────────────
+  let isrgDrawdownLine = null;
+  if (isISRG && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 35 ? "EXTREME (rare category-king buy)" : ddMag > 25 ? "DEEP (high-conviction setup)" : ddMag > 20 ? "MEANINGFUL (moat compounder buy interest)" : ddMag > 15 ? "SETUP territory" : ddMag > 10 ? "MILD" : ddMag < 2 ? "AT/NEAR HIGHS (normal compounder)" : "MODEST";
+    isrgDrawdownLine = `ISRG drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal for surgical-robotics moat compounder (beta ~1.7 — ladder wider than the low-vol names)`;
+  }
+  let isrgCohortValuationLine = null;
+  if (isISRG && md.cohort_valuation) {
+    const cv = md.cohort_valuation;
+    const prem = cv.premium_pct;
+    const regime = prem == null ? "" : prem < 60 ? " — UNUSUAL DISCOUNT (BUY — below 60-120% baseline)" : prem < 90 ? " — BELOW MID-PREMIUM (BUY-leaning)" : prem <= 120 ? " — NORMAL category-king premium" : prem < 150 ? " — ABOVE NORMAL" : " — STRETCHED (TRIM)";
+    isrgCohortValuationLine = `ISRG P/E: ${cv.isrg_pe ?? "—"}x | MDT: ${cv.mdt_pe ?? "—"}x | SYK: ${cv.syk_pe ?? "—"}x | BSX: ${cv.bsx_pe ?? "—"}x | Cohort avg: ${cv.cohort_avg_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${regime} (trailing — 60-120% premium is the STRUCTURAL BASELINE; see your search for forward P/E + own-history percentile)`;
+  }
+  let isrgCohortRelativeLine = null;
+  if (isISRG && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const rp = cr.cohort_rotation_pp;
+    const status = cr.cohort_rotation_active
+      ? (rp != null && rp < -12 ? "FEAR ROTATION ACTIVE/STRONG (narrative selling — buy setup absent procedure evidence)" : "FEAR ROTATION ACTIVE (mild buy setup)")
+      : (rp != null && rp > 6 ? "ISRG LEADING COHORT (category-king leadership)" : "INLINE");
+    isrgCohortRelativeLine = `ISRG 30d: ${cr.isrg_30d_return_pct != null ? (cr.isrg_30d_return_pct >= 0 ? "+" : "") + cr.isrg_30d_return_pct + "%" : "—"} | Devices cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status})`;
+  }
+  let isrgFactorFlowLine = null;
+  if (isISRG && md.factor_flow?.ihi_vs_spy_30d_pp != null) {
+    const i = md.factor_flow.ihi_vs_spy_30d_pp;
+    const dir = i > 1 ? "DEVICES BID ACTIVE (ISRG benefits)" : i < -1 ? "DEVICES SECTOR UNDER PRESSURE" : "INLINE";
+    isrgFactorFlowLine = `IHI vs SPY (30d): ${i >= 0 ? "+" : ""}${i.toFixed(1)}pp (${dir})`;
+  }
+  let isrgFundamentalsLine = null;
+  if (isISRG && md.fundamentals && (md.fundamentals.procedure_growth_pct != null || md.fundamentals.dv_placements_qtr != null || md.fundamentals.recurring_revenue_pct != null || md.fundamentals.ia_revenue_growth_pct != null || md.fundamentals.op_margin_pct != null || md.fundamentals.moat_status != null || md.fundamentals.instrument_transition_status != null)) {
+    const f = md.fundamentals;
+    const pg = f.procedure_growth_pct != null ? `Procedures YoY: ${f.procedure_growth_pct.toFixed(1)}%${f.procedure_guide_low_pct != null && f.procedure_guide_high_pct != null ? ` (guide ${f.procedure_guide_low_pct}-${f.procedure_guide_high_pct}%)` : ""}` : null;
+    const dv = f.dv_placements_qtr != null ? `dV placements: ${f.dv_placements_qtr}/qtr${f.dv5_mix_pct != null ? ` (dV5 ${f.dv5_mix_pct.toFixed(0)}%)` : ""}` : null;
+    const ion = f.ion_procedure_growth_pct != null ? `Ion procedures YoY: ${f.ion_procedure_growth_pct.toFixed(1)}%` : null;
+    const rr = f.recurring_revenue_pct != null ? `Recurring: ${f.recurring_revenue_pct.toFixed(0)}% of rev` : null;
+    const ia = f.ia_revenue_growth_pct != null ? `I&A YoY: ${f.ia_revenue_growth_pct.toFixed(1)}%` : null;
+    const ib = f.installed_base_total != null ? `Installed base: ${f.installed_base_total}${f.installed_base_yoy_pct != null ? ` (+${f.installed_base_yoy_pct.toFixed(1)}% YoY)` : ""}` : null;
+    const om = f.op_margin_pct != null ? `Op margin: ${f.op_margin_pct.toFixed(1)}%` : null;
+    const ms = f.moat_status ? `Moat: ${f.moat_status}` : null;
+    const it = f.instrument_transition_status ? `2027 instrument transition: ${f.instrument_transition_status}` : null;
+    const parts = [pg, dv, ion, rr, ia, ib, om, ms, it].filter(Boolean);
+    if (parts.length > 0) isrgFundamentalsLine = `ISRG fundamentals: ${parts.join(" | ")}`;
+  }
+  let isrgEpsRevLine = null;
+  if (isISRG && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 1 ? " (UPWARD)" : r90 < -1 ? " (DOWNWARD)" : " (STABLE)";
+    isrgEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -779,6 +926,8 @@ function buildPrompt(h, detScores) {
     lhxDrawdownLine, lhxCohortValuationLine, lhxCohortRelativeLine, lhxFactorFlowLine, lhxFundamentalsLine, lhxEpsRevLine,
     tmoDrawdownLine, tmoPeerValuationLine, tmoPeerRelativeLine, tmoBiotechLine, tmoTacticalExtrasLine, tmoFactorFlowLine, tmoDxyLine, tmoFundamentalsLine, tmoEpsRevLine,
     nowDrawdownLine, nowCohortValuationLine, nowCohortRelativeLine, nowFactorFlowLine, nowRealRateLine, nowDxyLine, nowFundamentalsLine, nowEpsRevLine,   // ← V7.6
+    maDrawdownLine, maTwinValuationLine, maTwinRelativeLine, maDuopolyRelativeLine, maFactorFlowLine, maDxyLine, maFundamentalsLine, maEpsRevLine,        // ← v8.3.0
+    isrgDrawdownLine, isrgCohortValuationLine, isrgCohortRelativeLine, isrgFactorFlowLine, isrgFundamentalsLine, isrgEpsRevLine,                          // ← v8.3.0
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
@@ -1114,6 +1263,90 @@ YOUR VALUE-ADD: Forward PE + own-history PE percentile + EV/Sales (engine traili
 MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on cohort rotation extremes (engine flags), drawdown setups (engine flags), cRPO inflection (you flag), agentic-AI commercialization milestones (you flag), real-rate regime shifts (engine flags + you interpret), AI cycle phase pivots (you flag).
 ` : "";
 
+  const maGuidance = isMA ? `
+CRITICAL — MA-SPECIFIC SCORING GUIDANCE (V1):
+MA is MASTERCARD (the payments network) — payments-rails quality compounder. The twin comparison with VISA (V) throughout your data is INTENTIONAL: V is the duopoly twin and the ONLY valuation comparator (never PayPal/fintechs/AXP — a closed-loop lender is a different business). Your analysis subject is always Mastercard. Tollbooth on global electronic payments: ~58-60% adjusted op margins, ~2.3%/yr share retirement, beta ~0.83, ~2/3 international revenue, Value-Added Services ~38% of revenue growing ~20%+. The archetype thesis: disruption NARRATIVES (stablecoins, interchange caps) recur every few years, compress the multiple, volumes never notice, multiple re-rates — the narrative-vs-evidence GAP is the alpha.
+
+V8.2 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI tightened bands (40/65 — low-vol compounder)
+• Drawdown-from-52w-high primary tactical (>12% setup, >20% strong, >25% rare conviction)
+• Twin dislocation vs V 30d (MA lagging V >4pp = buy setup absent an MA-specific fundamental break)
+• Duopoly (MA+V avg) vs SPY 30d fear regime (acute <−8pp / elevated −8..−5 / neutral / absent >+3)
+• QUAL factor flow, compounder MA-trend + 52w (no penalty near highs)
+• Twin P/E premium vs V (TRAILING via Finnhub) — 10-20% is the BASELINE, <5% compressed = buy, >25% rich
+• Volume/VAS/rebates/buyback/margin fundamentals when sourced (they arrive null — YOU source them)
+• Disruption narrative-vs-evidence matrix + interchange regulation categoricals (deterministic thesis-break penalties on "material" evidence / "passed" regulation)
+• Composite weights regime-conditional on duopoly vs SPY 30d, engine V8.2: >+3pp fear_receding 25/40/35 · −5..+3 neutral 20/35/45 · <−5pp fear_regime 15/30/55
+
+IMPORTANT — TRAILING vs FORWARD P/E:
+Engine uses TRAILING P/E. YOUR primary valuation contribution is FORWARD P/E, own-history percentiles, and forward PEG:
+• Forward PE: <25x exceptional buy, 28-32x fair compounder zone, >34x stretched
+• PE % of 3Y avg (~35.7x trailing): <85% = own-history buy zone, >110% = trim zone
+• Forward PEG: <1.4 exceptional, 1.6-2.2 fair, >2.5 stretched
+If forward tells a different story than trailing, call it out clearly.
+
+WHAT DRIVES MA:
+1. CROSS-BORDER VOLUME GROWTH (THE operational metric — equivalent to cRPO for NOW, Azure CC for MSFT). Highest-yield volume, cleanest consumer/travel health read, and the number the disruption narrative must eventually answer to. >12% = thesis confirmation; <6% = a REAL warning (unlike headlines). Search latest quarterly disclosure.
+2. DISRUPTION NARRATIVE vs EVIDENCE: Categoricals. Narrative phase (peak/active/fading/resolved) vs fundamental evidence (none/anecdotal/measurable/material). Peak narrative + no evidence = maximum alpha (buy). Measurable real-economy merchant displacement = genuine thesis pressure. Assess stablecoin adoption AT REAL-ECONOMY MERCHANTS specifically — B2B/remittance pilots and crypto-native flows are not displacement.
+3. STABLECOIN STRATEGY EXECUTION: leading/active/reactive/absent. BVNK acquisition (Mar 2026), the V-MA-Coinbase settlement consortium (Jun 2026), Multi-Token Network progress. Owning the disruption = the historical playbook.
+4. INTERCHANGE/NETWORK-FEE REGULATION: dormant/proposed_stalled/advancing/passed. The genuine binary. "Advancing" through committee = real strategic caution; "passed" = thesis break (engine +30).
+5. VAS GROWTH: The ~38%-of-revenue compounding leg the disruption bears ignore. >20% = diversification thesis confirming.
+6. REBATES & INCENTIVES DISCIPLINE: outpacing gross revenue = issuer bargaining power rising = pricing pressure.
+7. EPS REVISIONS: 30d/90d cleanest positional factor.
+
+DO NOT PENALIZE: 52w proximity, RSI 55-65, trailing P/E 30-36x (normal own-history range), P/B (meaningless — massive buybacks shrink book equity), twin premium 10-20% (deserved faster-grower premium), the 0.7% dividend (irrelevant — buybacks are the return mechanism).
+
+BUY BIAS (in addition to engine signals): peak disruption narrative + volumes intact (you flag the gap), twin premium compressed <5% (engine flags — you confirm no MA-specific break), forward PE <28x with cross-border >10%, interchange proposal stalling/dying, stablecoin consortium wins, VAS acceleration, fear regime active with GDV/switched-txn growth steady.
+
+TRIM BIAS: measurable real-economy stablecoin displacement (you flag — the ONLY genuine disruption evidence), interchange legislation advancing to floor votes, cross-border <6% sustained (spend cycle rolling), rebates outpacing gross revenue for 2+ quarters, twin premium >25%, forward PE >34x with decelerating volumes, narrative resolved + full re-rating (edge gone; drift to neutral-mild-trim).
+
+YOUR VALUE-ADD: Forward PE + own-history percentile + forward PEG (engine trailing only), cross-border/GDV/switched-txn/VAS growth (engine null — earnings disclosure), rebates trend (engine null), buyback pace (engine null), stablecoin execution + disruption narrative-vs-evidence + regulation categoricals (engine consumes YOUR reads — set them carefully, they carry deterministic weight), litigation/regulatory developments, EPS revisions.
+
+MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on drawdown setups (engine flags), twin dislocation extremes (engine flags), fear-regime shifts (engine flags + you interpret), narrative-evidence gap extremes (you flag), regulation status changes (you flag), cross-border inflections (you flag).
+` : "";
+
+  const isrgGuidance = isISRG ? `
+CRITICAL — ISRG-SPECIFIC SCORING GUIDANCE (V1):
+ISRG is INTUITIVE SURGICAL (the da Vinci robotics company — NOT Intuit the software company). Surgical-robotics moat compounder: category king with ~60% robotic-surgery share, ~11,400-system installed base, ~86% RECURRING revenue (instruments/accessories/services — a razor-blade annuity attached to every procedure), non-GAAP op margins ~37%, no dividend, beta ~1.7. Mentions of Medtronic (Hugo), Johnson & Johnson (Ottava), Stryker, and Boston Scientific are CORRECT AND EXPECTED — they are the named competitors and cohort comparators in this archetype. The archetype thesis: two-decade moat (installed base + surgeon training + 40M-procedure data) being probed for the first time while a 2027 instrument-lifespan transition creates an unquantifiable-but-bounded revenue headwind — fear compresses the multiple to its deepest own-history discount in years while procedures/placements/EPS all beat.
+
+V8.2 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 38/68 (beta ~1.7 — wider than the low-vol compounders)
+• Drawdown-from-52w-high primary tactical (>15% setup, >25% strong, >35% extreme — ladder wider than MSFT/NOW)
+• Cohort fear rotation vs MDT/SYK/BSX avg 30d (ISRG lagging >6pp on headlines = buy setup absent procedure evidence)
+• IHI (devices ETF) factor flow vs SPY (>1pp/30d = devices bid active)
+• Compounder MA-trend + 52w (no penalty near highs)
+• Cohort P/E premium vs MDT/SYK/BSX (TRAILING) — 60-120% is the STRUCTURAL BASELINE, <60% unusual discount = buy, >150% stretched
+• Procedure/placement/recurring/I&A/margin fundamentals when sourced (they arrive null — YOU source them)
+• moat_status + instrument_transition_status categoricals (deterministic: "eroding" +18 / "breached" +35 / "quantified_material" +25 thesis-break penalties; "quantified_manageable" −8 relief catalyst)
+• Composite weights regime-conditional on IHI vs SPY 30d, engine V8.2: >+1pp bid_active 25/40/35 · ±1pp neutral 20/35/45 · <−1pp bid_absent 15/30/55
+
+IMPORTANT — TRAILING vs FORWARD P/E (ABSOLUTE PE IS NEVER THE SIGNAL):
+ISRG has commanded 50-80x trailing for a decade because ~86% recurring revenue growing high-teens deserves it. Engine uses TRAILING with own-history bands (3y avg ~72x). YOUR contribution:
+• Forward PE: <40x exceptional (rare), 45-55x fair franchise zone, >60x stretched
+• PE % of 3Y avg (~72x): <80% = own-history buy zone (deepest discounts cluster here), >105% = trim zone
+• Forward PEG: <2.0 exceptional, 2.2-3.0 fair for the quality, >3.5 stretched
+The own-history percentile is the single most useful valuation lens for this name.
+
+WHAT DRIVES ISRG:
+1. PROCEDURE GROWTH (THE operational metric). Total procedures YoY is the annuity heartbeat AND the cleanest competitive-erosion read. 2026 dV guide 13.5-15.5%. Beating guide with Hugo in market = moat holding = fear-evidence gap widens (buy). <12% = erosion tripwire — but ONLY treat as genuine erosion if paired with competitor procedure-share evidence; macro softness in elective procedures is cyclical, not structural.
+2. 2027 INSTRUMENT-LIFESPAN TRANSITION: unquantified_fear / quantified_manageable / quantified_material. Five of six force-feedback instrument lives extended → fewer replacement cycles → unquantified I&A headwind. Unquantified fear while fundamentals beat = the current alpha. Management quantifying it as manageable = relief re-rating catalyst. Quantified material (>mid-single-digit % of revenue) = thesis-level. Search every earnings call for quantification language.
+3. MOAT STATUS vs HUGO/OTTAVA: intact/probing/eroding/breached. "Probing" is the EXPECTED state with two entrants — score it neutral, not as deterioration. The evidence bar for "eroding" is measurable US procedure-share loss or existing-account displacement — Hugo placements in greenfield/international accounts are NOT erosion. Ottava's rollout pace (broad launch ~2027) sets the clock.
+4. EARNINGS WINDOW DISCIPLINE: Q2 2026 report lands JULY 16, 2026 (consensus ~$2.48 adj EPS / ~$2.81B rev). Within ±10 days of a report, procedure/guide/transition information is about to reset — HALVE the size of any tactical conviction and say so in the tactical rationale. Post-print, score the print (procedures vs guide, transition quantification, Hugo commentary), not the pre-print fear.
+5. DV5 UPGRADE CYCLE + ION: dV5 mix of placements (upgrade demand), Ion procedure growth (second leg, ~40%+), Ion international expansion.
+6. RECURRING MIX: <84% of revenue = annuity mix warning (engine flags when sourced).
+7. EPS REVISIONS: 30d/90d cleanest positional factor.
+
+DO NOT PENALIZE: trailing P/E 50-70x (NORMAL for this franchise — never apply generic-stock PE intuitions), 52w proximity, RSI 55-68, cohort premium 60-120% (the structural baseline), P/B ~9-10x (meaningless for an IP/installed-base moat), absence of dividend (reinvestment + buyback is the model), competitor PRODUCT LAUNCHES per se (launches are known; only procedure-share evidence matters).
+
+BUY BIAS (in addition to engine signals): procedures beating guide while the stock sits >20% off highs (the fear-evidence gap — you flag), management quantifying the 2027 transition as manageable (relief catalyst), Hugo/Ottava delays or weak US traction, forward PE <45x / PE <80% of 3y avg with procedures in guide, dV5 mix + Ion accelerating, fear rotation active (engine flags) without share-loss evidence (you confirm), post-earnings overreaction to a guide reaffirm.
+
+TRIM BIAS: measurable US procedure-share loss to Hugo/Ottava (you flag — the ONLY genuine moat evidence), procedures <12% without macro excuse, transition quantified as material, recurring <84% sustained, forward PE >60x with decelerating procedures, cohort premium >150%, I&A growth decoupling below procedure growth for 2+ quarters (transition arriving early).
+
+YOUR VALUE-ADD: Forward PE + own-history percentile + forward PEG (engine trailing only), procedure growth + guide trajectory (engine null — earnings disclosure), dV placements/dV5 mix/Ion (engine null), recurring % + I&A growth (engine null), moat_status + instrument_transition_status categoricals (engine consumes YOUR reads — set them carefully, they carry deterministic thesis-break weight), Hugo installed-base and procedure-share evidence, Ottava timeline, earnings-window discipline (Jul 16), EPS revisions.
+
+MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on drawdown setups (engine flags), fear-rotation extremes (engine flags), procedure prints vs guide (you flag), transition quantification events (you flag), moat-evidence changes (you flag), earnings-window resets (you flag).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
@@ -1126,7 +1359,7 @@ MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on cohort rotation
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}`;
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}`;
 
   const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
@@ -1162,6 +1395,8 @@ function buildSearchPrompt(h) {
   const isLHX = h.archetype === "defense_prime_backlog_compounder";
   const isTMO = h.archetype === "life_sciences_quality_compounder";
   const isNOW = h.archetype === "ai_workflow_quality_compounder";       // ← V7.6
+  const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
+  const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
@@ -1190,13 +1425,18 @@ function buildSearchPrompt(h) {
 
   const nowGuidance = isNOW ? `\nCRITICAL — NOW SCORING (V1): ServiceNow, AI workflow quality compounder. HYBRID: LIN/MSFT-like quality compounder + ASML-like secular agentic-AI workflow cycle + SPY-like long-duration rate sensitivity. Best-in-class non-GAAP op margins (~30%), gross margins ~80%+, FCF margin ~32%, durable 20%+ subscription revenue growth. Now Assist Pro Plus + AI Agent Studio drive agentic-AI monetization. Premium SaaS multiple math: forward PE 55-65x and EV/Sales 14-17x are the NORMAL compounder zone — do NOT score those levels as expensive. Do NOT penalize 52w proximity, RSI 50-65, trailing P/E 55-70x, cohort premium 0-20% vs CRM/WDAY/ADBE (deserved quality premium), EV/Sales 14-17x. Composite weights regime-conditional on real rate (fed funds − 10Y TIPS), engine V8.1: <0.5% accommodative 25/40/35, 0.5–2% neutral 20/35/45, >2% restrictive 15/30/55. PRIMARY SIGNALS: cRPO YoY growth (THE operational metric — acceleration confirms thesis, decel <18% = thesis air-pocket), drawdown from 52w high (>12% setup, >20% strong, >25% rare conviction), cohort PE compression vs CRM/WDAY/ADBE, cohort rotation pressure (NOW lagging cohort >5pp/30d = capital chasing higher-beta AI/SaaS = BUY setup, not warning), IGV (software ETF) vs SPY 30d (>1pp = software bid active), real rate overlay (Fed funds − TIPS 10Y; >2% restrictive = headwind, <0.5% accommodative = tailwind for long-duration cash flows). Engine has TRAILING P/E only; your forward PE + EV/Sales + PE-vs-3Y/5Y own-history + forward PEG are critical. Search for: NOW forward PE + PE % of 3y/5y avg, EV/Sales current + 3y avg + 5y avg, forward PEG, latest cRPO YoY growth (from earnings call disclosure), subscription revenue YoY growth, Now Assist Pro Plus revenue contribution + attach rate + ASP (CEO commentary at earnings / Knowledge conference / FY guidance), AI Agent Studio adoption / enterprise wins, $1M+ deals YoY growth, federal contract growth (FedRAMP High wins, DoD enterprise rollouts, civilian agency contracts), op + FCF margin trend (signals AI-cost absorption), EPS revisions 30d/60d/90d (FactSet/Refinitiv), CRM / WDAY / ADBE forward PE (enterprise SaaS quality cohort average), real rate trajectory (Fed funds − TIPS 10Y), Fed pivot expectations, agentic AI commercialization phase (early / mid / saturation), GenAI competitive landscape (CRM Agentforce displacement risk, MSFT Copilot Studio overlap), dividend (NOW does not pay one — buyback discipline only). Most days = NEUTRAL. Meaningful scores: cohort rotation extremes, drawdown setups, cRPO inflection, agentic-AI monetization milestones, real-rate regime shifts, AI cycle phase pivots.\n` : "";
 
+  const maGuidance = isMA ? `\nCRITICAL — MA SCORING (V1): MA is MASTERCARD (payments network — the twin comparison with Visa is INTENTIONAL; V is the duopoly twin and only comparator, and your analysis subject is always Mastercard). Payments-rails quality compounder: ~58-60% adjusted op margins, ~2.3%/yr share retirement, beta ~0.83, ~2/3 international revenue, VAS ~38% of revenue growing 20%+. Thesis: disruption narratives (stablecoins, interchange caps) recur, compress the multiple, volumes never notice, multiple re-rates — the narrative-vs-evidence gap is the alpha. Do NOT penalize 52w proximity, RSI 55-65, trailing P/E 30-36x (own-history norm), P/B (buybacks shrink book equity), twin premium 10-20% vs V (the deserved baseline), the 0.7% dividend. Composite weights regime-conditional on duopoly (MA+V) vs SPY 30d, engine V8.2: >+3pp fear_receding 25/40/35 · −5..+3 neutral 20/35/45 · <−5pp fear_regime 15/30/55. PRIMARY SIGNALS: cross-border volume growth (THE operational metric — >12% refutes disruption narrative, <6% is a REAL warning), twin P/E premium vs V (<5% compressed = buy, >25% rich), twin dislocation (MA lagging V >4pp/30d = buy setup absent MA-specific break), duopoly fear regime, disruption narrative-vs-evidence categoricals, interchange regulation status (passed = thesis break). Engine has TRAILING P/E only; your forward PE (<25x exceptional / 28-32x fair / >34x stretched) + PE % of 3y avg (~35.7x; <85% buy zone / >110% trim) + forward PEG (<1.4 exceptional / >2.5 stretched) are critical. Search for: MA forward P/E + PE vs 3y/5y/10y averages, latest cross-border volume growth + GDV + switched transactions (quarterly earnings), VAS net revenue growth + share of revenue, rebates/incentives vs gross revenue trend, adjusted op margin, share count YoY, stablecoin real-economy merchant adoption evidence (displacement vs pilots — BVNK integration, V-MA-Coinbase consortium, Multi-Token Network), interchange/network-fee legislation status (committee vs floor), Visa forward PE (twin comparator), EPS revisions 30d/90d, DXY direction (~2/3 international revenue). Most days = NEUTRAL. Meaningful scores: drawdown setups, twin dislocation extremes, fear-regime shifts, narrative-evidence gap extremes, regulation status changes, cross-border inflections.\n` : "";
+
+  const isrgGuidance = isISRG ? `\nCRITICAL — ISRG SCORING (V1): ISRG is INTUITIVE SURGICAL (da Vinci surgical robotics — NOT Intuit the software company). Medtronic (Hugo), J&J (Ottava), Stryker, Boston Scientific mentions are CORRECT — named competitors/cohort in this archetype. Surgical-robotics moat compounder: ~60% share category king, ~11,400-system installed base, ~86% RECURRING revenue (razor-blade annuity), non-GAAP op margin ~37%, no dividend, beta ~1.7. Thesis: two-decade moat probed for the first time while the 2027 instrument-lifespan transition (five of six force-feedback instrument lives extended → I&A headwind, unquantified) compresses the multiple to its deepest own-history discount in years while procedures/placements/EPS beat. ABSOLUTE PE IS NEVER THE SIGNAL: 50-70x trailing is NORMAL for this franchise. Do NOT penalize trailing P/E 50-70x, 52w proximity, RSI 55-68, cohort premium 60-120% vs MDT/SYK/BSX (structural baseline), P/B ~9-10x, no dividend, competitor product launches per se (only procedure-share evidence matters). Composite weights regime-conditional on IHI vs SPY 30d, engine V8.2: >+1pp bid_active 25/40/35 · ±1pp neutral 20/35/45 · <−1pp bid_absent 15/30/55. EARNINGS WINDOW: Q2 report JULY 16, 2026 (consensus ~$2.48 / ~$2.81B) — within ±10 days of a report, HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: total procedure growth (THE operational metric — 2026 dV guide 13.5-15.5%; beating guide with Hugo in market = moat holding; <12% = erosion tripwire ONLY with competitor share evidence), cohort P/E premium (<60% unusual discount = buy, >150% stretched), fear rotation vs cohort (lagging >6pp on headlines = buy setup absent procedure evidence), moat_status (intact/probing/eroding/breached — probing is the EXPECTED state, score neutral), instrument_transition_status (unquantified_fear = current alpha / quantified_manageable = relief catalyst / quantified_material = thesis-level). Engine has TRAILING P/E only; your forward PE (<40x exceptional / 45-55x fair / >60x stretched) + PE % of 3y avg (~72x; <80% buy zone / >105% trim) + forward PEG (<2.0 exceptional / >3.5 stretched) are critical. Search for: ISRG forward P/E + PE vs 3y/5y/10y averages, latest total procedure growth vs guide, dV placements + dV5 mix, Ion procedure growth + installed base, recurring revenue % + I&A growth, installed base total/YoY, non-GAAP op margin, 2027 instrument transition quantification language (every earnings call), Hugo US procedure-share/installed-base evidence, Ottava rollout timeline, MDT/SYK/BSX forward PE (cohort), EPS revisions 30d/90d, elective-procedure macro trends. Most days = NEUTRAL. Meaningful scores: drawdown setups, fear-rotation extremes, procedure prints vs guide, transition quantification events, moat-evidence changes, earnings-window resets.\n` : "";
+
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
 
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}`;
+${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}`;
 
   const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
@@ -1613,13 +1853,13 @@ ${accuracySection}
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><thead><tr style="border-bottom:2px solid #1a2332;"><th style="padding:10px 10px;text-align:center;font-size:9px;color:#445566;">#</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">HOLDING</th><th style="padding:10px 8px;text-align:right;font-size:9px;color:#445566;">PRICE</th><th style="padding:10px 8px;text-align:center;font-size:9px;color:#445566;">COMP</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">TAC</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">POS</th><th style="padding:10px 6px;text-align:center;font-size:9px;color:#445566;">STR</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">ROLE</th><th style="padding:10px 8px;text-align:left;font-size:9px;color:#445566;">KEY METRIC</th></tr></thead><tbody>${rankingRows}</tbody></table>
 <div style="margin-bottom:12px;"><h2 style="font-size:13px;color:#667788;letter-spacing:0.1em;margin:0 0 12px;">RATIONALE</h2></div>
 <table style="width:100%;border-collapse:collapse;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;margin-bottom:28px;"><tbody>${rationaleRows}</tbody></table>
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v7.6 — ${HOLDINGS.length} holdings. NOW added (ai_workflow_quality_compounder: LIN/MSFT-like quality + ASML-like agentic-AI workflow cycle + SPY-like long-duration rate sensitivity, premium-SaaS multiple math, cRPO as THE positional metric). ETHA retired. MSFT, LHX, TMO, and LIN v3 (regime-conditional weights, BBB OAS, ASU util, EPS revisions, AI.PA peer triangulation, H2 layer) retained.</p></div>
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #141e2e;font-size:10px;color:#334455;line-height:1.6;"><p>Hybrid scoring: 50% deterministic (RSI, 52w, MAs, valuation) + 50% LLM qualitative judgment. Z-score normalized across portfolio.</p><p>Portfolio Strategy Hub v8.3 — ${HOLDINGS.length} holdings. MA added (payments_network_quality_compounder: twin valuation vs V, duopoly fear-regime weight gate, cross-border volume as THE positional metric, disruption narrative-vs-evidence matrix). ISRG added (surgical_robotics_moat_compounder: cohort premium vs MDT/SYK/BSX with 60-120% structural baseline, IHI factor weight gate, procedure growth as THE positional metric, moat + 2027 instrument-transition monitors). All prior archetypes retained.</p></div>
 </div></body></html>`;
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Portfolio Strategy Signal Generator v8.0");
+  console.log("Portfolio Strategy Signal Generator v8.3.0");
   console.log("========================================");
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Holdings: ${HOLDINGS.length}`);
