@@ -1,5 +1,15 @@
 #!/usr/bin/env node
-// risk-language-diff.mjs v1.0 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+// risk-language-diff.mjs v1.1 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+//
+// v1.1 (July 2026): HOLDINGS ADD — MA (Mastercard, CIK 1141391) + ISRG
+// (Intuitive Surgical, CIK 1035267), 12 → 14, generate-signals v8.3.0 sync.
+// Both are plain US filers (10-K/10-Q Item 1A — MSFT/NOW class). CIKs verified
+// against EDGAR at build time. Because the comparison is stateless (latest vs
+// prior same-form filing pulled fresh from EDGAR each run), both names produce
+// a MEANINGFUL diff on their very first run — years of prior 10-Qs exist; no
+// baseline-only warm-up period applies. The Sunday 14:00 UTC workflow is
+// symbol-agnostic and unchanged. Weekly load rises ~6 EDGAR requests, still
+// far inside fair-access limits.
 //
 // THE SIGNAL: management's risk-factor language is legal-reviewed, slow-moving,
 // and asymmetric — companies add risk language faster than they remove it, and
@@ -20,7 +30,7 @@
 // nothing. If no prior same-form filing exists in the lookback, the holding
 // reports status "no_prior_same_form" rather than shipping a misleading diff.
 //
-// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, ENB, IBIT — the trust files
+// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, ENB, MA, ISRG, IBIT — the trust files
 // 10-K/10-Q) via 10-K/10-Q Item 1A; foreign private issuers (ASML, PBR.A/PBR,
 // KOF) via 20-F Item 3.D / Risk Factors. GLNCY (Glencore — LSE, OTC ADR) and
 // AMKBY (Maersk — Copenhagen, OTC ADR) are not SEC reporting companies: they
@@ -66,6 +76,8 @@ const HOLDINGS = [
   { symbol: "PBR.A", edgarTicker: "PBR" },   // same registrant as the preferreds
   { symbol: "KOF",   edgarTicker: "KOF" },
   { symbol: "IBIT",  edgarTicker: "IBIT" },  // iShares Bitcoin Trust files 10-K/10-Q
+  { symbol: "MA",    edgarTicker: "MA" },    // Mastercard — 10-K/10-Q Item 1A (v1.1)
+  { symbol: "ISRG",  edgarTicker: "ISRG" },  // Intuitive Surgical — 10-K/10-Q Item 1A (v1.1)
   { symbol: "GLNCY", edgarTicker: null },    // Glencore — LSE listing, no SEC reporting
   { symbol: "AMKBY", edgarTicker: null },    // Maersk — Copenhagen listing, no SEC reporting
 ];
@@ -75,6 +87,7 @@ const HOLDINGS = [
 const FALLBACK_CIK = {
   MSFT: 789019, ASML: 937966, LIN: 1707925, TMO: 97745, NOW: 1373715,
   LHX: 202058, ENB: 895728, PBR: 1119639, KOF: 910631, IBIT: 1980994,
+  MA: 1141391, ISRG: 1035267,   // v1.1 — verified against EDGAR filing indexes
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
