@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.3 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.4 — Forward-looking signal accuracy tracker.
 //
 // v1.3 (June 2026) — CSV PARSE HARDENING:
 //   The naive split(",") parser accepted rows WIDER than the header and read
@@ -53,6 +53,24 @@
 // pp vs cohort 30d, IGV-vs-SPY factor flow, and cRPO YoY growth (NOW's
 // signature operational metric). Same forward-compatibility pattern as v1.1:
 // if those CSV columns aren't present yet, all checks no-op cleanly.
+//
+// v1.4 — MA + ISRG v8.3 context propagation (12 → 14 holdings sync with
+// log-signals V8.3.0, which appends the columns and migrates the header
+// 115 → 155; this script's EXACT-width contract is DYNAMIC against the
+// on-disk header, so no width constant changes here — the contract simply
+// follows the migrated header). Yesterday-snapshot additionally propagates:
+//   • MA: twin_premium_pct (vs V), twin_spread_30d_pp, duopoly_vs_spy_pp
+//     (the V8.2 MA weight-gate driver), disruption_fear_regime, and
+//     cross_border_growth_pct (MA's signature operational metric).
+//   • ISRG: cohort_rotation_pp, ihi_vs_spy_30d_pp (the V8.2 ISRG weight-gate
+//     driver), procedure_growth_pct (ISRG's signature operational metric),
+//     moat_status, and instrument_transition_status. ISRG's cohort P/E
+//     premium needs nothing new — it reuses the shared cohort_premium_pct
+//     column the v1.2 block already propagates (as MSFT/LHX rows do).
+// Same forward-compatibility pattern: blanks/absent columns no-op; fields
+// only attach when populated, so other holdings and pre-v8.3 history stay
+// clean. Aggregation logic remains symbol-agnostic — MA/ISRG stats simply
+// accumulate from their first logged date forward (no other changes).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -376,6 +394,12 @@ function aggregateStats(forwardReturns) {
 // Same forward-compatibility pattern: helpers coerce blanks to null and
 // fields only attach when populated, so non-NOW holdings stay clean and
 // pre-v4 CSV history is a no-op.
+//
+// v1.4: Also propagates MA + ISRG v8.3 context (MA: twin_premium_pct,
+// twin_spread_30d_pp, duopoly_vs_spy_pp, disruption_fear_regime,
+// cross_border_growth_pct; ISRG: cohort_rotation_pp, ihi_vs_spy_30d_pp,
+// procedure_growth_pct, moat_status, instrument_transition_status) when the
+// CSV row carries those columns. Added by log-signals V8.3.0. Same pattern.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -436,6 +460,35 @@ function getYesterdaySnapshot(rows, tradingDates) {
     if (rotationPressure != null) holding.rotation_pressure_pp = rotationPressure;
     if (igvVsSpy != null) holding.igv_vs_spy_30d_pp = igvVsSpy;
     if (crpoGrowth != null) holding.crpo_growth_pct = crpoGrowth;
+
+    // v1.4: MA + ISRG v8.3 context — only attached when CSV cells are
+    // populated (MA-only / ISRG-only in current builds). Pre-v8.3 CSV history
+    // leaves these columns undefined, helpers no-op, other holdings stay
+    // clean. ISRG's cohort premium arrives via the shared cohort_premium_pct
+    // read above — nothing ISRG-specific needed for it.
+    const twinPremium = numOrNull(row.twin_premium_pct);
+    const twinSpread30d = numOrNull(row.twin_spread_30d_pp);
+    const duopolyVsSpy = numOrNull(row.duopoly_vs_spy_pp);
+    const fearRegime = strOrNull(row.disruption_fear_regime);
+    const crossBorder = numOrNull(row.cross_border_growth_pct);
+
+    if (twinPremium != null) holding.twin_premium_pct = twinPremium;
+    if (twinSpread30d != null) holding.twin_spread_30d_pp = twinSpread30d;
+    if (duopolyVsSpy != null) holding.duopoly_vs_spy_pp = duopolyVsSpy;
+    if (fearRegime != null) holding.disruption_fear_regime = fearRegime;
+    if (crossBorder != null) holding.cross_border_growth_pct = crossBorder;
+
+    const cohortRotation = numOrNull(row.cohort_rotation_pp);
+    const ihiVsSpy = numOrNull(row.ihi_vs_spy_30d_pp);
+    const procedureGrowth = numOrNull(row.procedure_growth_pct);
+    const moatStatus = strOrNull(row.moat_status);
+    const transitionStatus = strOrNull(row.instrument_transition_status);
+
+    if (cohortRotation != null) holding.cohort_rotation_pp = cohortRotation;
+    if (ihiVsSpy != null) holding.ihi_vs_spy_30d_pp = ihiVsSpy;
+    if (procedureGrowth != null) holding.procedure_growth_pct = procedureGrowth;
+    if (moatStatus != null) holding.moat_status = moatStatus;
+    if (transitionStatus != null) holding.instrument_transition_status = transitionStatus;
 
     snapshot.holdings[row.symbol] = holding;
   }
