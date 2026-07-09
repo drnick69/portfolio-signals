@@ -1,5 +1,14 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.14 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.15 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.15 (July 2026): ALPACA FEED FALLBACK — keys without a SIP data
+// entitlement return 403 on every feed=sip bars request (observed in prod
+// 2026-07-08: all Stage 2b/2c/3c–3i calls failed). All bars calls now route
+// through alpacaBarsFetch(): try feed=sip first (better closes when
+// entitled), and on 403 retry the identical URL with feed=iex (free tier).
+// One extra request on the failure path only; the downgrade is logged once
+// per run. Self-healing: restoring the SIP entitlement silently restores
+// sip-quality data with no code change.
 // No npm dependencies beyond xlsx (for GSCPI parsing). Direct fetch() calls only.
 // v4.1: RSP/SPY breadth data fetch for SPY positional layer
 // v4.2: GSCPI (NY Fed Global Supply Chain Pressure Index) for AMKBY strategic layer
@@ -309,6 +318,21 @@ async function fetchTechnicals(quotes) {
 const ALPACA_KEY    = process.env.ALPK;
 const ALPACA_SECRET = process.env.ALPS;
 
+// v4.15: sip → iex fallback (see header). All Alpaca bars calls go through here.
+let alpacaIexNoticeShown = false;
+async function alpacaBarsFetch(url) {
+  const headers = { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET };
+  let resp = await fetch(url, { headers });
+  if (resp.status === 403 && url.includes("feed=sip")) {
+    if (!alpacaIexNoticeShown) {
+      console.log("    [ALPACA] 403 on feed=sip — retrying with feed=iex (key has no SIP entitlement).");
+      alpacaIexNoticeShown = true;
+    }
+    resp = await fetch(url.replace("feed=sip", "feed=iex"), { headers });
+  }
+  return resp;
+}
+
 function computeRSI(closes, period = 14) {
   if (closes.length < period + 1) return null;
   let gains = 0, losses = 0;
@@ -349,14 +373,8 @@ async function fillTechnicalsFromAlpaca(technicals, quotes) {
 
   for (const sym of gaps) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`,
-        {
-          headers: {
-            "APCA-API-KEY-ID": ALPACA_KEY,
-            "APCA-API-SECRET-KEY": ALPACA_SECRET,
-          },
-        }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`
       );
 
       if (!resp.ok) {
@@ -423,9 +441,8 @@ async function fix52WeekFromAlpaca(quotes) {
 
   for (const sym of suspects) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(sym.finnhub)}/bars?timeframe=1Day&start=${start}&end=${end}&limit=300&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym.symbol}: Alpaca ${resp.status}`); continue; }
 
@@ -475,9 +492,8 @@ async function fetchLINHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -540,9 +556,8 @@ async function fetchMSFTHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -617,9 +632,8 @@ async function fetchLHXHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -707,9 +721,8 @@ async function fetchTMOHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=150&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=150&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -780,9 +793,8 @@ async function fetchNOWHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -869,9 +881,8 @@ async function fetchMAHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
@@ -956,9 +967,8 @@ async function fetchISRGHistoricalReturns() {
 
   for (const sym of symbols) {
     try {
-      const resp = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`,
-        { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } }
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
       );
       if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
       const data = await resp.json();
