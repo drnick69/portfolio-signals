@@ -1,5 +1,20 @@
 #!/usr/bin/env node
-// benchmark-scorecard.mjs v1.0 — Signal-following P&L vs equal-weight and SPY.
+// benchmark-scorecard.mjs v1.1 — Signal-following P&L vs equal-weight and SPY.
+//
+// v1.1 (July 2026, first prod run feedback):
+//   • RETIREMENT DEBOUNCE — the point-in-time membership convention read
+//     1–2-day daily-log gaps (partial runs) as retirements, producing phantom
+//     liquidate/re-add churn in the events log (observed: −MSFT/−TMO 6/29,
+//     ±LHX 7/2–7/6). A held symbol is now treated as retired only after
+//     RETIREMENT_DEBOUNCE_DAYS (3) consecutive absent trading days; through
+//     shorter gaps it stays held at carry-forward prices and simply receives
+//     no flow (it has no price those days anyway). Genuine swaps (ETHA→NOW
+//     class) are permanent, so they still liquidate — on the 3rd absent day,
+//     at the last known price. Adds remain immediate. Gap-days held-through
+//     are counted in data_quality.absences_debounced.
+//   • SPY FEED FALLBACK — same sip→iex retry as fetch-market-data v4.15:
+//     keys without a SIP entitlement 403 on feed=sip; retry the identical
+//     request on feed=iex before disabling the SPY leg.
 //
 // THE QUESTION THIS ANSWERS: is the signal tilt worth anything? The paper
 // portfolio and the equal-weight benchmark receive IDENTICAL cashflows on
@@ -107,7 +122,12 @@ async function fetchSpyCloses(startDate, endDate) {
   }
   try {
     const url = `https://data.alpaca.markets/v2/stocks/SPY/bars?timeframe=1Day&start=${startDate}&end=${endDate}&limit=10000&adjustment=split&feed=sip`;
-    const resp = await fetch(url, { headers: { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET } });
+    const headers = { "APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET };
+    let resp = await fetch(url, { headers });
+    if (resp.status === 403) {
+      console.log("  [SPY] 403 on feed=sip — retrying with feed=iex (key has no SIP entitlement).");
+      resp = await fetch(url.replace("feed=sip", "feed=iex"), { headers });
+    }
     if (!resp.ok) { console.log(`  [SPY] Alpaca ${resp.status} — SPY leg disabled this run.`); return null; }
     const data = await resp.json();
     const closes = {};
@@ -121,63 +141,84 @@ async function fetchSpyCloses(startDate, endDate) {
 }
 
 // ─── SIMULATE ────────────────────────────────────────────────────────────────
+const RETIREMENT_DEBOUNCE_DAYS = 3;
+
 function simulate(spyCloses) {
   // Equal-weight state
   const ewShares = {};       // symbol → shares
   const lastPrice = {};      // symbol → last known price (valuation carry-forward)
-  let lastMembers = [];      // carried membership for missing-log dates
+  const absentStreak = {};   // held symbol → consecutive trading days absent from the log
+  let lastRawMembers = [];   // carried raw membership for missing-log dates
+  let prevConfirmed = [];    // yesterday's confirmed membership (for events)
   // SPY state
   let spyShares = 0;
   let lastSpyClose = null;
 
   const series = [];
-  const events = [];         // membership changes (adds/retirements) as they occur
-  const dq = { dates: paperHistory.length, dates_missing_log: 0, dates_missing_spy: 0, members_skipped_no_price: 0 };
+  const events = [];         // CONFIRMED membership changes only (debounced)
+  const dq = { dates: paperHistory.length, dates_missing_log: 0, dates_missing_spy: 0, members_skipped_no_price: 0, absences_debounced: 0 };
 
   for (let i = 0; i < paperHistory.length; i++) {
     const snap = paperHistory[i];
     const date = snap.date;
     const F = flows[i];
 
-    // Membership + prices for this date
+    // Raw membership + prices for this date
     const entry = logByDate[date];
-    let members, priceOf = {};
+    let rawMembers, priceOf = {};
     if (entry) {
-      members = entry.holdings.map(h => h.symbol);
+      rawMembers = entry.holdings.map(h => h.symbol);
       for (const h of entry.holdings) if (h.price != null && h.price > 0) priceOf[h.symbol] = h.price;
     } else {
       dq.dates_missing_log++;
-      members = lastMembers;   // carry forward
+      rawMembers = lastRawMembers;   // carry forward
     }
     for (const [sym, p] of Object.entries(priceOf)) lastPrice[sym] = p;
 
-    // Membership events (point-in-time convention made visible)
-    if (lastMembers.length > 0) {
-      const added = members.filter(m => !lastMembers.includes(m));
-      const removed = lastMembers.filter(m => !members.includes(m));
-      if (added.length || removed.length) events.push({ date, added, removed, members_after: members.length });
-    } else if (members.length > 0) {
-      events.push({ date, added: members.slice(), removed: [], members_after: members.length, note: "inception" });
-    }
-
-    // Retirements: liquidate at last known price into today's deposit pool.
+    // Debounce: update absence streaks for held symbols; liquidate only on
+    // the RETIREMENT_DEBOUNCE_DAYS-th consecutive absent day.
     let pool = F;
+    const liquidatedToday = [];
     for (const sym of Object.keys(ewShares)) {
-      if (!members.includes(sym) && ewShares[sym] > 0) {
-        const px = lastPrice[sym];
-        if (px != null) {
-          pool += ewShares[sym] * px;
-          events[events.length - 1] && events[events.length - 1].removed?.includes(sym)
-            ? (events[events.length - 1].liquidated = events[events.length - 1].liquidated || []).push({ symbol: sym, proceeds: +(ewShares[sym] * px).toFixed(2) })
-            : null;
+      if (rawMembers.includes(sym)) {
+        absentStreak[sym] = 0;
+      } else {
+        absentStreak[sym] = (absentStreak[sym] || 0) + 1;
+        if (absentStreak[sym] >= RETIREMENT_DEBOUNCE_DAYS) {
+          const px = lastPrice[sym];
+          if (px != null && ewShares[sym] > 0) {
+            const proceeds = ewShares[sym] * px;
+            pool += proceeds;
+            liquidatedToday.push({ symbol: sym, proceeds: +proceeds.toFixed(2), absent_days: absentStreak[sym] });
+          }
+          delete ewShares[sym];
+          delete absentStreak[sym];
+        } else {
+          dq.absences_debounced++;   // held through a short gap
         }
-        delete ewShares[sym];
       }
     }
 
-    // Equal split of the pool across members WITH a price today.
-    const buyable = members.filter(m => priceOf[m] != null);
-    dq.members_skipped_no_price += members.length - buyable.length;
+    // Confirmed membership = raw members ∪ held symbols inside the debounce window.
+    const heldPending = Object.keys(ewShares).filter(s => !rawMembers.includes(s));
+    const confirmed = [...rawMembers, ...heldPending];
+
+    // Events: adds are immediate (new confirmed member); removals only on liquidation.
+    if (prevConfirmed.length === 0 && confirmed.length > 0) {
+      events.push({ date, added: confirmed.slice(), removed: [], members_after: confirmed.length, note: "inception" });
+    } else {
+      const added = confirmed.filter(m => !prevConfirmed.includes(m));
+      const removed = liquidatedToday.map(l => l.symbol);
+      if (added.length || removed.length) {
+        const e = { date, added, removed, members_after: confirmed.length };
+        if (liquidatedToday.length) e.liquidated = liquidatedToday;
+        events.push(e);
+      }
+    }
+
+    // Equal split of the pool across raw members WITH a price today.
+    const buyable = rawMembers.filter(m => priceOf[m] != null);
+    dq.members_skipped_no_price += rawMembers.length - buyable.length;
     if (buyable.length > 0 && pool > 0) {
       const per = pool / buyable.length;
       for (const sym of buyable) ewShares[sym] = (ewShares[sym] || 0) + per / priceOf[sym];
@@ -211,10 +252,11 @@ function simulate(spyCloses) {
       signal: snap.total_value,
       ew: +ewValue.toFixed(2),
       spy: spyValue,
-      members: members.length,
+      members: confirmed.length,
     });
 
-    lastMembers = members;
+    lastRawMembers = rawMembers;
+    prevConfirmed = confirmed;
   }
 
   return { series, events, dq };
@@ -247,7 +289,7 @@ function windowTwr(series, key, days) {
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Benchmark Scorecard v1.0");
+  console.log("Benchmark Scorecard v1.1");
   console.log("========================");
   const first = paperHistory[0].date, last = paperHistory[paperHistory.length - 1].date;
   console.log(`Span: ${first} → ${last} (${paperHistory.length} trading days)`);
@@ -277,7 +319,7 @@ async function main() {
 
   const out = {
     generated: new Date().toISOString(),
-    version: "1.0",
+    version: "1.1",
     membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add)",
     days: series.length,
     date_range: { first, last },
@@ -291,7 +333,7 @@ async function main() {
     notes: [
       "Price-return only on all three legs (no dividend reinvestment anywhere) — income names and SPY are understated symmetrically.",
       "TWR flow convention: deposits before trading, r_t = V_t/(V_{t-1}+F_t)−1; flows identical across legs by construction.",
-      "Retired symbols liquidate at last known price into the same day's equal-split pool.",
+      "Retired symbols liquidate at last known price into the same day's equal-split pool — but only after 3 consecutive absent trading days (v1.1 debounce); shorter daily-log gaps are held through at carry-forward prices.",
       "SPY leg null = Alpaca keys absent or fetch failed this run; EW comparison unaffected.",
     ],
     series,
@@ -316,8 +358,8 @@ async function main() {
       console.log(`  ${e.date}: ${e.note ?? ""}${e.added?.length ? " +" + e.added.join(",+") : ""}${e.removed?.length ? " −" + e.removed.join(",−") : ""} → ${e.members_after} members`);
     }
   }
-  if (dq.dates_missing_log > 0 || dq.members_skipped_no_price > 0) {
-    console.log(`\n⚠ data quality: ${dq.dates_missing_log} dates missing log entries, ${dq.members_skipped_no_price} member-days skipped for missing prices, ${dq.dates_missing_spy} SPY gaps.`);
+  if (dq.dates_missing_log > 0 || dq.members_skipped_no_price > 0 || dq.absences_debounced > 0) {
+    console.log(`\n⚠ data quality: ${dq.dates_missing_log} dates missing log entries, ${dq.members_skipped_no_price} member-days skipped for missing prices, ${dq.absences_debounced} gap-days debounced (held through), ${dq.dates_missing_spy} SPY gaps.`);
   }
   console.log(`\n✓ Scorecard → ${OUTPUT_PATH}`);
 }
