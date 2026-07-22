@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-07-21T23:24:41.932Z",
-  "signal_count": 1109,
+  "generated_at": "2026-07-22T23:27:30.431Z",
+  "signal_count": 1123,
   "date_range": {
     "start": "2026-03-07",
-    "end": "2026-07-21"
+    "end": "2026-07-22"
   },
   "rolling_window_days": 20,
   "neutral_band": 5,
   "per_ticker": {
     "AMKBY": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -44,7 +44,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 47,
+              "n": 48,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -75,7 +75,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -104,7 +104,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 58,
+              "n": 59,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -135,7 +135,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -157,7 +157,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 63,
+              "n": 64,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -196,7 +196,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -1074,21 +1074,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
     "ASML": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
-          "n_scored": 60,
+          "n_total": 66,
+          "n_scored": 61,
           "n_conviction": 14,
           "hit_rate": 0.6428571428571429,
-          "mean_return": 0.01479690792348191,
+          "mean_return": 0.01434207542869986,
           "buckets": [
             {
               "label": "≤-60",
@@ -1113,9 +1122,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 63,
-              "n_with_return": 58,
-              "mean_return": 0.01402111985573327,
+              "n": 64,
+              "n_with_return": 59,
+              "mean_return": 0.013564018260581465,
               "hit_rate": 0.5833333333333334
             },
             {
@@ -1440,12 +1449,17 @@
               "date": "2026-07-14",
               "score": 0,
               "return_": 0.0143120154493195
+            },
+            {
+              "date": "2026-07-15",
+              "score": 0,
+              "return_": -0.012947874258223177
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 45,
           "n_conviction": 21,
           "hit_rate": 0.7619047619047619,
@@ -1474,7 +1488,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 65,
+              "n": 66,
               "n_with_return": 45,
               "mean_return": 0.09470119318557847,
               "hit_rate": 0.7619047619047619
@@ -1731,11 +1745,11 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
-          "n_scored": 4,
-          "n_conviction": 4,
+          "n_total": 66,
+          "n_scored": 5,
+          "n_conviction": 5,
           "hit_rate": 0,
-          "mean_return": 0.2305803475533792,
+          "mean_return": 0.23173845288261305,
           "buckets": [
             {
               "label": "≤-60",
@@ -1767,9 +1781,9 @@
             },
             {
               "label": "+10 to +30",
-              "n": 31,
-              "n_with_return": 3,
-              "mean_return": 0.2240477612078576,
+              "n": 32,
+              "n_with_return": 4,
+              "mean_return": 0.22712853945578032,
               "hit_rate": 0
             },
             {
@@ -1807,13 +1821,18 @@
               "date": "2026-04-23",
               "score": 12,
               "return_": 0.27042388598588224
+            },
+            {
+              "date": "2026-04-24",
+              "score": 12,
+              "return_": 0.23637087419954844
             }
           ]
         }
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 45,
         "hit_rate": 0.3333333333333333,
         "mean_return": 0.09470119318557847
@@ -2150,7 +2169,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 1,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-27",
@@ -2159,7 +2178,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 1,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-28",
@@ -2168,7 +2187,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 2,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-29",
@@ -2177,7 +2196,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 3,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-30",
@@ -2186,7 +2205,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 4,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-01",
@@ -2195,7 +2214,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 5,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-04",
@@ -2204,7 +2223,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-06",
@@ -2213,7 +2232,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-07",
@@ -2222,7 +2241,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-08",
@@ -2231,7 +2250,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-09",
@@ -2240,7 +2259,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-11",
@@ -2249,7 +2268,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-12",
@@ -2258,7 +2277,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-13",
@@ -2267,7 +2286,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-14",
@@ -2276,7 +2295,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-15",
@@ -2285,7 +2304,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 3,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-18",
@@ -2294,7 +2313,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 3,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-19",
@@ -2303,7 +2322,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 9,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-20",
@@ -2312,7 +2331,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 9,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-21",
@@ -2321,7 +2340,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-22",
@@ -2330,7 +2349,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-25",
@@ -2339,7 +2358,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-26",
@@ -2348,7 +2367,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-27",
@@ -2357,7 +2376,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-28",
@@ -2366,7 +2385,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-29",
@@ -2375,7 +2394,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-01",
@@ -2384,7 +2403,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-02",
@@ -2393,7 +2412,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-03",
@@ -2402,7 +2421,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-04",
@@ -2411,7 +2430,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-05",
@@ -2420,7 +2439,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-08",
@@ -2429,7 +2448,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 13,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-09",
@@ -2438,7 +2457,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 6,
           "pos_n_in_window": 14,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-10",
@@ -2447,7 +2466,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 6,
           "pos_n_in_window": 14,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-11",
@@ -2456,7 +2475,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 6,
           "pos_n_in_window": 15,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-12",
@@ -2465,7 +2484,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 7,
           "pos_n_in_window": 16,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-15",
@@ -2474,7 +2493,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 7,
           "pos_n_in_window": 17,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-17",
@@ -2483,7 +2502,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 8,
           "pos_n_in_window": 18,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-18",
@@ -2492,7 +2511,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 9,
           "pos_n_in_window": 19,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-19",
@@ -2501,7 +2520,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-22",
@@ -2510,7 +2529,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-24",
@@ -2519,7 +2538,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-25",
@@ -2528,7 +2547,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-26",
@@ -2537,7 +2556,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-29",
@@ -2546,7 +2565,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-30",
@@ -2555,7 +2574,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-01",
@@ -2564,7 +2583,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 11,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-02",
@@ -2573,7 +2592,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 11,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-03",
@@ -2582,7 +2601,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 12,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-06",
@@ -2591,7 +2610,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 13,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-07",
@@ -2600,7 +2619,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-08",
@@ -2609,7 +2628,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-09",
@@ -2618,7 +2637,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-10",
@@ -2627,7 +2646,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-13",
@@ -2636,7 +2655,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-14",
@@ -2645,7 +2664,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-15",
@@ -2654,7 +2673,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-16",
@@ -2663,7 +2682,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-17",
@@ -2672,7 +2691,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-20",
@@ -2681,7 +2700,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-21",
@@ -2690,22 +2709,31 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.6428571428571429,
+          "pos_hit_rate": 0.75,
+          "str_hit_rate": 0,
+          "tac_n_in_window": 14,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 5
         }
       ]
     },
     "ENB": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
-          "n_scored": 60,
+          "n_total": 66,
+          "n_scored": 61,
           "n_conviction": 3,
           "hit_rate": 0.6666666666666666,
-          "mean_return": 0.007201831415321474,
+          "mean_return": 0.00711296440687796,
           "buckets": [
             {
               "label": "≤-60",
@@ -2730,9 +2758,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 64,
-              "n_with_return": 59,
-              "mean_return": 0.006484404706586957,
+              "n": 65,
+              "n_with_return": 60,
+              "mean_return": 0.006406013693148294,
               "hit_rate": 0.5
             },
             {
@@ -3057,12 +3085,17 @@
               "date": "2026-07-14",
               "score": 0,
               "return_": -0.008138079055625082
+            },
+            {
+              "date": "2026-07-15",
+              "score": 0,
+              "return_": 0.001780943900267167
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 45,
           "n_conviction": 42,
           "hit_rate": 0.38095238095238093,
@@ -3098,7 +3131,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 52,
+              "n": 53,
               "n_with_return": 32,
               "mean_return": 0.0005933786075321327,
               "hit_rate": 0.4375
@@ -3348,11 +3381,11 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
-          "n_scored": 4,
+          "n_total": 66,
+          "n_scored": 5,
           "n_conviction": 1,
           "hit_rate": 0,
-          "mean_return": 0.07283564170810777,
+          "mean_return": 0.06933793175297778,
           "buckets": [
             {
               "label": "≤-60",
@@ -3378,13 +3411,13 @@
             {
               "label": "-10 to +10",
               "n": 22,
-              "n_with_return": 3,
-              "mean_return": 0.07838581386875408,
+              "n_with_return": 4,
+              "mean_return": 0.07262613338468002,
               "hit_rate": null
             },
             {
               "label": "+10 to +30",
-              "n": 43,
+              "n": 44,
               "n_with_return": 1,
               "mean_return": 0.05618512522616885,
               "hit_rate": 0
@@ -3424,13 +3457,18 @@
               "date": "2026-04-23",
               "score": 10,
               "return_": 0.05618512522616885
+            },
+            {
+              "date": "2026-04-24",
+              "score": 0,
+              "return_": 0.05534709193245784
             }
           ]
         }
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 45,
         "hit_rate": 0.3888888888888889,
         "mean_return": 0.010702955271621318
@@ -4308,6 +4346,15 @@
           "tac_n_in_window": 3,
           "pos_n_in_window": 20,
           "str_n_in_window": 1
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.6666666666666666,
+          "pos_hit_rate": 0.55,
+          "str_hit_rate": 0,
+          "tac_n_in_window": 3,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 1
         }
       ]
     },
@@ -4651,10 +4698,10 @@
         "strategic": {
           "native_horizon": "60d",
           "n_total": 21,
-          "n_scored": 4,
-          "n_conviction": 4,
+          "n_scored": 5,
+          "n_conviction": 5,
           "hit_rate": 0,
-          "mean_return": -0.19731277093376856,
+          "mean_return": -0.19214408265286362,
           "buckets": [
             {
               "label": "≤-60",
@@ -4680,8 +4727,8 @@
             {
               "label": "-10 to +10",
               "n": 6,
-              "n_with_return": 3,
-              "mean_return": -0.19674344880262842,
+              "n_with_return": 4,
+              "mean_return": -0.1904249189842823,
               "hit_rate": 0
             },
             {
@@ -4726,6 +4773,11 @@
               "date": "2026-04-23",
               "score": -8,
               "return_": -0.169908466819222
+            },
+            {
+              "date": "2026-04-24",
+              "score": -10,
+              "return_": -0.1714693295292439
             }
           ]
         }
@@ -5069,7 +5121,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 5,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-27",
@@ -5078,7 +5130,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-28",
@@ -5087,7 +5139,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-29",
@@ -5096,7 +5148,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-30",
@@ -5105,7 +5157,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 9,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-01",
@@ -5114,7 +5166,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-04",
@@ -5123,7 +5175,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-06",
@@ -5132,7 +5184,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-07",
@@ -5141,7 +5193,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 13,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-08",
@@ -5150,7 +5202,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 14,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-09",
@@ -5159,7 +5211,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 15,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-11",
@@ -5168,7 +5220,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 16,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-12",
@@ -5177,7 +5229,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 17,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-13",
@@ -5186,7 +5238,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 18,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-14",
@@ -5195,7 +5247,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 19,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-15",
@@ -5204,7 +5256,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-18",
@@ -5213,7 +5265,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         }
       ]
     },
@@ -5657,17 +5709,17 @@
       ]
     },
     "IBIT": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
-          "n_scored": 60,
+          "n_total": 66,
+          "n_scored": 61,
           "n_conviction": 32,
           "hit_rate": 0.5,
-          "mean_return": -0.011449833688011392,
+          "mean_return": -0.011019282183289448,
           "buckets": [
             {
               "label": "≤-60",
@@ -5692,9 +5744,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 51,
-              "n_with_return": 46,
-              "mean_return": -0.018710967338531365,
+              "n": 52,
+              "n_with_return": 47,
+              "mean_return": -0.017997674244093948,
               "hit_rate": 0.3888888888888889
             },
             {
@@ -6019,12 +6071,17 @@
               "date": "2026-07-14",
               "score": -2,
               "return_": 0.028985507246376874
+            },
+            {
+              "date": "2026-07-15",
+              "score": 0,
+              "return_": 0.014813808100027227
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 45,
           "n_conviction": 45,
           "hit_rate": 0.2222222222222222,
@@ -6032,7 +6089,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 48,
+              "n": 49,
               "n_with_return": 28,
               "mean_return": -0.06290024370503919,
               "hit_rate": 0.32142857142857145
@@ -6310,11 +6367,11 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
-          "n_scored": 4,
-          "n_conviction": 4,
+          "n_total": 66,
+          "n_scored": 5,
+          "n_conviction": 5,
           "hit_rate": 0,
-          "mean_return": -0.15730806237775347,
+          "mean_return": -0.15619973855379882,
           "buckets": [
             {
               "label": "≤-60",
@@ -6339,9 +6396,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 48,
-              "n_with_return": 1,
-              "mean_return": -0.1753130590339892,
+              "n": 49,
+              "n_with_return": 2,
+              "mean_return": -0.1635397511459847,
               "hit_rate": 0
             },
             {
@@ -6386,13 +6443,18 @@
               "date": "2026-04-23",
               "score": -13,
               "return_": -0.14593735814798
+            },
+            {
+              "date": "2026-04-24",
+              "score": -6,
+              "return_": -0.15176644325798022
             }
           ]
         }
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 45,
         "hit_rate": 0.2222222222222222,
         "mean_return": -0.09538318995345361
@@ -6729,7 +6791,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 5,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-27",
@@ -6738,7 +6800,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-28",
@@ -6747,7 +6809,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-29",
@@ -6756,7 +6818,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-30",
@@ -6765,7 +6827,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 9,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-01",
@@ -6774,7 +6836,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-04",
@@ -6783,7 +6845,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-06",
@@ -6792,7 +6854,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-07",
@@ -6801,7 +6863,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 13,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-08",
@@ -6810,7 +6872,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 14,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-09",
@@ -6819,7 +6881,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 15,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-11",
@@ -6828,7 +6890,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 16,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-12",
@@ -6837,7 +6899,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 17,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-13",
@@ -6846,7 +6908,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 18,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-14",
@@ -6855,7 +6917,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 19,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-15",
@@ -6864,7 +6926,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 3,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-18",
@@ -6873,7 +6935,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-19",
@@ -6882,7 +6944,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-20",
@@ -6891,7 +6953,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-21",
@@ -6900,7 +6962,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-22",
@@ -6909,7 +6971,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-25",
@@ -6918,7 +6980,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-26",
@@ -6927,7 +6989,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-27",
@@ -6936,7 +6998,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 6,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-28",
@@ -6945,7 +7007,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 7,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-29",
@@ -6954,7 +7016,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 8,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-01",
@@ -6963,7 +7025,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 9,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-02",
@@ -6972,7 +7034,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-03",
@@ -6981,7 +7043,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 11,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-04",
@@ -6990,7 +7052,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 12,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-05",
@@ -6999,7 +7061,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 13,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-08",
@@ -7008,7 +7070,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-09",
@@ -7017,7 +7079,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 15,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-10",
@@ -7026,7 +7088,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 16,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-11",
@@ -7035,7 +7097,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 17,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-12",
@@ -7044,7 +7106,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 18,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-15",
@@ -7053,7 +7115,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 18,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-17",
@@ -7062,7 +7124,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 19,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-18",
@@ -7071,7 +7133,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-19",
@@ -7080,7 +7142,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-22",
@@ -7089,7 +7151,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-24",
@@ -7098,7 +7160,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-25",
@@ -7107,7 +7169,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-26",
@@ -7116,7 +7178,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-29",
@@ -7125,7 +7187,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-06-30",
@@ -7134,7 +7196,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-01",
@@ -7143,7 +7205,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-02",
@@ -7152,7 +7214,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-03",
@@ -7161,7 +7223,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-06",
@@ -7170,7 +7232,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-07",
@@ -7179,7 +7241,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-08",
@@ -7188,7 +7250,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-09",
@@ -7197,7 +7259,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-10",
@@ -7206,7 +7268,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-13",
@@ -7215,7 +7277,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-14",
@@ -7224,7 +7286,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-15",
@@ -7233,7 +7295,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-16",
@@ -7242,7 +7304,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-17",
@@ -7251,7 +7313,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-20",
@@ -7260,7 +7322,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-07-21",
@@ -7269,22 +7331,31 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.7,
+          "pos_hit_rate": 0.4,
+          "str_hit_rate": 0,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 5
         }
       ]
     },
     "KOF": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
-          "n_scored": 60,
+          "n_total": 66,
+          "n_scored": 61,
           "n_conviction": 2,
           "hit_rate": 1,
-          "mean_return": 0.000713176716444534,
+          "mean_return": 0.0012432040912159028,
           "buckets": [
             {
               "label": "≤-60",
@@ -7309,9 +7380,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 65,
-              "n_with_return": 60,
-              "mean_return": 0.000713176716444534,
+              "n": 66,
+              "n_with_return": 61,
+              "mean_return": 0.0012432040912159028,
               "hit_rate": 1
             },
             {
@@ -7636,12 +7707,17 @@
               "date": "2026-07-14",
               "score": 0,
               "return_": 0.006007751937984402
+            },
+            {
+              "date": "2026-07-15",
+              "score": 0,
+              "return_": 0.033044846577498024
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 45,
           "n_conviction": 0,
           "hit_rate": null,
@@ -7670,7 +7746,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 65,
+              "n": 66,
               "n_with_return": 45,
               "mean_return": 0.006063419967039827,
               "hit_rate": null
@@ -7927,11 +8003,11 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
-          "n_scored": 4,
-          "n_conviction": 2,
+          "n_total": 66,
+          "n_scored": 5,
+          "n_conviction": 3,
           "hit_rate": 1,
-          "mean_return": 0.013998640071451747,
+          "mean_return": 0.01611502598615088,
           "buckets": [
             {
               "label": "≤-60",
@@ -7949,7 +8025,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 10,
+              "n": 11,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -7957,8 +8033,8 @@
             {
               "label": "-10 to +10",
               "n": 55,
-              "n_with_return": 4,
-              "mean_return": 0.013998640071451747,
+              "n_with_return": 5,
+              "mean_return": 0.01611502598615088,
               "hit_rate": 1
             },
             {
@@ -8003,13 +8079,18 @@
               "date": "2026-04-23",
               "score": -7,
               "return_": 0.021347761928184824
+            },
+            {
+              "date": "2026-04-24",
+              "score": -8,
+              "return_": 0.02458056964494743
             }
           ]
         }
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 45,
         "hit_rate": 0.4444444444444444,
         "mean_return": 0.006063419967039827
@@ -8346,7 +8427,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-04-27",
@@ -8355,7 +8436,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-04-28",
@@ -8364,7 +8445,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-04-29",
@@ -8373,7 +8454,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-04-30",
@@ -8382,7 +8463,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-01",
@@ -8391,7 +8472,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-04",
@@ -8400,7 +8481,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-06",
@@ -8409,7 +8490,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-07",
@@ -8418,7 +8499,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-08",
@@ -8427,7 +8508,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-09",
@@ -8436,7 +8517,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-11",
@@ -8445,7 +8526,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-12",
@@ -8454,7 +8535,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-13",
@@ -8463,7 +8544,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-14",
@@ -8472,7 +8553,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-15",
@@ -8481,7 +8562,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-18",
@@ -8490,7 +8571,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-19",
@@ -8499,7 +8580,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-20",
@@ -8508,7 +8589,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-21",
@@ -8517,7 +8598,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-22",
@@ -8526,7 +8607,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-25",
@@ -8535,7 +8616,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-26",
@@ -8544,7 +8625,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-27",
@@ -8553,7 +8634,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 1,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-28",
@@ -8562,7 +8643,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-05-29",
@@ -8571,7 +8652,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-01",
@@ -8580,7 +8661,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-02",
@@ -8589,7 +8670,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-03",
@@ -8598,7 +8679,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-04",
@@ -8607,7 +8688,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-05",
@@ -8616,7 +8697,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-08",
@@ -8625,7 +8706,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-09",
@@ -8634,7 +8715,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-10",
@@ -8643,7 +8724,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-11",
@@ -8652,7 +8733,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-12",
@@ -8661,7 +8742,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-15",
@@ -8670,7 +8751,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-17",
@@ -8679,7 +8760,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-18",
@@ -8688,7 +8769,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-19",
@@ -8697,7 +8778,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-22",
@@ -8706,7 +8787,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-24",
@@ -8715,7 +8796,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-25",
@@ -8724,7 +8805,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-26",
@@ -8733,7 +8814,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-29",
@@ -8742,7 +8823,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-06-30",
@@ -8751,7 +8832,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-01",
@@ -8760,7 +8841,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-02",
@@ -8769,7 +8850,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-03",
@@ -8778,7 +8859,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-06",
@@ -8787,7 +8868,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-07",
@@ -8796,7 +8877,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-08",
@@ -8805,7 +8886,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-09",
@@ -8814,7 +8895,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-10",
@@ -8823,7 +8904,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-13",
@@ -8832,7 +8913,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-14",
@@ -8841,7 +8922,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-15",
@@ -8850,7 +8931,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-16",
@@ -8859,7 +8940,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-17",
@@ -8868,7 +8949,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-20",
@@ -8877,7 +8958,7 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
         },
         {
           "date": "2026-07-21",
@@ -8886,7 +8967,16 @@
           "str_hit_rate": 1,
           "tac_n_in_window": 2,
           "pos_n_in_window": 0,
-          "str_n_in_window": 2
+          "str_n_in_window": 3
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 1,
+          "pos_hit_rate": null,
+          "str_hit_rate": 1,
+          "tac_n_in_window": 2,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 3
         }
       ]
     },
@@ -9180,10 +9270,10 @@
         "strategic": {
           "native_horizon": "60d",
           "n_total": 16,
-          "n_scored": 4,
-          "n_conviction": 4,
+          "n_scored": 5,
+          "n_conviction": 5,
           "hit_rate": 0,
-          "mean_return": -0.08224295465098021,
+          "mean_return": -0.07579436372078416,
           "buckets": [
             {
               "label": "≤-60",
@@ -9202,8 +9292,8 @@
             {
               "label": "-30 to -10",
               "n": 10,
-              "n_with_return": 2,
-              "mean_return": -0.0858993501678508,
+              "n_with_return": 3,
+              "mean_return": -0.07393290011190053,
               "hit_rate": 0
             },
             {
@@ -9255,6 +9345,11 @@
               "date": "2026-04-23",
               "score": -10,
               "return_": -0.09551255660765749
+            },
+            {
+              "date": "2026-04-24",
+              "score": -15,
+              "return_": -0.04999999999999997
             }
           ]
         }
@@ -9598,7 +9693,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 5,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-27",
@@ -9607,7 +9702,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 0,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-28",
@@ -9616,7 +9711,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 1,
           "pos_n_in_window": 7,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-29",
@@ -9625,7 +9720,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 2,
           "pos_n_in_window": 8,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-30",
@@ -9634,7 +9729,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 3,
           "pos_n_in_window": 9,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-01",
@@ -9643,7 +9738,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 4,
           "pos_n_in_window": 10,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-04",
@@ -9652,7 +9747,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 11,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-06",
@@ -9661,7 +9756,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 5,
           "pos_n_in_window": 12,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-07",
@@ -9670,7 +9765,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 6,
           "pos_n_in_window": 13,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-08",
@@ -9679,7 +9774,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 7,
           "pos_n_in_window": 14,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-09",
@@ -9688,7 +9783,7 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 8,
           "pos_n_in_window": 15,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-05-11",
@@ -9697,22 +9792,22 @@
           "str_hit_rate": 0,
           "tac_n_in_window": 9,
           "pos_n_in_window": 16,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         }
       ]
     },
     "PBR.A": {
-      "n": 97,
-      "data_through": "2026-07-21",
+      "n": 98,
+      "data_through": "2026-07-22",
       "data_from": "2026-03-07",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
-          "n_scored": 60,
+          "n_total": 66,
+          "n_scored": 61,
           "n_conviction": 33,
           "hit_rate": 0.42424242424242425,
-          "mean_return": -0.011844490769464776,
+          "mean_return": -0.010861384363407976,
           "buckets": [
             {
               "label": "≤-60",
@@ -9737,9 +9832,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 45,
-              "n_with_return": 40,
-              "mean_return": -0.020693065719449056,
+              "n": 46,
+              "n_with_return": 41,
+              "mean_return": -0.019014576311657615,
               "hit_rate": 0.38461538461538464
             },
             {
@@ -10064,12 +10159,17 @@
               "date": "2026-07-14",
               "score": 0,
               "return_": 0.026504521359526082
+            },
+            {
+              "date": "2026-07-15",
+              "score": 0,
+              "return_": 0.04812499999999997
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 45,
           "n_conviction": 35,
           "hit_rate": 0.17142857142857143,
@@ -10098,7 +10198,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 31,
+              "n": 32,
               "n_with_return": 23,
               "mean_return": -0.12192815678160232,
               "hit_rate": 0.07692307692307693
@@ -10355,11 +10455,11 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
-          "n_scored": 4,
-          "n_conviction": 3,
-          "hit_rate": 0,
-          "mean_return": -0.15228723117232995,
+          "n_total": 66,
+          "n_scored": 5,
+          "n_conviction": 4,
+          "hit_rate": 0.25,
+          "mean_return": -0.14408733660718034,
           "buckets": [
             {
               "label": "≤-60",
@@ -10384,7 +10484,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 30,
+              "n": 31,
               "n_with_return": 3,
               "mean_return": -0.1535583499611063,
               "hit_rate": 0
@@ -10392,9 +10492,9 @@
             {
               "label": "+10 to +30",
               "n": 9,
-              "n_with_return": 0,
-              "mean_return": null,
-              "hit_rate": null
+              "n_with_return": 1,
+              "mean_return": -0.11128775834658194,
+              "hit_rate": 1
             },
             {
               "label": "+30 to +60",
@@ -10431,13 +10531,18 @@
               "date": "2026-04-23",
               "score": -12,
               "return_": -0.1484738748060009
+            },
+            {
+              "date": "2026-04-24",
+              "score": 12,
+              "return_": -0.11128775834658194
             }
           ]
         }
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 45,
         "hit_rate": 0.16216216216216217,
         "mean_return": -0.09121604742066454
@@ -10771,550 +10876,559 @@
           "date": "2026-04-24",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 1,
           "pos_n_in_window": 1,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-04-27",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 1,
           "pos_n_in_window": 1,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-04-28",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 1,
           "pos_n_in_window": 2,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-04-29",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 1,
           "pos_n_in_window": 2,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-04-30",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0.3333333333333333,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 1,
           "pos_n_in_window": 3,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-01",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0.3333333333333333,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 2,
           "pos_n_in_window": 3,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-04",
           "tac_hit_rate": 1,
           "pos_hit_rate": 0.3333333333333333,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 3,
           "pos_n_in_window": 3,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-06",
           "tac_hit_rate": 0.75,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 4,
           "pos_n_in_window": 4,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-07",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.2,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 5,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-08",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.2,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 5,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-09",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.16666666666666666,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 6,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-11",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.16666666666666666,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 6,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-12",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.14285714285714285,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 7,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-13",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.125,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 8,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-14",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.1111111111111111,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 9,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-15",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.1,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 10,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-18",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.09090909090909091,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 11,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-19",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.08333333333333333,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 12,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-20",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.07692307692307693,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 13,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-21",
           "tac_hit_rate": 0.6,
           "pos_hit_rate": 0.07142857142857142,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 5,
           "pos_n_in_window": 14,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-22",
           "tac_hit_rate": 0.6666666666666666,
           "pos_hit_rate": 0.06666666666666667,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 6,
           "pos_n_in_window": 15,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-25",
           "tac_hit_rate": 0.6666666666666666,
           "pos_hit_rate": 0.0625,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 6,
           "pos_n_in_window": 16,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-26",
           "tac_hit_rate": 0.6666666666666666,
           "pos_hit_rate": 0.058823529411764705,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 6,
           "pos_n_in_window": 17,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-27",
           "tac_hit_rate": 0.5714285714285714,
           "pos_hit_rate": 0.05555555555555555,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 7,
           "pos_n_in_window": 18,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-28",
           "tac_hit_rate": 0.5,
           "pos_hit_rate": 0.05263157894736842,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 8,
           "pos_n_in_window": 19,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-05-29",
           "tac_hit_rate": 0.4444444444444444,
           "pos_hit_rate": 0.05,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 9,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-01",
           "tac_hit_rate": 0.4,
           "pos_hit_rate": 0.05,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 10,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-02",
           "tac_hit_rate": 0.36363636363636365,
           "pos_hit_rate": 0.05,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 11,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-03",
           "tac_hit_rate": 0.3333333333333333,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 12,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-04",
           "tac_hit_rate": 0.38461538461538464,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 13,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-05",
           "tac_hit_rate": 0.42857142857142855,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 14,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-08",
           "tac_hit_rate": 0.4,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 15,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-09",
           "tac_hit_rate": 0.375,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 16,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-10",
           "tac_hit_rate": 0.35294117647058826,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 17,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-11",
           "tac_hit_rate": 0.35294117647058826,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 17,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-12",
           "tac_hit_rate": 0.3333333333333333,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 18,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-15",
           "tac_hit_rate": 0.3157894736842105,
           "pos_hit_rate": 0.05,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 19,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-17",
           "tac_hit_rate": 0.3,
           "pos_hit_rate": 0.1,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-18",
           "tac_hit_rate": 0.25,
           "pos_hit_rate": 0.15,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-19",
           "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.2,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-22",
           "tac_hit_rate": 0.15,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-24",
           "tac_hit_rate": 0.15,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-25",
           "tac_hit_rate": 0.15,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-26",
           "tac_hit_rate": 0.15,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-29",
           "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-06-30",
           "tac_hit_rate": 0.25,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-01",
           "tac_hit_rate": 0.3,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-02",
           "tac_hit_rate": 0.35,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-03",
           "tac_hit_rate": 0.4,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-06",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-07",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-08",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-09",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-10",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-13",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-14",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-15",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-16",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-17",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-20",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
         },
         {
           "date": "2026-07-21",
           "tac_hit_rate": 0.45,
           "pos_hit_rate": 0.25,
-          "str_hit_rate": 0,
+          "str_hit_rate": 0.25,
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
-          "str_n_in_window": 3
+          "str_n_in_window": 4
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.45,
+          "pos_hit_rate": 0.25,
+          "str_hit_rate": 0.25,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 4
         }
       ]
     },
@@ -11508,10 +11622,10 @@
         "strategic": {
           "native_horizon": "60d",
           "n_total": 6,
-          "n_scored": 4,
-          "n_conviction": 4,
-          "hit_rate": 0.25,
-          "mean_return": 0.21254907865756117,
+          "n_scored": 5,
+          "n_conviction": 5,
+          "hit_rate": 0.4,
+          "mean_return": 0.2018140042576973,
           "buckets": [
             {
               "label": "≤-60",
@@ -11537,9 +11651,9 @@
             {
               "label": "-10 to +10",
               "n": 1,
-              "n_with_return": 0,
-              "mean_return": null,
-              "hit_rate": null
+              "n_with_return": 1,
+              "mean_return": 0.1588737066582418,
+              "hit_rate": 1
             },
             {
               "label": "+10 to +30",
@@ -11583,6 +11697,11 @@
               "date": "2026-04-23",
               "score": 26,
               "return_": 0.2115133284928949
+            },
+            {
+              "date": "2026-04-24",
+              "score": -10,
+              "return_": 0.1588737066582418
             }
           ]
         }
@@ -11923,19 +12042,19 @@
           "date": "2026-04-24",
           "tac_hit_rate": 0,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0.25,
+          "str_hit_rate": 0.4,
           "tac_n_in_window": 5,
           "pos_n_in_window": 5,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         },
         {
           "date": "2026-04-27",
           "tac_hit_rate": 0,
           "pos_hit_rate": 0,
-          "str_hit_rate": 0.25,
+          "str_hit_rate": 0.4,
           "tac_n_in_window": 6,
           "pos_n_in_window": 6,
-          "str_n_in_window": 4
+          "str_n_in_window": 5
         }
       ]
     },
@@ -12229,10 +12348,10 @@
         "strategic": {
           "native_horizon": "60d",
           "n_total": 16,
-          "n_scored": 4,
+          "n_scored": 5,
           "n_conviction": 1,
           "hit_rate": 1,
-          "mean_return": 0.054599930440141324,
+          "mean_return": 0.05306969462173222,
           "buckets": [
             {
               "label": "≤-60",
@@ -12258,8 +12377,8 @@
             {
               "label": "-10 to +10",
               "n": 16,
-              "n_with_return": 4,
-              "mean_return": 0.054599930440141324,
+              "n_with_return": 5,
+              "mean_return": 0.05306969462173222,
               "hit_rate": 1
             },
             {
@@ -12304,6 +12423,11 @@
               "date": "2026-04-23",
               "score": -1,
               "return_": 0.05610451574653097
+            },
+            {
+              "date": "2026-04-24",
+              "score": 4,
+              "return_": 0.046948751348095834
             }
           ]
         }
@@ -12751,13 +12875,13 @@
       ]
     },
     "GLNCY": {
-      "n": 70,
-      "data_through": "2026-07-21",
+      "n": 71,
+      "data_through": "2026-07-22",
       "data_from": "2026-04-13",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -12786,7 +12910,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 56,
+              "n": 57,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -12817,7 +12941,7 @@
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -12846,7 +12970,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 41,
+              "n": 42,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -12877,7 +13001,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 65,
+          "n_total": 66,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -12899,7 +13023,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 49,
+              "n": 50,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -12938,7 +13062,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 65,
+        "n_total": 66,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -13573,21 +13697,30 @@
           "tac_n_in_window": 0,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": null,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 0,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     },
     "LIN": {
-      "n": 59,
-      "data_through": "2026-07-21",
+      "n": 60,
+      "data_through": "2026-07-22",
       "data_from": "2026-04-28",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 59,
-          "n_scored": 54,
+          "n_total": 60,
+          "n_scored": 55,
           "n_conviction": 2,
           "hit_rate": 0.5,
-          "mean_return": 0.0011415845724838264,
+          "mean_return": 0.0009208378611455406,
           "buckets": [
             {
               "label": "≤-60",
@@ -13612,9 +13745,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 59,
-              "n_with_return": 54,
-              "mean_return": 0.0011415845724838264,
+              "n": 60,
+              "n_with_return": 55,
+              "mean_return": 0.0009208378611455406,
               "hit_rate": 0.5
             },
             {
@@ -13909,12 +14042,17 @@
               "date": "2026-07-14",
               "score": -3,
               "return_": -0.034039377762470624
+            },
+            {
+              "date": "2026-07-15",
+              "score": -4,
+              "return_": -0.010999484551121888
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 59,
+          "n_total": 60,
           "n_scored": 39,
           "n_conviction": 19,
           "hit_rate": 0.8947368421052632,
@@ -13936,7 +14074,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 1,
+              "n": 2,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -14170,7 +14308,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 59,
+          "n_total": 60,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -14199,7 +14337,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 18,
+              "n": 19,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -14231,7 +14369,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 59,
+        "n_total": 60,
         "n_scored": 39,
         "hit_rate": 0.5,
         "mean_return": 0.016786628714253484
@@ -14767,21 +14905,30 @@
           "tac_n_in_window": 2,
           "pos_n_in_window": 19,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.5,
+          "pos_hit_rate": 0.8947368421052632,
+          "str_hit_rate": null,
+          "tac_n_in_window": 2,
+          "pos_n_in_window": 19,
+          "str_n_in_window": 0
         }
       ]
     },
     "MSFT": {
-      "n": 42,
-      "data_through": "2026-07-21",
+      "n": 43,
+      "data_through": "2026-07-22",
       "data_from": "2026-05-08",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 42,
-          "n_scored": 37,
-          "n_conviction": 36,
-          "hit_rate": 0.5555555555555556,
-          "mean_return": 0.0009788314594147546,
+          "n_total": 43,
+          "n_scored": 38,
+          "n_conviction": 37,
+          "hit_rate": 0.5405405405405406,
+          "mean_return": 0.0005981910683824442,
           "buckets": [
             {
               "label": "≤-60",
@@ -14792,10 +14939,10 @@
             },
             {
               "label": "-60 to -30",
-              "n": 10,
-              "n_with_return": 5,
-              "mean_return": -0.00938798984131556,
-              "hit_rate": 0.4
+              "n": 11,
+              "n_with_return": 6,
+              "mean_return": -0.010070908767731807,
+              "hit_rate": 0.3333333333333333
             },
             {
               "label": "-30 to -10",
@@ -15018,12 +15165,17 @@
               "date": "2026-07-14",
               "score": -37,
               "return_": 0.03282329713721616
+            },
+            {
+              "date": "2026-07-15",
+              "score": -38,
+              "return_": -0.013485503399813038
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 42,
+          "n_total": 43,
           "n_scored": 29,
           "n_conviction": 29,
           "hit_rate": 0.06896551724137931,
@@ -15031,7 +15183,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 17,
+              "n": 18,
               "n_with_return": 5,
               "mean_return": 0.001165036335387447,
               "hit_rate": 0.4
@@ -15229,7 +15381,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 42,
+          "n_total": 43,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -15251,7 +15403,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 39,
+              "n": 40,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -15290,7 +15442,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 42,
+        "n_total": 43,
         "n_scored": 29,
         "hit_rate": 0.06896551724137931,
         "mean_return": -0.07090676695636015
@@ -15673,21 +15825,30 @@
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.35,
+          "pos_hit_rate": 0.1,
+          "str_hit_rate": null,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 0
         }
       ]
     },
     "LHX": {
-      "n": 47,
-      "data_through": "2026-07-21",
+      "n": 48,
+      "data_through": "2026-07-22",
       "data_from": "2026-05-12",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 47,
-          "n_scored": 42,
-          "n_conviction": 42,
-          "hit_rate": 0.35714285714285715,
-          "mean_return": -0.00835980469801987,
+          "n_total": 48,
+          "n_scored": 43,
+          "n_conviction": 43,
+          "hit_rate": 0.3488372093023256,
+          "mean_return": -0.008295950159876362,
           "buckets": [
             {
               "label": "≤-60",
@@ -15698,7 +15859,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 6,
+              "n": 7,
               "n_with_return": 3,
               "mean_return": -0.0036820385274072566,
               "hit_rate": 0.3333333333333333
@@ -15706,9 +15867,9 @@
             {
               "label": "-30 to -10",
               "n": 35,
-              "n_with_return": 33,
-              "mean_return": -0.005275316084013224,
-              "hit_rate": 0.42424242424242425
+              "n_with_return": 34,
+              "mean_return": -0.005285279127361337,
+              "hit_rate": 0.4117647058823529
             },
             {
               "label": "-10 to +10",
@@ -15949,12 +16110,17 @@
               "date": "2026-07-14",
               "score": -28,
               "return_": -0.04198203479250362
+            },
+            {
+              "date": "2026-07-15",
+              "score": -25,
+              "return_": -0.005614059557849072
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 47,
+          "n_total": 48,
           "n_scored": 28,
           "n_conviction": 28,
           "hit_rate": 0.14285714285714285,
@@ -15962,7 +16128,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 9,
+              "n": 10,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -16155,7 +16321,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 47,
+          "n_total": 48,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -16191,7 +16357,7 @@
             },
             {
               "label": "+10 to +30",
-              "n": 40,
+              "n": 41,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -16216,7 +16382,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 47,
+        "n_total": 48,
         "n_scored": 28,
         "hit_rate": 0.15384615384615385,
         "mean_return": -0.04351618818533933
@@ -16644,21 +16810,30 @@
           "tac_n_in_window": 20,
           "pos_n_in_window": 20,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.25,
+          "pos_hit_rate": 0,
+          "str_hit_rate": null,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 0
         }
       ]
     },
     "TMO": {
-      "n": 44,
-      "data_through": "2026-07-21",
+      "n": 45,
+      "data_through": "2026-07-22",
       "data_from": "2026-05-12",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 44,
-          "n_scored": 39,
-          "n_conviction": 39,
-          "hit_rate": 0.6923076923076923,
-          "mean_return": 0.01966687562672332,
+          "n_total": 45,
+          "n_scored": 40,
+          "n_conviction": 40,
+          "hit_rate": 0.675,
+          "mean_return": 0.018775887477578527,
           "buckets": [
             {
               "label": "≤-60",
@@ -16676,7 +16851,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 27,
+              "n": 28,
               "n_with_return": 25,
               "mean_return": 0.026274648892677277,
               "hit_rate": 0.68
@@ -16684,9 +16859,9 @@
             {
               "label": "-10 to +10",
               "n": 13,
-              "n_with_return": 10,
-              "mean_return": 0.0035258329567001145,
-              "hit_rate": 0.6
+              "n_with_return": 11,
+              "mean_return": 0.0017532435661756988,
+              "hit_rate": 0.5454545454545454
             },
             {
               "label": "+10 to +30",
@@ -16905,12 +17080,17 @@
               "date": "2026-07-14",
               "score": -6,
               "return_": -0.021138485137587346
+            },
+            {
+              "date": "2026-07-15",
+              "score": -6,
+              "return_": -0.01597265033906846
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 44,
+          "n_total": 45,
           "n_scored": 26,
           "n_conviction": 26,
           "hit_rate": 1,
@@ -16925,7 +17105,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 14,
+              "n": 15,
               "n_with_return": 10,
               "mean_return": 0.10038416656603485,
               "hit_rate": 1
@@ -17101,7 +17281,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 44,
+          "n_total": 45,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -17123,7 +17303,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 38,
+              "n": 39,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -17162,7 +17342,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 44,
+        "n_total": 45,
         "n_scored": 26,
         "hit_rate": 1,
         "mean_return": 0.07271664022064984
@@ -17521,7 +17701,7 @@
         },
         {
           "date": "2026-07-15",
-          "tac_hit_rate": 0.7,
+          "tac_hit_rate": 0.65,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -17530,7 +17710,7 @@
         },
         {
           "date": "2026-07-16",
-          "tac_hit_rate": 0.7,
+          "tac_hit_rate": 0.65,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -17539,7 +17719,7 @@
         },
         {
           "date": "2026-07-17",
-          "tac_hit_rate": 0.7,
+          "tac_hit_rate": 0.65,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -17548,7 +17728,7 @@
         },
         {
           "date": "2026-07-20",
-          "tac_hit_rate": 0.7,
+          "tac_hit_rate": 0.65,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -17557,7 +17737,16 @@
         },
         {
           "date": "2026-07-21",
-          "tac_hit_rate": 0.7,
+          "tac_hit_rate": 0.65,
+          "pos_hit_rate": 1,
+          "str_hit_rate": null,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 20,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.65,
           "pos_hit_rate": 1,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -17567,17 +17756,17 @@
       ]
     },
     "NOW": {
-      "n": 31,
-      "data_through": "2026-07-21",
+      "n": 32,
+      "data_through": "2026-07-22",
       "data_from": "2026-05-19",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 31,
-          "n_scored": 26,
-          "n_conviction": 26,
-          "hit_rate": 0.4230769230769231,
-          "mean_return": 0.015362526524793382,
+          "n_total": 32,
+          "n_scored": 27,
+          "n_conviction": 27,
+          "hit_rate": 0.4074074074074074,
+          "mean_return": 0.011518183895092618,
           "buckets": [
             {
               "label": "≤-60",
@@ -17588,7 +17777,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 9,
+              "n": 10,
               "n_with_return": 6,
               "mean_return": -0.03053514307620454,
               "hit_rate": 0.16666666666666666
@@ -17596,9 +17785,9 @@
             {
               "label": "-30 to -10",
               "n": 21,
-              "n_with_return": 19,
-              "mean_return": 0.03902529731404942,
-              "hit_rate": 0.47368421052631576
+              "n_with_return": 20,
+              "mean_return": 0.03265229622449059,
+              "hit_rate": 0.45
             },
             {
               "label": "-10 to +10",
@@ -17759,12 +17948,17 @@
               "date": "2026-07-14",
               "score": -38,
               "return_": -0.026845317566278826
+            },
+            {
+              "date": "2026-07-15",
+              "score": -29,
+              "return_": -0.08843472447712722
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 31,
+          "n_total": 32,
           "n_scored": 19,
           "n_conviction": 19,
           "hit_rate": 0.21052631578947367,
@@ -17772,7 +17966,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 2,
+              "n": 3,
               "n_with_return": 1,
               "mean_return": 0.10183042289080572,
               "hit_rate": 1
@@ -17920,7 +18114,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 31,
+          "n_total": 32,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -17949,7 +18143,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 15,
+              "n": 16,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -17981,7 +18175,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 31,
+        "n_total": 32,
         "n_scored": 19,
         "hit_rate": 0.21052631578947367,
         "mean_return": -0.06852304599667136
@@ -18223,7 +18417,7 @@
         },
         {
           "date": "2026-07-15",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.21052631578947367,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -18232,7 +18426,7 @@
         },
         {
           "date": "2026-07-16",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.21052631578947367,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -18241,7 +18435,7 @@
         },
         {
           "date": "2026-07-17",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.21052631578947367,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -18250,7 +18444,7 @@
         },
         {
           "date": "2026-07-20",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.21052631578947367,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -18259,7 +18453,16 @@
         },
         {
           "date": "2026-07-21",
-          "tac_hit_rate": 0.25,
+          "tac_hit_rate": 0.2,
+          "pos_hit_rate": 0.21052631578947367,
+          "str_hit_rate": null,
+          "tac_n_in_window": 20,
+          "pos_n_in_window": 19,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0.2,
           "pos_hit_rate": 0.21052631578947367,
           "str_hit_rate": null,
           "tac_n_in_window": 20,
@@ -18269,17 +18472,17 @@
       ]
     },
     "ISRG": {
-      "n": 10,
-      "data_through": "2026-07-21",
+      "n": 11,
+      "data_through": "2026-07-22",
       "data_from": "2026-07-08",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 10,
-          "n_scored": 5,
-          "n_conviction": 5,
+          "n_total": 11,
+          "n_scored": 6,
+          "n_conviction": 6,
           "hit_rate": 0,
-          "mean_return": -0.08925450091774384,
+          "mean_return": -0.0949988100956849,
           "buckets": [
             {
               "label": "≤-60",
@@ -18290,9 +18493,9 @@
             },
             {
               "label": "-60 to -30",
-              "n": 5,
-              "n_with_return": 1,
-              "mean_return": -0.07791626044109508,
+              "n": 6,
+              "n_with_return": 2,
+              "mean_return": -0.1008183082132426,
               "hit_rate": 0
             },
             {
@@ -18356,12 +18559,17 @@
               "date": "2026-07-14",
               "score": -36,
               "return_": -0.07791626044109508
+            },
+            {
+              "date": "2026-07-15",
+              "score": -48,
+              "return_": -0.12372035598539012
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 10,
+          "n_total": 11,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -18369,7 +18577,7 @@
           "buckets": [
             {
               "label": "≤-60",
-              "n": 10,
+              "n": 11,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -18421,7 +18629,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 10,
+          "n_total": 11,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -18436,7 +18644,7 @@
             },
             {
               "label": "-60 to -30",
-              "n": 1,
+              "n": 2,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -18482,7 +18690,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 10,
+        "n_total": 11,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -18538,7 +18746,7 @@
           "tac_hit_rate": 0,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 5,
+          "tac_n_in_window": 6,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -18547,7 +18755,7 @@
           "tac_hit_rate": 0,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 5,
+          "tac_n_in_window": 6,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -18556,7 +18764,7 @@
           "tac_hit_rate": 0,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 5,
+          "tac_n_in_window": 6,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -18565,7 +18773,7 @@
           "tac_hit_rate": 0,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 5,
+          "tac_n_in_window": 6,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         },
@@ -18574,24 +18782,33 @@
           "tac_hit_rate": 0,
           "pos_hit_rate": null,
           "str_hit_rate": null,
-          "tac_n_in_window": 5,
+          "tac_n_in_window": 6,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 0,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 6,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
         }
       ]
     },
     "MA": {
-      "n": 10,
-      "data_through": "2026-07-21",
+      "n": 11,
+      "data_through": "2026-07-22",
       "data_from": "2026-07-08",
       "layers": {
         "tactical": {
           "native_horizon": "5d",
-          "n_total": 10,
-          "n_scored": 5,
+          "n_total": 11,
+          "n_scored": 6,
           "n_conviction": 4,
           "hit_rate": 1,
-          "mean_return": 0.026949542931216246,
+          "mean_return": 0.02143366212954,
           "buckets": [
             {
               "label": "≤-60",
@@ -18616,9 +18833,9 @@
             },
             {
               "label": "-10 to +10",
-              "n": 9,
-              "n_with_return": 4,
-              "mean_return": 0.026279610300794804,
+              "n": 10,
+              "n_with_return": 5,
+              "mean_return": 0.019794539864867598,
               "hit_rate": 1
             },
             {
@@ -18668,12 +18885,17 @@
               "date": "2026-07-14",
               "score": 8,
               "return_": -0.0001300607569536984
+            },
+            {
+              "date": "2026-07-15",
+              "score": 1,
+              "return_": -0.006145741878841233
             }
           ]
         },
         "positional": {
           "native_horizon": "20d",
-          "n_total": 10,
+          "n_total": 11,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -18702,7 +18924,7 @@
             },
             {
               "label": "-10 to +10",
-              "n": 4,
+              "n": 5,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -18733,7 +18955,7 @@
         },
         "strategic": {
           "native_horizon": "60d",
-          "n_total": 10,
+          "n_total": 11,
           "n_scored": 0,
           "n_conviction": 0,
           "hit_rate": null,
@@ -18755,7 +18977,7 @@
             },
             {
               "label": "-30 to -10",
-              "n": 9,
+              "n": 10,
               "n_with_return": 0,
               "mean_return": null,
               "hit_rate": null
@@ -18794,7 +19016,7 @@
       },
       "composite": {
         "horizon": "20d",
-        "n_total": 10,
+        "n_total": 11,
         "n_scored": 0,
         "hit_rate": null,
         "mean_return": null
@@ -18889,15 +19111,24 @@
           "tac_n_in_window": 4,
           "pos_n_in_window": 0,
           "str_n_in_window": 0
+        },
+        {
+          "date": "2026-07-22",
+          "tac_hit_rate": 1,
+          "pos_hit_rate": null,
+          "str_hit_rate": null,
+          "tac_n_in_window": 4,
+          "pos_n_in_window": 0,
+          "str_n_in_window": 0
         }
       ]
     }
   },
   "portfolio": {
     "tactical": {
-      "hit_rate": 0.4575645756457565,
-      "mean_return": 0.00017056872962766337,
-      "n": 271
+      "hit_rate": 0.4492753623188406,
+      "mean_return": -0.00014308001065761088,
+      "n": 276
     },
     "positional": {
       "hit_rate": 0.3707165109034268,
@@ -18905,9 +19136,9 @@
       "n": 321
     },
     "strategic": {
-      "hit_rate": 0.14814814814814814,
-      "mean_return": -0.0005097089671323302,
-      "n": 27
+      "hit_rate": 0.20588235294117646,
+      "mean_return": 0.00042773199628269847,
+      "n": 34
     }
   }
 }
