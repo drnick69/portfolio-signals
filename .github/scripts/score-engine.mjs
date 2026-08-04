@@ -137,6 +137,38 @@
 //   Blend weights untouched (both archetypes use defaults). Existing layer
 //   scoring logic unchanged — additions only.
 
+//
+// V8.3 (August 2026): HOLDINGS SWAP — sold IBIT (momentum_store_of_value),
+// bought RDDT (hypergrowth_platform_monetizer). Still 14 scored holdings.
+// One new archetype branch per layer + one new regime gate on the V8.1 pattern.
+//   - HYPERGROWTH_PLATFORM_MONETIZER (RDDT) — V1: widest bands in the book
+//     (beta 1.94) — RSI 32/72, daily-move noise floor ±4%, drawdown ladder
+//     scaled to 60% (setup >25%, strong >40%) rather than the compounders' 40%.
+//     Ads-cohort rotation vs META/PINS/APP at a −8pp threshold (NOT ISRG's −6pp:
+//     6pp is inside this name's noise band). Positional runs on ad revenue
+//     growth (THE ops metric), ARPU expansion, DAUq, EBITDA/FCF margin and SBC
+//     trend. Strategic runs on ads-cohort P/E, search-referral status,
+//     licensing state, NET share count and competitive threat.
+//     Regime gate: XLC vs SPY 30d factor flow — >+1pp bid_active 30/35/35 ·
+//     ±1pp neutral 25/35/40 · <−1pp bid_absent 20/30/50.
+//   TWO CALIBRATION GUARDRAILS ARE LOAD-BEARING HERE — both would otherwise pin
+//   strategic near −100 every single run:
+//     (a) PEG ARTIFACT GATE. RDDT forward PEG sits near 0.09 because EPS is
+//         inflecting off a near-zero base. Any forward_peg < 0.4 scores ZERO
+//         and is annotated as an artifact. It is not a 10x margin of safety.
+//     (b) PARTIAL-WINDOW DAMPING. RDDT listed March 2024, so own-history
+//         multiple anchors span ~2.4 years across the crossing into GAAP
+//         profitability. P/S-vs-own-history contributions are HALVED relative
+//         to what the ISRG/NOW own-history pattern would assign, and any
+//         absolute-PE fallback uses deliberately wide, humble bands.
+//   Dilution is scored on NET share count change (positive = dilution), never
+//   on buyback yield: RDDT repurchased $235M in Q2 2026 while share count still
+//   rose ~2.8%. Not added to CYCLICAL_ARCHETYPES — high trailing P/E here does
+//   NOT signal trough earnings (that inversion is for GLNCY/AMKBY/PBR.A only).
+//   Blend weights untouched (archetype uses defaults). IBIT's
+//   momentum_store_of_value branches are RETAINED as dead code for historical
+//   re-scoring, exactly as high_beta_crypto (ETHA) was after v7.6.
+
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
 const CYCLICAL_ARCHETYPES = new Set([
@@ -252,6 +284,23 @@ function computeISRGRegimeWeights(data) {
   return          { weights: { t: 0.20, p: 0.35, s: 0.45 }, regime: "neutral",     driver: i };
 }
 
+// ─── RDDT REGIME-CONDITIONAL WEIGHTS (V8.3) ─────────────────────────────────
+// Gated on XLC vs SPY 30d (ads sector factor bid). Same three-state V8.1
+// structure as LHX/ISRG, but off a 25/35/40 base rather than 20/35/45.
+// Base rationale: tactical carries MORE than the compounders because beta 1.94
+// makes dislocation genuinely tradeable; strategic carries LESS than ISRG/NOW
+// because RDDT's own-history valuation anchors are a partial window (listed
+// March 2024) and cannot bear a 45% weight honestly.
+function computeRDDTRegimeWeights(data) {
+  const x = data?.factor_flow?.xlc_vs_spy_30d_pp;
+  if (x == null) {
+    return { weights: { t: 0.25, p: 0.35, s: 0.40 }, regime: "neutral", driver: null };
+  }
+  if (x > 1)  return { weights: { t: 0.30, p: 0.35, s: 0.35 }, regime: "bid_active", driver: x };
+  if (x < -1) return { weights: { t: 0.20, p: 0.30, s: 0.50 }, regime: "bid_absent", driver: x };
+  return          { weights: { t: 0.25, p: 0.35, s: 0.40 }, regime: "neutral",     driver: x };
+}
+
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
@@ -281,6 +330,7 @@ export function scoreTactical(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -951,6 +1001,81 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  if (isRDDT) {
+    // RSI bands 32/72 — WIDEST IN THE BOOK. Beta 1.94, short interest ~9%.
+    // RSI 29 on RDDT is not RSI 29 on LIN; equity-standard oversold logic
+    // would fire constantly on this name.
+    if (rsi != null) {
+      if (rsi < 18)       { score += -55; notes.push(`RSI ${rsi}: RDDT extreme oversold — rare washout`); }
+      else if (rsi < 22)  { score += -45; notes.push(`RSI ${rsi}: RDDT deeply oversold`); }
+      else if (rsi < 26)  { score += -35; notes.push(`RSI ${rsi}: RDDT oversold`); }
+      else if (rsi < 29)  { score += -25; notes.push(`RSI ${rsi}: RDDT meaningfully oversold`); }
+      else if (rsi < 32)  { score += -15; notes.push(`RSI ${rsi}: RDDT approaching oversold (beta-1.94 band)`); }
+      else if (rsi <= 62) { score += 0;   notes.push(`RSI ${rsi}: RDDT normal trending range`); }
+      else if (rsi < 72)  { score += 5;   notes.push(`RSI ${rsi}: RDDT healthy momentum (wide band — beta 1.94)`); }
+      else if (rsi < 76)  { score += 14;  notes.push(`RSI ${rsi}: RDDT overbought`); }
+      else if (rsi < 80)  { score += 26;  notes.push(`RSI ${rsi}: RDDT extended`); }
+      else if (rsi < 85)  { score += 38;  notes.push(`RSI ${rsi}: RDDT deeply overbought`); }
+      else                { score += 48;  notes.push(`RSI ${rsi}: RDDT extreme — trim bias`); }
+    }
+
+    // Drawdown-from-52w-high — primary tactical signal, ladder scaled to 60%
+    // rather than the compounders' 40%. RDDT's post-IPO range is genuinely
+    // this wide (52w $119-$283), so a 25% drawdown is a setup, not an event.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 50)      { score += -30; notes.push(`RDDT drawdown ${dd.toFixed(1)}%: extreme — max tactical conviction IF ad growth intact`); }
+      else if (ddMag > 40) { score += -24; notes.push(`RDDT drawdown ${dd.toFixed(1)}%: deep — high-conviction setup`); }
+      else if (ddMag > 32) { score += -16; notes.push(`RDDT drawdown ${dd.toFixed(1)}%: meaningful`); }
+      else if (ddMag > 25) { score += -10; notes.push(`RDDT drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 15) { score += -4;  notes.push(`RDDT drawdown ${dd.toFixed(1)}%: mild (routine for beta 1.94)`); }
+      else if (ddMag < 3)  { score += 3;   notes.push(`RDDT at/near 52w highs`); }
+    }
+
+    // Daily move — noise floor is ±4%. A 3% day on RDDT is nothing; the Q2'26
+    // print moved it ~21% intraday.
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -12)       { score += -18; notes.push(`RDDT daily ${chg}%: capitulation/event-driven collapse — check whether ad growth actually broke`); }
+      else if (chg < -8)   { score += -12; notes.push(`RDDT daily ${chg}%: severe drop`); }
+      else if (chg < -6)   { score += -7;  notes.push(`RDDT daily ${chg}%: sharp drop`); }
+      else if (chg < -4)   { score += -3;  notes.push(`RDDT daily ${chg}%: notable decline`); }
+      else if (chg > 12)   { score += 14;  notes.push(`RDDT daily +${chg}%: parabolic spike`); }
+      else if (chg > 8)    { score += 9;   notes.push(`RDDT daily +${chg}%: sharp rally`); }
+      else if (chg > 6)    { score += 5;   notes.push(`RDDT daily +${chg}%: strong rally`); }
+      else if (chg > 4)    { score += 2;   notes.push(`RDDT daily +${chg}%: notable rally`); }
+      else                 { notes.push(`RDDT daily ${chg}%: inside the ±4% noise band for this beta`); }
+    }
+
+    // Ads-cohort rotation vs META/PINS/APP — the signature RDDT tactical setup.
+    // RDDT sold on referral/narrative headlines while the ad complex holds =
+    // rotation, historically a buy setup ABSENT an ad-revenue print confirming
+    // the weakness. Threshold -8pp (fetch v4.16), wider than ISRG's -6pp.
+    if (data.cohort_relative) {
+      const rp = data.cohort_relative.cohort_rotation_pp;
+      const active = data.cohort_relative.cohort_rotation_active;
+      if (rp != null) {
+        if (active && rp < -18)      { score += -12; notes.push(`Ads rotation ACTIVE: RDDT lagging META/PINS/APP by ${(-rp).toFixed(1)}pp/30d — strong buy setup (verify ad revenue growth before sizing)`); }
+        else if (active && rp < -12) { score += -8;  notes.push(`Ads rotation ACTIVE: RDDT lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+        else if (active)             { score += -5;  notes.push(`Ads rotation ACTIVE: RDDT lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+        else if (rp < -4)            { score += -2;  notes.push(`RDDT mildly lagging ads cohort (${rp.toFixed(1)}pp/30d)`); }
+        else if (rp > 8)             { score += 4;   notes.push(`RDDT outperforming ads cohort by ${rp.toFixed(1)}pp/30d`); }
+      }
+    }
+
+    // VIX overlay — beta 1.94 takes amplified collateral damage in broad fear
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -5) {
+        score += -8; notes.push(`VIX ${vix} + RDDT ${chg}%: broad fear amplified by beta 1.94 — dislocation, not information`);
+      } else if (vix > 25 && chg < -3) {
+        score += -4; notes.push(`VIX ${vix} + RDDT ${chg}%: elevated fear pressure`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -998,6 +1123,7 @@ export function scorePositional(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -1046,6 +1172,12 @@ export function scorePositional(data, macro) {
     } else if (isISRG) {
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
       if (m[ma] != null) { score += m[ma]; notes.push(`ISRG MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isRDDT) {
+      // Dampened vs the compounder map: for RDDT, below-both may be the market
+      // correctly pricing a live structural falsifier (referral decay), not a
+      // fear cycle on a proven annuity. Buy the trend break less aggressively.
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -7, "above_200_below_50": -4, "below_both": -18, "below_both_death": -28 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`RDDT MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -1178,6 +1310,19 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`ISRG 52w: ${w52}% — real drawdown, category king on sale`); }
       else if (w52 > 15) { score += -38; notes.push(`ISRG 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -50; notes.push(`ISRG 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isRDDT) {
+      // Deliberately SHALLOWER than the compounder ladder (floor -30 vs -50).
+      // A compounder near 52w lows is almost always a fear cycle; RDDT near
+      // 52w lows may be the referral falsifier landing. Do not auto-assign
+      // max conviction to price weakness on a name with a live thesis risk —
+      // the strategic layer checks search_referral_status before that.
+      if (w52 > 95)      { score += 0;   notes.push(`RDDT 52w: ${w52}% — at highs`); }
+      else if (w52 > 85) { score += 0;   notes.push(`RDDT 52w: ${w52}% — near highs`); }
+      else if (w52 > 70) { score += -2;  notes.push(`RDDT 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -7;  notes.push(`RDDT 52w: ${w52}% — meaningful pullback`); }
+      else if (w52 > 30) { score += -14; notes.push(`RDDT 52w: ${w52}% — real drawdown, buy interest if ad growth intact`); }
+      else if (w52 > 15) { score += -22; notes.push(`RDDT 52w: ${w52}% — major drawdown — verify the thesis is not breaking`); }
+      else               { score += -30; notes.push(`RDDT 52w: ${w52}% — deep drawdown — check referral status and ad growth before conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -1300,6 +1445,14 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -5)  { score += -8;  notes.push(`ISRG ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 18)  { score += 6;   notes.push(`ISRG ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta ~1.7 band)`); }
       else if (pctFromSMA > 10)  { score += 2;   notes.push(`ISRG ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isRDDT) {
+      // Beta-1.94 bands: -20/-12/-6 down, +25/+15 up. RDDT sat ~20% below
+      // SMA50 after the Q2 print without that being an extreme reading.
+      if (pctFromSMA < -20)      { score += -15; notes.push(`RDDT ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down`); }
+      else if (pctFromSMA < -12) { score += -8;  notes.push(`RDDT ${pctFromSMA.toFixed(1)}% below SMA50 — meaningful pullback`); }
+      else if (pctFromSMA < -6)  { score += -3;  notes.push(`RDDT ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 25)  { score += 6;   notes.push(`RDDT ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta-1.94 band)`); }
+      else if (pctFromSMA > 15)  { score += 2;   notes.push(`RDDT ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -1986,6 +2139,130 @@ export function scorePositional(data, macro) {
     else if (r30 < -2) { score += 2;  }
   }
 
+  // ─── RDDT POSITIONAL (V8.3): AD GROWTH + ARPU + AUDIENCE + LEVERAGE ───────
+  // XLC vs SPY 30d — ads sector factor bid
+  if (isRDDT && data.factor_flow?.xlc_vs_spy_30d_pp != null) {
+    const x = data.factor_flow.xlc_vs_spy_30d_pp;
+    if (x > 2)       { score += -5; notes.push(`XLC +${x.toFixed(1)}pp vs SPY (30d): strong ads bid — RDDT tailwind`); }
+    else if (x > 1)  { score += -2; notes.push(`XLC +${x.toFixed(1)}pp vs SPY (30d): ads bid active`); }
+    else if (x < -2) { score += 3;  notes.push(`XLC ${x.toFixed(1)}pp vs SPY (30d): ads complex lagging`); }
+    else if (x < -1) { score += 1;  }
+  }
+
+  // Advertising revenue growth — THE central operational metric for RDDT.
+  // Eight consecutive quarters above 60% through Q2'26 (64% ad growth).
+  // Deceleration off a larger base is EXPECTED; below 35% is the tripwire
+  // where the referral bear case is actually landing rather than merely feared.
+  if (isRDDT && data.fundamentals?.ad_revenue_growth_yoy_pct != null) {
+    const ag = data.fundamentals.ad_revenue_growth_yoy_pct;
+    if (ag > 65)       { score += -10; notes.push(`Ad revenue +${ag.toFixed(1)}%: accelerating — referral narrative refuted by the print`); }
+    else if (ag > 55)  { score += -7;  notes.push(`Ad revenue +${ag.toFixed(1)}%: strong — engine intact`); }
+    else if (ag > 45)  { score += -3;  notes.push(`Ad revenue +${ag.toFixed(1)}%: healthy deceleration off a larger base`); }
+    else if (ag >= 35) { score += 0;   notes.push(`Ad revenue +${ag.toFixed(1)}%: moderating — expected, not alarming`); }
+    else if (ag >= 30) { score += 5;   notes.push(`Ad revenue +${ag.toFixed(1)}%: approaching the deceleration tripwire`); }
+    else               { score += 14;  notes.push(`Ad revenue +${ag.toFixed(1)}%: DECELERATION TRIPWIRE (<35%) — the bear case is landing, not merely feared`); }
+  }
+
+  // ARPU expansion — monetization density is the growth engine, since the
+  // audience is already built. Stalling ARPU breaks the thesis faster than
+  // stalling users would.
+  if (isRDDT && data.fundamentals?.arpu_growth_yoy_pct != null) {
+    const ar = data.fundamentals.arpu_growth_yoy_pct;
+    if (ar > 35)       { score += -6; notes.push(`ARPU +${ar.toFixed(1)}%: monetization ramp firing`); }
+    else if (ar > 30)  { score += -4; notes.push(`ARPU +${ar.toFixed(1)}%: strong ramp`); }
+    else if (ar > 20)  { score += -1; notes.push(`ARPU +${ar.toFixed(1)}%: healthy`); }
+    else if (ar >= 15) { score += 0;  notes.push(`ARPU +${ar.toFixed(1)}%: normal`); }
+    else               { score += 8;  notes.push(`ARPU +${ar.toFixed(1)}%: RAMP STALLING (<15%) — the monetization thesis is the thesis`); }
+  }
+
+  // International ARPU gap — US vs RoW. A WIDE gap is runway, not weakness.
+  if (isRDDT && data.fundamentals?.arpu_us != null && data.fundamentals?.arpu_row != null && data.fundamentals.arpu_row > 0) {
+    const gap = data.fundamentals.arpu_us / data.fundamentals.arpu_row;
+    if (gap > 4.5)      { score += -3; notes.push(`Intl ARPU gap ${gap.toFixed(1)}x (US $${data.fundamentals.arpu_us} vs RoW $${data.fundamentals.arpu_row}): long monetization runway intact`); }
+    else if (gap > 3.5) { score += -1; notes.push(`Intl ARPU gap ${gap.toFixed(1)}x: runway intact`); }
+    else                { score += 0;  notes.push(`Intl ARPU gap ${gap.toFixed(1)}x: narrowing — runway partly harvested`); }
+  }
+
+  // DAUq growth — audience. Contested variable: logged-out DAU is SEO-driven.
+  if (isRDDT && data.fundamentals?.dauq_growth_yoy_pct != null) {
+    const dg = data.fundamentals.dauq_growth_yoy_pct;
+    if (dg > 18)      { score += -3; notes.push(`DAUq +${dg.toFixed(1)}%: audience compounding`); }
+    else if (dg > 15) { score += -2; notes.push(`DAUq +${dg.toFixed(1)}%: strong`); }
+    else if (dg > 10) { score += 0;  notes.push(`DAUq +${dg.toFixed(1)}%: normal`); }
+    else if (dg >= 8) { score += 2;  notes.push(`DAUq +${dg.toFixed(1)}%: slowing`); }
+    else              { score += 6;  notes.push(`DAUq +${dg.toFixed(1)}%: weak (<8%) — audience problem, check referral status`); }
+  }
+
+  // ⚠ Logged-out DAU: Reddit DISCONTINUED the logged-in/logged-out split from
+  // Q3 2026. This block only fires on historical rows that still carry it, and
+  // is deliberately NOT backfilled — the pipeline emits null rather than an
+  // estimate. Reduced observability on the single most thesis-relevant metric
+  // is itself information, surfaced as a note when the split is unavailable.
+  if (isRDDT) {
+    if (data.fundamentals?.logged_out_dau_growth_pct != null) {
+      const lo = data.fundamentals.logged_out_dau_growth_pct;
+      if (lo > 20)      { score += -3; notes.push(`Logged-out DAU +${lo.toFixed(1)}%: SEO funnel healthy`); }
+      else if (lo > 10) { score += -1; notes.push(`Logged-out DAU +${lo.toFixed(1)}%: funnel intact`); }
+      else if (lo >= 0) { score += 3;  notes.push(`Logged-out DAU +${lo.toFixed(1)}%: funnel flattening — referral pressure visible`); }
+      else              { score += 10; notes.push(`Logged-out DAU ${lo.toFixed(1)}%: DECLINING — the Google-referral falsifier in the data`); }
+    } else if (data.fundamentals?.dau_disclosure_status === "aggregate_only") {
+      notes.push(`Logged-in/out DAU split: DISCONTINUED by the company (Q3 2026+) — cleanest referral read withdrawn; not estimated`);
+    }
+  }
+
+  // Adjusted EBITDA margin — operating leverage landing (43% in Q2'26)
+  if (isRDDT && data.fundamentals?.ebitda_margin_pct != null) {
+    const em = data.fundamentals.ebitda_margin_pct;
+    if (em > 45)      { score += -4; notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: leverage compounding`); }
+    else if (em > 42) { score += -2; notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: strong`); }
+    else if (em > 36) { score += 0;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: normal`); }
+    else if (em > 32) { score += 2;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: compressing`); }
+    else              { score += 6;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: leverage reversing`); }
+  }
+
+  // FCF margin — cash conversion on a 90%+ gross margin, near-zero-capex model
+  if (isRDDT && data.fundamentals?.fcf_margin_pct != null) {
+    const fm = data.fundamentals.fcf_margin_pct;
+    if (fm > 32)      { score += -3; notes.push(`FCF margin ${fm.toFixed(1)}%: cash conversion excellent`); }
+    else if (fm > 28) { score += -2; notes.push(`FCF margin ${fm.toFixed(1)}%: strong`); }
+    else if (fm > 20) { score += 0;  notes.push(`FCF margin ${fm.toFixed(1)}%: normal`); }
+    else              { score += 3;  notes.push(`FCF margin ${fm.toFixed(1)}%: soft cash conversion`); }
+  }
+
+  // Next-quarter guide implied growth
+  if (isRDDT && data.fundamentals?.guide_implied_growth_pct != null) {
+    const gg = data.fundamentals.guide_implied_growth_pct;
+    if (gg > 50)       { score += -4; notes.push(`Guide implies +${gg.toFixed(1)}% YoY: raise territory`); }
+    else if (gg > 45)  { score += -2; notes.push(`Guide implies +${gg.toFixed(1)}% YoY: strong`); }
+    else if (gg >= 40) { score += 0;  notes.push(`Guide implies +${gg.toFixed(1)}% YoY: in line`); }
+    else if (gg >= 35) { score += 3;  notes.push(`Guide implies +${gg.toFixed(1)}% YoY: soft`); }
+    else               { score += 6;  notes.push(`Guide implies +${gg.toFixed(1)}% YoY: guide-down territory`); }
+  }
+
+  // Stock-based comp trend — this is the DILUTION SOURCE for RDDT, tracked
+  // positionally so the strategic dilution score has a leading indicator.
+  if (isRDDT && data.fundamentals?.sbc_trend) {
+    const sb = String(data.fundamentals.sbc_trend).toLowerCase();
+    if (sb === "falling")     { score += -2; notes.push(`SBC trend falling — dilution pressure easing`); }
+    else if (sb === "rising") { score += 2;  notes.push(`SBC trend rising — dilution pressure building (guided higher for Q3'26)`); }
+  }
+
+  // EPS revisions (RDDT thresholds +2 / -4 per archetype config — wider than
+  // the compounders because consensus swings hard on a 60%-growth name)
+  if (isRDDT && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 6)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 2)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -4) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -8) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isRDDT && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 3)       { score += -2; }
+    else if (r30 < -4) { score += 2;  }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -2011,6 +2288,7 @@ export function scoreStrategic(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -2879,6 +3157,139 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  if (isRDDT) {
+    // Ads-cohort P/E vs META/PINS/APP. Unlike ISRG/NOW there is NO structural
+    // premium baseline — RDDT sits INSIDE the cohort band. NOTE the basis is
+    // TRAILING (all Finnhub aux metrics are); the LLM layer reasons on forward.
+    if (data.cohort_valuation && data.cohort_valuation.premium_pct != null) {
+      const prem = data.cohort_valuation.premium_pct;
+      if (prem < -25)      { score += -18; notes.push(`RDDT P/E ${prem.toFixed(1)}% vs ads cohort: deeply compressed — buy`); }
+      else if (prem < -15) { score += -12; notes.push(`RDDT P/E ${prem.toFixed(1)}% vs ads cohort: compressed — buy bias`); }
+      else if (prem < 0)   { score += -5;  notes.push(`RDDT P/E ${prem.toFixed(1)}% vs ads cohort: below cohort — buy lean`); }
+      else if (prem <= 20) { score += 0;   notes.push(`RDDT P/E +${prem.toFixed(1)}% vs ads cohort: inside normal band`); }
+      else if (prem < 40)  { score += 4;   notes.push(`RDDT P/E +${prem.toFixed(1)}% vs ads cohort: upper-normal band`); }
+      else if (prem < 80)  { score += 12;  notes.push(`RDDT P/E +${prem.toFixed(1)}% vs ads cohort: above normal — trim bias`); }
+      else                 { score += 20;  notes.push(`RDDT P/E +${prem.toFixed(1)}% vs ads cohort: rich even on this growth — trim`); }
+    } else {
+      // Absolute trailing-P/E fallback with DELIBERATELY WIDE, HUMBLE BANDS.
+      // RDDT listed March 2024 — there is no trustworthy own-history P/E norm
+      // to anchor tight bands against, and the earnings denominator is still
+      // inflecting. Wide bands are the honest representation of that ignorance.
+      const pe = data.valuation?.trailingPE;
+      if (pe != null && pe > 0) {
+        if (pe < 20)       { score += -12; notes.push(`RDDT P/E ${pe.toFixed(1)}x: low for the growth rate (cohort data unavailable; bands wide — short listing history)`); }
+        else if (pe < 28)  { score += -6;  notes.push(`RDDT P/E ${pe.toFixed(1)}x: below the growth-adjusted norm`); }
+        else if (pe <= 40) { score += 0;   notes.push(`RDDT P/E ${pe.toFixed(1)}x: unremarkable for 50%+ growth`); }
+        else if (pe < 55)  { score += 6;   notes.push(`RDDT P/E ${pe.toFixed(1)}x: elevated`); }
+        else if (pe < 75)  { score += 12;  notes.push(`RDDT P/E ${pe.toFixed(1)}x: rich`); }
+        else               { score += 18;  notes.push(`RDDT P/E ${pe.toFixed(1)}x: extreme`); }
+      }
+    }
+
+    // ★ GUARDRAIL (a) — PEG ARTIFACT GATE. RDDT forward PEG sits near 0.09
+    // because EPS is inflecting off a near-zero prior-year base, NOT because
+    // the stock offers a 10x margin of safety. Anything below 0.4 scores ZERO
+    // and is annotated. Without this gate the strategic layer pins near -100
+    // on every run and the whole blend becomes uninformative.
+    if (data.fundamentals?.forward_peg != null) {
+      const peg = data.fundamentals.forward_peg;
+      if (peg < 0.4)      { score += 0;  notes.push(`Forward PEG ${peg.toFixed(2)}: ARTIFACT (base effect — EPS inflecting off ~zero). Deliberately scored ZERO, not treated as a buy signal.`); }
+      else if (peg < 0.8) { score += -8; notes.push(`Forward PEG ${peg.toFixed(2)}: genuinely attractive on growth`); }
+      else if (peg < 1.4) { score += -3; notes.push(`Forward PEG ${peg.toFixed(2)}: fair`); }
+      else if (peg < 2.0) { score += 0;  notes.push(`Forward PEG ${peg.toFixed(2)}: normal`); }
+      else                { score += 8;  notes.push(`Forward PEG ${peg.toFixed(2)}: stretched on growth — trim bias`); }
+    }
+
+    // ★ GUARDRAIL (b) — PARTIAL-WINDOW DAMPING. P/S vs own history is the
+    // flagship lens (P/S rather than P/E because margins are still inflecting),
+    // but RDDT's "3-year" average covers ~2.4 years spanning the crossing into
+    // GAAP profitability. Contributions are HALVED relative to the ISRG/NOW
+    // own-history pattern. The signal is real; the precision is not.
+    if (data.fundamentals?.ps_pct_of_3y_avg != null) {
+      const ps = data.fundamentals.ps_pct_of_3y_avg;
+      const partial = data.fundamentals?.own_history_window_partial === true;
+      const tag = partial ? " [partial window — contribution halved]" : "";
+      if (ps < 70)        { score += -8; notes.push(`P/S ${ps.toFixed(0)}% of own-history avg: well below${tag}`); }
+      else if (ps < 80)   { score += -5; notes.push(`P/S ${ps.toFixed(0)}% of own-history avg: below${tag}`); }
+      else if (ps <= 105) { score += 0;  notes.push(`P/S ${ps.toFixed(0)}% of own-history avg: in line${tag}`); }
+      else if (ps < 120)  { score += 4;  notes.push(`P/S ${ps.toFixed(0)}% of own-history avg: above${tag}`); }
+      else                { score += 8;  notes.push(`P/S ${ps.toFixed(0)}% of own-history avg: well above${tag}`); }
+    }
+
+    // Search-referral status — the structural binary #1. Logged-out user
+    // acquisition runs through Google. "Choppy" is the CURRENT state and is
+    // scored neutral on its own; it only becomes a buy when ad revenue is
+    // simultaneously compounding, which is the fear-vs-evidence gap.
+    if (data.fundamentals?.search_referral_status) {
+      const sr = String(data.fundamentals.search_referral_status).toLowerCase();
+      const adg = data.fundamentals?.ad_revenue_growth_yoy_pct;
+      if (sr === "stable")                   { score += -8;  notes.push(`Search referral: STABLE — dependency quiet; structurally the lowest-risk non-catalyst state`); }
+      else if (sr === "decoupling_progress") { score += -12; notes.push(`Search referral: DECOUPLING PROGRESS — the structural re-rating catalyst`); }
+      else if (sr === "choppy") {
+        if (adg != null && adg > 45)         { score += -5;  notes.push(`Search referral: CHOPPY while ad revenue +${adg.toFixed(1)}% — fear-vs-evidence gap is the alpha`); }
+        else                                 { score += 0;   notes.push(`Search referral: CHOPPY — expected state; neutral without an ad-growth print to argue against it`); }
+      }
+      else if (sr === "deteriorating")       { score += 22;  notes.push(`Search referral: DETERIORATING — THESIS-LEVEL event, the falsifier landing`); }
+    }
+
+    // Data licensing — structural binary #2. Google + OpenAI >$200M/yr combined,
+    // renewals unresolved with no stated timeline. Unresolved scores ZERO on
+    // purpose: it is an unpriced option, not a base case.
+    if (data.fundamentals?.licensing_status) {
+      const ls = String(data.fundamentals.licensing_status).toLowerCase();
+      if (ls === "renewed_up")        { score += -10; notes.push(`Data licensing: RENEWED UP — option struck in the money`); }
+      else if (ls === "renewed_flat") { score += -4;  notes.push(`Data licensing: RENEWED FLAT — overhang cleared`); }
+      else if (ls === "unresolved")   { score += 0;   notes.push(`Data licensing: UNRESOLVED — unpriced option, deliberately not in the base case`); }
+      else if (ls === "renewed_down") { score += 10;  notes.push(`Data licensing: RENEWED DOWN — terms worsened`); }
+      else if (ls === "lost")         { score += 20;  notes.push(`Data licensing: LOST — revenue line and the AI-corpus thesis both impaired`); }
+    }
+
+    // ★ NET share count change (POSITIVE = dilution). This is the shareholder-
+    // return read for RDDT — NEVER buyback yield. RDDT repurchased $235M in
+    // Q2'26 and share count still rose ~2.8%: stock comp exceeds repurchase.
+    // This holding does not satisfy the portfolio's aggressive-buyback
+    // criterion and the engine says so rather than scoring a gross figure.
+    if (data.fundamentals?.share_count_change_yoy_pct != null) {
+      const sc = data.fundamentals.share_count_change_yoy_pct;
+      if (sc <= -2)      { score += -5; notes.push(`Net share count ${sc.toFixed(1)}% YoY: genuine buyback — per-share compounding`); }
+      else if (sc <= 0)  { score += -2; notes.push(`Net share count ${sc.toFixed(1)}% YoY: flat to shrinking`); }
+      else if (sc < 1.5) { score += 1;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: mild dilution`); }
+      else if (sc < 3)   { score += 3;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: DILUTIVE — buyback does not offset stock comp (fails the portfolio's buyback criterion)`); }
+      else if (sc < 5)   { score += 7;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: materially dilutive — per-share compounding impaired`); }
+      else               { score += 12; notes.push(`Net share count +${sc.toFixed(1)}% YoY: severe dilution`); }
+    }
+
+    // Competitive engagement threat — placements/launches are NOT evidence;
+    // measurable engagement share is.
+    if (data.fundamentals?.competitive_threat) {
+      const ct = String(data.fundamentals.competitive_threat).toLowerCase();
+      if (ct === "negligible")        { score += -2; notes.push(`Competitive threat: negligible`); }
+      else if (ct === "emerging")     { score += 0;  notes.push(`Competitive threat: emerging — entrants present, no measured engagement loss (expected state)`); }
+      else if (ct === "taking_share") { score += 20; notes.push(`Competitive threat: TAKING SHARE — measurable engagement loss, THESIS-LEVEL event`); }
+    }
+
+    // TIPS overlay — a 50%-growth name is long-duration regardless of a modest
+    // forward multiple; real rates move the discount rate on the ARPU runway.
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 8;  notes.push(`TIPS ${tips}%: very restrictive — growth-duration headwind`); }
+      else if (tips > 2.5) { score += 4;  notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips > 2)   { score += 2;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -8; notes.push(`TIPS ${tips}%: accommodative — growth-duration tailwind`); }
+      else if (tips < 1)   { score += -3; notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // VIX overlay — beta 1.94 means broad fear overshoots on this name
+    const vix = macro?.vix;
+    if (vix != null) {
+      if (vix > 35)      { score += -6; notes.push(`VIX ${vix}: panic — beta-1.94 overshoot creates the entry`); }
+      else if (vix > 25) { score += -3; notes.push(`VIX ${vix}: elevated fear`); }
+      else if (vix < 12) { score += 3;  notes.push(`VIX ${vix}: complacency — high-beta growth vulnerable`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -2989,6 +3400,9 @@ export function computeDeterministicScores(data, macro) {
   } else if (data._archetype === "surgical_robotics_moat_compounder") {
     const r = computeISRGRegimeWeights(data);
     weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "ihi_vs_spy_30d_pp";
+  } else if (data._archetype === "hypergrowth_platform_monetizer") {
+    const r = computeRDDTRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "xlc_vs_spy_30d_pp";
   }
 
   const composite = Math.round(
@@ -3007,6 +3421,7 @@ export function computeDeterministicScores(data, macro) {
                   // MSFT/NOW: accommodative|neutral|restrictive. LHX: bid_active|neutral|bid_absent.
                   // TMO: thawing|neutral|frozen. MA: fear_receding|neutral|fear_regime (V8.2).
                   // ISRG: bid_active|neutral|bid_absent (V8.2).
+                  // RDDT: bid_active|neutral|bid_absent (V8.3, off a 25/35/40 base).
     regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
     regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
     regimeBasis,  // V8.1/V8.2 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp"
