@@ -32,6 +32,20 @@
 // for their first weeks — that is correct behavior, not a bug), while retired
 // tickers' historical stats persist until the underlying log entries age out.
 //
+// v8.4.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only. The
+// IBIT → RDDT swap behaves exactly like the ETHA → NOW precedent: RDDT's panel
+// begins accumulating from its first attributed date and will show small-n /
+// insufficient-data grades for its first weeks (correct, not a bug), while
+// IBIT's historical stats persist until its log entries age out.
+// ⚠ Read RDDT's early panels with more caution than MA/ISRG's. This is the
+// highest-beta holding in the book (~1.94) with the widest scoring bands
+// (score-engine V8.3: RSI 32/72, ±4% daily noise floor), so its forward-return
+// distribution is genuinely fatter-tailed than the compounders'. A hit rate
+// computed over a handful of observations on this name carries materially less
+// information than the same hit rate on LIN or MA. The grades this file emits
+// are unweighted by volatility — that is a known and accepted simplification
+// across all tickers, but RDDT is where it bites hardest.
+//
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
 
