@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// paper-trader.mjs v8.3 — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v8.4 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across the holdings present on day one.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
@@ -39,6 +39,42 @@
 //       positions require real fill dates/prices + funding trims — done as
 //       a one-time migration block in the V7.6 pattern, deliberately NOT
 //       built here.
+//
+// V8.4: HOLDINGS SWAP — IBIT → RDDT. A true swap (position sold, proceeds
+//       redeployed), so it uses the V7.6 migration path rather than V8.3's
+//       organic entry — but with one CORRECTED and one NEW mechanic:
+//
+//       (1) PROCEEDS ARE MARKET VALUE, NOT COST BASIS.
+//           V7.6 computed new shares as old.cost_basis / newPrice. That
+//           preserves total portfolio value ONLY when the retiring position
+//           has exactly zero unrealized P&L; otherwise the book silently
+//           discards the entire unrealized gain or loss at the swap moment
+//           (value delta = cost_basis − market_value). The V7.6 comment
+//           asserting value preservation was therefore true only in the
+//           degenerate case. Since total_value feeds benchmark-scorecard's
+//           TWR series, a silent step-change there propagates into every
+//           downstream performance number. v8.4 sells at an exit price and
+//           redeploys the ACTUAL proceeds, which preserves value for real.
+//
+//       (2) THE EXIT PRICE MUST BE SUPPLIED EXPLICITLY (see
+//           MIGRATION_EXIT_PRICE below). The retiring symbol is removed from
+//           SYMBOLS in fetch-market-data v4.16, so it is absent from
+//           `normalized` and therefore from the `prices` map on migration
+//           day — and per-holding prices are not stored in portfolio.history
+//           (snapshots keep total_value / holdings_value only), so the last
+//           IBIT price is not recoverable from state either. There is no way
+//           to infer it; it has to be given.
+//
+//       FALLBACK BEHAVIOUR: if no exit price is available, the code falls back
+//       to the V7.6 cost-basis mechanic so the pipeline still runs — but it
+//       logs a loud warning naming the exact dollar discontinuity introduced,
+//       and records basis_mode + value_delta_usd in the swap record so the
+//       distortion is auditable in history rather than invisible. It does NOT
+//       silently pretend value was preserved.
+//
+//       The ETHA → NOW entry is retained in the map: it is idempotent and
+//       already no-ops (ETHA left holdings at V7.6), so it documents history
+//       at zero cost. The corrected mechanic cannot retroactively alter it.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -166,14 +202,42 @@ if (portfolio.history.some(h => h.date === date)) {
   process.exit(0);
 }
 
-// ─── V7.6 HOLDINGS SWAP (one-time migration) ────────────────────────────────
-// ETHA → NOW. Cost basis transfers from ETHA to NOW; NOW shares computed at
-// the new symbol's current price. Cash unchanged, so total portfolio value
-// is preserved at the swap moment. P&L resets to 0% for the new position
-// and tracks NOW going forward.
-// Idempotent: no-ops once ETHA is no longer present in portfolio.holdings.
-// Safe to leave in indefinitely — can be removed after one successful run.
-const HOLDINGS_MIGRATION = { "ETHA": "NOW" };
+// ─── HOLDINGS SWAP (one-time migrations) ────────────────────────────────────
+// V7.6: ETHA → NOW (already executed; entry retained, no-ops).
+// V8.4: IBIT → RDDT.
+//
+// Mechanic (v8.4, corrected): the retiring position is SOLD at its exit price
+// and the proceeds are redeployed into the new symbol at today's price. Cash
+// is untouched, so total portfolio value is genuinely preserved across the
+// swap. The new position's cost basis IS the proceeds, so its P&L starts at 0%
+// and tracks the new symbol forward — same intent as V7.6, but now actually
+// value-neutral rather than value-neutral-only-if-unrealized-P&L-is-zero.
+//
+// Why an exit price must be supplied: the retiring symbol is gone from
+// fetch-market-data's SYMBOLS by the time this runs, so it is absent from
+// `prices`, and portfolio.history snapshots never stored per-holding prices.
+// The price is unrecoverable from state and cannot be inferred.
+//
+// Idempotent: each entry no-ops once the old symbol is out of portfolio.holdings.
+// Safe to leave in indefinitely — removable after one successful run.
+const HOLDINGS_MIGRATION = { "ETHA": "NOW", "IBIT": "RDDT" };
+
+// ── EXIT PRICES FOR RETIRING SYMBOLS (v8.4) ─────────────────────────────────
+// The price at which the retiring position is sold. REQUIRED for value-neutral
+// migration; see the note above for why it cannot be derived automatically.
+// Set to the retiring symbol's market price on the swap date.
+//
+// ⚠ IBIT IS CURRENTLY null — the swap will run in COST-BASIS FALLBACK mode and
+//   log the exact dollar discontinuity it introduces. Set this before the first
+//   post-deploy run to keep the paper book's total_value series (and therefore
+//   benchmark-scorecard's TWR) continuous across the swap.
+//
+// ETHA is intentionally absent: that migration already executed at V7.6 under
+// the old mechanic and no-ops now. Adding a price here could not change it.
+const MIGRATION_EXIT_PRICE = {
+  "IBIT": null,   // ← set to IBIT's market price on the swap date
+};
+
 const swaps = [];
 for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
   const old = portfolio.holdings[oldSym];
@@ -183,17 +247,44 @@ for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
     console.log(`  ⚠ Cannot migrate ${oldSym} → ${newSym}: ${newSym} price unavailable today; will retry next run.`);
     continue;
   }
-  const newShares = +(old.cost_basis / newPrice).toFixed(4);
+
+  // Exit price precedence: explicit override, then today's price map (present
+  // only if the retiring symbol somehow still scores), then no price at all.
+  const exitPrice = MIGRATION_EXIT_PRICE[oldSym] ?? prices[oldSym] ?? null;
+
+  // Proceeds = what the position is actually WORTH at exit. Falling back to
+  // cost basis discards unrealized P&L and steps total_value by exactly that
+  // amount — tolerated so the pipeline never blocks, but never silent.
+  const marketValue = exitPrice != null ? +(old.shares * exitPrice).toFixed(2) : null;
+  const proceeds = marketValue != null ? marketValue : old.cost_basis;
+  const basisMode = marketValue != null ? "market_value" : "cost_basis_fallback";
+  // In fallback mode the discarded P&L is UNKNOWABLE — computing it requires
+  // the exit price, whose absence is the reason we are in fallback at all.
+  // Record null, never 0: a zero here would assert "nothing was lost", which
+  // is exactly the false reassurance this whole branch exists to avoid.
+  const discardedPnl = marketValue != null ? 0 : null;
+
+  if (basisMode === "cost_basis_fallback") {
+    console.log(`  ⚠ ${oldSym} → ${newSym}: NO EXIT PRICE SUPPLIED.`);
+    console.log(`  ⚠ Falling back to the V7.6 cost-basis mechanic: redeploying $${old.cost_basis.toFixed(2)} of cost basis`);
+    console.log(`  ⚠ rather than ${old.shares} ${oldSym} shares valued at market. Any unrealized P&L on the`);
+    console.log(`  ⚠ ${oldSym} position is DISCARDED — by an amount that cannot be computed here, since`);
+    console.log(`  ⚠ doing so needs the very exit price that is missing — stepping total_value and putting a`);
+    console.log(`  ⚠ discontinuity into the TWR series benchmark-scorecard reads.`);
+    console.log(`  ⚠ FIX: set MIGRATION_EXIT_PRICE["${oldSym}"] to its market price on the swap date and re-run.`);
+  }
+
+  const newShares = +(proceeds / newPrice).toFixed(4);
   const existing = portfolio.holdings[newSym];
   if (existing) {
-    // Already a position in the new symbol — merge cost basis.
+    // Already a position in the new symbol — merge proceeds into cost basis.
     existing.shares = +(existing.shares + newShares).toFixed(4);
-    existing.cost_basis = +(existing.cost_basis + old.cost_basis).toFixed(2);
+    existing.cost_basis = +(existing.cost_basis + proceeds).toFixed(2);
     existing.avg_price = existing.shares > 0 ? +(existing.cost_basis / existing.shares).toFixed(4) : 0;
   } else {
     portfolio.holdings[newSym] = {
       shares: newShares,
-      cost_basis: old.cost_basis,
+      cost_basis: proceeds,
       avg_price: newPrice,
     };
   }
@@ -203,10 +294,18 @@ for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
     to: newSym,
     old_shares: old.shares,
     old_cost_basis: old.cost_basis,
+    old_avg_price: old.avg_price ?? null,
+    exit_price: exitPrice,
+    proceeds,
+    basis_mode: basisMode,                 // "market_value" | "cost_basis_fallback"
+    unrealized_pnl_discarded_usd: discardedPnl,   // null in fallback = unknown, NOT zero
     new_shares: newShares,
     new_price: newPrice,
   });
-  console.log(`  🔄 SWAP ${oldSym} → ${newSym}: $${old.cost_basis.toFixed(0)} cost basis → ${newShares} ${newSym} shares @ $${newPrice.toFixed(2)}`);
+  const modeStr = basisMode === "market_value"
+    ? `sold ${old.shares} @ $${exitPrice.toFixed(2)} = $${proceeds.toFixed(0)} proceeds`
+    : `$${proceeds.toFixed(0)} cost basis (FALLBACK — no exit price)`;
+  console.log(`  🔄 SWAP ${oldSym} → ${newSym}: ${modeStr} → ${newShares} ${newSym} shares @ $${newPrice.toFixed(2)}`);
 }
 
 // ─── EXECUTE TRADES ─────────────────────────────────────────────────────────
