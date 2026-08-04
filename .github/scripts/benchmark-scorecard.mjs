@@ -36,6 +36,34 @@
 // and folds the proceeds into that day's deposit pool — redeployed equally
 // across the surviving members the same day.
 //
+// v8.4.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The IBIT → RDDT swap is a membership change, which this file was built to
+//   absorb generically. Worth recording precisely what it looks like, because
+//   the swap is the first event to exercise the retirement path on a symbol
+//   that is REPLACED rather than simply dropped:
+//     • Day 1 post-deploy: the daily-log entry contains 14 symbols, RDDT among
+//       them, IBIT absent. RDDT joins membership immediately and is weighted
+//       1/14 from that date. The headline member count never leaves 14.
+//     • IBIT is still on the benchmark's internal book at that point, and the
+//       RETIREMENT_DEBOUNCE_DAYS (3) guard deliberately does NOT liquidate it
+//       on the first absent day — that guard exists precisely so a partial
+//       pipeline run cannot fake a retirement. So for up to 3 trading days the
+//       benchmark carries IBIT alongside the 14 logged members, marking it at
+//       its last known price.
+//     • On the 3rd consecutive absent trading day the retirement confirms:
+//       IBIT liquidates at last known price and the proceeds fold into that
+//       day's deposit pool, redeployed equally across the 14 survivors.
+//   All of that is the designed behaviour, not a defect — but it means the
+//   equal-weight leg carries a stale IBIT mark for a few days around the swap,
+//   and the redeployment lands as a visible step on the retirement date rather
+//   than on the swap date. Expect it; do not read it as a data error.
+//   ⚠ The stale mark is IBIT's LAST LOGGED PRICE, which is not necessarily the
+//   price the position was actually exited at. This is the same class of
+//   discontinuity handled explicitly in paper-trader v8.4 via
+//   MIGRATION_EXIT_PRICE. The two files are not coupled — paper-trader tracks
+//   the signal-following book, this tracks the equal-weight benchmark — but if
+//   the swap-date mark matters for a given analysis, cross-check both.
+//
 // INPUTS (all existing history; no new state files):
 //   docs/history/paper-portfolio.json — the signal-following value series +
 //     the authoritative deposit schedule (per-date flow = delta of
@@ -320,7 +348,7 @@ async function main() {
   const out = {
     generated: new Date().toISOString(),
     version: "1.1",
-    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add)",
+    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 holds the count at 14, with IBIT retiring on the 3rd debounced absent day)",
     days: series.length,
     date_range: { first, last },
     grade,
