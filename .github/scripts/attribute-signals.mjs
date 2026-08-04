@@ -3,8 +3,9 @@
 //
 // What it does:
 //   1. Reads every logged signal from docs/history/daily-log.jsonl
-//      (one line per DAY containing all holdings — 14 as of v8.3.0's MA/ISRG
-//      add; flattens to per-symbol rows)
+//      (one line per DAY containing all holdings — 14 since v8.3.0's MA/ISRG
+//      add; still 14 after v8.4.0's IBIT → RDDT swap; flattens to
+//      per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
 //   4. Computes forward returns at 1d, 3d, 5d, 10d, 20d, 40d, 60d, 120d
@@ -29,6 +30,17 @@
 //     new tickers simply begins from their first logged date forward (MA and
 //     ISRG start accumulating from their first daily-log entry — both are
 //     plain US listings, so Alpaca bar coverage is complete from day one).
+//     The v8.4.0 IBIT → RDDT swap likewise needs no change: RDDT is a plain
+//     US listing (NYSE, since March 2024), so Alpaca bar coverage is complete
+//     from its first logged date, and IBIT's logged rows keep attributing
+//     normally as closed history.
+//     ⚠ One thing to watch on RDDT specifically: it is the highest-beta name
+//     in the book (~1.94) and it printed a ~21% single-day move on 2026-07-30.
+//     Forward-return buckets computed across horizons that straddle an event
+//     like that are arithmetically correct but will dominate any small-n
+//     calibration panel they land in. That is a sample-size caveat for whoever
+//     reads the panels, not a bug here — this file's job is to compute the
+//     returns faithfully, which it does.
 //     Historical ETHA rows in the log keep being re-attributed against their
 //     now-frozen forward windows, which is fine.
 //
@@ -329,7 +341,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 as of v8.3.0)
+  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT swap)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
