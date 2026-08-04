@@ -1,5 +1,33 @@
 #!/usr/bin/env node
-// risk-language-diff.mjs v1.1 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+// risk-language-diff.mjs v1.2 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+//
+// v1.2 (August 2026): HOLDINGS SWAP — IBIT out, RDDT in (Reddit, Inc.,
+// CIK 1713445), generate-signals v8.4.0 sync; still 14. RDDT is a plain US
+// filer (10-K/10-Q Item 1A — the MSFT/NOW/MA/ISRG class). CIK verified against
+// EDGAR at build time: Reddit, Inc., CIK 0001713445, Delaware, SIC 7374.
+// IBIT's fallback CIK (1980994) is REMOVED rather than left behind: this
+// script is stateless and only ever processes the current HOLDINGS list, so
+// unlike score-engine's retired archetype branches there is no historical
+// re-scoring path that could still reach it. A dead CIK in the fallback map
+// would be pure confusion.
+//
+// ⚠ SHALLOWER FILING HISTORY THAN THE OTHER US FILERS. Reddit listed in March
+// 2024, so its EDGAR history is ~2.4 years deep rather than decades. This does
+// NOT block a meaningful first run — multiple 10-Qs and at least two 10-Ks
+// (FY2024, FY2025) exist by August 2026, so both form types have a prior
+// same-form comparator well inside the 40-filing lookback. But two things
+// follow that are worth holding in mind when reading early RDDT output:
+//   (a) The earliest available comparison reaches back only to the IPO, so
+//       there is no pre-IPO baseline for what this company's risk language
+//       looks like in calm conditions.
+//   (b) Newly public companies revise Item 1A more heavily than seasoned
+//       filers as disclosure settles post-IPO, so early diffs may show a
+//       higher churn rate that reflects filing maturity rather than any
+//       change in the business. Treat the first few RDDT diffs as
+//       establishing a baseline, not as signal.
+// This mirrors the partial-window caveat the valuation layers already carry
+// for this name (score-engine V8.3, generate-signals v8.4.0) — same root
+// cause, different data source.
 //
 // v1.1 (July 2026): HOLDINGS ADD — MA (Mastercard, CIK 1141391) + ISRG
 // (Intuitive Surgical, CIK 1035267), 12 → 14, generate-signals v8.3.0 sync.
@@ -30,8 +58,8 @@
 // nothing. If no prior same-form filing exists in the lookback, the holding
 // reports status "no_prior_same_form" rather than shipping a misleading diff.
 //
-// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, ENB, MA, ISRG, IBIT — the trust files
-// 10-K/10-Q) via 10-K/10-Q Item 1A; foreign private issuers (ASML, PBR.A/PBR,
+// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, ENB, MA, ISRG, RDDT) via
+// 10-K/10-Q Item 1A; foreign private issuers (ASML, PBR.A/PBR,
 // KOF) via 20-F Item 3.D / Risk Factors. GLNCY (Glencore — LSE, OTC ADR) and
 // AMKBY (Maersk — Copenhagen, OTC ADR) are not SEC reporting companies: they
 // are recorded with status "no_sec_filings", permanently, by design — not an
@@ -75,7 +103,7 @@ const HOLDINGS = [
   { symbol: "ENB",   edgarTicker: "ENB" },
   { symbol: "PBR.A", edgarTicker: "PBR" },   // same registrant as the preferreds
   { symbol: "KOF",   edgarTicker: "KOF" },
-  { symbol: "IBIT",  edgarTicker: "IBIT" },  // iShares Bitcoin Trust files 10-K/10-Q
+  { symbol: "RDDT",  edgarTicker: "RDDT" },  // Reddit — 10-K/10-Q Item 1A (v1.2); IPO Mar 2024, shallow history
   { symbol: "MA",    edgarTicker: "MA" },    // Mastercard — 10-K/10-Q Item 1A (v1.1)
   { symbol: "ISRG",  edgarTicker: "ISRG" },  // Intuitive Surgical — 10-K/10-Q Item 1A (v1.1)
   { symbol: "GLNCY", edgarTicker: null },    // Glencore — LSE listing, no SEC reporting
@@ -86,8 +114,9 @@ const HOLDINGS = [
 // against EDGAR at build time; the runtime lookup remains authoritative.
 const FALLBACK_CIK = {
   MSFT: 789019, ASML: 937966, LIN: 1707925, TMO: 97745, NOW: 1373715,
-  LHX: 202058, ENB: 895728, PBR: 1119639, KOF: 910631, IBIT: 1980994,
+  LHX: 202058, ENB: 895728, PBR: 1119639, KOF: 910631,
   MA: 1141391, ISRG: 1035267,   // v1.1 — verified against EDGAR filing indexes
+  RDDT: 1713445,                // v1.2 — Reddit, Inc.; verified against EDGAR (Delaware, SIC 7374)
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
