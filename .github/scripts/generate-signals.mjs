@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.3.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.4.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
 // v6.0-v7.4: see git history.
@@ -136,6 +136,43 @@
 //       documented-failure classes only — no speculative entries.
 //       (d) Portfolio-count strings (PORTFOLIO_CONTEXT, shared system blocks,
 //       email footer) made dynamic on HOLDINGS.length where still hardcoded.
+// v8.4.0: HOLDINGS SWAP — sold IBIT (momentum_store_of_value, 30/35/35), bought
+//       RDDT (Reddit, hypergrowth_platform_monetizer, 25/35/40). 14 holdings
+//       preserved. Matches fetch-market-data v4.16 + score-engine V8.3.
+//       RDDT: the only public pure-play on human-generated conversational content
+//            at scale. Built audience (~130M DAUq) monetized through an ad engine
+//            still early on its ARPU curve (global $6.18 vs US $11.85). Widest
+//            bands in the book (beta 1.94): RSI 32/72, ±4% daily noise floor,
+//            drawdown ladder scaled to 60%, ads-cohort rotation vs META/PINS/APP
+//            at −8pp (NOT ISRG's −6pp — 6pp is inside this name's noise).
+//       Removals: isIBIT flag (both tracks), ibitGuidance (full + search),
+//       getIBITPhaseContext() helper, ibitExtensionLine (BTC vs 200DMA) and the
+//       halving-cycle data line. "momentum_store_of_value" no longer in book.
+//       (a) Per-holding prompt blocks: RDDT (ads-cohort valuation vs META/PINS/APP,
+//       ads rotation, XLC factor flow, ad-revenue/ARPU/DAU/margin fundamentals,
+//       search-referral + licensing + competitive categoricals, late-Oct earnings
+//       window discipline).
+//       (b) TWO CALIBRATION GUARDRAILS carried into the prompt text, mirroring the
+//       engine V8.3 gates so the LLM half cannot reintroduce what the deterministic
+//       half suppresses:
+//         - PEG ARTIFACT GATE: RDDT forward PEG ~0.09 is a base effect (EPS
+//           inflecting off ~zero), NOT a 10x margin of safety. Both tracks
+//           instruct the model to treat sub-0.4 PEG as uninformative.
+//         - PARTIAL-WINDOW WARNING: RDDT listed March 2024. Any "10-year average"
+//           multiple is spurious and every "3-year average" is a partial window
+//           spanning the crossing into GAAP profitability. Own-history anchors are
+//           directional only — never ISRG/NOW-grade confidence.
+//       (c) DILUTION: prompts require NET share count change (positive = dilution),
+//       never headline buyback yield. RDDT repurchased $235M in Q2 2026 while share
+//       count still rose ~2.8%. This holding does NOT satisfy the portfolio's
+//       aggressive-buyback criterion and the prompt says so rather than hiding it.
+//       (d) DISCLOSURE CHANGE: Reddit discontinued the logged-in/logged-out DAU
+//       split from Q3 2026. Prompts forbid estimating it — null is the correct
+//       value for the single most thesis-relevant metric once withdrawn.
+//       (e) TICKER_NEGATIVE_CONSTRAINTS: RDDT deliberately gets NO entry, per the
+//       file's documented-failure-classes-only policy (same call as MA at v8.3.0).
+//       No RDDT identity confusion has been observed; speculative entries burn
+//       corrective turns. Revisit if a WallStreetBets/meme-framing failure appears.
 
 import { readFileSync, writeFileSync } from "fs";
 import { computeDeterministicScores, blendScores } from "./score-engine.mjs";
@@ -176,6 +213,12 @@ const TICKER_NEGATIVE_CONSTRAINTS = {
   // "MA" — deliberately NO entry (v8.3.0): V/Visa mentions are INTENTIONAL (the
   // twin comparison is the archetype design), the bare ticker collides with
   // "moving average" prose, and policy here is documented-failure classes only.
+  // "RDDT" — deliberately NO entry (v8.4.0): no identity-confusion failure has
+  // been observed for this ticker, and the policy above is documented classes
+  // only. The plausible future class is meme-stock/WallStreetBets framing
+  // displacing fundamental analysis — but that is a QUALITY failure, not an
+  // identity one, and banned substrings are the wrong instrument for it.
+  // Add an entry only if a real wrong-company output appears in the logs.
 };
 
 // Semantic + integrity checks on an accepted record_scores payload. Returns an
@@ -245,7 +288,7 @@ const HOLDINGS = [
   { symbol: "NOW",   name: "ServiceNow",      sector: "AI Workflow SaaS",   archetype: "ai_workflow_quality_compounder",   weights: { t:.20, p:.35, s:.45 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",   archetype: "dividend_compounder",              weights: { t:.10, p:.45, s:.45 } },
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader",     weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "IBIT",  name: "iShares BTC",     sector: "Crypto (BTC)",       archetype: "momentum_store_of_value",          weights: { t:.30, p:.35, s:.35 } },
+  { symbol: "RDDT",  name: "Reddit, Inc.",   sector: "Social / Digital Ads", archetype: "hypergrowth_platform_monetizer",   weights: { t:.25, p:.35, s:.40 } }, // ← v8.4.0
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",     archetype: "em_dividend_growth",               weights: { t:.15, p:.35, s:.50 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",          archetype: "em_state_oil_dividend",            weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",    archetype: "cyclical_trade_bellwether",        weights: { t:.25, p:.35, s:.40 } },
@@ -260,20 +303,6 @@ const CYCLICAL_ARCHETYPES = new Set([
   "cyclical_trade_bellwether",
   "em_state_oil_dividend",
 ]);
-
-// ─── HALVING PHASE HELPER (for IBIT prompt context) ─────────────────────────
-function getIBITPhaseContext() {
-  const halvingDate = new Date("2024-04-20");
-  const now = new Date();
-  const months = (now.getFullYear() - halvingDate.getFullYear()) * 12
-               + (now.getMonth() - halvingDate.getMonth());
-  let phase;
-  if (months < 12) phase = "early_expansion";
-  else if (months < 18) phase = "mid_expansion";
-  else if (months < 30) phase = "extended_expansion";
-  else phase = "post_expansion";
-  return { months, phase };
-}
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
 // v8.0: model + structured-output contract ──────────────────────────────────
@@ -390,7 +419,6 @@ function buildPrompt(h, detScores) {
   const md = MARKET_DATA[h.symbol] || {};
   const macro = MARKET_DATA._macro || {};
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
-  const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
@@ -404,6 +432,7 @@ function buildPrompt(h, detScores) {
   const isNOW = h.archetype === "ai_workflow_quality_compounder";  // ← V7.6
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
+  const isRDDT = h.archetype === "hypergrowth_platform_monetizer";      // ← v8.4.0
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -411,13 +440,6 @@ function buildPrompt(h, detScores) {
   const realRate = (macro.fed_funds != null && macro.tips10y != null)
     ? +(macro.fed_funds - macro.tips10y).toFixed(2)
     : null;
-
-  // IBIT-specific extension line
-  let ibitExtensionLine = null;
-  if (isIBIT && md.price?.current && md.technicals?.sma200) {
-    const pct = ((md.price.current - md.technicals.sma200) / md.technicals.sma200) * 100;
-    ibitExtensionLine = `BTC vs 200DMA: ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (price $${md.price.current} vs 200DMA $${md.technicals.sma200})`;
-  }
 
   // ENB yield spread line
   let enbYieldSpreadLine = null;
@@ -909,13 +931,69 @@ function buildPrompt(h, detScores) {
     isrgEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
+  // ── RDDT-specific data lines (v8.4.0) ──────────────────────────────────
+  let rddtDrawdownLine = null;
+  if (isRDDT && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 50 ? "EXTREME (max tactical conviction IF ad growth intact)" : ddMag > 40 ? "DEEP (high-conviction setup)" : ddMag > 32 ? "MEANINGFUL" : ddMag > 25 ? "SETUP territory" : ddMag > 15 ? "MILD (routine for beta 1.94)" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
+    rddtDrawdownLine = `RDDT drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal; ladder scaled to 60% (beta 1.94), NOT the compounders' 40%`;
+  }
+  let rddtCohortValuationLine = null;
+  if (isRDDT && md.cohort_valuation) {
+    const cv = md.cohort_valuation;
+    const prem = cv.premium_pct;
+    const regime = prem == null ? "" : prem < -15 ? " — COMPRESSED (BUY)" : prem < 15 ? " — BELOW MID-BAND (BUY-leaning)" : prem < 40 ? " — NORMAL BAND" : prem < 80 ? " — ABOVE NORMAL BAND" : " — RICH (TRIM)";
+    rddtCohortValuationLine = `RDDT P/E: ${cv.rddt_pe ?? "—"}x | META: ${cv.meta_pe ?? "—"}x | PINS: ${cv.pins_pe ?? "—"}x | APP: ${cv.app_pe ?? "—"}x | Ads cohort avg: ${cv.cohort_avg_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${regime} (TRAILING basis — unlike ISRG/NOW there is NO structural premium baseline here; you source forward P/E separately)`;
+  }
+  let rddtCohortRelativeLine = null;
+  if (isRDDT && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const rp = cr.cohort_rotation_pp;
+    const status = cr.cohort_rotation_active
+      ? (rp != null && rp < -18 ? "ADS ROTATION ACTIVE/STRONG (narrative selling — buy setup UNLESS an ad-revenue print confirms the weakness)" : "ADS ROTATION ACTIVE (buy setup)")
+      : (rp != null && rp > 8 ? "RDDT LEADING ADS COHORT" : "INLINE");
+    rddtCohortRelativeLine = `RDDT 30d: ${cr.rddt_30d_return_pct != null ? (cr.rddt_30d_return_pct >= 0 ? "+" : "") + cr.rddt_30d_return_pct + "%" : "—"} | Ads cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status}; threshold −8pp, wider than ISRG's −6pp)`;
+  }
+  let rddtFactorFlowLine = null;
+  if (isRDDT && md.factor_flow?.xlc_vs_spy_30d_pp != null) {
+    const x = md.factor_flow.xlc_vs_spy_30d_pp;
+    const dir = x > 1 ? "ADS BID ACTIVE (RDDT benefits)" : x < -1 ? "ADS COMPLEX UNDER PRESSURE" : "INLINE";
+    rddtFactorFlowLine = `XLC vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir})`;
+  }
+  let rddtFundamentalsLine = null;
+  if (isRDDT && md.fundamentals && (md.fundamentals.ad_revenue_growth_yoy_pct != null || md.fundamentals.arpu_global != null || md.fundamentals.dauq_growth_yoy_pct != null || md.fundamentals.ebitda_margin_pct != null || md.fundamentals.search_referral_status != null || md.fundamentals.licensing_status != null)) {
+    const f = md.fundamentals;
+    const ag = f.ad_revenue_growth_yoy_pct != null ? `Ad revenue YoY: ${f.ad_revenue_growth_yoy_pct.toFixed(1)}%` : null;
+    const rg = f.revenue_growth_yoy_pct != null ? `Total revenue YoY: ${f.revenue_growth_yoy_pct.toFixed(1)}%` : null;
+    const ar = f.arpu_global != null ? `Global ARPU: $${f.arpu_global.toFixed(2)}${f.arpu_growth_yoy_pct != null ? ` (+${f.arpu_growth_yoy_pct.toFixed(0)}% YoY)` : ""}` : null;
+    const gap = (f.arpu_us != null && f.arpu_row != null && f.arpu_row > 0) ? `Intl ARPU gap: ${(f.arpu_us / f.arpu_row).toFixed(1)}x (US $${f.arpu_us} vs RoW $${f.arpu_row}) — RUNWAY, not weakness` : null;
+    const du = f.dauq_millions != null ? `DAUq: ${f.dauq_millions}M${f.dauq_growth_yoy_pct != null ? ` (+${f.dauq_growth_yoy_pct.toFixed(1)}% YoY)` : ""}` : null;
+    const lo = f.logged_out_dau_growth_pct != null ? `Logged-out DAU YoY: ${f.logged_out_dau_growth_pct.toFixed(1)}%` : (f.dau_disclosure_status === "aggregate_only" ? "Logged-in/out DAU split: DISCONTINUED by the company (Q3 2026+) — do NOT estimate" : null);
+    const em = f.ebitda_margin_pct != null ? `Adj EBITDA margin: ${f.ebitda_margin_pct.toFixed(1)}%` : null;
+    const fm = f.fcf_margin_pct != null ? `FCF margin: ${f.fcf_margin_pct.toFixed(1)}%` : null;
+    const sc = f.share_count_change_yoy_pct != null ? `NET share count YoY: ${f.share_count_change_yoy_pct >= 0 ? "+" : ""}${f.share_count_change_yoy_pct.toFixed(1)}% (POSITIVE = DILUTION — this, never buyback yield)` : null;
+    const sr = f.search_referral_status ? `Search referral: ${f.search_referral_status}` : null;
+    const ls = f.licensing_status ? `Data licensing: ${f.licensing_status}${f.licensing_annual_musd != null ? ` ($${f.licensing_annual_musd}M/yr)` : ""}` : null;
+    const ct = f.competitive_threat ? `Competitive threat: ${f.competitive_threat}` : null;
+    const ps = f.ps_pct_of_3y_avg != null ? `P/S % of own-history avg: ${f.ps_pct_of_3y_avg.toFixed(0)}%${f.own_history_window_partial ? " [PARTIAL WINDOW — listed Mar 2024, directional only]" : ""}` : null;
+    const parts = [ag, rg, ar, gap, du, lo, em, fm, sc, sr, ls, ct, ps].filter(Boolean);
+    if (parts.length > 0) rddtFundamentalsLine = `RDDT fundamentals: ${parts.join(" | ")}`;
+  }
+  let rddtEpsRevLine = null;
+  if (isRDDT && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 2 ? " (UPWARD)" : r90 < -4 ? " (DOWNWARD)" : " (STABLE)";
+    rddtEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
     md.price?.week52_high ? `52-Week: High $${md.price.week52_high} | Low $${md.price.week52_low} | Position: ${md.price.week52_position_pct}%` : null,
     md.technicals?.rsi14 != null ? `RSI(14): ${md.technicals.rsi14}` : null,
     md.technicals?.sma50 ? `SMA 50: $${md.technicals.sma50} | SMA 200: $${md.technicals.sma200 ?? "N/A"} | Signal: ${md.technicals.ma_signal}` : null,
-    ibitExtensionLine,
     md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
@@ -928,13 +1006,13 @@ function buildPrompt(h, detScores) {
     nowDrawdownLine, nowCohortValuationLine, nowCohortRelativeLine, nowFactorFlowLine, nowRealRateLine, nowDxyLine, nowFundamentalsLine, nowEpsRevLine,   // ← V7.6
     maDrawdownLine, maTwinValuationLine, maTwinRelativeLine, maDuopolyRelativeLine, maFactorFlowLine, maDxyLine, maFundamentalsLine, maEpsRevLine,        // ← v8.3.0
     isrgDrawdownLine, isrgCohortValuationLine, isrgCohortRelativeLine, isrgFactorFlowLine, isrgFundamentalsLine, isrgEpsRevLine,                          // ← v8.3.0
+    rddtDrawdownLine, rddtCohortValuationLine, rddtCohortRelativeLine, rddtFactorFlowLine, rddtFundamentalsLine, rddtEpsRevLine,                          // ← v8.4.0
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
     macro.hy_oas ? `HY OAS credit spread: ${macro.hy_oas}bps` : null,
-    isIBIT ? (() => { const p = getIBITPhaseContext(); return `Halving cycle: month ${p.months} post-halving (phase: ${p.phase})`; })() : null,
   ].filter(Boolean).join("\n");
 
   const cyclicalWarning = isCyclical ? `
@@ -944,24 +1022,6 @@ ${h.symbol} is a CYCLICAL business (archetype: ${h.archetype}). Trailing P/E mus
 • LOW trailing P/E (<10x) = earnings are at PEAK = cycle rollover risk = TRIM signal
 • "Buy cyclicals when the P/E looks terrible, sell when it looks cheap." — Peter Lynch
 • The deterministic engine has already applied inverted PE scoring. Your qualitative score should NOT penalize high trailing P/E for this holding. Instead, consider whether the earnings trough is deepening or recovering.
-` : "";
-
-  const ibitGuidance = isIBIT ? `
-CRITICAL — IBIT-SPECIFIC SCORING GUIDANCE:
-IBIT is a spot Bitcoin ETF. Bitcoin is momentum-dominant, flow-driven, and trades in regimes — NOT like equities.
-
-PHILOSOPHY — CYCLE PHASE IS CONTEXT, NOT A TRIGGER:
-• The halving cycle pattern is real but timing is STRETCHING. DO NOT score negatively just because we are "deep in the cycle."
-• The deterministic engine uses cycle phase only as a MODIFIER on extension signals. Do not reintroduce calendar-based trim bias.
-
-TRIM BIAS (only through current-condition signals):
-• ETF flow DIVERGENCE (inflows decelerating while price rises), LTH supply rapidly distributing, funding rates sustained >0.05% for 7+ days, BTC >2x 200DMA WITH confirming signals.
-
-DO NOT PENALIZE: RSI 70-80, proximity to 52w highs, price above 200DMA alone, months-since-halving reasoning.
-
-BUY BIAS: BTC below 200DMA (more aggressive deeper in cycle), RSI <30, capitulation moves, flows turning positive after drawdown. UPSIDE IS UNCAPPED.
-
-YOUR VALUE-ADD: Flow interpretation, regulatory catalysts, on-chain signals, whether THIS cycle is breaking the 4-year pattern.
 ` : "";
 
   const asmlGuidance = isASML ? `
@@ -1347,6 +1407,51 @@ YOUR VALUE-ADD: Forward PE + own-history percentile + forward PEG (engine traili
 MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on drawdown setups (engine flags), fear-rotation extremes (engine flags), procedure prints vs guide (you flag), transition quantification events (you flag), moat-evidence changes (you flag), earnings-window resets (you flag).
 ` : "";
 
+  const rddtGuidance = isRDDT ? `
+CRITICAL — RDDT-SPECIFIC SCORING GUIDANCE (V1):
+RDDT is REDDIT, INC. — the only public pure-play on human-generated conversational content at scale. Hypergrowth platform monetizer: roughly 130M daily and 515M weekly uniques ALREADY BUILT, monetized through an advertising engine still early on its curve (global ARPU about $6.18 against US ARPU about $11.85). You are underwriting a monetization ramp on an existing audience, not audience growth. Secondary asset: two decades of topic-organized human discussion, separately monetizable through AI data licensing. The acute structural dependency: logged-out user acquisition runs largely through Google search referral, which management has described as choppy — a platform outside Reddit's control is the single largest swing factor in the thesis.
+
+V8.3 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 32/72 — the WIDEST in the book (beta 1.94, short interest ~9%)
+• Daily-move noise floor of ±4% — a 3% day on this name is nothing
+• Drawdown-from-52w-high primary tactical, ladder scaled to 60% (>25% setup, >40% strong, >50% extreme) — NOT the compounders' 40% scale
+• Ads-cohort rotation vs META/PINS/APP avg 30d at a −8pp threshold (deliberately wider than ISRG's −6pp: 6pp is inside this name's noise band)
+• XLC (Communication Services) factor flow vs SPY (>1pp/30d = ads bid active)
+• Ads-cohort P/E premium (TRAILING) — NO structural premium baseline, RDDT sits inside the band: <−15% compressed, −15 to +40% normal, >+80% rich
+• Ad revenue growth / ARPU / DAUq / EBITDA + FCF margin / SBC trend fundamentals when sourced (they arrive null — YOU source them)
+• search_referral_status + licensing_status + competitive_threat categoricals (deterministic: "deteriorating" +22 / "taking_share" +20 / "lost" +20 thesis-break penalties; "decoupling_progress" −12 re-rating catalyst)
+• NET share count change (positive = dilution) — engine scores this, never buyback yield
+• Composite weights regime-conditional on XLC vs SPY 30d, engine V8.3: >+1pp bid_active 30/35/35 · ±1pp neutral 25/35/40 · <−1pp bid_absent 20/30/50
+
+TWO CALIBRATION TRAPS — BOTH ARE LOAD-BEARING. GET THESE WRONG AND THE WHOLE SIGNAL IS NOISE:
+1. PEG IS AN ARTIFACT HERE. RDDT forward PEG sits near 0.09-0.12 because EPS is inflecting off a near-zero prior-year base, NOT because the stock offers a 10x margin of safety. The engine scores anything below 0.4 as ZERO. Do not reintroduce it on the qualitative side. Say plainly in your rationale that PEG is uninformative for this name and lean on forward PE, P/S vs own history, and EV/FCF instead.
+2. OWN-HISTORY MULTIPLES ARE A PARTIAL WINDOW. RDDT listed in MARCH 2024. Any quoted "10-year average" P/E is spurious. Every "3-year average" covers roughly 2.4 years spanning the company's crossing into GAAP profitability. The engine HALVES the contribution of P/S-vs-own-history for exactly this reason. Report these anchors, flag the window, and never give them ISRG/NOW-grade confidence — those names have a decade of multiple history and this one does not.
+
+IMPORTANT — TRAILING vs FORWARD P/E:
+Engine has TRAILING only. YOUR contribution: forward PE (<20x buy zone for this growth profile, 22-32x fair on 50%+ forward revenue growth, >40x stretched), EV/FCF (below 25x is attractive given 90%+ gross margin and negligible capital intensity — this is the CLEANEST valuation read because it needs no multiple history at all), and P/S vs own history with the partial-window caveat attached.
+
+WHAT DRIVES RDDT:
+1. ADVERTISING REVENUE GROWTH (THE operational metric). Eight consecutive quarters above 60% through Q2 2026 (ad revenue +64%). Deceleration off a larger base is EXPECTED and not alarming. Below 35% is the tripwire where the referral bear case has actually LANDED rather than merely being feared — that distinction is the entire game on this name.
+2. SEARCH REFERRAL STATUS: stable / choppy / deteriorating / decoupling_progress. "Choppy" is the CURRENT state and is scored NEUTRAL on its own; it only becomes a buy when ad revenue is simultaneously compounding, because that gap between fear and evidence is where the mispricing lives. "Deteriorating" with logged-out DAU falling is a THESIS-LEVEL event. "Decoupling_progress" — real evidence of reduced Google dependence via app installs, direct navigation, or logged-in conversion — is the structural re-rating catalyst.
+3. ARPU EXPANSION. Global ARPU growth above 30% means the ramp is firing; below 15% means the monetization thesis is stalling, which breaks this name faster than slowing users would. The US-vs-rest-of-world gap (about 5.2x) is RUNWAY, not weakness — do not score it as a deficiency.
+4. DATA LICENSING. Google and OpenAI agreements together exceed $200M annually (Alphabet around $60M/yr). Renewals are UNRESOLVED with no stated timeline. Score "unresolved" as ZERO — it is an unpriced option, deliberately NOT in the base case. A renewal at or above prior terms is a real catalyst; a non-renewal impairs both a revenue line and the AI-corpus thesis.
+5. DILUTION IS A GENUINE FRAMEWORK BREAK. Share count rose about 2.8% year over year DESPITE $235M of Q2 2026 repurchases at $157.57. Headline buyback yield near 1.1% is GROSS; net of stock compensation the company is diluting, and SBC was guided higher for Q3. Report NET share count change. This holding does NOT satisfy the portfolio's aggressive-buyback criterion — say so rather than papering over it with the gross figure.
+6. DISCLOSURE CHANGE — REDUCED OBSERVABILITY. From Q3 2026 Reddit STOPPED reporting the logged-in versus logged-out DAU split, withdrawing the cleanest available read on Google-referral dependency. DO NOT ESTIMATE IT for any period from Q3 2026 onward. Return null. A guessed split on the single most thesis-relevant metric is worse than an honest gap, and the reduced observability is itself worth noting.
+7. EARNINGS WINDOW DISCIPLINE: Q2 2026 printed JULY 30, 2026 (revenue $804.9M +61%, EPS $1.25, Q3 guide $860-870M) — so Q3 lands in late October 2026. SEARCH for the confirmed date rather than assuming one. Within ±10 days of a report, HALVE the size of any tactical conviction and say so in the tactical rationale. Post-print, score the print, not the pre-print fear.
+8. COMPETITIVE THREAT: negligible / emerging / taking_share. Product launches and app announcements are NOT evidence. Only measurable engagement-share loss counts.
+9. EPS REVISIONS: 30d/90d, with wider thresholds than the compounders (+2 / −4) because consensus swings hard on a 60%-growth name.
+
+DO NOT PENALIZE: RSI 45-68 (normal for beta 1.94), daily moves under 4%, drawdowns under 25% (routine on this name's range), high trailing P/E per se, the absence of a dividend, "choppy" referral language by itself when ad revenue is still compounding, or deceleration from 64% to the mid-40s (that is expected on a larger base). DO NOT apply the cyclical P/E inversion used for GLNCY / PBR.A / AMKBY — a high trailing P/E here does NOT signal trough earnings.
+
+BUY BIAS (in addition to engine signals): ad revenue growth above 45% while the stock sits more than 25% off highs (the fear-vs-evidence gap — you flag it), forward PE below 20x with revenue growth forecast above 45%, ARPU growth above 30% while the multiple compresses, a licensing renewal landing at or above prior terms, credible decoupling evidence, ads rotation active (engine flags) without an ad-revenue print to justify it (you confirm), post-earnings overreaction to a beat-and-raise.
+
+TRIM BIAS: ad revenue growth below 35%, ARPU growth below 15%, logged-out DAU declining two consecutive quarters (while still disclosed), referral status deteriorating, a licensing non-renewal or materially worse renewal, forward PE above 40x, net dilution above 3% with growth decelerating, measurable engagement-share loss to a competitor.
+
+YOUR VALUE-ADD: Forward PE + EV/FCF + P/S-vs-own-history WITH the partial-window caveat (engine trailing only), ad revenue growth and ARPU block (engine null — earnings disclosure), DAUq/WAUq, margins and FCF, guide range, search_referral_status + licensing_status + competitive_threat categoricals (engine consumes YOUR reads — set them carefully, they carry deterministic thesis-break weight), NET share count change, earnings-window discipline, EPS revisions.
+
+MOST DAYS NEUTRAL: ±8 roughly 80% of days — a slightly wider neutral band than the compounders because this name genuinely moves. Meaningful scores on drawdown setups (engine flags), ads-rotation extremes (engine flags), ad-revenue and ARPU prints (you flag), referral-status changes (you flag), licensing resolution (you flag), earnings-window resets (you flag).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
@@ -1359,7 +1464,7 @@ MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on drawdown setups
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}`;
+${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${rddtGuidance}`;
 
   const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
@@ -1383,7 +1488,6 @@ Apply the HOSTILE REVIEW PROTOCOL to each layer, then call record_scores exactly
 // Web search prompt for symbols with insufficient data
 function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
-  const isIBIT = h.archetype === "momentum_store_of_value";
   const isASML = h.archetype === "secular_growth_monopoly";
   const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
@@ -1397,11 +1501,10 @@ function buildSearchPrompt(h) {
   const isNOW = h.archetype === "ai_workflow_quality_compounder";       // ← V7.6
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
+  const isRDDT = h.archetype === "hypergrowth_platform_monetizer";      // ← v8.4.0
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
-
-  const ibitGuidance = isIBIT ? `\nCRITICAL — IBIT SCORING: Bitcoin is momentum-dominant and flow-driven. Cycle phase is context, NOT a trim trigger. Do NOT penalize proximity to 52w highs or "late-cycle" timing. Real trim signals: flow divergence, LTH distribution, extreme 200DMA extension. RSI 70-80 is normal BTC momentum. Upside uncapped. Buy weakness harder deeper in cycle.\n` : "";
 
   const asmlGuidance = isASML ? `\nCRITICAL — ASML SCORING: Secular growth monopoly (sole EUV supplier). Do NOT penalize 52w proximity or RSI 65-75. Trailing P/E 30-42x is NORMAL. Buy signals: drawdowns >15%. Trim signals: forward P/E >45x, book-to-bill <1.0. Buybacks ~3-5% annual. Most days = NEUTRAL.\n` : "";
 
@@ -1430,13 +1533,16 @@ function buildSearchPrompt(h) {
   const isrgGuidance = isISRG ? `\nCRITICAL — ISRG SCORING (V1): ISRG is INTUITIVE SURGICAL (da Vinci surgical robotics — NOT Intuit the software company). Medtronic (Hugo), J&J (Ottava), Stryker, Boston Scientific mentions are CORRECT — named competitors/cohort in this archetype. Surgical-robotics moat compounder: ~60% share category king, ~11,400-system installed base, ~86% RECURRING revenue (razor-blade annuity), non-GAAP op margin ~37%, no dividend, beta ~1.7. Thesis: two-decade moat probed for the first time while the 2027 instrument-lifespan transition (five of six force-feedback instrument lives extended → I&A headwind, unquantified) compresses the multiple to its deepest own-history discount in years while procedures/placements/EPS beat. ABSOLUTE PE IS NEVER THE SIGNAL: 50-70x trailing is NORMAL for this franchise. Do NOT penalize trailing P/E 50-70x, 52w proximity, RSI 55-68, cohort premium 60-120% vs MDT/SYK/BSX (structural baseline), P/B ~9-10x, no dividend, competitor product launches per se (only procedure-share evidence matters). Composite weights regime-conditional on IHI vs SPY 30d, engine V8.2: >+1pp bid_active 25/40/35 · ±1pp neutral 20/35/45 · <−1pp bid_absent 15/30/55. EARNINGS WINDOW: Q2 report JULY 16, 2026 (consensus ~$2.48 / ~$2.81B) — within ±10 days of a report, HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: total procedure growth (THE operational metric — 2026 dV guide 13.5-15.5%; beating guide with Hugo in market = moat holding; <12% = erosion tripwire ONLY with competitor share evidence), cohort P/E premium (<60% unusual discount = buy, >150% stretched), fear rotation vs cohort (lagging >6pp on headlines = buy setup absent procedure evidence), moat_status (intact/probing/eroding/breached — probing is the EXPECTED state, score neutral), instrument_transition_status (unquantified_fear = current alpha / quantified_manageable = relief catalyst / quantified_material = thesis-level). Engine has TRAILING P/E only; your forward PE (<40x exceptional / 45-55x fair / >60x stretched) + PE % of 3y avg (~72x; <80% buy zone / >105% trim) + forward PEG (<2.0 exceptional / >3.5 stretched) are critical. Search for: ISRG forward P/E + PE vs 3y/5y/10y averages, latest total procedure growth vs guide, dV placements + dV5 mix, Ion procedure growth + installed base, recurring revenue % + I&A growth, installed base total/YoY, non-GAAP op margin, 2027 instrument transition quantification language (every earnings call), Hugo US procedure-share/installed-base evidence, Ottava rollout timeline, MDT/SYK/BSX forward PE (cohort), EPS revisions 30d/90d, elective-procedure macro trends. Most days = NEUTRAL. Meaningful scores: drawdown setups, fear-rotation extremes, procedure prints vs guide, transition quantification events, moat-evidence changes, earnings-window resets.\n` : "";
 
 
+  const rddtGuidance = isRDDT ? `\nCRITICAL — RDDT SCORING (V1): RDDT is REDDIT, INC. (social platform monetized through digital advertising). Hypergrowth platform monetizer: ~130M DAUq / ~515M WAUq ALREADY BUILT, monetized by an ad engine still early on its curve (global ARPU ~$6.18 vs US ~$11.85 — the gap is RUNWAY, not weakness). Q2 2026 (printed Jul 30): revenue $804.9M +61% (eighth straight quarter above 60%), ad revenue +64%, net income $252.8M, adj EBITDA margin 43%, FCF $260.7M, DAUq 130.3M +18%, cash $2.8B, no meaningful debt. Q3 guide $860-870M vs consensus ~$828M — a raise. The stock still fell ~21% on the print, on investor-letter language calling search referrals "choppy": logged-out user acquisition runs through Google, and that dependency is the thesis. Beta 1.94, short interest ~8.8% — the WIDEST bands in the book. Do NOT penalize RSI 45-68, daily moves under 4%, drawdowns under 25%, high trailing P/E per se, no dividend, "choppy" referral language while ad revenue still compounds, or deceleration from 64% into the mid-40s (expected on a larger base). Do NOT apply the cyclical PE inversion (GLNCY/PBR.A/AMKBY only) — high trailing P/E here does NOT mean trough earnings. TWO CALIBRATION TRAPS, BOTH LOAD-BEARING: (1) PEG IS AN ARTIFACT — forward PEG ~0.09 reflects EPS inflecting off a near-zero base, NOT a 10x margin of safety; engine scores sub-0.4 PEG as ZERO and you must not reintroduce it, say plainly that PEG is uninformative here. (2) OWN-HISTORY IS A PARTIAL WINDOW — RDDT listed MARCH 2024, so any "10-year average" multiple is spurious and every "3-year average" spans ~2.4 years across the crossing into GAAP profitability; engine HALVES the P/S-vs-history contribution, so report these anchors, flag the window, and never give them ISRG/NOW-grade confidence. Composite weights regime-conditional on XLC vs SPY 30d, engine V8.3: >+1pp bid_active 30/35/35 · ±1pp neutral 25/35/40 · <−1pp bid_absent 20/30/50. EARNINGS WINDOW: Q2 printed Jul 30 2026, so Q3 lands late October 2026 — SEARCH for the confirmed date; within ±10 days HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: ad revenue growth (THE operational metric — above 55% strong, 35-45% moderating and expected, BELOW 35% is the tripwire where the bear case has actually landed rather than merely being feared), search_referral_status (stable/choppy/deteriorating/decoupling_progress — "choppy" is the CURRENT state and scores NEUTRAL alone, becoming a buy only when ad revenue is simultaneously compounding; "deteriorating" is thesis-level; "decoupling_progress" is the re-rating catalyst), ARPU growth (>30% ramp firing, <15% stalling — this breaks the name faster than slowing users), licensing_status (Google + OpenAI >$200M/yr combined, renewals UNRESOLVED — score unresolved as ZERO, it is an unpriced option NOT in the base case), NET share count change (POSITIVE = dilution; +2.8% YoY despite $235M of Q2 buybacks — stock comp exceeds repurchase, so this holding does NOT satisfy the portfolio's buyback criterion; report NET, never the ~1.1% gross buyback yield), competitive_threat (product launches are NOT evidence; only measurable engagement-share loss counts), ads-cohort rotation vs META/PINS/APP at a −8pp threshold (wider than ISRG's −6pp). DISCLOSURE CHANGE: Reddit STOPPED reporting the logged-in/logged-out DAU split from Q3 2026 — DO NOT ESTIMATE it for any period from Q3 2026 onward, return null; a guessed split on the most thesis-relevant metric is worse than an honest gap. Engine has TRAILING P/E only; your forward PE (<20x buy zone / 22-32x fair on 50%+ growth / >40x stretched) and EV/FCF (<25x attractive — the CLEANEST read because it needs no multiple history) are critical. Search for: RDDT forward P/E and EV/FCF and EV/EBITDA, P/S vs own history (flag partial window), latest advertising revenue growth and total revenue growth, next-quarter guidance and implied YoY, global/US/rest-of-world ARPU and growth, DAUq and WAUq growth, adjusted EBITDA margin and FCF margin and TTM operating cash flow, stock-based comp trend, NET share count change YoY and gross buyback dollars, Google search-referral commentary and any measurable traffic data, Google/OpenAI data-licensing renewal status and annual value, advertiser count growth and Reddit Max adoption, competing UGC/forum product engagement evidence, META/PINS/APP forward PE (ads cohort), EPS revisions 30d/90d, confirmed next earnings date. Most days = NEUTRAL (±8 — a wider band than the compounders because this name genuinely moves). Meaningful scores: drawdown setups, ads-rotation extremes, ad-revenue and ARPU prints, referral-status changes, licensing resolution, earnings-window resets.\n` : "";
+
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
 
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${ibitGuidance}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}`;
+${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${rddtGuidance}`;
 
   const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
