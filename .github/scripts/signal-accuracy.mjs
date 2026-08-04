@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.4 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.5 — Forward-looking signal accuracy tracker.
 //
 // v1.3 (June 2026) — CSV PARSE HARDENING:
 //   The naive split(",") parser accepted rows WIDER than the header and read
@@ -71,6 +71,43 @@
 // only attach when populated, so other holdings and pre-v8.3 history stay
 // clean. Aggregation logic remains symbol-agnostic — MA/ISRG stats simply
 // accumulate from their first logged date forward (no other changes).
+//
+// v1.5 — RDDT v8.4 context propagation (IBIT → RDDT holdings swap; sync with
+// log-signals V8.4.0, which appends 31 columns and migrates the header
+// 155 → 186). As at v1.4, the EXACT-width contract is DYNAMIC against the
+// on-disk header (headers.length), so NO width constant changes here — the
+// contract follows the migrated header automatically. Pipeline order makes
+// this self-consistent: this script runs BEFORE generate-signals, log-signals
+// runs after and migrates the header in the same run it appends wider rows,
+// so the file is never left with a header/row width disagreement between runs.
+// Yesterday-snapshot additionally propagates:
+//   • xlc_vs_spy_30d_pp — the V8.3 RDDT weight-gate driver (peer of
+//     duopoly_vs_spy_pp for MA and ihi_vs_spy_30d_pp for ISRG)
+//   • ad_revenue_growth_yoy_pct — RDDT's signature operational metric (peer of
+//     procedure_growth_pct / cross_border_growth_pct / crpo_growth_pct)
+//   • arpu_growth_yoy_pct — the monetization ramp; the second operational
+//     metric, because on this name a stalling ARPU breaks the thesis faster
+//     than slowing users would
+//   • search_referral_status / licensing_status / competitive_threat — the
+//     three categoricals that carry deterministic thesis-break weight in
+//     engine V8.3 (peers of moat_status / instrument_transition_status)
+//   • share_count_change_yoy_pct — ⚠ POSITIVE = DILUTION, the OPPOSITE sign
+//     convention to MA's buyback_share_reduction_yoy_pct. RDDT is scored on
+//     NET share count because its gross buyback does not offset stock comp.
+//     Do not compare these two columns as if they were the same measure.
+//   • ps_pct_of_3y_avg + own_history_window_partial — propagated as a PAIR and
+//     meaningless apart: RDDT listed March 2024, so the own-history anchor
+//     spans a partial window and the flag is what tells a downstream consumer
+//     how much to trust the number. A calibration study that reads the ratio
+//     without the flag would treat a ~2.4-year sample like ISRG's decade.
+// RDDT's ads-cohort rotation needs nothing new — it reuses the shared
+// cohort_rotation_pp column the v1.4 block already propagates (thresholds
+// differ upstream: RDDT fires at -8pp, ISRG at -6pp, but the CSV carries the
+// already-applied value). Same forward-compatibility pattern throughout:
+// blanks/absent columns no-op, fields attach only when populated, so other
+// holdings and pre-v8.4 history stay clean. Aggregation logic remains
+// symbol-agnostic — RDDT stats accumulate from its first logged date forward,
+// and IBIT's historical rows keep aggregating unchanged as closed history.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -400,6 +437,13 @@ function aggregateStats(forwardReturns) {
 // cross_border_growth_pct; ISRG: cohort_rotation_pp, ihi_vs_spy_30d_pp,
 // procedure_growth_pct, moat_status, instrument_transition_status) when the
 // CSV row carries those columns. Added by log-signals V8.3.0. Same pattern.
+//
+// v1.5: Also propagates RDDT v8.4 context (xlc_vs_spy_30d_pp,
+// ad_revenue_growth_yoy_pct, arpu_growth_yoy_pct, search_referral_status,
+// licensing_status, competitive_threat, share_count_change_yoy_pct, and the
+// ps_pct_of_3y_avg / own_history_window_partial pair) when the CSV row
+// carries those columns. Added by log-signals V8.4.0. Same pattern. RDDT's
+// rotation reuses the shared cohort_rotation_pp read above.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -417,6 +461,19 @@ function getYesterdaySnapshot(rows, tradingDates) {
     if (v === null || v === undefined || v === "") return null;
     const s = String(v).trim();
     return s ? s : null;
+  };
+  // v1.5: booleans arrive from the CSV as the strings "true"/"false" (the
+  // parser's isNaN guard leaves them alone), so neither numOrNull nor
+  // strOrNull gives a usable value — strOrNull would hand downstream the
+  // string "false", which is truthy. Anything unrecognized returns null
+  // rather than guessing, so a malformed cell cannot silently read as false.
+  const boolOrNull = (v) => {
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v === "boolean") return v;
+    const s = String(v).trim().toLowerCase();
+    if (s === "true") return true;
+    if (s === "false") return false;
+    return null;
   };
 
   const snapshot = { date: yesterday, holdings: {} };
@@ -489,6 +546,36 @@ function getYesterdaySnapshot(rows, tradingDates) {
     if (procedureGrowth != null) holding.procedure_growth_pct = procedureGrowth;
     if (moatStatus != null) holding.moat_status = moatStatus;
     if (transitionStatus != null) holding.instrument_transition_status = transitionStatus;
+
+    // v1.5: RDDT v8.4 context — only attached when CSV cells are populated
+    // (RDDT-only in current builds). Pre-v8.4 CSV history leaves these columns
+    // undefined, helpers no-op, other holdings stay clean. RDDT's ads-cohort
+    // rotation arrives via the shared cohort_rotation_pp read above — nothing
+    // RDDT-specific needed for it.
+    const xlcVsSpy = numOrNull(row.xlc_vs_spy_30d_pp);
+    const adRevGrowth = numOrNull(row.ad_revenue_growth_yoy_pct);
+    const arpuGrowth = numOrNull(row.arpu_growth_yoy_pct);
+    const referralStatus = strOrNull(row.search_referral_status);
+    const licensingStatus = strOrNull(row.licensing_status);
+    const competitiveThreat = strOrNull(row.competitive_threat);
+    const shareCountChange = numOrNull(row.share_count_change_yoy_pct);
+    const psPctOfAvg = numOrNull(row.ps_pct_of_3y_avg);
+    const ownHistPartial = boolOrNull(row.own_history_window_partial);
+
+    if (xlcVsSpy != null) holding.xlc_vs_spy_30d_pp = xlcVsSpy;
+    if (adRevGrowth != null) holding.ad_revenue_growth_yoy_pct = adRevGrowth;
+    if (arpuGrowth != null) holding.arpu_growth_yoy_pct = arpuGrowth;
+    if (referralStatus != null) holding.search_referral_status = referralStatus;
+    if (licensingStatus != null) holding.licensing_status = licensingStatus;
+    if (competitiveThreat != null) holding.competitive_threat = competitiveThreat;
+    // ⚠ POSITIVE = DILUTION here. MA's buyback_share_reduction_yoy_pct uses the
+    // opposite convention (negative = shares shrank). Never compare the two.
+    if (shareCountChange != null) holding.share_count_change_yoy_pct = shareCountChange;
+    // ps_pct_of_3y_avg and own_history_window_partial travel TOGETHER. The
+    // ratio without the flag invites a consumer to treat RDDT's ~2.4-year
+    // sample (listed March 2024) like ISRG's decade of multiple history.
+    if (psPctOfAvg != null) holding.ps_pct_of_3y_avg = psPctOfAvg;
+    if (ownHistPartial != null) holding.own_history_window_partial = ownHistPartial;
 
     snapshot.holdings[row.symbol] = holding;
   }
