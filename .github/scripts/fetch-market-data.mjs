@@ -1,5 +1,39 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.15 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.16 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.16 (August 2026): HOLDINGS SWAP — sold IBIT (spot BTC ETF), bought
+// RDDT (Reddit / hypergrowth_platform_monetizer). Still 14 scored holdings.
+//   Removals:
+//     - IBIT removed from SYMBOLS (supersedes the v4.13 note below, which
+//       recorded that IBIT remained as a standalone holding at that time)
+//   Additions for RDDT (cohort pattern analogous to NOW/ISRG):
+//     - PINS, APP aux quotes WITH metrics (digital-ads cohort P/E).
+//       META was ALREADY in AUX_SYMBOLS for the MSFT mega-cap cohort and is
+//       reused here — do not add a duplicate entry.
+//     - XLC aux quote (Communication Services SPDR — ads factor proxy;
+//       the regime-gate input for RDDT)
+//     - cohort_valuation (RDDT vs META/PINS/APP avg TRAILING P/E)
+//       * NOTE: unlike ISRG/NOW there is NO structural premium baseline here.
+//         RDDT sits inside the cohort band. <-15% = compressed = buy;
+//         -15% to +40% = normal; >+80% = rich.
+//       * CAVEAT: this field is TRAILING P/E (all Finnhub aux metrics are).
+//         The RDDT model reasons on FORWARD P/E, which the LLM sources
+//         separately. Do not conflate the two.
+//     - cohort_relative (cohort_rotation_pp = RDDT 30d - cohort avg 30d;
+//       rotation_active = TRUE if < -8pp. Threshold is WIDER than ISRG's -6
+//       because RDDT beta is 1.94 — a 6pp spread is noise on this name.)
+//     - factor_flow.xlc_vs_spy_30d_pp (ads sector bid signal)
+//     - fundamentals v1 explicit-null fields: ad_revenue_growth_yoy_pct (THE
+//       ops metric), ARPU block (global/US/RoW/growth), DAUq/WAUq, the
+//       logged-in/logged-out split (DISCONTINUED by the company from Q3 2026
+//       — see dau_disclosure_status), margin/FCF block, guide range, EPS
+//       revisions, NET share count change (never buyback yield), and the
+//       search_referral / licensing / competitive_threat categoricals
+//     - New fetchRDDTHistoricalReturns() (6 Alpaca calls: RDDT, META, PINS,
+//       APP, XLC, SPY)
+//   NOTE: RDDT listed March 2024. Own-history multiple averages cover a
+//   PARTIAL WINDOW and own_history_window_partial is emitted as TRUE so the
+//   downstream model discounts them. This is deliberate, not a data gap.
 //
 // v4.15 (July 2026): ALPACA FEED FALLBACK — keys without a SIP data
 // entitlement return 403 on every feed=sip bars request (observed in prod
@@ -98,7 +132,7 @@ const SYMBOLS = [
   { symbol: "TMO",   finnhub: "TMO",   td: "TMO" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
-  { symbol: "IBIT",  finnhub: "IBIT",  td: "IBIT" },
+  { symbol: "RDDT",  finnhub: "RDDT",  td: "RDDT" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
@@ -113,7 +147,7 @@ const AUX_SYMBOLS = [
   { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",          needsMetrics: true },  // Air Products
   { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",          needsMetrics: true },  // Air Liquide ADR
   { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
-  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
+  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort+rddt_cohort", needsMetrics: true }, // MSFT mega-cap cohort AND RDDT ads cohort (dual-use — single fetch)
   { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
   { symbol: "LMT",   finnhub: "LMT",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
   { symbol: "NOC",   finnhub: "NOC",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
@@ -131,6 +165,9 @@ const AUX_SYMBOLS = [
   { symbol: "SYK",   finnhub: "SYK",   purpose: "isrg_cohort",       needsMetrics: true },  // Stryker — devices cohort
   { symbol: "BSX",   finnhub: "BSX",   purpose: "isrg_cohort",       needsMetrics: true },  // Boston Scientific — devices cohort
   { symbol: "IHI",   finnhub: "IHI",   purpose: "isrg_devices_factor" },                    // iShares U.S. Medical Devices ETF
+  { symbol: "PINS",  finnhub: "PINS",  purpose: "rddt_cohort",       needsMetrics: true },  // Pinterest — digital-ads cohort
+  { symbol: "APP",   finnhub: "APP",   purpose: "rddt_cohort",       needsMetrics: true },  // AppLovin — digital-ads cohort
+  { symbol: "XLC",   finnhub: "XLC",   purpose: "rddt_ads_factor" },                        // Communication Services SPDR — ads factor proxy
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1033,6 +1070,94 @@ async function fetchISRGHistoricalReturns() {
   return result;
 }
 
+// ─── STAGE 3j: RDDT ADS-COHORT HISTORICAL RETURNS (v4.16) ────────────────────
+// Pulls daily closes for RDDT, META, PINS, APP, XLC, SPY and computes:
+//   • cohort_rotation_pp = RDDT 30d − META/PINS/APP avg 30d (rotation read —
+//     <-8pp WITHOUT an ad-revenue print confirming weakness = buy setup)
+//   • xlc_vs_spy_30d_pp  = ads sector factor bid — the regime-gate input for
+//     RDDT (bid_active >+1pp | neutral ±1pp | bid_absent <-1pp)
+// Threshold note: -8pp here vs ISRG's -6pp. RDDT beta is 1.94; a 6pp spread is
+// inside this name's noise band and would fire the flag on ordinary sessions.
+async function fetchRDDTHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-RDDT] No keys — skipping RDDT historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-RDDT] Fetching RDDT/META/PINS/APP/XLC/SPY bars for ads-cohort rotation + ads factor...");
+  const symbols = ["RDDT", "META", "PINS", "APP", "XLC", "SPY"];
+  const closes = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const rddtRet30 = retNDays(closes.RDDT, 30);
+  const metaRet30 = retNDays(closes.META, 30);
+  const pinsRet30 = retNDays(closes.PINS, 30);
+  const appRet30  = retNDays(closes.APP,  30);
+  const xlcRet30  = retNDays(closes.XLC,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const cohortRets = [metaRet30, pinsRet30, appRet30].filter(r => r != null);
+  const cohortAvg = cohortRets.length > 0
+    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+    : null;
+
+  const rotationPp = (rddtRet30 != null && cohortAvg != null)
+    ? +(rddtRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const xlcVsSpyPp = (xlcRet30 != null && spyRet30 != null)
+    ? +(xlcRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const result = {
+    rddt_30d_return_pct:       rddtRet30,
+    meta_30d_return_pct:       metaRet30,
+    pins_30d_return_pct:       pinsRet30,
+    app_30d_return_pct:        appRet30,
+    cohort_avg_30d_return_pct: cohortAvg,
+    cohort_rotation_pp:        rotationPp,
+    cohort_rotation_active:    rotationPp != null && rotationPp < -8,
+    cohort_count:              cohortRets.length,
+    xlc_30d_return_pct:        xlcRet30,
+    spy_30d_return_pct:        spyRet30,
+    xlc_vs_spy_30d_pp:         xlcVsSpyPp,
+  };
+
+  const activeStr = result.cohort_rotation_active ? " [ACTIVE — buy setup absent an ad-revenue print]" : "";
+  const xlcStr = xlcVsSpyPp == null ? "—"
+    : xlcVsSpyPp > 1 ? `ads bid active (+${xlcVsSpyPp}pp)`
+    : xlcVsSpyPp < -1 ? `ads lagging (${xlcVsSpyPp}pp)`
+    : "inline";
+  console.log(`  [ALPACA-RDDT] ✓ RDDT 30d=${rddtRet30 != null ? (rddtRet30 >= 0 ? "+" : "") + rddtRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | XLC-SPY 30d: ${xlcStr}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -1205,6 +1330,10 @@ async function main() {
   // Stage 3i: ISRG cohort historical returns (Alpaca — devices rotation + IHI factor)
   console.log("\n─── STAGE 3i: ISRG COHORT HISTORICAL RETURNS (Alpaca) ───");
   const isrgHistReturns = await fetchISRGHistoricalReturns();
+
+  // Stage 3j: RDDT ads-cohort historical returns (Alpaca — ads rotation + XLC factor)
+  console.log("\n─── STAGE 3j: RDDT ADS-COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const rddtHistReturns = await fetchRDDTHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -2012,6 +2141,132 @@ async function main() {
     console.log(`  ISRG v1 sourced: ${isrgCoverage.length > 0 ? isrgCoverage.join(", ") : "(none)"} | pending external data: procedure growth + guide, dV placements/dV5 mix, Ion, recurring %, I&A growth, installed base, op margin, EPS revs, forward PE, moat/instrument-transition categoricals`);
   }
 
+  // ─── RDDT (v4.16) — ads-cohort valuation + rotation + ads factor flow ──────
+  // Cohort is DIGITAL ADVERTISING (META, PINS, APP). NOT enterprise software
+  // (NOW/CRM/WDAY/ADBE are a different category in this portfolio).
+  // ★ Unlike ISRG/NOW there is NO structural premium baseline. RDDT sits inside
+  //   the cohort band: <-15% = compressed = buy; -15% to +40% = normal;
+  //   >+80% = rich even on this growth.
+  // ★ CAVEAT: this is TRAILING P/E (all Finnhub aux metrics are). The RDDT model
+  //   reasons on FORWARD P/E, sourced separately by the LLM. Do not conflate.
+  if (output.RDDT) {
+    const rddtPE = output.RDDT.valuation?.trailingPE;
+    const metaPE = auxQuotes.META?.pe;
+    const pinsPE = auxQuotes.PINS?.pe;
+    const appPE  = auxQuotes.APP?.pe;
+    const cohortPEs = [metaPE, pinsPE, appPE].filter(p => p != null && p > 0);
+
+    if (rddtPE && cohortPEs.length > 0) {
+      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
+      const premiumPct = +(((rddtPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+
+      output.RDDT.cohort_valuation = {
+        rddt_pe: rddtPE,
+        meta_pe: metaPE ?? null,
+        pins_pe: pinsPE ?? null,
+        app_pe: appPE ?? null,
+        cohort_avg_pe: +cohortAvg.toFixed(2),
+        premium_pct: premiumPct,
+        cohort_count: cohortPEs.length,
+        basis: "trailing",
+      };
+
+      const zone = premiumPct < -15 ? "COMPRESSED (BUY)"
+        : premiumPct < 15 ? "BELOW MID-BAND (BUY-leaning)"
+        : premiumPct < 40 ? "NORMAL BAND"
+        : premiumPct < 80 ? "ABOVE NORMAL BAND"
+        : "RICH (TRIM)";
+      console.log(`  RDDT cohort-valuation: RDDT ${rddtPE}x | META ${metaPE ?? "—"}x | PINS ${pinsPE ?? "—"}x | APP ${appPE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone}) [trailing basis]`);
+    } else {
+      const reason = !rddtPE ? "no RDDT P/E" : "no cohort P/E (META/PINS/APP unavailable)";
+      console.log(`  RDDT cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── RDDT cohort-relative (ads rotation: 30d return spread) ─────────
+    if (rddtHistReturns) {
+      output.RDDT.cohort_relative = {
+        rddt_30d_return_pct:       rddtHistReturns.rddt_30d_return_pct,
+        meta_30d_return_pct:       rddtHistReturns.meta_30d_return_pct,
+        pins_30d_return_pct:       rddtHistReturns.pins_30d_return_pct,
+        app_30d_return_pct:        rddtHistReturns.app_30d_return_pct,
+        cohort_avg_30d_return_pct: rddtHistReturns.cohort_avg_30d_return_pct,
+        cohort_rotation_pp:        rddtHistReturns.cohort_rotation_pp,
+        cohort_rotation_active:    rddtHistReturns.cohort_rotation_active,
+        cohort_count:              rddtHistReturns.cohort_count,
+      };
+
+      const rp = rddtHistReturns.cohort_rotation_pp;
+      const rpStr = rp == null ? "—"
+        : rddtHistReturns.cohort_rotation_active ? `RDDT lagging ads cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION ACTIVE — buy setup if no ad-revenue print confirms it)`
+        : rp < 0 ? `RDDT lagging ads cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `RDDT leading ads cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  RDDT cohort-relative: ${rpStr}`);
+
+      // factor_flow: XLC vs SPY 30d (ads sector bid — regime-gate input)
+      output.RDDT.factor_flow = {
+        xlc_vs_spy_30d_pp:  rddtHistReturns.xlc_vs_spy_30d_pp,
+        xlc_30d_return_pct: rddtHistReturns.xlc_30d_return_pct,
+        spy_30d_return_pct: rddtHistReturns.spy_30d_return_pct,
+      };
+    } else {
+      console.log(`  RDDT cohort-relative: skipped (no historical returns)`);
+      output.RDDT.factor_flow = { xlc_vs_spy_30d_pp: null, xlc_30d_return_pct: null, spy_30d_return_pct: null };
+    }
+
+    // RDDT fundamentals — explicit nulls for fields needing earnings disclosure.
+    // LLM web-search prompt sources these as fallback fetch targets.
+    output.RDDT.fundamentals.ad_revenue_growth_yoy_pct   = null;  // earnings release — THE ops metric (advertising revenue YoY)
+    output.RDDT.fundamentals.next_qtr_guide_low_musd     = null;  // guidance low  ($M)
+    output.RDDT.fundamentals.next_qtr_guide_high_musd    = null;  // guidance high ($M)
+    output.RDDT.fundamentals.arpu_global                 = null;  // earnings release (global ARPU, USD)
+    output.RDDT.fundamentals.arpu_growth_yoy_pct         = null;  // earnings release (monetization ramp)
+    output.RDDT.fundamentals.arpu_us                     = null;  // earnings release (US ARPU)
+    output.RDDT.fundamentals.arpu_row                    = null;  // earnings release (rest-of-world ARPU)
+    output.RDDT.fundamentals.dauq_millions               = null;  // earnings release (daily active uniques)
+    output.RDDT.fundamentals.dauq_growth_yoy_pct         = null;  // earnings release
+    output.RDDT.fundamentals.wauq_growth_yoy_pct         = null;  // earnings release (weekly active uniques)
+    // ⚠ DISCLOSURE CHANGE: Reddit discontinued the logged-in / logged-out DAU
+    // split from Q3 2026. These stay in the schema for back-compat and for
+    // historical rows, but for current periods they are UNOBTAINABLE, not
+    // merely unfetched. dau_disclosure_status carries which regime applies.
+    // The downstream prompt forbids estimating them — null is the correct value.
+    output.RDDT.fundamentals.logged_in_dau_growth_pct    = null;  // DISCONTINUED from Q3 2026 — do not estimate
+    output.RDDT.fundamentals.logged_out_dau_growth_pct   = null;  // DISCONTINUED from Q3 2026 — do not estimate (the cleanest Google-referral read, now withdrawn)
+    output.RDDT.fundamentals.dau_disclosure_status       = null;  // categorical: full_split (<=Q2 2026) / aggregate_only (Q3 2026+)
+    output.RDDT.fundamentals.ebitda_margin_pct           = null;  // earnings release (adjusted EBITDA margin)
+    output.RDDT.fundamentals.fcf_margin_pct              = null;  // earnings release
+    output.RDDT.fundamentals.ttm_operating_cash_flow_musd = null; // earnings release ($M, TTM)
+    output.RDDT.fundamentals.sbc_trend                   = null;  // categorical: rising/stable/falling (the dilution source)
+    output.RDDT.fundamentals.eps_revisions_30d_pct       = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.RDDT.fundamentals.eps_revisions_90d_pct       = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    // ⚠ NET share count change, POSITIVE = dilution. This is the shareholder-
+    // return read for RDDT — NOT buyback yield. Gross repurchase is carried
+    // separately for context only. RDDT repurchased $235M in Q2 2026 and share
+    // count still rose ~2.8% YoY: stock comp exceeds buyback. This holding does
+    // not satisfy the portfolio's aggressive-buyback criterion and the pipeline
+    // must not let a gross-buyback figure imply otherwise.
+    output.RDDT.fundamentals.share_count_change_yoy_pct  = null;  // POSITIVE = dilution
+    output.RDDT.fundamentals.gross_buyback_musd          = null;  // context only — never the shareholder-return signal
+    output.RDDT.fundamentals.search_referral_status      = null;  // categorical: stable/choppy/deteriorating/decoupling_progress (THE structural binary)
+    output.RDDT.fundamentals.licensing_status            = null;  // categorical: renewed_up/renewed_flat/unresolved/renewed_down/lost
+    output.RDDT.fundamentals.licensing_annual_musd       = null;  // Google + OpenAI combined ($M/yr)
+    output.RDDT.fundamentals.competitive_threat          = null;  // categorical: negligible/emerging/taking_share (engagement share, not app launches)
+    output.RDDT.fundamentals.ps_pct_of_3y_avg            = null;  // P/S vs own history — see partial-window flag below
+    // ⚠ RDDT listed March 2024. Every own-history multiple average covers a
+    // PARTIAL WINDOW spanning the crossing into GAAP profitability, and any
+    // quoted 10-year average is spurious. Emitted as TRUE (not null) because
+    // this is a known structural property of the ticker, not a missing fetch.
+    output.RDDT.fundamentals.own_history_window_partial  = true;
+
+    const rddtCoverage = [
+      output.RDDT.cohort_valuation ? "cohort-PE(trailing)" : null,
+      output.RDDT.cohort_relative?.cohort_rotation_pp != null ? "rotation" : null,
+      output.RDDT.factor_flow?.xlc_vs_spy_30d_pp != null ? "XLC" : null,
+    ].filter(Boolean);
+    console.log(`  RDDT v1 sourced: ${rddtCoverage.length > 0 ? rddtCoverage.join(", ") : "(none)"} | pending external data: ad revenue growth, ARPU block (global/US/RoW), DAUq/WAUq, margins + FCF, guide range, EPS revs, forward PE + P/S vs own history, NET share count, search-referral/licensing/competitive categoricals`);
+    console.log(`  RDDT ⚠ own-history window PARTIAL (listed Mar 2024) — downstream must discount multiple-history anchors`);
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -2054,6 +2309,9 @@ async function main() {
   console.log(`  ISRG cohort PE: ${output.ISRG?.cohort_valuation ? `ISRG ${output.ISRG.cohort_valuation.isrg_pe}x vs ${output.ISRG.cohort_valuation.cohort_count}-name cohort avg ${output.ISRG.cohort_valuation.cohort_avg_pe}x = ${output.ISRG.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  ISRG rotation:  ${output.ISRG?.cohort_relative ? `ISRG 30d=${output.ISRG.cohort_relative.isrg_30d_return_pct}%, cohort=${output.ISRG.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.ISRG.cohort_relative.cohort_rotation_pp}pp${output.ISRG.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  ISRG IHI-SPY:   ${output.ISRG?.factor_flow?.ihi_vs_spy_30d_pp != null ? `${output.ISRG.factor_flow.ihi_vs_spy_30d_pp >= 0 ? "+" : ""}${output.ISRG.factor_flow.ihi_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  RDDT cohort PE: ${output.RDDT?.cohort_valuation ? `RDDT ${output.RDDT.cohort_valuation.rddt_pe}x vs ${output.RDDT.cohort_valuation.cohort_count}-name ads cohort avg ${output.RDDT.cohort_valuation.cohort_avg_pe}x = ${output.RDDT.cohort_valuation.premium_pct}% premium [trailing]` : "unavailable"}`);
+  console.log(`  RDDT rotation:  ${output.RDDT?.cohort_relative ? `RDDT 30d=${output.RDDT.cohort_relative.rddt_30d_return_pct}%, cohort=${output.RDDT.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.RDDT.cohort_relative.cohort_rotation_pp}pp${output.RDDT.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  RDDT XLC-SPY:   ${output.RDDT?.factor_flow?.xlc_vs_spy_30d_pp != null ? `${output.RDDT.factor_flow.xlc_vs_spy_30d_pp >= 0 ? "+" : ""}${output.RDDT.factor_flow.xlc_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
