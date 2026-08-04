@@ -74,6 +74,40 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //   additive, null on non-applicable rows). signal-accuracy's exact-width
 //   contract MUST be bumped in the same deploy (v8.3 pair).
 
+// ── V8.4.0 (August 2026): HOLDINGS SWAP telemetry — IBIT out, RDDT in
+//   (fetch-market-data v4.16 / score-engine V8.3 / generate-signals v8.4.0 sync;
+//   still 14 holdings).
+//   • RDDT columns: ads cohort PEs (meta/pins/app — cohort avg + premium REUSE
+//     the shared cohort_avg_pe / cohort_premium_pct columns, same as MSFT/LHX/
+//     ISRG rows), rddt_30d_return_pct (cohort_avg_30d_return_pct,
+//     cohort_rotation_pp and cohort_rotation_active are ALSO reused — the
+//     fetch v4.16 payload emits those exact keys for RDDT), xlc_vs_spy_30d_pp
+//     (the V8.3 RDDT weight-gate driver), and RDDT fundamentals scaffolds
+//     (ad revenue + total revenue growth, the ARPU block, DAUq/WAUq, the
+//     logged-in/out split, margins + TTM operating cash flow, SBC trend, guide
+//     range, NET share count + gross buyback, and the search_referral /
+//     licensing / competitive categoricals plus the P/S own-history pair).
+//   • NO IBIT columns are removed. Nothing IBIT-specific was ever added to this
+//     schema (the only trace is the legacy ETHA-era alt_season_spread_pp
+//     column, retained for back-compat as always). Removal would break the
+//     pure-append invariant and orphan historical IBIT rows.
+//
+//   ⚠ TWO SIMILARLY-NAMED COLUMNS WITH OPPOSITE SIGN CONVENTIONS — do not
+//     conflate them downstream:
+//       buyback_share_reduction_yoy_pct  (V8.3.0, MA)   NEGATIVE = shares shrank
+//       share_count_change_yoy_pct       (V8.4.0, RDDT) POSITIVE = DILUTION
+//     RDDT is scored on NET share count precisely because its gross buyback
+//     ($235M in Q2 2026) does NOT offset stock comp — share count still rose
+//     ~2.8%. gross_buyback_musd is carried for context only and must never be
+//     read as a shareholder-return signal.
+//
+//   ⚠ PAIRED DEPLOY REQUIRED: signal-accuracy enforces an EXACT-width contract
+//     against the on-disk header. These 31 appended columns move the width
+//     155 → 186. signal-accuracy MUST be bumped in the SAME deploy or every new
+//     row is skipped. migrateCsvHeader() handles the on-disk file (pure-append
+//     prefix check, pads pre-v8.4 rows blank); it does NOT know about the
+//     consumer's width contract.
+
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
 const JSONL_PATH = `${HISTORY_DIR}/daily-log.jsonl`;
@@ -255,6 +289,36 @@ const CSV_HEADERS = [
   "recurring_revenue_pct", "ia_revenue_growth_pct",
   "installed_base_total", "installed_base_yoy_pct",
   "moat_status", "instrument_transition_status",
+
+  // ─── V8.4.0 RDDT additions (appended for CSV back-compat; RDDT row only) ──
+  // Ads cohort PEs. cohort avg + premium REUSE cohort_avg_pe / cohort_premium_pct.
+  "meta_pe", "pins_pe", "app_pe",
+  // Ads rotation. cohort_avg_30d_return_pct + cohort_rotation_pp +
+  // cohort_rotation_active are REUSED (fetch v4.16 emits those exact keys for
+  // RDDT), so only RDDT's own leg is new here.
+  "rddt_30d_return_pct",
+  // Ads factor flow — the V8.3 RDDT weight-gate driver
+  "xlc_vs_spy_30d_pp",
+  // RDDT fundamentals scaffolds (LLM-sourced; blank until populated)
+  "ad_revenue_growth_yoy_pct", "revenue_growth_yoy_pct",
+  "arpu_global", "arpu_growth_yoy_pct", "arpu_us", "arpu_row",
+  "dauq_millions", "dauq_growth_yoy_pct", "wauq_growth_yoy_pct",
+  // ⚠ The logged-in/out split was DISCONTINUED by the company from Q3 2026.
+  // Columns retained: historical rows carry real values, and a permanently
+  // blank column that records "this was withdrawn" is more honest than
+  // deleting the field. dau_disclosure_status says which regime a row is in.
+  "logged_in_dau_growth_pct", "logged_out_dau_growth_pct", "dau_disclosure_status",
+  "ebitda_margin_pct", "ttm_operating_cash_flow_musd", "sbc_trend",
+  "next_qtr_guide_low_musd", "next_qtr_guide_high_musd", "guide_implied_growth_pct",
+  // ⚠ share_count_change_yoy_pct: POSITIVE = DILUTION. Opposite convention to
+  // buyback_share_reduction_yoy_pct (MA, negative = shares shrank). This is the
+  // shareholder-return read for RDDT; gross_buyback_musd is context ONLY.
+  "share_count_change_yoy_pct", "gross_buyback_musd",
+  "search_referral_status", "licensing_status", "licensing_annual_musd",
+  "competitive_threat",
+  // P/S vs own history + the partial-window flag that governs how much the
+  // downstream model is allowed to trust it (RDDT listed March 2024).
+  "ps_pct_of_3y_avg", "own_history_window_partial",
 ].join(",");
 
 // ── V8.2.0: CSV HEADER MIGRATION (pure-append schema evolution) ──────────────
@@ -531,6 +595,39 @@ for (const s of normalized) {
     md.fundamentals?.installed_base_yoy_pct ?? "",
     esc(md.fundamentals?.moat_status ?? ""),
     esc(md.fundamentals?.instrument_transition_status ?? ""),
+
+    // ─── V8.4.0 RDDT additions (only RDDT row populates these) ────────────
+    md.cohort_valuation?.meta_pe ?? "",
+    md.cohort_valuation?.pins_pe ?? "",
+    md.cohort_valuation?.app_pe ?? "",
+    md.cohort_relative?.rddt_30d_return_pct ?? "",
+    md.factor_flow?.xlc_vs_spy_30d_pp ?? "",
+    md.fundamentals?.ad_revenue_growth_yoy_pct ?? "",
+    md.fundamentals?.revenue_growth_yoy_pct ?? "",
+    md.fundamentals?.arpu_global ?? "",
+    md.fundamentals?.arpu_growth_yoy_pct ?? "",
+    md.fundamentals?.arpu_us ?? "",
+    md.fundamentals?.arpu_row ?? "",
+    md.fundamentals?.dauq_millions ?? "",
+    md.fundamentals?.dauq_growth_yoy_pct ?? "",
+    md.fundamentals?.wauq_growth_yoy_pct ?? "",
+    md.fundamentals?.logged_in_dau_growth_pct ?? "",
+    md.fundamentals?.logged_out_dau_growth_pct ?? "",
+    esc(md.fundamentals?.dau_disclosure_status ?? ""),
+    md.fundamentals?.ebitda_margin_pct ?? "",
+    md.fundamentals?.ttm_operating_cash_flow_musd ?? "",
+    esc(md.fundamentals?.sbc_trend ?? ""),
+    md.fundamentals?.next_qtr_guide_low_musd ?? "",
+    md.fundamentals?.next_qtr_guide_high_musd ?? "",
+    md.fundamentals?.guide_implied_growth_pct ?? "",
+    md.fundamentals?.share_count_change_yoy_pct ?? "",
+    md.fundamentals?.gross_buyback_musd ?? "",
+    esc(md.fundamentals?.search_referral_status ?? ""),
+    esc(md.fundamentals?.licensing_status ?? ""),
+    md.fundamentals?.licensing_annual_musd ?? "",
+    esc(md.fundamentals?.competitive_threat ?? ""),
+    md.fundamentals?.ps_pct_of_3y_avg ?? "",
+    md.fundamentals?.own_history_window_partial ?? "",
   ].join(",");
 
   csvContent += row + "\n";
@@ -646,6 +743,14 @@ const dailyEntry = {
         mdt_pe:         md.cohort_valuation.mdt_pe ?? null,
         syk_pe:         md.cohort_valuation.syk_pe ?? null,
         bsx_pe:         md.cohort_valuation.bsx_pe ?? null,
+        // V8.4.0: RDDT ads cohort. NOTE basis — fetch v4.16 tags this block
+        // "trailing"; the RDDT model reasons on FORWARD P/E, sourced by the
+        // LLM and living in the hostile-review prose, not here.
+        rddt_pe:        md.cohort_valuation.rddt_pe ?? null,
+        meta_pe:        md.cohort_valuation.meta_pe ?? null,
+        pins_pe:        md.cohort_valuation.pins_pe ?? null,
+        app_pe:         md.cohort_valuation.app_pe ?? null,
+        basis:          md.cohort_valuation.basis ?? null,
         cohort_avg_pe:  md.cohort_valuation.cohort_avg_pe ?? null,
         premium_pct:    md.cohort_valuation.premium_pct ?? null,
       } : null,
@@ -659,6 +764,13 @@ const dailyEntry = {
         isrg_30d_return_pct:         md.cohort_relative.isrg_30d_return_pct ?? null,
         cohort_rotation_pp:          md.cohort_relative.cohort_rotation_pp ?? null,
         cohort_rotation_active:      md.cohort_relative.cohort_rotation_active ?? null,
+        // V8.4.0: RDDT ads rotation. Shares cohort_rotation_pp/_active with
+        // ISRG (different thresholds upstream: RDDT fires at -8pp, ISRG at
+        // -6pp) — the ACTIVE flag is already threshold-applied by fetch.
+        rddt_30d_return_pct:         md.cohort_relative.rddt_30d_return_pct ?? null,
+        meta_30d_return_pct:         md.cohort_relative.meta_30d_return_pct ?? null,
+        pins_30d_return_pct:         md.cohort_relative.pins_30d_return_pct ?? null,
+        app_30d_return_pct:          md.cohort_relative.app_30d_return_pct ?? null,
       } : null,
       // Factor flow — software cohort vs SPY (NOW row primarily)
       igv_vs_spy_30d_pp:    md.factor_flow?.igv_vs_spy_30d_pp ?? null,
@@ -717,6 +829,41 @@ const dailyEntry = {
       installed_base_yoy_pct:          md.fundamentals?.installed_base_yoy_pct ?? null,
       moat_status:                     md.fundamentals?.moat_status ?? null,
       instrument_transition_status:    md.fundamentals?.instrument_transition_status ?? null,
+
+      // ─── V8.4.0 RDDT additions (RDDT row only; null elsewhere) ─────────
+      xlc_vs_spy_30d_pp:               md.factor_flow?.xlc_vs_spy_30d_pp ?? null,
+      ad_revenue_growth_yoy_pct:       md.fundamentals?.ad_revenue_growth_yoy_pct ?? null,
+      revenue_growth_yoy_pct:          md.fundamentals?.revenue_growth_yoy_pct ?? null,
+      arpu_global:                     md.fundamentals?.arpu_global ?? null,
+      arpu_growth_yoy_pct:             md.fundamentals?.arpu_growth_yoy_pct ?? null,
+      arpu_us:                         md.fundamentals?.arpu_us ?? null,
+      arpu_row:                        md.fundamentals?.arpu_row ?? null,
+      dauq_millions:                   md.fundamentals?.dauq_millions ?? null,
+      dauq_growth_yoy_pct:             md.fundamentals?.dauq_growth_yoy_pct ?? null,
+      wauq_growth_yoy_pct:             md.fundamentals?.wauq_growth_yoy_pct ?? null,
+      // ⚠ Discontinued by the company from Q3 2026. NULL here means "withdrawn
+      // disclosure", not "not fetched" — dau_disclosure_status disambiguates.
+      // Nothing downstream may impute these.
+      logged_in_dau_growth_pct:        md.fundamentals?.logged_in_dau_growth_pct ?? null,
+      logged_out_dau_growth_pct:       md.fundamentals?.logged_out_dau_growth_pct ?? null,
+      dau_disclosure_status:           md.fundamentals?.dau_disclosure_status ?? null,
+      ebitda_margin_pct:               md.fundamentals?.ebitda_margin_pct ?? null,
+      ttm_operating_cash_flow_musd:    md.fundamentals?.ttm_operating_cash_flow_musd ?? null,
+      sbc_trend:                       md.fundamentals?.sbc_trend ?? null,
+      next_qtr_guide_low_musd:         md.fundamentals?.next_qtr_guide_low_musd ?? null,
+      next_qtr_guide_high_musd:        md.fundamentals?.next_qtr_guide_high_musd ?? null,
+      guide_implied_growth_pct:        md.fundamentals?.guide_implied_growth_pct ?? null,
+      // ⚠ POSITIVE = DILUTION. Opposite sign convention to MA's
+      // buyback_share_reduction_yoy_pct above. gross_buyback_musd is context
+      // only and is NOT a shareholder-return signal for this holding.
+      share_count_change_yoy_pct:      md.fundamentals?.share_count_change_yoy_pct ?? null,
+      gross_buyback_musd:              md.fundamentals?.gross_buyback_musd ?? null,
+      search_referral_status:          md.fundamentals?.search_referral_status ?? null,
+      licensing_status:                md.fundamentals?.licensing_status ?? null,
+      licensing_annual_musd:           md.fundamentals?.licensing_annual_musd ?? null,
+      competitive_threat:              md.fundamentals?.competitive_threat ?? null,
+      ps_pct_of_3y_avg:                md.fundamentals?.ps_pct_of_3y_avg ?? null,
+      own_history_window_partial:      md.fundamentals?.own_history_window_partial ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
