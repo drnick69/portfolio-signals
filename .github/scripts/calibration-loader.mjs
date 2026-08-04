@@ -39,6 +39,27 @@
 //   the first 7 crossed), so pre-first-run behavior is identical to v1.2.
 //   computeTz is UNCHANGED — pending tickers still log tz nulls.
 //
+// v8.4.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The IBIT → RDDT swap needs nothing here. The v1.3 pending mechanism is
+//   symbol-agnostic and already does the right thing in both directions:
+//     • RDDT enters at n=0 against the 60-observation threshold and surfaces
+//       "CALIBRATION PENDING — 0/60 observations" from its first run, with the
+//       accompanying instruction not to make own-history-percentile claims.
+//       Eligibility should arrive around late October / November 2026.
+//     • IBIT simply stops appearing in calibration-v2.json as its rows age out
+//       of the trailing window. No retirement handling is needed because the
+//       loader only ever reads the tickers the file contains.
+//   ⚠ The pending notice matters MORE for RDDT than it did for MA/ISRG. RDDT
+//   listed in March 2024, so even once the 60-observation temporal-z gate
+//   opens, this name has the shallowest own-history of anything in the book —
+//   the same partial-window constraint the valuation layers carry (score-engine
+//   V8.3 halves its P/S-vs-history contribution; generate-signals v8.4.0 warns
+//   the LLM explicitly). Temporal z is a score-vs-own-baseline measure, not a
+//   valuation-multiple measure, so the 60-observation gate is the correct and
+//   sufficient control for IT — but do not read an eligible temporal z on RDDT
+//   as evidence that its VALUATION history is equally trustworthy. Different
+//   window, different question.
+//
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
 //
