@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 100,
-  "cash": 7646.34,
-  "total_deposited": 2000000,
+  "day_count": 101,
+  "cash": 8154.49,
+  "total_deposited": 2010000,
   "holdings": {
     "ASML": {
       "shares": 33.3142,
@@ -15,19 +15,14 @@
       "avg_price": 509.9999
     },
     "ENB": {
-      "shares": 296.2923,
-      "cost_basis": 16017.55,
+      "shares": 287.4035,
+      "cost_basis": 15537.02,
       "avg_price": 54.06
     },
     "GLNCY": {
       "shares": 15056.8921,
       "cost_basis": 224444.09,
       "avg_price": 14.9064
-    },
-    "IBIT": {
-      "shares": 9539.6717,
-      "cost_basis": 365238.48,
-      "avg_price": 38.2863
     },
     "KOF": {
       "shares": 1225.4913,
@@ -50,9 +45,9 @@
       "avg_price": 391.5901
     },
     "LHX": {
-      "shares": 700.5699,
-      "cost_basis": 210447.91,
-      "avg_price": 300.3953
+      "shares": 709.4621,
+      "cost_basis": 212984.86,
+      "avg_price": 300.2061
     },
     "TMO": {
       "shares": 439.8726,
@@ -65,14 +60,19 @@
       "avg_price": 103.2941
     },
     "ISRG": {
-      "shares": 233.9648,
-      "cost_basis": 84511.13,
-      "avg_price": 361.213
+      "shares": 249.2189,
+      "cost_basis": 90128.67,
+      "avg_price": 361.6446
     },
     "MA": {
-      "shares": 3.3277,
-      "cost_basis": 1893.83,
-      "avg_price": 569.1108
+      "shares": 6.5007,
+      "cost_basis": 3705.94,
+      "avg_price": 570.0832
+    },
+    "RDDT": {
+      "shares": 2283.1686,
+      "cost_basis": 365238.48,
+      "avg_price": 159.97
     }
   },
   "history": [
@@ -7662,7 +7662,119 @@
         "MA": "fear_receding",
         "ISRG": "bid_active"
       }
+    },
+    {
+      "date": "2026-08-05",
+      "day": 101,
+      "total_value": 2163158.76,
+      "total_deposited": 2010000,
+      "cash": 8154.49,
+      "holdings_value": 2155004.27,
+      "pnl": 153158.76,
+      "pnl_pct": 7.62,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ENB",
+          "shares": -8.8888,
+          "price": 53.41,
+          "value": 474.75,
+          "composite_score": 9,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "ISRG",
+          "shares": 15.2541,
+          "price": 368.265,
+          "value": 5617.54,
+          "confidence": 1,
+          "score_magnitude": 0.775,
+          "composite_score": -51,
+          "recommendation": "BUY",
+          "regime": "bid_active",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "LHX",
+          "shares": 8.8922,
+          "price": 285.3,
+          "value": 2536.95,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -33,
+          "recommendation": "BUY",
+          "regime": "bid_active",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "MA",
+          "shares": 3.173,
+          "price": 571.1,
+          "value": 1812.11,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -4,
+          "recommendation": "HOLD",
+          "regime": "fear_receding",
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "ISRG",
+        "positionalBuy": "LHX",
+        "strategicBuy": "MA",
+        "trim": "ENB"
+      },
+      "composite_scores": {
+        "LHX": -33,
+        "ASML": 4,
+        "LIN": -8,
+        "MSFT": 4,
+        "TMO": -10,
+        "NOW": -14,
+        "ENB": 9,
+        "GLNCY": -13,
+        "RDDT": -25,
+        "KOF": -6,
+        "PBR.A": -2,
+        "AMKBY": -2,
+        "MA": -4,
+        "ISRG": -51
+      },
+      "regimes": {
+        "LHX": "bid_active",
+        "LIN": "neutral",
+        "MSFT": "neutral",
+        "TMO": "thawing",
+        "NOW": "neutral",
+        "RDDT": "bid_active",
+        "MA": "fear_receding",
+        "ISRG": "bid_active"
+      },
+      "swaps": [
+        {
+          "from": "IBIT",
+          "to": "RDDT",
+          "old_shares": 9539.6717,
+          "old_cost_basis": 365238.48,
+          "old_avg_price": 38.2863,
+          "exit_price": null,
+          "proceeds": 365238.48,
+          "basis_mode": "cost_basis_fallback",
+          "unrealized_pnl_discarded_usd": null,
+          "new_shares": 2283.1686,
+          "new_price": 159.97
+        }
+      ]
     }
   ],
-  "total_value": 1528113.79
+  "total_value": 2163158.76
 }
