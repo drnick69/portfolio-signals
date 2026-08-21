@@ -1,5 +1,25 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.17 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.18 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.18 (August 2026): MLM FUNDING-REGIME CONFIG — closes a gap left by v4.17.
+//   score-engine V8.4's computeMLMRegimeWeights() gates MLM's composite weights
+//   on federal_authorization_status and state_dot_budget_trend, but v4.17
+//   emitted both as null. The engine falls back to NEUTRAL on null, so the
+//   scores were never wrong — but the gate was INERT: funded (25/40/35) and
+//   unfunded (15/30/55) could never activate, no matter what Congress did.
+//   Unlike every other regime gate in this file, MLM's driver is a CATEGORICAL
+//   that no API publishes. MA/ISRG/RDDT all gate on numeric factor spreads this
+//   file computes from Alpaca bars; there is no endpoint that returns "has the
+//   surface transportation bill been reauthorized". So it is a human-set
+//   constant, reviewed when the statute changes — roughly twice a year — which
+//   is exactly what was proposed when the archetype was designed and then not
+//   built. It is built now.
+//   ⚠ THIS IS THE ONE VALUE IN THIS FILE THAT A HUMAN MUST MAINTAIN. Everything
+//   else self-updates from an API. If IIJA lapses or is reauthorized and nobody
+//   edits the constant below, MLM keeps scoring against a stale regime and
+//   nothing will complain — so the file logs the current setting loudly on
+//   every run, and warns when the expiry date has passed while the status still
+//   reads short_term_extension or pending_no_action.
 //
 // v4.17 (August 2026): HOLDINGS SWAP — sold RDDT (Reddit), bought MLM
 // (Martin Marietta Materials / reserve_moat_infrastructure_compounder).
@@ -1120,6 +1140,55 @@ async function fetchISRGHistoricalReturns() {
     : "inline";
   console.log(`  [ALPACA-ISRG] ✓ ISRG 30d=${isrgRet30 != null ? (isrgRet30 >= 0 ? "+" : "") + isrgRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | IHI-SPY 30d: ${ihiStr}`);
   return result;
+}
+
+// ─── MLM PUBLIC-CONSTRUCTION-FUNDING REGIME (v4.18) ─────────────────────────
+// Human-maintained. No API publishes this; review when the statute changes.
+//
+// MLM_FEDERAL_AUTHORIZATION_STATUS — one of:
+//   "multiyear_enacted_at_or_above_iija"  -> engine regime "funded"   (25/40/35)
+//   "multiyear_enacted_below_iija"        -> engine regime "unfunded" (15/30/55)
+//   "short_term_extension"                -> engine regime "neutral"  (20/35/45)
+//   "pending_no_action"                   -> engine regime "neutral"  (20/35/45)
+//   "lapsed"                              -> engine regime "unfunded" (15/30/55)
+//
+// CALIBRATION: "short_term_extension" is the BASE CASE and maps to NEUTRAL, NOT
+// to a contraction. Twelve extensions followed TEA-21's expiration and ten
+// followed SAFETEA-LU's - short-term patches are the historical rule. Mapping
+// the single most likely outcome to a downgrade would print a false trim for
+// months. Only a multiyear bill enacted materially BELOW IIJA levels, or an
+// outright lapse with no extension, is a genuine negative.
+//
+// Current setting rationale (August 2026): IIJA authorizations expire
+// 2026-09-30. H.R. 8870 was ordered reported by House T&I in May 2026 but has
+// not been enacted, and MLM management indicated on the Q2 call that a
+// short-term extension appears likely. State DOT budgets in MLM's core markets
+// are at historically elevated levels but are not accelerating further, so the
+// secondary read is "stable" and does not move the regime off neutral.
+const MLM_FEDERAL_AUTHORIZATION_STATUS = "short_term_extension";
+const MLM_STATE_DOT_BUDGET_TREND       = "stable";   // accelerating | stable | contracting
+const MLM_AUTHORIZATION_EXPIRY         = "2026-09-30";
+
+function mlmFundingRegime() {
+  const days = Math.round(
+    (new Date(MLM_AUTHORIZATION_EXPIRY + "T00:00:00Z") - new Date()) / 86400000
+  );
+  const status = MLM_FEDERAL_AUTHORIZATION_STATUS;
+  const trend = MLM_STATE_DOT_BUDGET_TREND;
+
+  // Staleness guard. A human-maintained constant that nobody reviews is worse
+  // than no constant at all, because it looks authoritative. If the expiry has
+  // passed and the status still reads as an unresolved state, say so loudly.
+  const unresolved = status === "short_term_extension" || status === "pending_no_action";
+  if (days < 0 && unresolved) {
+    console.log(`  [MLM-REGIME] STALE CONFIG: MLM_AUTHORIZATION_EXPIRY (${MLM_AUTHORIZATION_EXPIRY}) passed ${-days}d ago`);
+    console.log(`  [MLM-REGIME]    but MLM_FEDERAL_AUTHORIZATION_STATUS still reads "${status}". Congress has acted or the`);
+    console.log(`  [MLM-REGIME]    extension has been renewed - either way this constant needs a human review NOW.`);
+    console.log(`  [MLM-REGIME]    MLM is scoring against a regime that may no longer exist.`);
+  } else if (days >= 0 && days <= 30 && unresolved) {
+    console.log(`  [MLM-REGIME] Authorization expires in ${days}d and status is still "${status}" - review shortly.`);
+  }
+  return { status, trend, days };
 }
 
 // ─── STAGE 3j: MLM AGGREGATES-COHORT HISTORICAL RETURNS (v4.17) ─────────────
@@ -2397,9 +2466,20 @@ async function main() {
     // contraction. Twelve extensions followed TEA-21 and ten followed
     // SAFETEA-LU — patches are the historical rule, and the base case is not a
     // downgrade. This is a config-level categorical, not an API field.
-    output.MLM.fundamentals.federal_authorization_status     = null;  // categorical: multiyear_enacted_at_or_above_iija/multiyear_enacted_below_iija/short_term_extension/pending_no_action/lapsed
-    output.MLM.fundamentals.days_to_authorization_expiry     = null;  // days to 2026-09-30 (or to the current extension's expiry)
-    output.MLM.fundamentals.state_dot_budget_trend           = null;  // categorical: accelerating/stable/contracting
+    // v4.18: POPULATED from the human-maintained config above, not null.
+    // These are the only MLM fields this file sets from a constant rather than
+    // an API — see the MLM_FEDERAL_AUTHORIZATION_STATUS block for why, and for
+    // the calibration note that short_term_extension is the BASE CASE.
+    const mlmRegime = mlmFundingRegime();
+    output.MLM.fundamentals.federal_authorization_status     = mlmRegime.status;
+    output.MLM.fundamentals.days_to_authorization_expiry     = mlmRegime.days;
+    output.MLM.fundamentals.state_dot_budget_trend           = mlmRegime.trend;
+    const regimeLabel = mlmRegime.status === "multiyear_enacted_at_or_above_iija" ? "funded"
+      : (mlmRegime.status === "multiyear_enacted_below_iija" || mlmRegime.status === "lapsed") ? "unfunded"
+      : mlmRegime.trend === "accelerating" ? "funded"
+      : mlmRegime.trend === "contracting" ? "unfunded"
+      : "neutral";
+    console.log(`  MLM funding regime: ${mlmRegime.status} + state DOT ${mlmRegime.trend} → engine regime "${regimeLabel}" | ${mlmRegime.days}d to authorization expiry (HUMAN-MAINTAINED CONSTANT — review when the statute changes)`);
 
     // ── LNA (Lhoist North America) — TREATED AS A KNOWN FORWARD EVENT ─────────
     // All regulatory approvals received 2026-08-05; $6.5B notes priced
