@@ -1,7 +1,51 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.4.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.5.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
+// v8.5.0: HOLDINGS SWAP — sold RDDT (hypergrowth_platform_monetizer, 25/35/40),
+//       bought MLM (Martin Marietta Materials, reserve_moat_infrastructure_compounder,
+//       20/35/45). 14 holdings preserved. Syncs to score-engine V8.4 +
+//       fetch-market-data v4.17.
+//       MLM: the second-largest US construction aggregates producer and one of
+//       only two genuine domestic pure plays alongside Vulcan. A LOCAL MONOPOLY
+//       by haul radius — crushed stone is worth less than the cost of moving it
+//       beyond ~25-50 miles, so each quarry owns its circle and there is no
+//       exchange price for aggregates anywhere. The moat is PERMITTED RESERVES.
+//       (a) Per-holding prompt blocks: MLM (aggregates-cohort valuation vs
+//         VMC/CRH/EXP weighted, VMC twin spread carried separately, XLB factor
+//         flow, mix-adjusted organic pricing, organic volume, cash GP/ton,
+//         COGS/ton ex-freight, end-market split, LNA pro-forma block, federal
+//         authorization + state DOT categoricals) in BOTH tracks.
+//       (b) THREE CALIBRATION GUARDRAILS carried into the prompt, all mirroring
+//         score-engine V8.4 so the LLM cannot reintroduce on the qualitative
+//         side what the engine deliberately gated:
+//         - DIVESTITURE-GAIN PE GATE: MLM trailing P/E ~12.9x against ~26.8x
+//           forward is an ACCOUNTING ARTIFACT (TTM profit margin 36.7% exceeds
+//           gross margin 28.2% — impossible from operations; the window carries
+//           the Quikrete asset-exchange gain). Engine scores it ZERO whenever
+//           trailing < 0.6x forward, and honours premium_pct_reliable from
+//           fetch v4.17 on the cohort premium. The prompt says so explicitly.
+//         - REPORTED ASP IS A NULL SIGNAL: Q2'26 printed -2% reported vs +3.7%
+//           organic mix-adjusted, the gap being pure acquisition/geographic mix.
+//           Engine never scores it; the prompt forbids reintroducing it.
+//         - WEATHER GATE: a negative organic-volume print accompanied by
+//           material weather has its penalty REMOVED, not reduced. Rain is not
+//           demand destruction.
+//       (c) Leverage scored on the LNA GLIDEPATH (3.7x at close → sub-2.5x
+//         within 24 months), never the level. LNA is treated as a KNOWN FORWARD
+//         EVENT: approvals landed 2026-08-05 and the $6.5B notes priced
+//         2026-08-12, so the prompt instructs pro-forma reasoning from day one.
+//       (d) NET share count sign convention INVERTS vs RDDT: negative = buyback.
+//         MLM is down ~1.1% YoY and genuinely satisfies the portfolio's buyback
+//         criterion, which RDDT never did.
+//       (e) TICKER_NEGATIVE_CONSTRAINTS: MLM DOES get an entry — see the long
+//         note at the map. This is a deliberate, reasoned exception to the
+//         "documented failures only" policy that governed the RDDT non-entry.
+//       Removals: isRDDT flag (both tracks), rddtGuidance (full + search), RDDT
+//       drawdown/cohort-valuation/cohort-relative/factor-flow/fundamentals/
+//       eps-rev data lines. "hypergrowth_platform_monetizer" no longer in book
+//       (score-engine retains its branches for historical re-scoring — different
+//       contract; this file only runs forward).
 // v6.0-v7.4: see git history.
 // v7.5: HOLDINGS SWAP — added LHX (defense_prime_backlog_compounder, 20/40/40) and
 //       TMO (life_sciences_quality_compounder, 20/35/45); retired MOS and SPY.
@@ -213,12 +257,30 @@ const TICKER_NEGATIVE_CONSTRAINTS = {
   // "MA" — deliberately NO entry (v8.3.0): V/Visa mentions are INTENTIONAL (the
   // twin comparison is the archetype design), the bare ticker collides with
   // "moving average" prose, and policy here is documented-failure classes only.
-  // "RDDT" — deliberately NO entry (v8.4.0): no identity-confusion failure has
-  // been observed for this ticker, and the policy above is documented classes
-  // only. The plausible future class is meme-stock/WallStreetBets framing
-  // displacing fundamental analysis — but that is a QUALITY failure, not an
-  // identity one, and banned substrings are the wrong instrument for it.
-  // Add an entry only if a real wrong-company output appears in the logs.
+  // "MLM" — DOES get an entry (v8.5.0), and this is a deliberate exception to
+  // the "documented failures only" policy that produced the RDDT non-entry
+  // above. The reasoning, so a future reader can overturn it if it proves wrong:
+  //   • The collision is EXACT and ex ante certain, not speculative. "MLM" is
+  //     the standard abbreviation for multi-level marketing — the single most
+  //     common expansion of those three letters in English text. This is not a
+  //     guess about a plausible future failure mode (which is what the policy
+  //     rightly excludes); it is a structural property of the ticker, in the
+  //     same class as AMKBY→AmBev, which the book HAS produced.
+  //   • The chosen terms have ZERO legitimate use in an aggregates analysis, so
+  //     the false-positive risk that motivates the conservative policy is
+  //     absent here. There is no correct sentence about crushed stone that
+  //     contains "downline".
+  // NOT banned, deliberately: "lockheed". Martin Marietta Materials is NOT
+  // Lockheed Martin (the original Martin Marietta Corporation merged with
+  // Lockheed in 1995; MATERIALS was separated and has no defense business), and
+  // that confusion is a real risk — this portfolio separately holds LHX, so a
+  // cross-contaminated analysis would be genuinely dangerous. But a CORRECT
+  // output might legitimately name Lockheed while disambiguating, and a hard
+  // [IDENTITY] fail on an accurate disambiguation would burn a corrective turn
+  // for no reason. That risk is handled in the prompt guidance instead, where
+  // it costs nothing when the model gets it right.
+  "MLM":   ["multi-level marketing", "multilevel marketing", "network marketing",
+            "downline", "pyramid scheme"],                      // MLM is Martin Marietta Materials (aggregates), never multi-level marketing
 };
 
 // Semantic + integrity checks on an accepted record_scores payload. Returns an
@@ -288,7 +350,7 @@ const HOLDINGS = [
   { symbol: "NOW",   name: "ServiceNow",      sector: "AI Workflow SaaS",   archetype: "ai_workflow_quality_compounder",   weights: { t:.20, p:.35, s:.45 } },
   { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",   archetype: "dividend_compounder",              weights: { t:.10, p:.45, s:.45 } },
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader",     weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "RDDT",  name: "Reddit, Inc.",   sector: "Social / Digital Ads", archetype: "hypergrowth_platform_monetizer",   weights: { t:.25, p:.35, s:.40 } }, // ← v8.4.0
+  { symbol: "MLM",   name: "Martin Marietta Materials", sector: "Construction Aggregates", archetype: "reserve_moat_infrastructure_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.5.0
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",     archetype: "em_dividend_growth",               weights: { t:.15, p:.35, s:.50 } },
   { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",          archetype: "em_state_oil_dividend",            weights: { t:.20, p:.35, s:.45 } },
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",    archetype: "cyclical_trade_bellwether",        weights: { t:.25, p:.35, s:.40 } },
@@ -432,7 +494,7 @@ function buildPrompt(h, detScores) {
   const isNOW = h.archetype === "ai_workflow_quality_compounder";  // ← V7.6
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
-  const isRDDT = h.archetype === "hypergrowth_platform_monetizer";      // ← v8.4.0
+  const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -931,61 +993,90 @@ function buildPrompt(h, detScores) {
     isrgEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
-  // ── RDDT-specific data lines (v8.4.0) ──────────────────────────────────
-  let rddtDrawdownLine = null;
-  if (isRDDT && md.price?.current && md.price?.week52_high) {
+  // ── MLM-specific data lines (v8.5.0) ───────────────────────────────────
+  let mlmDrawdownLine = null;
+  if (isMLM && md.price?.current && md.price?.week52_high) {
     const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
     const ddMag = Math.abs(dd);
-    const zone = ddMag > 50 ? "EXTREME (max tactical conviction IF ad growth intact)" : ddMag > 40 ? "DEEP (high-conviction setup)" : ddMag > 32 ? "MEANINGFUL" : ddMag > 25 ? "SETUP territory" : ddMag > 15 ? "MILD (routine for beta 1.94)" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
-    rddtDrawdownLine = `RDDT drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal; ladder scaled to 60% (beta 1.94), NOT the compounders' 40%`;
+    const zone = ddMag > 30 ? "EXTREME (max tactical conviction IF mix-adjusted pricing intact)" : ddMag > 25 ? "DEEP (high-conviction setup)" : ddMag > 20 ? "MEANINGFUL" : ddMag > 15 ? "SETUP territory" : ddMag > 8 ? "MILD" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
+    mlmDrawdownLine = `MLM drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal; ladder scaled to 35% (beta 1.11), TIGHTER than the high-beta names`;
   }
-  let rddtCohortValuationLine = null;
-  if (isRDDT && md.cohort_valuation) {
+  // ★ Cohort valuation carries the fetch v4.17 ARTIFACT GATE. When
+  // premium_pct_reliable is false the premium is emitted for the record but must
+  // NOT be read as a valuation signal — MLM's trailing P/E is contaminated by
+  // the Quikrete divestiture gain and the raw premium reads near -50%.
+  let mlmCohortValuationLine = null;
+  if (isMLM && md.cohort_valuation) {
     const cv = md.cohort_valuation;
     const prem = cv.premium_pct;
-    const regime = prem == null ? "" : prem < -15 ? " — COMPRESSED (BUY)" : prem < 15 ? " — BELOW MID-BAND (BUY-leaning)" : prem < 40 ? " — NORMAL BAND" : prem < 80 ? " — ABOVE NORMAL BAND" : " — RICH (TRIM)";
-    rddtCohortValuationLine = `RDDT P/E: ${cv.rddt_pe ?? "—"}x | META: ${cv.meta_pe ?? "—"}x | PINS: ${cv.pins_pe ?? "—"}x | APP: ${cv.app_pe ?? "—"}x | Ads cohort avg: ${cv.cohort_avg_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${regime} (TRAILING basis — unlike ISRG/NOW there is NO structural premium baseline here; you source forward P/E separately)`;
+    const artifact = cv.premium_pct_reliable === false || cv.trailing_discount_artifact_suspected === true;
+    const regime = artifact
+      ? " — ⚠⚠ ARTIFACT GATED: NOT A BUY. Trailing basis contaminated by the Quikrete divestiture gain. Engine scores this ZERO. Route to FORWARD PE / EV/EBITDA."
+      : prem == null ? ""
+      : prem < -8 ? " — DISCOUNT (BUY)" : prem <= 10 ? " — NORMAL BAND" : prem <= 18 ? " — ABOVE NORMAL BAND" : " — RICH (TRIM)";
+    const twin = cv.mlm_vs_vmc_pct != null ? ` | vs VMC (the twin): ${cv.mlm_vs_vmc_pct >= 0 ? "+" : ""}${cv.mlm_vs_vmc_pct.toFixed(1)}%` : "";
+    mlmCohortValuationLine = `MLM P/E: ${cv.mlm_pe ?? "—"}x | VMC: ${cv.vmc_pe ?? "—"}x | CRH: ${cv.crh_pe ?? "—"}x | EXP: ${cv.exp_pe ?? "—"}x | Weighted aggregates cohort avg: ${cv.cohort_avg_pe ?? "—"}x (VMC .50 / CRH .25 / EXP .25) | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"}${twin}${regime} (TRAILING basis — you source forward P/E separately)`;
   }
-  let rddtCohortRelativeLine = null;
-  if (isRDDT && md.cohort_relative) {
+  // ★ VMC twin spread is carried SEPARATELY from the 3-name cohort. VMC is the
+  // only true like-for-like US aggregates pure play; the twin read is the
+  // flagship tactical signal and must not be diluted inside an average.
+  let mlmCohortRelativeLine = null;
+  if (isMLM && md.cohort_relative) {
     const cr = md.cohort_relative;
-    const rp = cr.cohort_rotation_pp;
-    const status = cr.cohort_rotation_active
-      ? (rp != null && rp < -18 ? "ADS ROTATION ACTIVE/STRONG (narrative selling — buy setup UNLESS an ad-revenue print confirms the weakness)" : "ADS ROTATION ACTIVE (buy setup)")
-      : (rp != null && rp > 8 ? "RDDT LEADING ADS COHORT" : "INLINE");
-    rddtCohortRelativeLine = `RDDT 30d: ${cr.rddt_30d_return_pct != null ? (cr.rddt_30d_return_pct >= 0 ? "+" : "") + cr.rddt_30d_return_pct + "%" : "—"} | Ads cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status}; threshold −8pp, wider than ISRG's −6pp)`;
+    const rp = cr.peer_rotation_pp;
+    const status = cr.peer_rotation_active
+      ? (rp != null && rp < -12 ? "AGGREGATES ROTATION ACTIVE/STRONG (buy setup UNLESS an organic-volume or mix-adjusted-pricing print confirms the weakness)" : "AGGREGATES ROTATION ACTIVE (buy setup)")
+      : (rp != null && rp > 6 ? "MLM LEADING AGGREGATES COHORT" : "INLINE");
+    mlmCohortRelativeLine = `MLM 30d: ${cr.mlm_30d_return_pct != null ? (cr.mlm_30d_return_pct >= 0 ? "+" : "") + cr.mlm_30d_return_pct + "%" : "—"} | Weighted cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status}; threshold −5pp, TIGHTER than RDDT's −8pp because beta is 1.11)`;
   }
-  let rddtFactorFlowLine = null;
-  if (isRDDT && md.factor_flow?.xlc_vs_spy_30d_pp != null) {
-    const x = md.factor_flow.xlc_vs_spy_30d_pp;
-    const dir = x > 1 ? "ADS BID ACTIVE (RDDT benefits)" : x < -1 ? "ADS COMPLEX UNDER PRESSURE" : "INLINE";
-    rddtFactorFlowLine = `XLC vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir})`;
+  let mlmTwinLine = null;
+  if (isMLM && md.cohort_relative?.vmc_spread_30d_pp != null) {
+    const cr = md.cohort_relative;
+    const vs = cr.vmc_spread_30d_pp;
+    const st = cr.vmc_dislocation_active
+      ? "TWIN DISLOCATION ACTIVE — the signature MLM setup. Two aggregates franchises with materially identical business models do not diverge for non-operating reasons; verify mix-adjusted pricing before sizing."
+      : vs > 5 ? "MLM leading its twin" : "inline";
+    mlmTwinLine = `MLM vs VMC (30d, the TWIN read — scored separately from the cohort): ${vs >= 0 ? "+" : ""}${vs.toFixed(1)}pp (${st})`;
   }
-  let rddtFundamentalsLine = null;
-  if (isRDDT && md.fundamentals && (md.fundamentals.ad_revenue_growth_yoy_pct != null || md.fundamentals.arpu_global != null || md.fundamentals.dauq_growth_yoy_pct != null || md.fundamentals.ebitda_margin_pct != null || md.fundamentals.search_referral_status != null || md.fundamentals.licensing_status != null)) {
+  let mlmFactorFlowLine = null;
+  if (isMLM && md.factor_flow?.xlb_vs_spy_30d_pp != null) {
+    const x = md.factor_flow.xlb_vs_spy_30d_pp;
+    const dir = x > 1 ? "MATERIALS BID ACTIVE (MLM benefits)" : x < -1 ? "MATERIALS COMPLEX UNDER PRESSURE" : "INLINE";
+    mlmFactorFlowLine = `XLB vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir})`;
+  }
+  let mlmFundamentalsLine = null;
+  if (isMLM && md.fundamentals && (md.fundamentals.mix_adjusted_organic_pricing_pct != null || md.fundamentals.organic_volume_growth_pct != null || md.fundamentals.cash_gross_profit_per_ton != null || md.fundamentals.federal_authorization_status != null || md.fundamentals.ma_integration_state != null)) {
     const f = md.fundamentals;
-    const ag = f.ad_revenue_growth_yoy_pct != null ? `Ad revenue YoY: ${f.ad_revenue_growth_yoy_pct.toFixed(1)}%` : null;
-    const rg = f.revenue_growth_yoy_pct != null ? `Total revenue YoY: ${f.revenue_growth_yoy_pct.toFixed(1)}%` : null;
-    const ar = f.arpu_global != null ? `Global ARPU: $${f.arpu_global.toFixed(2)}${f.arpu_growth_yoy_pct != null ? ` (+${f.arpu_growth_yoy_pct.toFixed(0)}% YoY)` : ""}` : null;
-    const gap = (f.arpu_us != null && f.arpu_row != null && f.arpu_row > 0) ? `Intl ARPU gap: ${(f.arpu_us / f.arpu_row).toFixed(1)}x (US $${f.arpu_us} vs RoW $${f.arpu_row}) — RUNWAY, not weakness` : null;
-    const du = f.dauq_millions != null ? `DAUq: ${f.dauq_millions}M${f.dauq_growth_yoy_pct != null ? ` (+${f.dauq_growth_yoy_pct.toFixed(1)}% YoY)` : ""}` : null;
-    const lo = f.logged_out_dau_growth_pct != null ? `Logged-out DAU YoY: ${f.logged_out_dau_growth_pct.toFixed(1)}%` : (f.dau_disclosure_status === "aggregate_only" ? "Logged-in/out DAU split: DISCONTINUED by the company (Q3 2026+) — do NOT estimate" : null);
-    const em = f.ebitda_margin_pct != null ? `Adj EBITDA margin: ${f.ebitda_margin_pct.toFixed(1)}%` : null;
-    const fm = f.fcf_margin_pct != null ? `FCF margin: ${f.fcf_margin_pct.toFixed(1)}%` : null;
-    const sc = f.share_count_change_yoy_pct != null ? `NET share count YoY: ${f.share_count_change_yoy_pct >= 0 ? "+" : ""}${f.share_count_change_yoy_pct.toFixed(1)}% (POSITIVE = DILUTION — this, never buyback yield)` : null;
-    const sr = f.search_referral_status ? `Search referral: ${f.search_referral_status}` : null;
-    const ls = f.licensing_status ? `Data licensing: ${f.licensing_status}${f.licensing_annual_musd != null ? ` ($${f.licensing_annual_musd}M/yr)` : ""}` : null;
-    const ct = f.competitive_threat ? `Competitive threat: ${f.competitive_threat}` : null;
-    const ps = f.ps_pct_of_3y_avg != null ? `P/S % of own-history avg: ${f.ps_pct_of_3y_avg.toFixed(0)}%${f.own_history_window_partial ? " [PARTIAL WINDOW — listed Mar 2024, directional only]" : ""}` : null;
-    const parts = [ag, rg, ar, gap, du, lo, em, fm, sc, sr, ls, ct, ps].filter(Boolean);
-    if (parts.length > 0) rddtFundamentalsLine = `RDDT fundamentals: ${parts.join(" | ")}`;
+    const px = f.mix_adjusted_organic_pricing_pct != null ? `Mix-adjusted ORGANIC pricing: ${f.mix_adjusted_organic_pricing_pct >= 0 ? "+" : ""}${f.mix_adjusted_organic_pricing_pct.toFixed(1)}% ★ THE MOAT METRIC — below 1% is the cleanest falsifier in this model` : null;
+    // ⚠ Reported ASP is emitted for CONTEXT ONLY and explicitly marked unscored.
+    const rasp = f.reported_asp_signal_status === "null_signal_mix_contaminated"
+      ? `Reported ASP${f.reported_asp_usd != null ? ` $${f.reported_asp_usd.toFixed(2)}` : ""}${f.reported_asp_growth_pct != null ? ` (${f.reported_asp_growth_pct >= 0 ? "+" : ""}${f.reported_asp_growth_pct.toFixed(1)}%)` : ""}: ⚠ NULL SIGNAL — mix-contaminated by acquisitions; engine does NOT score it and neither should you`
+      : null;
+    const ov = f.organic_volume_growth_pct != null ? `Organic volume YoY: ${f.organic_volume_growth_pct >= 0 ? "+" : ""}${f.organic_volume_growth_pct.toFixed(1)}%` : null;
+    const rv = f.reported_volume_growth_pct != null ? `Reported volume YoY: ${f.reported_volume_growth_pct >= 0 ? "+" : ""}${f.reported_volume_growth_pct.toFixed(1)}% (incl. acquisitions)` : null;
+    const wx = f.weather_impact_flag ? `Weather: ${f.weather_impact_flag}${f.weather_impact_flag === "material_headwind" ? " ⚠ VOLUME PENALTY REMOVED — rain is not demand destruction" : ""}` : null;
+    const gp = f.cash_gross_profit_per_ton != null ? `Cash gross profit: $${f.cash_gross_profit_per_ton.toFixed(2)}/ton` : null;
+    const cg = f.cogs_per_ton_growth_ex_freight_pct != null ? `COGS/ton ex pass-through freight: ${f.cogs_per_ton_growth_ex_freight_pct >= 0 ? "+" : ""}${f.cogs_per_ton_growth_ex_freight_pct.toFixed(1)}%` : null;
+    const en = f.energy_headwind ? `Energy: ${f.energy_headwind}` : null;
+    const em = f.ebitda_margin_pct != null ? `Adj EBITDA margin: ${f.ebitda_margin_pct.toFixed(1)}%${f.inventory_step_up_charge_musd ? ` (includes a $${f.inventory_step_up_charge_musd}M NON-CASH inventory step-up — strip before comparing)` : ""}` : null;
+    const ends = (f.infrastructure_demand || f.heavy_nonres_demand || f.residential_demand)
+      ? `End markets — infrastructure: ${f.infrastructure_demand ?? "—"} | heavy nonres: ${f.heavy_nonres_demand ?? "—"} | residential: ${f.residential_demand ?? "—"}` : null;
+    const fa = f.federal_authorization_status ? `Federal authorization: ${f.federal_authorization_status}${f.days_to_authorization_expiry != null ? ` (${f.days_to_authorization_expiry}d to expiry)` : ""} ⚠ short_term_extension is the BASE CASE and scores ZERO, not a downgrade` : null;
+    const dot = f.state_dot_budget_trend ? `State DOT budgets: ${f.state_dot_budget_trend}` : null;
+    const lna = f.ma_integration_state ? `LNA state: ${f.ma_integration_state}${f.pro_forma_net_leverage != null ? ` | pro-forma net leverage ${f.pro_forma_net_leverage.toFixed(2)}x` : ""}${f.delever_glidepath_status ? ` | glidepath ${f.delever_glidepath_status}` : ""} — leverage scored on the GLIDEPATH (3.7x → sub-2.5x / 24mo), never the level` : null;
+    const sc = f.share_count_change_yoy_pct != null ? `NET share count YoY: ${f.share_count_change_yoy_pct >= 0 ? "+" : ""}${f.share_count_change_yoy_pct.toFixed(1)}% (NEGATIVE = BUYBACK — MLM satisfies the portfolio's buyback criterion)` : null;
+    const pfs = f.pro_forma_share_count_change_pct != null ? `Pro-forma share count: ${f.pro_forma_share_count_change_pct >= 0 ? "+" : ""}${f.pro_forma_share_count_change_pct.toFixed(1)}% (incl. $6.5B LNA stock consideration)` : null;
+    const roic = f.roic_pct != null ? `ROIC: ${f.roic_pct.toFixed(1)}%${f.wacc_pct != null ? ` vs WACC ${f.wacc_pct.toFixed(1)}%` : ""}${f.roic_denominator_distorted ? " ⚠ DENOMINATOR DISTORTED by fresh M&A — flagged, not scored as a quality break" : ""}` : null;
+    const res = f.reserve_life_years != null ? `Reserve life: ${f.reserve_life_years}y${f.reserve_tons_millions != null ? ` (${f.reserve_tons_millions}M tons permitted)` : ""} — the moat, quantified` : null;
+    const parts = [px, rasp, ov, rv, wx, gp, cg, en, em, ends, fa, dot, lna, sc, pfs, roic, res].filter(Boolean);
+    if (parts.length > 0) mlmFundamentalsLine = `MLM fundamentals: ${parts.join(" | ")}`;
   }
-  let rddtEpsRevLine = null;
-  if (isRDDT && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+  let mlmEpsRevLine = null;
+  if (isMLM && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
     const r30 = md.fundamentals.eps_revisions_30d_pct;
     const r90 = md.fundamentals.eps_revisions_90d_pct;
-    const dir = r90 == null ? "" : r90 > 2 ? " (UPWARD)" : r90 < -4 ? " (DOWNWARD)" : " (STABLE)";
-    rddtEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+    const dir = r90 == null ? "" : r90 > 1 ? " (UPWARD)" : r90 < -2 ? " (DOWNWARD)" : " (STABLE)";
+    mlmEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
   const dataLines = [
@@ -1006,7 +1097,7 @@ function buildPrompt(h, detScores) {
     nowDrawdownLine, nowCohortValuationLine, nowCohortRelativeLine, nowFactorFlowLine, nowRealRateLine, nowDxyLine, nowFundamentalsLine, nowEpsRevLine,   // ← V7.6
     maDrawdownLine, maTwinValuationLine, maTwinRelativeLine, maDuopolyRelativeLine, maFactorFlowLine, maDxyLine, maFundamentalsLine, maEpsRevLine,        // ← v8.3.0
     isrgDrawdownLine, isrgCohortValuationLine, isrgCohortRelativeLine, isrgFactorFlowLine, isrgFundamentalsLine, isrgEpsRevLine,                          // ← v8.3.0
-    rddtDrawdownLine, rddtCohortValuationLine, rddtCohortRelativeLine, rddtFactorFlowLine, rddtFundamentalsLine, rddtEpsRevLine,                          // ← v8.4.0
+    mlmDrawdownLine, mlmCohortValuationLine, mlmCohortRelativeLine, mlmTwinLine, mlmFactorFlowLine, mlmFundamentalsLine, mlmEpsRevLine,                   // ← v8.5.0
     (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
     (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
     macro.vix ? `VIX: ${macro.vix}` : null,
@@ -1407,49 +1498,57 @@ YOUR VALUE-ADD: Forward PE + own-history percentile + forward PEG (engine traili
 MOST DAYS NEUTRAL: ±5 roughly 80% of days. Meaningful scores on drawdown setups (engine flags), fear-rotation extremes (engine flags), procedure prints vs guide (you flag), transition quantification events (you flag), moat-evidence changes (you flag), earnings-window resets (you flag).
 ` : "";
 
-  const rddtGuidance = isRDDT ? `
-CRITICAL — RDDT-SPECIFIC SCORING GUIDANCE (V1):
-RDDT is REDDIT, INC. — the only public pure-play on human-generated conversational content at scale. Hypergrowth platform monetizer: roughly 130M daily and 515M weekly uniques ALREADY BUILT, monetized through an advertising engine still early on its curve (global ARPU about $6.18 against US ARPU about $11.85). You are underwriting a monetization ramp on an existing audience, not audience growth. Secondary asset: two decades of topic-organized human discussion, separately monetizable through AI data licensing. The acute structural dependency: logged-out user acquisition runs largely through Google search referral, which management has described as choppy — a platform outside Reddit's control is the single largest swing factor in the thesis.
+  const mlmGuidance = isMLM ? `
+CRITICAL — MLM-SPECIFIC SCORING GUIDANCE (V1):
 
-V8.3 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
-• RSI bands 32/72 — the WIDEST in the book (beta 1.94, short interest ~9%)
-• Daily-move noise floor of ±4% — a 3% day on this name is nothing
-• Drawdown-from-52w-high primary tactical, ladder scaled to 60% (>25% setup, >40% strong, >50% extreme) — NOT the compounders' 40% scale
-• Ads-cohort rotation vs META/PINS/APP avg 30d at a −8pp threshold (deliberately wider than ISRG's −6pp: 6pp is inside this name's noise band)
-• XLC (Communication Services) factor flow vs SPY (>1pp/30d = ads bid active)
-• Ads-cohort P/E premium (TRAILING) — NO structural premium baseline, RDDT sits inside the band: <−15% compressed, −15 to +40% normal, >+80% rich
-• Ad revenue growth / ARPU / DAUq / EBITDA + FCF margin / SBC trend fundamentals when sourced (they arrive null — YOU source them)
-• search_referral_status + licensing_status + competitive_threat categoricals (deterministic: "deteriorating" +22 / "taking_share" +20 / "lost" +20 thesis-break penalties; "decoupling_progress" −12 re-rating catalyst)
-• NET share count change (positive = dilution) — engine scores this, never buyback yield
-• Composite weights regime-conditional on XLC vs SPY 30d, engine V8.3: >+1pp bid_active 30/35/35 · ±1pp neutral 25/35/40 · <−1pp bid_absent 20/30/50
+IDENTITY — READ THIS FIRST. MLM is MARTIN MARIETTA MATERIALS, INC. (NYSE: MLM, CIK 916076, Raleigh NC) — a construction aggregates producer: crushed stone, sand and gravel. It is NOT multi-level marketing, network marketing, direct sales, or any distributor or downline structure; that expansion of the acronym is the most common one in English text and it is WRONG here. It is NOT Lockheed Martin — the original Martin Marietta Corporation merged with Lockheed in 1995, and Martin Marietta MATERIALS was separated as an independent building-materials company with no defense, aerospace or government-contracting business. This portfolio separately holds LHX (L3Harris) for defense exposure; do not cross-contaminate the two. It is NOT Vulcan Materials — VMC is the peer benchmark in this model, not the subject.
 
-TWO CALIBRATION TRAPS — BOTH ARE LOAD-BEARING. GET THESE WRONG AND THE WHOLE SIGNAL IS NOISE:
-1. PEG IS AN ARTIFACT HERE. RDDT forward PEG sits near 0.09-0.12 because EPS is inflecting off a near-zero prior-year base, NOT because the stock offers a 10x margin of safety. The engine scores anything below 0.4 as ZERO. Do not reintroduce it on the qualitative side. Say plainly in your rationale that PEG is uninformative for this name and lean on forward PE, P/S vs own history, and EV/FCF instead.
-2. OWN-HISTORY MULTIPLES ARE A PARTIAL WINDOW. RDDT listed in MARCH 2024. Any quoted "10-year average" P/E is spurious. Every "3-year average" covers roughly 2.4 years spanning the company's crossing into GAAP profitability. The engine HALVES the contribution of P/S-vs-own-history for exactly this reason. Report these anchors, flag the window, and never give them ISRG/NOW-grade confidence — those names have a decade of multiple history and this one does not.
+MLM is the second-largest US construction aggregates producer and one of only two genuine domestic pure plays alongside Vulcan. Three structural attributes at once: (1) a LOCAL MONOPOLY — crushed stone is worth less than the cost of hauling it beyond roughly 25 to 50 miles, so each quarry effectively owns its radius and there is no exchange price for aggregates anywhere in the world; (2) a PERMITTING moat — you cannot practically get a new quarry approved near a growing metro, so permitted reserve life rather than brand or technology is the durable asset; (3) a POLICY-DRIVEN volume cycle — roughly a third of demand traces to public infrastructure, making federal highway authorization and state DOT budgets the dominant swing factor on tonnage.
 
-IMPORTANT — TRAILING vs FORWARD P/E:
-Engine has TRAILING only. YOUR contribution: forward PE (<20x buy zone for this growth profile, 22-32x fair on 50%+ forward revenue growth, >40x stretched), EV/FCF (below 25x is attractive given 90%+ gross margin and negligible capital intensity — this is the CLEANEST valuation read because it needs no multiple history at all), and P/S vs own history with the partial-window caveat attached.
+THE ARCHITECTURAL RULE FOR THIS NAME — INTERNALIZE IT BEFORE SCORING:
+PRICING and VOLUME are SEPARATE signals with separate drivers and must never be conflated. Pricing is structural, near-unconditional, mid-single-digit through cycles, and historically RISES during recessions because a local monopoly does not evaporate when demand softens. Volume is cyclical and policy-driven. A quarter with weak volume and intact pricing is a CYCLE datapoint. A quarter with intact volume and broken pricing is a THESIS datapoint. Weight them accordingly.
 
-WHAT DRIVES RDDT:
-1. ADVERTISING REVENUE GROWTH (THE operational metric). Eight consecutive quarters above 60% through Q2 2026 (ad revenue +64%). Deceleration off a larger base is EXPECTED and not alarming. Below 35% is the tripwire where the referral bear case has actually LANDED rather than merely being feared — that distinction is the entire game on this name.
-2. SEARCH REFERRAL STATUS: stable / choppy / deteriorating / decoupling_progress. "Choppy" is the CURRENT state and is scored NEUTRAL on its own; it only becomes a buy when ad revenue is simultaneously compounding, because that gap between fear and evidence is where the mispricing lives. "Deteriorating" with logged-out DAU falling is a THESIS-LEVEL event. "Decoupling_progress" — real evidence of reduced Google dependence via app installs, direct navigation, or logged-in conversion — is the structural re-rating catalyst.
-3. ARPU EXPANSION. Global ARPU growth above 30% means the ramp is firing; below 15% means the monetization thesis is stalling, which breaks this name faster than slowing users would. The US-vs-rest-of-world gap (about 5.2x) is RUNWAY, not weakness — do not score it as a deficiency.
-4. DATA LICENSING. Google and OpenAI agreements together exceed $200M annually (Alphabet around $60M/yr). Renewals are UNRESOLVED with no stated timeline. Score "unresolved" as ZERO — it is an unpriced option, deliberately NOT in the base case. A renewal at or above prior terms is a real catalyst; a non-renewal impairs both a revenue line and the AI-corpus thesis.
-5. DILUTION IS A GENUINE FRAMEWORK BREAK. Share count rose about 2.8% year over year DESPITE $235M of Q2 2026 repurchases at $157.57. Headline buyback yield near 1.1% is GROSS; net of stock compensation the company is diluting, and SBC was guided higher for Q3. Report NET share count change. This holding does NOT satisfy the portfolio's aggressive-buyback criterion — say so rather than papering over it with the gross figure.
-6. DISCLOSURE CHANGE — REDUCED OBSERVABILITY. From Q3 2026 Reddit STOPPED reporting the logged-in versus logged-out DAU split, withdrawing the cleanest available read on Google-referral dependency. DO NOT ESTIMATE IT for any period from Q3 2026 onward. Return null. A guessed split on the single most thesis-relevant metric is worse than an honest gap, and the reduced observability is itself worth noting.
-7. EARNINGS WINDOW DISCIPLINE: Q2 2026 printed JULY 30, 2026 (revenue $804.9M +61%, EPS $1.25, Q3 guide $860-870M) — so Q3 lands in late October 2026. SEARCH for the confirmed date rather than assuming one. Within ±10 days of a report, HALVE the size of any tactical conviction and say so in the tactical rationale. Post-print, score the print, not the pre-print fear.
-8. COMPETITIVE THREAT: negligible / emerging / taking_share. Product launches and app announcements are NOT evidence. Only measurable engagement-share loss counts.
-9. EPS REVISIONS: 30d/90d, with wider thresholds than the compounders (+2 / −4) because consensus swings hard on a 60%-growth name.
+V8.4 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 38/70 — LIN-class, NOT the high-beta ladder (beta 1.11, short interest ~4%)
+• Daily-move noise floor of ±2%
+• Drawdown-from-52w-high primary tactical, ladder scaled to 35% (>15% setup, >25% strong, >30% extreme)
+• VMC TWIN dislocation scored SEPARATELY from the cohort (the signature setup)
+• Aggregates-cohort rotation vs VMC/CRH/EXP weighted 30d at a −5pp threshold (TIGHTER than RDDT's −8pp: on a beta-1.11 name a 5pp/30d divergence is information, not noise)
+• XLB (Materials) factor flow vs SPY (>1pp/30d = materials bid active)
+• Mix-adjusted organic pricing, organic volume, cash GP/ton, COGS/ton ex-freight, end-market split, EPS revisions when sourced (they arrive null — YOU source them)
+• federal_authorization_status + state_dot_budget_trend + delever_glidepath_status + ma_integration_state categoricals (deterministic: "multiyear_enacted_below_iija" +20 / "lapsed" +16 / glidepath "behind" +14 thesis-break penalties; "multiyear_enacted_at_or_above_iija" −18 re-rating catalyst)
+• NET share count change (NEGATIVE = buyback) — engine scores this
+• Composite weights regime-conditional on the PUBLIC CONSTRUCTION FUNDING regime, engine V8.4: funded 25/40/35 · neutral 20/35/45 · unfunded 15/30/55 (LIN's triple, deliberately reused)
 
-DO NOT PENALIZE: RSI 45-68 (normal for beta 1.94), daily moves under 4%, drawdowns under 25% (routine on this name's range), high trailing P/E per se, the absence of a dividend, "choppy" referral language by itself when ad revenue is still compounding, or deceleration from 64% to the mid-40s (that is expected on a larger base). DO NOT apply the cyclical P/E inversion used for GLNCY / PBR.A / AMKBY — a high trailing P/E here does NOT signal trough earnings.
+THREE CALIBRATION TRAPS — ALL LOAD-BEARING. GET THESE WRONG AND THE SIGNAL IS NOISE:
+1. THE TRAILING P/E IS AN ACCOUNTING ARTIFACT. MLM's trailing P/E sits near 12.9x against a forward P/E near 26.8x. TTM revenue of about $6.69B carries gross profit of roughly $1.89B — a 28.2% gross margin — while reported profit margin is 36.7% on about $2.46B of net income. A profit margin ABOVE the gross margin is arithmetically impossible from operations: the window contains a large non-operating gain from the Quikrete asset exchange. The engine scores trailing P/E as ZERO whenever trailing is below 0.6× forward, and honours the fetch layer's premium_pct_reliable flag on the aggregates-cohort premium (which otherwise reads near −50% and would look like a screaming discount). Do NOT reintroduce either on the qualitative side. Say plainly in your rationale that the trailing multiple is uninformative here and lean on forward PE and EV/EBITDA. Note this is the MIRROR IMAGE of a cheap stock — not the cyclical P/E inversion used for GLNCY / PBR.A / AMKBY, which does NOT apply because aggregates have no commodity price to trough against.
+2. REPORTED AGGREGATES ASP IS A NULL SIGNAL DURING INTEGRATION. Q2 2026 reported ASP FELL 2% to $22.74 per ton while ORGANIC mix-adjusted pricing ROSE 3.7% — the entire gap is acquisition and geographic mix from the Quikrete and New Frontier assets. Scoring the reported figure manufactures a pricing-power break that did not happen. The engine never scores it. Report it for context, mark it explicitly as mix-contaminated, and key every pricing judgement on mix_adjusted_organic_pricing_pct.
+3. WEATHER IS NOISE, NOT SIGNAL. Aggregates is the most weather-contaminated quarterly print in this portfolio. Heavy rain in Texas and the Southeast suppressed Q2 2026 volumes and continued into July. When a negative organic-volume reading is accompanied by a material weather headwind, the engine REMOVES the penalty entirely rather than reducing it — a half-penalty would still leak a false trim into the composite every wet quarter. Do not read a rain-driven volume miss as demand destruction. Check pricing instead.
 
-BUY BIAS (in addition to engine signals): ad revenue growth above 45% while the stock sits more than 25% off highs (the fear-vs-evidence gap — you flag it), forward PE below 20x with revenue growth forecast above 45%, ARPU growth above 30% while the multiple compresses, a licensing renewal landing at or above prior terms, credible decoupling evidence, ads rotation active (engine flags) without an ad-revenue print to justify it (you confirm), post-earnings overreaction to a beat-and-raise.
+IMPORTANT — TRAILING vs FORWARD, AND BASIS CONSISTENCY:
+Engine has TRAILING P/E only, and for this name that number is contaminated. YOUR contribution: forward PE (<24x buy zone, 26-32x fair for the growth + moat profile, >36x stretched) and EV/EBITDA (<15x buy, 16-19x fair, >21x rich — the CLEANER read here because you control both legs rather than depending on sell-side consensus). ★ EVERY MULTIPLE MUST CARRY NUMERATOR AND DENOMINATOR ON THE SAME BASIS — both standalone or both pro-forma, both trailing or both forward. If you cannot establish that they match, return null rather than a number. Worked example of the error to avoid: comparing spot EV/EBITDA of about 17.8x (which uses TRAILING EBITDA) against a pro-forma roughly $51.4B enterprise value over about $3.3B of 2026 combined EBITDA (≈15.6x) makes the Lhoist deal look like a two-turn re-rating. It is not. Like-for-like FORWARD, standalone is about $37.9B over roughly $2.4B (≈15.8x) versus pro-forma ≈15.6x — modestly accretive, roughly neutral. Also establish whether sell-side forward EPS consensus is on a standalone or LNA pro-forma basis; if it cannot be established, say so and route the VMC comparison through EV/EBITDA instead.
 
-TRIM BIAS: ad revenue growth below 35%, ARPU growth below 15%, logged-out DAU declining two consecutive quarters (while still disclosed), referral status deteriorating, a licensing non-renewal or materially worse renewal, forward PE above 40x, net dilution above 3% with growth decelerating, measurable engagement-share loss to a competitor.
+WHAT DRIVES MLM:
+1. MIX-ADJUSTED ORGANIC PRICING (THE moat metric). Aggregates have no exchange price, so the ability to raise mix-adjusted organic price IS the local-monopoly test. Above 4% the moat is fully intact; 2.5-4% is normal structural pricing (Q2'26 printed +3.7%); below 1% is a PRICING POWER BREAK and the single cleanest falsifier in this model — thesis-level, regardless of volume. Negative real pricing means a local monopoly is cutting price, which is a broken thesis, not a cycle.
+2. ORGANIC VOLUME (the cycle read). Q2 2026 printed +2.3%, the fourth consecutive quarter of organic growth. Distinguish organic from reported: reported shipments rose 17% on acquisitions. Apply the weather gate above.
+3. UNIT ECONOMICS. Aggregates cash gross profit per ton is the industry's cleanest margin measure. The PRICE-MINUS-COST SPREAD is the margin read, not either leg alone: on a per-ton basis any positive spread expands gross margin. Q2'26 printed +3.7% pricing against +2.1% COGS/ton ex pass-through freight — a 1.6pp spread — and adjusted cash gross profit still rose 15%. Always use COGS ex-freight; including pass-through freight inflates both sides of the ledger.
+4. FEDERAL AUTHORIZATION — the dominant structural binary, and the clock is running. IIJA authorizations expire SEPTEMBER 30, 2026. Without reauthorization, formula programs for highways, bridges and transit revert to pre-IIJA baseline levels in FY2027 — roughly a $28B per year reduction. H.R. 8870 was ordered reported by the House Transportation and Infrastructure Committee in May 2026, and MLM management indicated on the Q2 call that a short-term extension appears likely. ★ CALIBRATION: twelve extensions followed TEA-21's expiration and ten followed SAFETEA-LU's — short-term patches are the historical RULE, not the exception. A "short_term_extension" is the BASE CASE and scores ZERO, not as a downgrade. Only a multiyear bill enacted materially BELOW IIJA levels, or an outright lapse, is a genuine negative. State transportation budgets in MLM's markets are separately at historically elevated levels and partially buffer federal uncertainty.
+5. LHOIST NORTH AMERICA — TREAT AS A KNOWN FORWARD EVENT AND REASON PRO-FORMA. Announced June 2026 at approximately $13.5B enterprise value: $7.0B cash plus $6.5B stock. LNA generated $1.8B gross sales and $786M adjusted EBITDA for the twelve months ended December 31, 2025, implying roughly 15x including run-rate synergies — BELOW MLM's own trading multiple, which is why the deal is accretive rather than dilutive on valuation. Approximately $85M of annual run-rate cost synergies projected; credit them at ZERO until disclosed as realized. LNA brings 20 quarries and production facilities, 45 distribution terminals, and more than 2 billion tons of limestone reserves with over 200 years of useful life, much of it in Sun Belt metros. All regulatory approvals were received August 5, 2026 and MLM priced a $6.5B debt offering August 12, 2026, so the transaction is approved AND financed — reason pro-forma from today rather than waiting for close. ★ LEVERAGE IS SCORED ON THE GLIDEPATH, NEVER THE LEVEL: combined net leverage is expected near 3.7x at closing with a stated target below 2.5x within 24 months. 3.7x at close is the plan working exactly as announced. A quarter that fails to delever on schedule is the signal. If the deal TERMINATES, the pro-forma frame is void and every multiple must be re-read standalone.
+6. END MARKETS, SCORED SEPARATELY. Infrastructure and heavy nonresidential (data centers, power generation, warehouses) are the strong legs; residential is the weak one and is the smallest share of demand, so weight it lightly. Note that LNA's lime business serves domestic steel manufacturing, environmental and agricultural applications and reindustrialization — end markets OUTSIDE the highway-funding channel, which is why roughly a quarter of pro-forma EBITDA is insulated from the federal authorization question.
+7. SHAREHOLDER RETURN — THE CLEAN CASE. Shares outstanding are DOWN about 1.11% year over year (down 0.33% quarter over quarter), buyback yield 1.11%, dividend raised to $0.84 quarterly on August 16 2026, ten consecutive years of dividend growth on an 8.26% payout ratio. NEGATIVE share count change = buyback. MLM genuinely SATISFIES the portfolio's aggressive-buyback criterion — note the sign convention is the INVERSE of a dilutive name. But $6.5B of stock consideration for LNA against a roughly $31.6B market cap is material issuance, so book the pro-forma dilution now rather than being surprised at close.
+8. RESERVE LIFE is the actual moat and a slow-moving structural constant. Report it; do not let it swing a quarterly score.
+9. ROIC (~6.7%) sits below WACC (~9.1%), but the denominator was just inflated by acquisitions whose earnings are not yet in the numerator. Flag it as denominator-distorted; do not score it as a quality break while integration is in progress.
+10. EARNINGS WINDOW DISCIPLINE: Q2 2026 printed JULY 30, 2026 (revenue $1.95B +21%, adjusted EPS $5.00, FY revenue guide raised to ~$7.3B midpoint while FY adjusted EBITDA guidance was REAFFIRMED but not raised on conservative energy assumptions) — so Q3 lands in late October 2026. SEARCH for the confirmed date rather than assuming one. Within ±10 days of a report, HALVE the size of any tactical conviction and say so. Post-print, score the print.
 
-YOUR VALUE-ADD: Forward PE + EV/FCF + P/S-vs-own-history WITH the partial-window caveat (engine trailing only), ad revenue growth and ARPU block (engine null — earnings disclosure), DAUq/WAUq, margins and FCF, guide range, search_referral_status + licensing_status + competitive_threat categoricals (engine consumes YOUR reads — set them carefully, they carry deterministic thesis-break weight), NET share count change, earnings-window discipline, EPS revisions.
+DO NOT PENALIZE: RSI 40-68 (normal for beta 1.11), daily moves under 2%, drawdowns under 15%, the LOW trailing P/E (it is an artifact — see trap 1), reported ASP declines during integration (trap 2), weather-driven volume misses (trap 3), 3.7x pro-forma leverage while the glidepath holds, a short-term IIJA extension, the 0.64% dividend yield (this is NOT a yield vehicle — do not score yield in either direction), or a temporarily depressed ROIC during M&A integration.
 
-MOST DAYS NEUTRAL: ±8 roughly 80% of days — a slightly wider neutral band than the compounders because this name genuinely moves. Meaningful scores on drawdown setups (engine flags), ads-rotation extremes (engine flags), ad-revenue and ARPU prints (you flag), referral-status changes (you flag), licensing resolution (you flag), earnings-window resets (you flag).
+BUY BIAS (in addition to engine signals): mix-adjusted organic pricing above 4% with organic volumes positive, forward PE below 24x, MLM at more than an 8% forward-PE discount to VMC, drawdown beyond 15% from highs with pricing intact, EV/EBITDA below 15x on a consistent basis, a multiyear reauthorization enacted at or above IIJA levels, LNA integration tracking or beating the delever glidepath, a VMC twin dislocation without an operating print behind it.
+
+TRIM BIAS: mix-adjusted organic pricing below 1% (the cleanest falsifier), cash gross profit per ton below $9, forward PE above 36x, MLM at more than an 18% premium to VMC, leverage failing to track the glidepath two consecutive quarters, a reauthorization enacted materially below IIJA levels, organic volumes negative for two consecutive quarters with NO weather explanation.
+
+YOUR VALUE-ADD: Forward PE + EV/EBITDA + pro-forma EV/EBITDA WITH explicit basis tags on both legs (engine trailing only, and contaminated), mix-adjusted organic pricing and the organic/reported volume split (engine null — earnings disclosure), cash GP/ton and COGS/ton ex-freight, end-market split, weather flag, federal_authorization_status + state_dot_budget_trend + ma_integration_state + delever_glidepath_status categoricals (engine consumes YOUR reads — set them carefully, they carry deterministic thesis-break weight), NET share count and pro-forma share count, reserve life, earnings-window discipline, EPS revisions.
+
+MOST DAYS NEUTRAL: ±6 roughly 80% of days — a TIGHTER neutral band than the high-beta names because beta is 1.11 and a quarry business rarely produces weekly information. Meaningful scores on drawdown setups (engine flags), VMC twin dislocations (engine flags), pricing and volume prints (you flag), authorization-status changes (you flag), LNA glidepath updates (you flag), earnings-window resets (you flag).
 ` : "";
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -1464,7 +1563,7 @@ MOST DAYS NEUTRAL: ±8 roughly 80% of days — a slightly wider neutral band tha
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${rddtGuidance}`;
+${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}`;
 
   const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
@@ -1501,7 +1600,7 @@ function buildSearchPrompt(h) {
   const isNOW = h.archetype === "ai_workflow_quality_compounder";       // ← V7.6
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
-  const isRDDT = h.archetype === "hypergrowth_platform_monetizer";      // ← v8.4.0
+  const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
@@ -1533,7 +1632,7 @@ function buildSearchPrompt(h) {
   const isrgGuidance = isISRG ? `\nCRITICAL — ISRG SCORING (V1): ISRG is INTUITIVE SURGICAL (da Vinci surgical robotics — NOT Intuit the software company). Medtronic (Hugo), J&J (Ottava), Stryker, Boston Scientific mentions are CORRECT — named competitors/cohort in this archetype. Surgical-robotics moat compounder: ~60% share category king, ~11,400-system installed base, ~86% RECURRING revenue (razor-blade annuity), non-GAAP op margin ~37%, no dividend, beta ~1.7. Thesis: two-decade moat probed for the first time while the 2027 instrument-lifespan transition (five of six force-feedback instrument lives extended → I&A headwind, unquantified) compresses the multiple to its deepest own-history discount in years while procedures/placements/EPS beat. ABSOLUTE PE IS NEVER THE SIGNAL: 50-70x trailing is NORMAL for this franchise. Do NOT penalize trailing P/E 50-70x, 52w proximity, RSI 55-68, cohort premium 60-120% vs MDT/SYK/BSX (structural baseline), P/B ~9-10x, no dividend, competitor product launches per se (only procedure-share evidence matters). Composite weights regime-conditional on IHI vs SPY 30d, engine V8.2: >+1pp bid_active 25/40/35 · ±1pp neutral 20/35/45 · <−1pp bid_absent 15/30/55. EARNINGS WINDOW: Q2 report JULY 16, 2026 (consensus ~$2.48 / ~$2.81B) — within ±10 days of a report, HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: total procedure growth (THE operational metric — 2026 dV guide 13.5-15.5%; beating guide with Hugo in market = moat holding; <12% = erosion tripwire ONLY with competitor share evidence), cohort P/E premium (<60% unusual discount = buy, >150% stretched), fear rotation vs cohort (lagging >6pp on headlines = buy setup absent procedure evidence), moat_status (intact/probing/eroding/breached — probing is the EXPECTED state, score neutral), instrument_transition_status (unquantified_fear = current alpha / quantified_manageable = relief catalyst / quantified_material = thesis-level). Engine has TRAILING P/E only; your forward PE (<40x exceptional / 45-55x fair / >60x stretched) + PE % of 3y avg (~72x; <80% buy zone / >105% trim) + forward PEG (<2.0 exceptional / >3.5 stretched) are critical. Search for: ISRG forward P/E + PE vs 3y/5y/10y averages, latest total procedure growth vs guide, dV placements + dV5 mix, Ion procedure growth + installed base, recurring revenue % + I&A growth, installed base total/YoY, non-GAAP op margin, 2027 instrument transition quantification language (every earnings call), Hugo US procedure-share/installed-base evidence, Ottava rollout timeline, MDT/SYK/BSX forward PE (cohort), EPS revisions 30d/90d, elective-procedure macro trends. Most days = NEUTRAL. Meaningful scores: drawdown setups, fear-rotation extremes, procedure prints vs guide, transition quantification events, moat-evidence changes, earnings-window resets.\n` : "";
 
 
-  const rddtGuidance = isRDDT ? `\nCRITICAL — RDDT SCORING (V1): RDDT is REDDIT, INC. (social platform monetized through digital advertising). Hypergrowth platform monetizer: ~130M DAUq / ~515M WAUq ALREADY BUILT, monetized by an ad engine still early on its curve (global ARPU ~$6.18 vs US ~$11.85 — the gap is RUNWAY, not weakness). Q2 2026 (printed Jul 30): revenue $804.9M +61% (eighth straight quarter above 60%), ad revenue +64%, net income $252.8M, adj EBITDA margin 43%, FCF $260.7M, DAUq 130.3M +18%, cash $2.8B, no meaningful debt. Q3 guide $860-870M vs consensus ~$828M — a raise. The stock still fell ~21% on the print, on investor-letter language calling search referrals "choppy": logged-out user acquisition runs through Google, and that dependency is the thesis. Beta 1.94, short interest ~8.8% — the WIDEST bands in the book. Do NOT penalize RSI 45-68, daily moves under 4%, drawdowns under 25%, high trailing P/E per se, no dividend, "choppy" referral language while ad revenue still compounds, or deceleration from 64% into the mid-40s (expected on a larger base). Do NOT apply the cyclical PE inversion (GLNCY/PBR.A/AMKBY only) — high trailing P/E here does NOT mean trough earnings. TWO CALIBRATION TRAPS, BOTH LOAD-BEARING: (1) PEG IS AN ARTIFACT — forward PEG ~0.09 reflects EPS inflecting off a near-zero base, NOT a 10x margin of safety; engine scores sub-0.4 PEG as ZERO and you must not reintroduce it, say plainly that PEG is uninformative here. (2) OWN-HISTORY IS A PARTIAL WINDOW — RDDT listed MARCH 2024, so any "10-year average" multiple is spurious and every "3-year average" spans ~2.4 years across the crossing into GAAP profitability; engine HALVES the P/S-vs-history contribution, so report these anchors, flag the window, and never give them ISRG/NOW-grade confidence. Composite weights regime-conditional on XLC vs SPY 30d, engine V8.3: >+1pp bid_active 30/35/35 · ±1pp neutral 25/35/40 · <−1pp bid_absent 20/30/50. EARNINGS WINDOW: Q2 printed Jul 30 2026, so Q3 lands late October 2026 — SEARCH for the confirmed date; within ±10 days HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: ad revenue growth (THE operational metric — above 55% strong, 35-45% moderating and expected, BELOW 35% is the tripwire where the bear case has actually landed rather than merely being feared), search_referral_status (stable/choppy/deteriorating/decoupling_progress — "choppy" is the CURRENT state and scores NEUTRAL alone, becoming a buy only when ad revenue is simultaneously compounding; "deteriorating" is thesis-level; "decoupling_progress" is the re-rating catalyst), ARPU growth (>30% ramp firing, <15% stalling — this breaks the name faster than slowing users), licensing_status (Google + OpenAI >$200M/yr combined, renewals UNRESOLVED — score unresolved as ZERO, it is an unpriced option NOT in the base case), NET share count change (POSITIVE = dilution; +2.8% YoY despite $235M of Q2 buybacks — stock comp exceeds repurchase, so this holding does NOT satisfy the portfolio's buyback criterion; report NET, never the ~1.1% gross buyback yield), competitive_threat (product launches are NOT evidence; only measurable engagement-share loss counts), ads-cohort rotation vs META/PINS/APP at a −8pp threshold (wider than ISRG's −6pp). DISCLOSURE CHANGE: Reddit STOPPED reporting the logged-in/logged-out DAU split from Q3 2026 — DO NOT ESTIMATE it for any period from Q3 2026 onward, return null; a guessed split on the most thesis-relevant metric is worse than an honest gap. Engine has TRAILING P/E only; your forward PE (<20x buy zone / 22-32x fair on 50%+ growth / >40x stretched) and EV/FCF (<25x attractive — the CLEANEST read because it needs no multiple history) are critical. Search for: RDDT forward P/E and EV/FCF and EV/EBITDA, P/S vs own history (flag partial window), latest advertising revenue growth and total revenue growth, next-quarter guidance and implied YoY, global/US/rest-of-world ARPU and growth, DAUq and WAUq growth, adjusted EBITDA margin and FCF margin and TTM operating cash flow, stock-based comp trend, NET share count change YoY and gross buyback dollars, Google search-referral commentary and any measurable traffic data, Google/OpenAI data-licensing renewal status and annual value, advertiser count growth and Reddit Max adoption, competing UGC/forum product engagement evidence, META/PINS/APP forward PE (ads cohort), EPS revisions 30d/90d, confirmed next earnings date. Most days = NEUTRAL (±8 — a wider band than the compounders because this name genuinely moves). Meaningful scores: drawdown setups, ads-rotation extremes, ad-revenue and ARPU prints, referral-status changes, licensing resolution, earnings-window resets.\n` : "";
+  const mlmGuidance = isMLM ? `\nCRITICAL — MLM SCORING (V1): MLM is MARTIN MARIETTA MATERIALS, INC. (NYSE: MLM, CIK 916076) — construction aggregates: crushed stone, sand and gravel. NOT multi-level/network marketing or any downline structure (that acronym expansion is WRONG here). NOT Lockheed Martin — the original Martin Marietta Corporation merged with Lockheed in 1995 and MATERIALS was separated with no defense business; this portfolio holds LHX separately, do not cross-contaminate. NOT Vulcan Materials — VMC is the PEER BENCHMARK, not the subject. A LOCAL MONOPOLY by haul radius: crushed stone is worth less than the cost of moving it beyond ~25-50 miles, so each quarry owns its circle and there is NO exchange price for aggregates. The moat is PERMITTED RESERVES. ★ ARCHITECTURAL RULE: pricing and volume are SEPARATE signals — pricing is structural and near-unconditional (it RISES in recessions), volume is cyclical and policy-driven. Weak volume + intact pricing = a CYCLE datapoint. Intact volume + broken pricing = a THESIS datapoint. Q2 2026 (printed Jul 30): revenue $1.95B +21% (record), adjusted EPS $5.00 +3.3%, aggregates revenue $1.53B +16%, shipments 61.6M tons +17% of which +2.3% ORGANIC (fourth consecutive positive quarter), reported ASP $22.74 -2% BUT organic mix-adjusted pricing +3.7%, organic COGS/ton +2.1% ex pass-through freight, a $52M non-cash inventory step-up charge, FY revenue guide RAISED to ~$7.3B midpoint while FY adj EBITDA guidance was REAFFIRMED not raised (conservative energy assumptions). The stock FELL from ~$569.66 to ~$539.93 on the print, on operating margin compression from energy and acquisition mix. Beta 1.11, short interest ~4.0% — LIN-CLASS bands, NOT high-beta. Do NOT penalize RSI 40-68, daily moves under 2%, drawdowns under 15%, the LOW trailing P/E, reported ASP declines during integration, weather-driven volume misses, 3.7x pro-forma leverage while the glidepath holds, a short-term IIJA extension, the 0.64% dividend yield, or a temporarily depressed ROIC. Do NOT apply the cyclical PE inversion (GLNCY/PBR.A/AMKBY only) — aggregates have no commodity price to trough against. THREE CALIBRATION TRAPS, ALL LOAD-BEARING: (1) THE TRAILING P/E IS AN ACCOUNTING ARTIFACT — ~12.9x trailing against ~26.8x forward, because TTM profit margin (36.7%) EXCEEDS gross margin (28.2%), impossible from operations: the window carries a large non-operating gain from the Quikrete asset exchange. Engine scores trailing as ZERO when trailing < 0.6x forward and honours the fetch layer's premium_pct_reliable flag on the cohort premium (which otherwise reads near -50% and looks like a screaming discount). Do NOT reintroduce either qualitatively; say plainly the trailing multiple is uninformative and lean on forward PE / EV/EBITDA. (2) REPORTED ASP IS A NULL SIGNAL during integration — -2% reported vs +3.7% organic mix-adjusted is pure acquisition/geographic mix; engine never scores it, key every pricing judgement on mix-adjusted organic pricing. (3) WEATHER IS NOISE — heavy Texas/Southeast rain suppressed Q2 volumes into July; when a negative organic-volume print carries a material weather headwind the engine REMOVES the penalty entirely, so do not read rain as demand destruction. ★ BASIS CONSISTENCY: every multiple must carry numerator and denominator on the SAME basis (both standalone or both pro-forma, both trailing or both forward) — if you cannot establish it, return null. Spot EV/EBITDA ~17.8x uses TRAILING EBITDA; comparing it to a pro-forma ~15.6x (2026 EBITDA) fakes a two-turn re-rating. Like-for-like FORWARD it is ~15.8x standalone vs ~15.6x pro-forma — modestly accretive, roughly neutral. Composite weights regime-conditional on the PUBLIC CONSTRUCTION FUNDING regime, engine V8.4: funded 25/40/35 · neutral 20/35/45 · unfunded 15/30/55. EARNINGS WINDOW: Q2 printed Jul 30 2026, so Q3 lands late October 2026 — SEARCH for the confirmed date; within ±10 days HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: mix-adjusted ORGANIC pricing (THE moat metric — above 4% intact, 2.5-4% normal structural, BELOW 1% is a PRICING POWER BREAK and the cleanest falsifier in this model, thesis-level regardless of volume), organic volume growth (the cycle read, weather-gated), aggregates cash gross profit per ton and the PRICE-MINUS-COST SPREAD (any positive spread expands margin — Q2'26's 1.6pp spread still produced +15% adjusted cash gross profit; always use COGS EX pass-through freight), federal_authorization_status (IIJA expires SEPTEMBER 30 2026; without reauthorization formula programs revert to pre-IIJA baseline in FY2027, ~$28B/yr cut; H.R. 8870 was ordered reported by House T&I in May 2026 and management flagged a short-term extension as likely — ★ CALIBRATION: twelve extensions followed TEA-21 and ten followed SAFETEA-LU, so patches are the historical RULE and "short_term_extension" is the BASE CASE scoring ZERO, not a downgrade; only a multiyear bill materially BELOW IIJA levels or an outright lapse is a real negative), state_dot_budget_trend (historically elevated in MLM's markets — a partial buffer), LNA/Lhoist (TREAT AS A KNOWN FORWARD EVENT and reason PRO-FORMA: ~$13.5B EV, $7.0B cash + $6.5B stock, LNA did $1.8B gross sales and $786M adj EBITDA for TTM ended Dec 31 2025 at roughly 15x incl. synergies — BELOW MLM's own multiple, which is why it is accretive; ~$85M run-rate synergies credited at ZERO until realized; >2 billion tons of limestone reserves with 200+ years of life; ALL approvals received Aug 5 2026 and the $6.5B notes priced Aug 12 2026 so it is approved AND financed; ★ LEVERAGE IS SCORED ON THE GLIDEPATH NOT THE LEVEL — ~3.7x at close targeting sub-2.5x within 24 months, so 3.7x is the plan working as announced and only a missed schedule is a signal; if the deal TERMINATES the pro-forma frame is void), end markets scored separately (infrastructure and heavy nonres — data centers/power gen/warehouses — are the strong legs, residential the weak and smallest so weight it lightly; LNA's lime serves steel/environmental/agricultural end markets OUTSIDE the highway-funding channel, insulating ~a quarter of pro-forma EBITDA), NET share count change (★ NEGATIVE = BUYBACK, the INVERSE sign convention of a dilutive name: shares are down ~1.11% YoY with a 1.11% buyback yield and ten straight years of dividend growth, so MLM genuinely SATISFIES the portfolio's buyback criterion — but book the pro-forma dilution from $6.5B of LNA stock consideration against a ~$31.6B market cap now), VMC twin dislocation (the signature setup — MLM and VMC are the two dominant US aggregates franchises and rarely diverge for non-operating reasons; scored SEPARATELY from the 3-name cohort, which uses a WEIGHTED average VMC .50 / CRH .25 / EXP .25 at a −5pp rotation threshold, TIGHTER than RDDT's −8pp because beta is 1.11). Engine has TRAILING P/E only and for this name it is contaminated; your forward PE (<24x buy / 26-32x fair / >36x stretched) and EV/EBITDA (<15x buy / 16-19x fair / >21x rich — the CLEANER read because you control both legs) are critical. Search for: MLM forward P/E and whether consensus is standalone or LNA pro-forma basis, EV/EBITDA and pro-forma EV/EBITDA, latest mix-adjusted organic aggregates pricing and organic shipment growth, aggregates cash gross profit per ton, organic COGS per ton ex-freight, energy cost commentary, adjusted EBITDA margin and any inventory step-up charges, infrastructure/heavy nonres/residential demand commentary, weather impact on the quarter, surface transportation reauthorization status and days to expiry, state DOT budget trend, LNA closing status and pro-forma net leverage and delever progress, NET share count change YoY, permitted reserve tons and reserve life, ROIC and WACC, VMC/CRH/EXP forward PE, EPS revisions 30d/90d, confirmed next earnings date. Most days = NEUTRAL (±6 — a TIGHTER band than the high-beta names; a quarry business rarely produces weekly information). Meaningful scores: drawdown setups, VMC twin dislocations, pricing and volume prints, authorization-status changes, LNA glidepath updates, earnings-window resets.\n` : "";
 
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
@@ -1542,7 +1641,7 @@ function buildSearchPrompt(h) {
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${rddtGuidance}`;
+${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}`;
 
   const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
