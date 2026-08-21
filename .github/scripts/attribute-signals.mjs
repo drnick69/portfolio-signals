@@ -44,6 +44,31 @@
 //     Historical ETHA rows in the log keep being re-attributed against their
 //     now-frozen forward windows, which is fine.
 //
+//     v8.5.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only.
+//     The RDDT → MLM swap needs nothing here either. Martin Marietta Materials
+//     is a plain US listing (NYSE, continuously since 1994), so Alpaca bar
+//     coverage is complete from its first logged date, and RDDT's logged rows
+//     keep attributing normally as closed history.
+//     ✓ THE RDDT CAVEAT ABOVE RETIRES, AND INVERTS. MLM is a beta-1.11 name
+//     against RDDT's ~1.94 — roughly the LIN/ISRG class rather than the
+//     high-beta class. Its scoring bands are correspondingly tighter
+//     (score-engine V8.4: RSI 38/70, ±2% daily noise floor vs RDDT's 32/72 and
+//     ±4%). So the specific small-n distortion flagged for RDDT — a single ~21%
+//     session dominating whatever forward-return bucket it lands in — is a
+//     materially smaller risk on this name. Forward-return panels for MLM
+//     should be readable at smaller n than RDDT's were.
+//     ⚠ But a DIFFERENT small-n hazard replaces it, and it is calendar-bound
+//     rather than volatility-bound: two scheduled events fall inside MLM's
+//     first attribution windows. The surface-transportation authorization
+//     expires 2026-09-30, and the Lhoist North America acquisition closes in
+//     H2 2026 (all approvals received 2026-08-05, $6.5B notes priced
+//     2026-08-12). Either can move the stock on a single session for reasons
+//     that have nothing to do with whether the signal was right. Forward
+//     windows straddling those dates are computed correctly here — that is this
+//     file's job and it does it — but a panel reader should know that MLM's
+//     earliest observations sit on top of two known event dates rather than a
+//     quiet baseline.
+//
 // Env vars required:
 //   ALPK, ALPS  — Alpaca API key + secret (already in GitHub Secrets)
 // ────────────────────────────────────────────────────────────────────────────────
@@ -341,7 +366,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT swap)
+  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT and v8.5.0 RDDT → MLM swaps)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
