@@ -107,6 +107,16 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //     row is skipped. migrateCsvHeader() handles the on-disk file (pure-append
 //     prefix check, pads pre-v8.4 rows blank); it does NOT know about the
 //     consumer's width contract.
+//     [V8.5.0 CORRECTION — do not take the paragraph above at face value. The
+//     same claim was repeated for the 186 → 234 migration and then tested
+//     directly: it is WRONG. signal-accuracy's width contract is DYNAMIC
+//     (headers.length read off disk, not a compiled-in constant), and
+//     migrateCsvHeader() rewrites the header BEFORE any row is appended, so the
+//     mismatched state that would cause a skip cannot arise through this code
+//     path. Rows are never skipped; the real cost of an unpaired deploy is that
+//     the newly appended telemetry is written but never READ into
+//     accuracy.json. Left in place as a record of what was believed at v8.4.0.
+//     See the V8.5.0 DEPLOY ORDERING note below for the tested version.]
 
 // ── V8.5.0 (August 2026): HOLDINGS SWAP telemetry — RDDT out, MLM in
 //   (fetch-market-data v4.17 / score-engine V8.4 / generate-signals v8.5.0 sync;
@@ -174,12 +184,26 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //     MLM rows, exactly as IBIT/ETHA-era columns did. Removal would break the
 //     pure-append invariant and orphan every historical RDDT row.
 //
-//   ⚠ PAIRED DEPLOY REQUIRED: signal-accuracy enforces an EXACT-width contract
-//     against the on-disk header. These 48 appended columns move the width
-//     186 → 234. signal-accuracy MUST be bumped in the SAME deploy or every new
-//     row is skipped. migrateCsvHeader() handles the on-disk file (pure-append
-//     prefix check, pads pre-v8.5 rows blank); it does NOT know about the
-//     consumer's width contract.
+//   ⚠ DEPLOY ORDERING — CORRECTED. An earlier draft of this note claimed a
+//     PAIRED DEPLOY WAS REQUIRED and that every new row would be SKIPPED if
+//     signal-accuracy were not bumped in the same commit. That was WRONG, and
+//     the correction is recorded here rather than quietly deleted because an
+//     overstated warning costs as much trust as a missing one.
+//     Tested directly: genuine signal-accuracy v1.5 reading a post-migration
+//     234-wide file skips ZERO rows. Its width contract is DYNAMIC — it
+//     compares each row against headers.length read off disk, not against a
+//     compiled-in constant. And migrateCsvHeader() below rewrites the on-disk
+//     header BEFORE any row is appended, so the header and the rows always
+//     agree by construction. The 186-header/234-row state that would trigger a
+//     skip cannot actually occur through this code path.
+//     THE REAL CONSEQUENCE of shipping this file without signal-accuracy v1.6
+//     is quieter and worth knowing: rows parse fine, but none of the MLM
+//     telemetry propagates into the yesterday-snapshot in accuracy.json. The
+//     columns are written to signals.csv and simply never read. That is a
+//     silent degradation of the calibration substrate, not a data-loss event,
+//     and it self-heals the moment v1.6 lands.
+//     Ship them together anyway — there is no reason not to — but if they do
+//     land in separate commits, nothing breaks and nothing needs repairing.
 
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
