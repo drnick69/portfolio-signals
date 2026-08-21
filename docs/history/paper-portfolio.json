@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 112,
-  "cash": 21540.92,
-  "total_deposited": 2120000,
+  "day_count": 113,
+  "cash": 19021.86,
+  "total_deposited": 2130000,
   "holdings": {
     "ASML": {
       "shares": 32.3148,
@@ -35,8 +35,8 @@
       "avg_price": 16.5572
     },
     "AMKBY": {
-      "shares": 8938.3356,
-      "cost_basis": 113498.58,
+      "shares": 8670.1855,
+      "cost_basis": 110093.62,
       "avg_price": 12.698
     },
     "MSFT": {
@@ -45,9 +45,9 @@
       "avg_price": 391.5902
     },
     "LHX": {
-      "shares": 865.3666,
-      "cost_basis": 257439.79,
-      "avg_price": 297.4922
+      "shares": 886.6003,
+      "cost_basis": 263182.24,
+      "avg_price": 296.8443
     },
     "TMO": {
       "shares": 439.8726,
@@ -65,14 +65,14 @@
       "avg_price": 370.0047
     },
     "MA": {
-      "shares": 65.502,
-      "cost_basis": 37166.31,
-      "avg_price": 567.4073
+      "shares": 71.7563,
+      "cost_basis": 40755.34,
+      "avg_price": 567.9688
     },
-    "RDDT": {
-      "shares": 2283.1686,
-      "cost_basis": 365238.48,
-      "avg_price": 159.97
+    "MLM": {
+      "shares": 709.6835,
+      "cost_basis": 372775.45,
+      "avg_price": 525.27
     }
   },
   "history": [
@@ -8839,7 +8839,118 @@
         "MA": "fear_receding",
         "ISRG": "bid_active"
       }
+    },
+    {
+      "date": "2026-08-21",
+      "day": 113,
+      "total_value": 2252547.52,
+      "total_deposited": 2130000,
+      "cash": 19021.86,
+      "holdings_value": 2233525.66,
+      "pnl": 122547.52,
+      "pnl_pct": 5.75,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "AMKBY",
+          "shares": -268.1501,
+          "price": 16.22,
+          "value": 4349.39,
+          "composite_score": 8,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "LHX",
+          "shares": 21.2337,
+          "price": 270.44,
+          "value": 5742.45,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -27,
+          "recommendation": "BUY",
+          "regime": "bid_absent",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "MLM",
+          "shares": 14.3488,
+          "price": 525.27,
+          "value": 7536.97,
+          "confidence": 1,
+          "score_magnitude": 0.6,
+          "composite_score": -44,
+          "recommendation": "BUY",
+          "regime": "neutral",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "MA",
+          "shares": 6.2543,
+          "price": 573.85,
+          "value": 3589.03,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -7,
+          "recommendation": "HOLD",
+          "regime": "fear_receding",
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "LHX",
+        "positionalBuy": "MLM",
+        "strategicBuy": "MA",
+        "trim": "AMKBY"
+      },
+      "composite_scores": {
+        "LHX": -27,
+        "ASML": 5,
+        "LIN": -9,
+        "MSFT": -4,
+        "TMO": -1,
+        "NOW": -9,
+        "ENB": -23,
+        "GLNCY": -1,
+        "MLM": -44,
+        "KOF": -5,
+        "PBR.A": 1,
+        "AMKBY": 8,
+        "MA": -7
+      },
+      "regimes": {
+        "LHX": "bid_absent",
+        "LIN": "neutral",
+        "MSFT": "neutral",
+        "TMO": "thawing",
+        "NOW": "neutral",
+        "MLM": "neutral",
+        "MA": "fear_receding"
+      },
+      "swaps": [
+        {
+          "from": "RDDT",
+          "to": "MLM",
+          "via": [],
+          "old_shares": 2283.1686,
+          "old_cost_basis": 365238.48,
+          "old_avg_price": 159.97,
+          "exit_price": null,
+          "proceeds": 365238.48,
+          "basis_mode": "cost_basis_fallback",
+          "unrealized_pnl_discarded_usd": null,
+          "new_shares": 695.3347,
+          "new_price": 525.27
+        }
+      ]
     }
   ],
-  "total_value": 2351125.86
+  "total_value": 2252547.52
 }
