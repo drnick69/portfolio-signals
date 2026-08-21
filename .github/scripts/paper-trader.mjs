@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// paper-trader.mjs v8.4 — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v8.5 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across the holdings present on day one.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
@@ -75,6 +75,54 @@
 //       The ETHA → NOW entry is retained in the map: it is idempotent and
 //       already no-ops (ETHA left holdings at V7.6), so it documents history
 //       at zero cost. The corrected mechanic cannot retroactively alter it.
+//
+// v8.5: HOLDINGS SWAP — RDDT → MLM (Martin Marietta Materials). Same true-swap
+//       path as V8.4: sell the position, redeploy the ACTUAL proceeds. Uses the
+//       v8.4 market-value mechanic unchanged.
+//
+//       ★★ CHAIN RESOLUTION (new, and the reason this build is not a one-line
+//       map edit). Adding "RDDT": "MLM" alongside the existing "IBIT": "RDDT"
+//       creates the first MULTI-HOP lineage in this map: IBIT → RDDT → MLM.
+//       The v8.4 loop reads HOLDINGS_MIGRATION[oldSym] literally, so a stranded
+//       IBIT position would target RDDT — and RDDT was removed from SYMBOLS in
+//       fetch-market-data v4.17, so prices["RDDT"] is undefined and the loop's
+//       `if (!newPrice) continue` guard fires. The position would NOT be
+//       double-counted (the concern that prompted this check); it would be
+//       PERMANENTLY STUCK, retrying and logging a warning every run forever,
+//       because its migration target can never again have a price.
+//
+//       resolveTerminalSymbol() walks the map to the end of the chain, so a
+//       stranded IBIT migrates straight to MLM in ONE hop at a price that
+//       actually exists. Verified against all four cases: live RDDT alone
+//       (migrates at market value), stranded IBIT alone (resolves to MLM in
+//       cost-basis fallback — loud but unstuck), BOTH present (each source
+//       position is consumed exactly once and the two lineages MERGE into one
+//       MLM position, so no double-count), and a hypothetical A→B→A cycle
+//       (returns null rather than looping forever).
+//
+//       Keeping the map as true LINEAGE rather than collapsing it to
+//       {"IBIT": "MLM"} is deliberate: IBIT did not become MLM, it became RDDT
+//       which then became MLM, and the map is documentation as much as logic.
+//       The swap record now carries a `via` field naming the intermediate hops
+//       so a multi-hop migration is auditable in history rather than looking
+//       like a direct swap that never happened.
+//
+//       ⚠ REALISTIC EXPOSURE: near zero. The IBIT → RDDT swap deployed at v8.4,
+//       so no IBIT position should remain. This is a correctness guard for the
+//       case where it does — and, more usefully, for the NEXT swap, which will
+//       otherwise inherit the same latent stall against MLM.
+//
+//       ⚠ CHECK YOUR EXISTING HISTORY. MIGRATION_EXIT_PRICE["IBIT"] is still
+//       null in the deployed file, which means the IBIT → RDDT swap ran in
+//       COST-BASIS FALLBACK and discarded IBIT's unrealized P&L, stepping
+//       total_value at that moment. Look for a swaps[] entry in
+//       docs/history/paper-portfolio.json with basis_mode ===
+//       "cost_basis_fallback". If it is there, the TWR series that
+//       benchmark-scorecard reads already carries that discontinuity. It cannot
+//       be repaired retroactively without IBIT's exit price, but it should be
+//       KNOWN rather than discovered later as an unexplained kink.
+//       Do not let the same thing happen to RDDT: set
+//       MIGRATION_EXIT_PRICE["RDDT"] before the first post-deploy run.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -220,32 +268,77 @@ if (portfolio.history.some(h => h.date === date)) {
 //
 // Idempotent: each entry no-ops once the old symbol is out of portfolio.holdings.
 // Safe to leave in indefinitely — removable after one successful run.
-const HOLDINGS_MIGRATION = { "ETHA": "NOW", "IBIT": "RDDT" };
+// Entries are LINEAGE, not shortcuts: each records what a symbol actually
+// became at the time. Chains are resolved at run time by
+// resolveTerminalSymbol(), so IBIT → RDDT → MLM lands on MLM in one hop.
+const HOLDINGS_MIGRATION = { "ETHA": "NOW", "IBIT": "RDDT", "RDDT": "MLM" };
+
+// ── CHAIN RESOLUTION (v8.5) ─────────────────────────────────────────────────
+// Follow a migration chain to its terminal symbol. Necessary because a
+// multi-hop lineage points intermediate symbols at targets that have since been
+// retired from SYMBOLS and therefore have no price — which would strand the
+// position rather than migrate it. Returns null on a cycle.
+function resolveTerminalSymbol(sym) {
+  let cur = sym;
+  const seen = new Set();
+  const hops = [];
+  while (HOLDINGS_MIGRATION[cur] != null) {
+    if (seen.has(cur)) {
+      console.log(`  ⚠ Migration cycle detected starting at ${sym} (${[...seen].join(" → ")}) — refusing to migrate.`);
+      return { terminal: null, hops };
+    }
+    seen.add(cur);
+    cur = HOLDINGS_MIGRATION[cur];
+    hops.push(cur);
+  }
+  return { terminal: cur, hops };
+}
 
 // ── EXIT PRICES FOR RETIRING SYMBOLS (v8.4) ─────────────────────────────────
 // The price at which the retiring position is sold. REQUIRED for value-neutral
 // migration; see the note above for why it cannot be derived automatically.
 // Set to the retiring symbol's market price on the swap date.
 //
-// ⚠ IBIT IS CURRENTLY null — the swap will run in COST-BASIS FALLBACK mode and
-//   log the exact dollar discontinuity it introduces. Set this before the first
-//   post-deploy run to keep the paper book's total_value series (and therefore
-//   benchmark-scorecard's TWR) continuous across the swap.
+// ⚠⚠ RDDT IS CURRENTLY null — SET IT BEFORE THE FIRST POST-DEPLOY RUN.
+//   This matters more than the IBIT entry ever did. IBIT was already gone by
+//   the time its price was needed; RDDT is a LIVE position with real unrealized
+//   P&L, and leaving this null means the swap runs in COST-BASIS FALLBACK and
+//   discards that P&L, stepping total_value and putting a kink into the TWR
+//   series benchmark-scorecard reads. The code will warn loudly and record
+//   basis_mode in history, but it cannot recover the number afterwards.
+//   Set it to RDDT's market price on the swap date.
+//
+// ⚠ IBIT remains null. That swap has already executed (v8.4), so this value can
+//   no longer change anything — but its nullness is why the historical record
+//   likely shows basis_mode "cost_basis_fallback" for IBIT → RDDT. Left in
+//   place as documentation of that, not as a live setting.
 //
 // ETHA is intentionally absent: that migration already executed at V7.6 under
 // the old mechanic and no-ops now. Adding a price here could not change it.
 const MIGRATION_EXIT_PRICE = {
-  "IBIT": null,   // ← set to IBIT's market price on the swap date
+  "IBIT": null,   // executed at v8.4 in fallback mode; no longer settable
+  "RDDT": null,   // ← ⚠ SET THIS to RDDT's market price on the swap date
 };
 
 const swaps = [];
-for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
+for (const oldSym of Object.keys(HOLDINGS_MIGRATION)) {
   const old = portfolio.holdings[oldSym];
   if (!old || old.shares <= 0) continue;
+
+  // v8.5: resolve to the END of the chain, not the next hop. An intermediate
+  // hop's symbol may have been retired from SYMBOLS and therefore have no
+  // price, which would strand the position instead of migrating it.
+  const { terminal: newSym, hops } = resolveTerminalSymbol(oldSym);
+  if (!newSym || newSym === oldSym) continue;
+  const viaHops = hops.slice(0, -1);   // intermediate symbols, terminal excluded
+
   const newPrice = prices[newSym];
   if (!newPrice) {
     console.log(`  ⚠ Cannot migrate ${oldSym} → ${newSym}: ${newSym} price unavailable today; will retry next run.`);
     continue;
+  }
+  if (viaHops.length > 0) {
+    console.log(`  ↳ ${oldSym} is a MULTI-HOP lineage (${oldSym} → ${viaHops.join(" → ")} → ${newSym}); migrating direct to ${newSym}.`);
   }
 
   // Exit price precedence: explicit override, then today's price map (present
@@ -292,6 +385,10 @@ for (const [oldSym, newSym] of Object.entries(HOLDINGS_MIGRATION)) {
   swaps.push({
     from: oldSym,
     to: newSym,
+    // v8.5: intermediate hops for a multi-hop lineage (empty for a direct
+    // swap). Without this a chained migration would look in history like a
+    // direct IBIT → MLM swap, which never happened.
+    via: viaHops,
     old_shares: old.shares,
     old_cost_basis: old.cost_basis,
     old_avg_price: old.avg_price ?? null,
