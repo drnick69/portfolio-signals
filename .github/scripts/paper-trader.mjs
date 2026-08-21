@@ -317,7 +317,14 @@ function resolveTerminalSymbol(sym) {
 // the old mechanic and no-ops now. Adding a price here could not change it.
 const MIGRATION_EXIT_PRICE = {
   "IBIT": null,   // executed at v8.4 in fallback mode; no longer settable
-  "RDDT": null,   // ← ⚠ SET THIS to RDDT's market price on the swap date
+  // ⚠ NOTE THE DIRECTION HERE — it is the opposite of the usual case. The live
+  // book holds 2283.1686 RDDT shares at a 365,238.48 cost basis (avg 159.97).
+  // At 150 the position exits for 342,475.29, which REALIZES A LOSS OF
+  // 22,763.19 against cost. Cost-basis fallback would have redeployed the full
+  // 365,238.48 — i.e. it would have silently FLATTERED the book by pretending
+  // RDDT exited at break-even. Setting a real exit price here reduces recorded
+  // book value by ~22.8k, and that is the correct, honest mark.
+  "RDDT": 150,    // market price on the swap date
 };
 
 const swaps = [];
