@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.5 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.6 — Forward-looking signal accuracy tracker.
 //
 // v1.3 (June 2026) — CSV PARSE HARDENING:
 //   The naive split(",") parser accepted rows WIDER than the header and read
@@ -91,10 +91,12 @@
 //   • search_referral_status / licensing_status / competitive_threat — the
 //     three categoricals that carry deterministic thesis-break weight in
 //     engine V8.3 (peers of moat_status / instrument_transition_status)
-//   • share_count_change_yoy_pct — ⚠ POSITIVE = DILUTION, the OPPOSITE sign
-//     convention to MA's buyback_share_reduction_yoy_pct. RDDT is scored on
-//     NET share count because its gross buyback does not offset stock comp.
-//     Do not compare these two columns as if they were the same measure.
+//   • share_count_change_yoy_pct — the NET share count change. RDDT prints
+//     POSITIVE here because its gross buyback does not offset stock comp.
+//     [v1.6 CORRECTION: this is not a special convention — it is the raw YoY
+//     % change, and MLM prints NEGATIVE on the same column. The column that
+//     genuinely differs is MA's buyback_share_reduction_yoy_pct, which
+//     measures a different quantity. Do not compare THOSE two as one measure.]
 //   • ps_pct_of_3y_avg + own_history_window_partial — propagated as a PAIR and
 //     meaningless apart: RDDT listed March 2024, so the own-history anchor
 //     spans a partial window and the flag is what tells a downstream consumer
@@ -108,6 +110,98 @@
 // holdings and pre-v8.4 history stay clean. Aggregation logic remains
 // symbol-agnostic — RDDT stats accumulate from its first logged date forward,
 // and IBIT's historical rows keep aggregating unchanged as closed history.
+
+// v1.6 — MLM v8.5 context propagation (RDDT → MLM holdings swap; sync with
+// log-signals V8.5.0, which appends 48 columns and migrates the header
+// 186 → 234). As at v1.4/v1.5, the EXACT-width contract is DYNAMIC against the
+// on-disk header (headers.length), so NO width constant changes here — the
+// contract follows the migrated header automatically. Verified, not assumed:
+// the only width references in this file are headers.length comparisons.
+//
+// ★★ THE IMPORTANT CHANGE IN v1.6 IS NOT A NEW FIELD — IT IS A PAIRED FLAG.
+// The v1.2 block propagates cohort_premium_pct UNCONDITIONALLY for any holding
+// whose row carries it. On MLM rows that value is roughly −50%, and it is an
+// ACCOUNTING ARTIFACT: MLM's TTM window carries a large non-operating gain from
+// the Quikrete asset exchange, so its trailing P/E (~12.9x against a ~26.8x
+// forward) is meaningless and the cohort premium computed from it is a mirage.
+// fetch v4.17 gates it, score-engine V8.4 scores it ZERO, and log-signals
+// V8.5.0 persists the gate — but THIS file was still about to hand the raw
+// number to accuracy.json with nothing recording that it is invalid.
+//   Scope of the risk, stated precisely rather than overstated: calibration-
+//   loader v1.3 renders only regime / regime_pmi / weights / scores / price /
+//   role into the LLM prompt, so the artifact does NOT reach today's prompt.
+//   The exposure is FUTURE — accuracy.json is the substrate for the calibration
+//   curve, the proposal engine, and the telemetry-to-active-learning loop, and
+//   a study reading cohort_premium_pct across history without the flag would
+//   learn a relationship between "deep cohort discount" and forward returns
+//   that does not exist. So v1.6 propagates premium_pct_reliable and
+//   trailing_discount_artifact_suspected alongside it, on the same
+//   travel-together principle already established for the
+//   ps_pct_of_3y_avg / own_history_window_partial pair in v1.5.
+//
+// Yesterday-snapshot additionally propagates:
+//   • federal_authorization_status + days_to_authorization_expiry +
+//     state_dot_budget_trend — the V8.4 MLM weight-gate driver. NOTE this is
+//     the first CATEGORICAL regime driver in this file: MA/ISRG/RDDT all gate
+//     on a numeric factor spread (duopoly_vs_spy_pp / ihi_vs_spy_30d_pp /
+//     xlc_vs_spy_30d_pp), whereas MLM gates on federal surface-transportation
+//     authorization status. ⚠ "short_term_extension" is the BASE CASE, not a
+//     downgrade — twelve extensions followed TEA-21 and ten followed
+//     SAFETEA-LU. A calibration study must not read it as a negative regime.
+//   • xlb_vs_spy_30d_pp — the materials factor overlay (tactical, not the gate)
+//   • mix_adjusted_organic_pricing_pct — MLM's signature operational metric
+//     (peer of crpo_growth_pct / cross_border_growth_pct / procedure_growth_pct
+//     / ad_revenue_growth_yoy_pct). Aggregates have no exchange price, so
+//     mix-adjusted organic pricing IS the local-monopoly test; below 1% is the
+//     cleanest falsifier in the model.
+//   • organic_volume_growth_pct + weather_impact_flag — propagated as a PAIR
+//     and misleading apart, exactly like the ps_pct/own_history pair. Aggregates
+//     is the most weather-contaminated quarterly print in the book; a negative
+//     organic-volume reading with weather_impact_flag = "material_headwind" is
+//     rain, not demand destruction, and the engine removes the penalty entirely.
+//     A study that reads the volume number without the flag would attribute
+//     weather to demand.
+//   • reported_asp_signal_status — records WHY reported ASP is absent from
+//     scoring during M&A integration (mix-contaminated: Q2'26 printed −2%
+//     reported against +3.7% organic mix-adjusted).
+//   • mlm_vs_vmc_pct + vmc_spread_30d_pp + vmc_dislocation_active — the TWIN
+//     read (peer of MA's twin_premium_pct / twin_spread_30d_pp). Carried
+//     separately from the cohort average because VMC is the only true
+//     like-for-like US aggregates pure play.
+//   • cash_gross_profit_per_ton — the industry's cleanest unit-economics measure
+//   • forward_pe + forward_pe_consensus_basis, ev_ebitda + ev_ebitda_basis,
+//     pro_forma_ev_ebitda + pro_forma_basis_consistent — each multiple travels
+//     WITH its basis tag. A forward multiple compared against a trailing one
+//     fabricates a re-rating; the basis is what tells a consumer which
+//     comparison the stored number actually supports.
+//   • lna_integration_state + pro_forma_net_leverage + delever_glidepath_status
+//     — ⚠ leverage is scored on the GLIDEPATH, never the level. 3.7x at close
+//     is the plan working as announced. Reading pro_forma_net_leverage without
+//     delever_glidepath_status would score a successful deal as a risk event.
+//   • roic_pct + roic_denominator_distorted — another travel-together pair.
+//     TRUE means the capital base was inflated by acquisitions ahead of their
+//     earnings, so roic_pct is not a quality read on that row.
+//
+// ⚠ CORRECTION TO THE v1.5 NOTE BELOW on share_count_change_yoy_pct. That
+// column is NOT a special "positive = dilution" convention — it is simply the
+// raw YoY % change in share count. RDDT happened to print POSITIVE (+2.8%,
+// stock comp exceeding buyback); MLM prints NEGATIVE (−1.11%, a genuine
+// buyback that satisfies the portfolio's criterion). Same column, same
+// arithmetic, opposite observed sign — and it needs no new propagation code,
+// since v1.5 already reads it. The genuinely distinct column is MA's
+// buyback_share_reduction_yoy_pct, which measures a different quantity; THAT
+// is the pair a consumer must not conflate.
+//
+// MLM's aggregates-cohort rotation needs nothing new — it reuses the shared
+// cohort_rotation_pp column the v1.4 block already propagates (log-signals
+// V8.5.0 folds fetch v4.17's peer_rotation_pp into that column). Thresholds
+// differ upstream (MLM −5pp, RDDT −8pp, ISRG −6pp) and the CSV carries the
+// already-applied value, so the ACTIVE flag compares cleanly across archetypes
+// while the raw pp value does not. Same forward-compatibility pattern
+// throughout: blanks/absent columns no-op, fields attach only when populated,
+// so other holdings and pre-v8.5 history stay clean. Aggregation logic remains
+// symbol-agnostic — MLM stats accumulate from its first logged date forward,
+// and RDDT's historical rows keep aggregating unchanged as closed history.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -438,6 +532,13 @@ function aggregateStats(forwardReturns) {
 // procedure_growth_pct, moat_status, instrument_transition_status) when the
 // CSV row carries those columns. Added by log-signals V8.3.0. Same pattern.
 //
+// v1.6: Also propagates MLM v8.5 context (the federal authorization regime
+// triple, xlb_vs_spy_30d_pp, mix_adjusted_organic_pricing_pct, the
+// organic_volume/weather PAIR, reported_asp_signal_status, the VMC twin read,
+// cash_gross_profit_per_ton, each multiple WITH its basis tag, the LNA
+// glidepath block, the roic/distortion PAIR, and — most importantly — the
+// premium_pct_reliable / trailing_discount_artifact_suspected flags that make
+// the already-propagated cohort_premium_pct interpretable on MLM rows).
 // v1.5: Also propagates RDDT v8.4 context (xlc_vs_spy_30d_pp,
 // ad_revenue_growth_yoy_pct, arpu_growth_yoy_pct, search_referral_status,
 // licensing_status, competitive_threat, share_count_change_yoy_pct, and the
@@ -576,6 +677,116 @@ function getYesterdaySnapshot(rows, tradingDates) {
     // sample (listed March 2024) like ISRG's decade of multiple history.
     if (psPctOfAvg != null) holding.ps_pct_of_3y_avg = psPctOfAvg;
     if (ownHistPartial != null) holding.own_history_window_partial = ownHistPartial;
+
+    // v1.6: MLM v8.5 context — only attached when CSV cells are populated
+    // (MLM-only in current builds). Pre-v8.5 CSV history leaves these columns
+    // undefined, helpers no-op, other holdings stay clean. MLM's aggregates
+    // rotation arrives via the shared cohort_rotation_pp read above — nothing
+    // MLM-specific needed for it.
+
+    // ★★ THE PAIRED FLAGS FOR cohort_premium_pct. The v1.2 block above attaches
+    // cohort_premium_pct unconditionally. On MLM rows that number is roughly
+    // −50% and is an ACCOUNTING ARTIFACT (Quikrete divestiture gain inflating
+    // TTM earnings, so the trailing P/E the premium is computed from is
+    // meaningless). These two flags are what make the stored value
+    // interpretable to any future calibration study. Without them accuracy.json
+    // would teach a relationship between "deep cohort discount" and forward
+    // returns that does not exist. Attach them BEFORE anything else MLM-ish so
+    // the pairing is impossible to miss when reading this block.
+    const premiumReliable = boolOrNull(row.premium_pct_reliable);
+    const trailingArtifact = boolOrNull(row.trailing_discount_artifact_suspected);
+    if (premiumReliable != null) holding.premium_pct_reliable = premiumReliable;
+    if (trailingArtifact != null) holding.trailing_discount_artifact_suspected = trailingArtifact;
+
+    // Public construction funding regime — the V8.4 MLM weight-gate driver, and
+    // the first CATEGORICAL regime driver in this file (MA/ISRG/RDDT all gate on
+    // a numeric factor spread). ⚠ "short_term_extension" is the BASE CASE, not
+    // a downgrade: twelve extensions followed TEA-21 and ten followed
+    // SAFETEA-LU. A study must not read it as a negative regime.
+    const fedAuth = strOrNull(row.federal_authorization_status);
+    const daysToExpiry = numOrNull(row.days_to_authorization_expiry);
+    const dotTrend = strOrNull(row.state_dot_budget_trend);
+    const xlbVsSpy = numOrNull(row.xlb_vs_spy_30d_pp);
+
+    if (fedAuth != null) holding.federal_authorization_status = fedAuth;
+    if (daysToExpiry != null) holding.days_to_authorization_expiry = daysToExpiry;
+    if (dotTrend != null) holding.state_dot_budget_trend = dotTrend;
+    if (xlbVsSpy != null) holding.xlb_vs_spy_30d_pp = xlbVsSpy;
+
+    // MLM's signature operational metric. Aggregates have no exchange price, so
+    // mix-adjusted organic pricing IS the local-monopoly test; below 1% is the
+    // cleanest falsifier in the model.
+    const mixAdjPricing = numOrNull(row.mix_adjusted_organic_pricing_pct);
+    if (mixAdjPricing != null) holding.mix_adjusted_organic_pricing_pct = mixAdjPricing;
+
+    // organic_volume_growth_pct and weather_impact_flag travel TOGETHER and are
+    // misleading apart — the same pairing logic as ps_pct/own_history above.
+    // Aggregates is the most weather-contaminated quarterly print in the book:
+    // a negative organic-volume reading carrying "material_headwind" is RAIN,
+    // not demand destruction, and the engine removes the penalty entirely. A
+    // study reading the volume number alone would attribute weather to demand.
+    const organicVolume = numOrNull(row.organic_volume_growth_pct);
+    const weatherFlag = strOrNull(row.weather_impact_flag);
+    if (organicVolume != null) holding.organic_volume_growth_pct = organicVolume;
+    if (weatherFlag != null) holding.weather_impact_flag = weatherFlag;
+
+    // Records WHY reported ASP is absent from scoring during M&A integration
+    // (mix-contaminated: Q2'26 printed −2% reported vs +3.7% organic
+    // mix-adjusted). The absence of a scored value is itself information.
+    const reportedAspStatus = strOrNull(row.reported_asp_signal_status);
+    if (reportedAspStatus != null) holding.reported_asp_signal_status = reportedAspStatus;
+
+    // The TWIN read — peer of MA's twin_premium_pct / twin_spread_30d_pp.
+    // Carried separately from the cohort average because VMC is the only true
+    // like-for-like US aggregates pure play; averaging it away would destroy
+    // this archetype's single most informative tactical input.
+    // ⚠ mlm_vs_vmc_pct is computed from the SAME contaminated trailing basis as
+    // cohort_premium_pct, so premium_pct_reliable gates this too.
+    const mlmVsVmc = numOrNull(row.mlm_vs_vmc_pct);
+    const vmcSpread30d = numOrNull(row.vmc_spread_30d_pp);
+    const vmcDislocation = boolOrNull(row.vmc_dislocation_active);
+    if (mlmVsVmc != null) holding.mlm_vs_vmc_pct = mlmVsVmc;
+    if (vmcSpread30d != null) holding.vmc_spread_30d_pp = vmcSpread30d;
+    if (vmcDislocation != null) holding.vmc_dislocation_active = vmcDislocation;
+
+    const cashGpPerTon = numOrNull(row.cash_gross_profit_per_ton);
+    if (cashGpPerTon != null) holding.cash_gross_profit_per_ton = cashGpPerTon;
+
+    // Each multiple travels WITH its basis tag. Comparing a forward multiple
+    // against a trailing one fabricates a re-rating; the basis is what tells a
+    // consumer which comparison the stored number actually supports.
+    const forwardPe = numOrNull(row.forward_pe);
+    const forwardPeBasis = strOrNull(row.forward_pe_consensus_basis);
+    const evEbitda = numOrNull(row.ev_ebitda);
+    const evEbitdaBasis = strOrNull(row.ev_ebitda_basis);
+    const proFormaEvEbitda = numOrNull(row.pro_forma_ev_ebitda);
+    const proFormaBasisOk = boolOrNull(row.pro_forma_basis_consistent);
+
+    if (forwardPe != null) holding.forward_pe = forwardPe;
+    if (forwardPeBasis != null) holding.forward_pe_consensus_basis = forwardPeBasis;
+    if (evEbitda != null) holding.ev_ebitda = evEbitda;
+    if (evEbitdaBasis != null) holding.ev_ebitda_basis = evEbitdaBasis;
+    if (proFormaEvEbitda != null) holding.pro_forma_ev_ebitda = proFormaEvEbitda;
+    if (proFormaBasisOk != null) holding.pro_forma_basis_consistent = proFormaBasisOk;
+
+    // ⚠ Leverage is scored on the GLIDEPATH, never the level — 3.7x at close is
+    // the plan working as announced (target sub-2.5x within 24 months). Reading
+    // pro_forma_net_leverage without delever_glidepath_status would score a
+    // successful deal as a risk event.
+    const lnaState = strOrNull(row.lna_integration_state);
+    const proFormaLeverage = numOrNull(row.pro_forma_net_leverage);
+    const glidepath = strOrNull(row.delever_glidepath_status);
+    if (lnaState != null) holding.lna_integration_state = lnaState;
+    if (proFormaLeverage != null) holding.pro_forma_net_leverage = proFormaLeverage;
+    if (glidepath != null) holding.delever_glidepath_status = glidepath;
+
+    // roic_pct and roic_denominator_distorted travel TOGETHER. TRUE means the
+    // capital base was inflated by acquisitions ahead of their earnings, so
+    // roic_pct is NOT a quality read on that row.
+    const roic = numOrNull(row.roic_pct);
+    const roicDistorted = boolOrNull(row.roic_denominator_distorted);
+    if (roic != null) holding.roic_pct = roic;
+    if (roicDistorted != null) holding.roic_denominator_distorted = roicDistorted;
 
     snapshot.holdings[row.symbol] = holding;
   }
