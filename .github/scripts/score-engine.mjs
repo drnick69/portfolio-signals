@@ -169,6 +169,67 @@
 //   momentum_store_of_value branches are RETAINED as dead code for historical
 //   re-scoring, exactly as high_beta_crypto (ETHA) was after v7.6.
 
+// V8.4 (August 2026): HOLDINGS SWAP — sold RDDT (hypergrowth_platform_monetizer),
+// bought MLM (reserve_moat_infrastructure_compounder). Still 14 scored holdings.
+// One new archetype branch per layer + one new regime gate.
+//   - RESERVE_MOAT_INFRASTRUCTURE_COMPOUNDER (MLM) — V1: LIN-class bands
+//     (beta 1.11, NOT RDDT's 1.94) — RSI 38/70, daily-move noise floor ±2%,
+//     drawdown ladder scaled to 35% (setup >15%, strong >25%). Aggregates-cohort
+//     rotation vs VMC/CRH/EXP at a −5pp threshold (TIGHTER than RDDT's −8pp:
+//     on a beta-1.11 name a 5pp/30d divergence is information, not noise) —
+//     and this MUST stay aligned with fetch-market-data v4.17, which sets
+//     peer_rotation_active on the same −5pp boundary.
+//     The VMC twin spread is scored SEPARATELY from the cohort average, on the
+//     MA/V duopoly-twin pattern: MLM and VMC are the two dominant US aggregates
+//     franchises and rarely diverge for non-operating reasons.
+//     Positional runs on MIX-ADJUSTED ORGANIC PRICING (THE moat metric),
+//     organic volume, cash gross profit per ton, COGS/ton ex-freight, the
+//     end-market split and a weather gate. Strategic runs on forward PE +
+//     EV/EBITDA, the VMC twin premium, federal authorization status, the LNA
+//     pro-forma glidepath and NET share count.
+//     Regime gate: PUBLIC CONSTRUCTION FUNDING (federal surface-transportation
+//     authorization status, with state DOT budget trend as secondary read) —
+//     funded 25/40/35 · neutral 20/35/45 · unfunded 15/30/55. The weight triple
+//     is deliberately COPIED FROM LIN rather than invented: MLM is the same
+//     species of asset (capital-intensive quality industrial with oligopoly
+//     pricing) and a triple with calibration history beats one without.
+//     ⚠ CALIBRATION: "short_term_extension" maps to NEUTRAL, not contraction.
+//     Twelve extensions followed TEA-21 and ten followed SAFETEA-LU — patches
+//     are the historical rule, and mapping the single most likely outcome to a
+//     contraction would print a false trim for months.
+//   THREE CALIBRATION GUARDRAILS ARE LOAD-BEARING HERE:
+//     (a) DIVESTITURE-GAIN PE GATE. MLM's trailing P/E sits near 12.9x against
+//         a ~26.8x forward because the TTM window carries a large non-operating
+//         gain from the Quikrete asset exchange (TTM profit margin 36.7%
+//         EXCEEDS gross margin 28.2% — impossible from operations). Trailing
+//         P/E is scored ZERO whenever trailing < 0.6 × forward, and the
+//         cohort-premium branch additionally honours premium_pct_reliable from
+//         fetch v4.17. Without both, strategic pins near −100 on an accounting
+//         artifact. This is the structural INVERSE of RDDT's PEG gate — same
+//         architectural slot, opposite mechanism.
+//     (b) ACQUISITION-ACCOUNTING DAMPING. Reported aggregates ASP is
+//         mix-contaminated during integration (Q2'26: −2% reported vs +3.7%
+//         organic mix-adjusted) and is NEVER scored — the engine keys on
+//         mix_adjusted_organic_pricing_pct only. Leverage is scored against the
+//         stated 3.7x→sub-2.5x/24-month GLIDEPATH, never the level. ROIC is
+//         flagged denominator-distorted rather than scored as a quality break.
+//     (c) WEATHER GATE. Aggregates is the most weather-contaminated quarterly
+//         print in the book. A negative organic-volume reading accompanied by
+//         weather_impact_flag = "material_headwind" has its penalty REMOVED,
+//         not merely reduced. Rain is not demand destruction.
+//   Dilution is scored on NET share count change with the sign convention
+//   INVERTED relative to RDDT: negative = buyback. MLM is down ~1.1% YoY and
+//   genuinely satisfies the portfolio's buyback criterion — but $6.5B of LNA
+//   stock consideration against a ~$31.6B market cap is material issuance, so
+//   pro_forma_share_count_change_pct is scored alongside it.
+//   Dividend yield is NOT scored at all (0.64% — this is not ENB/LIN/KOF).
+//   NOT added to CYCLICAL_ARCHETYPES — aggregates have no exchange price and no
+//   commodity cycle to trough against; the GLNCY/AMKBY/PBR.A P/E inversion does
+//   NOT apply. Blend weights untouched (archetype uses defaults).
+//   RDDT's hypergrowth_platform_monetizer branches are RETAINED as dead code
+//   for historical re-scoring, exactly as momentum_store_of_value (IBIT) was
+//   after V8.3 and high_beta_crypto (ETHA) after v7.6.
+
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
 const CYCLICAL_ARCHETYPES = new Set([
@@ -301,6 +362,78 @@ function computeRDDTRegimeWeights(data) {
   return          { weights: { t: 0.25, p: 0.35, s: 0.40 }, regime: "neutral",     driver: x };
 }
 
+// ─── MLM REGIME-CONDITIONAL WEIGHTS (V8.4) ──────────────────────────────────
+// Gated on the PUBLIC CONSTRUCTION FUNDING regime rather than a factor-flow
+// spread — the first categorical-driven gate in this file. Roughly a third of
+// MLM's aggregates demand traces to public infrastructure, so federal
+// surface-transportation authorization is the dominant swing factor on tonnage.
+// Weight triple is LIN's, deliberately (see V8.4 header note).
+//
+// ⚠ "short_term_extension" is the NEUTRAL state, not a contraction. Twelve
+// extensions followed TEA-21's expiration and ten followed SAFETEA-LU's;
+// patches are the rule. The base case is not a downgrade.
+//
+// State DOT budget trend acts only as a TIE-BREAKER on an indeterminate federal
+// read. It cannot override an explicit federal signal in either direction — a
+// multiyear bill below IIJA levels is not rescued by strong state budgets.
+const MLM_AUTHORIZATION_REGIME = {
+  multiyear_enacted_at_or_above_iija: "funded",
+  multiyear_enacted_below_iija:       "unfunded",
+  short_term_extension:               "neutral",
+  pending_no_action:                  "neutral",
+  lapsed:                             "unfunded",
+};
+
+const MLM_REGIME_TRIPLES = {
+  funded:   { t: 0.25, p: 0.40, s: 0.35 },
+  neutral:  { t: 0.20, p: 0.35, s: 0.45 },
+  unfunded: { t: 0.15, p: 0.30, s: 0.55 },
+};
+
+// Post-close damping: LNA serves steel, environmental and agricultural end
+// markets, so roughly a quarter of pro-forma EBITDA sits OUTSIDE the highway
+// funding channel — and lime is structurally more defensive than aggregates
+// (management's Woodville plant saw volumes fall ~7% through the financial
+// crisis against a ~37% collapse in US aggregates). Once the deal closes the
+// funding regime governs less of the business, so its weight swing is pulled
+// 25% back toward neutral.
+const MLM_REGIME_DAMPING = 0.75;
+
+function computeMLMRegimeWeights(data) {
+  // fetch-market-data v4.17 writes these under fundamentals; the LLM payload
+  // carries them under strategic. Accept either so the engine works on both
+  // the market-data path and a re-score from a logged signal row.
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const auth = f.federal_authorization_status ?? st.federal_authorization_status ?? null;
+  const dot = f.state_dot_budget_trend ?? st.state_dot_budget_trend ?? null;
+  const state = f.ma_integration_state ?? st.ma_integration_state ?? null;
+  const driver = f.days_to_authorization_expiry ?? st.days_to_authorization_expiry ?? null;
+
+  let key = MLM_AUTHORIZATION_REGIME[auth] ?? null;
+  if (key === "neutral" || key == null) {
+    if (dot === "accelerating") key = "funded";
+    else if (dot === "contracting") key = "unfunded";
+    else key = "neutral";
+  }
+
+  let w = MLM_REGIME_TRIPLES[key] ?? MLM_REGIME_TRIPLES.neutral;
+
+  // Damping applies only once the transaction has actually closed. "terminated"
+  // deliberately does NOT damp — a dead deal means the standalone
+  // infrastructure exposure is fully intact.
+  if (state === "closed" || state === "complete") {
+    const n = MLM_REGIME_TRIPLES.neutral;
+    const blend = (v, base) => base + (v - base) * MLM_REGIME_DAMPING;
+    const t = blend(w.t, n.t), p = blend(w.p, n.p), s = blend(w.s, n.s);
+    const tot = t + p + s;
+    w = { t: t / tot, p: p / tot, s: s / tot };
+    return { weights: w, regime: key + "_damped", driver };
+  }
+
+  return { weights: w, regime: key, driver };
+}
+
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
@@ -330,7 +463,8 @@ export function scoreTactical(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
-  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
+  const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -1076,6 +1210,103 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MLM TACTICAL (V8.4): LIN-CLASS BANDS + VMC TWIN + AGGREGATES ROTATION ──
+  if (isMLM) {
+    // RSI 38/70 — beta 1.11 puts MLM in the LIN/ISRG band, NOT RDDT's 32/72.
+    // Importing the high-beta ladder here would refuse to call anything
+    // oversold until the stock had already halved.
+    if (rsi != null) {
+      if (rsi < 22)       { score += -55; notes.push(`RSI ${rsi}: MLM extreme oversold — rare washout`); }
+      else if (rsi < 27)  { score += -44; notes.push(`RSI ${rsi}: MLM deeply oversold`); }
+      else if (rsi < 32)  { score += -32; notes.push(`RSI ${rsi}: MLM oversold`); }
+      else if (rsi < 36)  { score += -20; notes.push(`RSI ${rsi}: MLM meaningfully oversold`); }
+      else if (rsi < 38)  { score += -12; notes.push(`RSI ${rsi}: MLM approaching oversold (beta-1.11 band)`); }
+      else if (rsi <= 60) { score += 0;   notes.push(`RSI ${rsi}: MLM normal trending range`); }
+      else if (rsi < 70)  { score += 5;   notes.push(`RSI ${rsi}: MLM healthy momentum`); }
+      else if (rsi < 75)  { score += 16;  notes.push(`RSI ${rsi}: MLM overbought`); }
+      else if (rsi < 80)  { score += 28;  notes.push(`RSI ${rsi}: MLM extended`); }
+      else                { score += 42;  notes.push(`RSI ${rsi}: MLM extreme — trim bias`); }
+    }
+
+    // Drawdown ladder scaled to 35% (vs RDDT's 60%). A 25% drawdown in a
+    // quarry business is a genuine event; in RDDT it was a Tuesday.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 30)      { score += -30; notes.push(`MLM drawdown ${dd.toFixed(1)}%: extreme — max tactical conviction IF mix-adjusted pricing intact`); }
+      else if (ddMag > 25) { score += -24; notes.push(`MLM drawdown ${dd.toFixed(1)}%: deep — high-conviction setup`); }
+      else if (ddMag > 20) { score += -16; notes.push(`MLM drawdown ${dd.toFixed(1)}%: meaningful`); }
+      else if (ddMag > 15) { score += -10; notes.push(`MLM drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 8)  { score += -4;  notes.push(`MLM drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 3)  { score += 3;   notes.push(`MLM at/near 52w highs`); }
+    }
+
+    // Daily move — noise floor ±2%. Half RDDT's, double a pure low-vol
+    // compounder's: MLM carries real single-name event risk (it fell ~5% on
+    // the Q2'26 print) without RDDT's baseline volatility.
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -7)        { score += -18; notes.push(`MLM daily ${chg}%: capitulation/event-driven — check whether PRICING actually broke, not just volume`); }
+      else if (chg < -5)   { score += -12; notes.push(`MLM daily ${chg}%: severe drop`); }
+      else if (chg < -3.5) { score += -7;  notes.push(`MLM daily ${chg}%: sharp drop`); }
+      else if (chg < -2)   { score += -3;  notes.push(`MLM daily ${chg}%: notable decline`); }
+      else if (chg > 7)    { score += 14;  notes.push(`MLM daily +${chg}%: parabolic spike`); }
+      else if (chg > 5)    { score += 9;   notes.push(`MLM daily +${chg}%: sharp rally`); }
+      else if (chg > 3.5)  { score += 5;   notes.push(`MLM daily +${chg}%: strong rally`); }
+      else if (chg > 2)    { score += 2;   notes.push(`MLM daily +${chg}%: notable rally`); }
+      else                 { notes.push(`MLM daily ${chg}%: inside the ±2% noise band for this beta`); }
+    }
+
+    // ★ VMC TWIN DISLOCATION — the signature MLM tactical setup, scored on the
+    // MA/V duopoly-twin pattern rather than folded into the cohort average.
+    // MLM and VMC are the two dominant US aggregates franchises with materially
+    // identical business models. They do not diverge for non-operating reasons.
+    // Scored BEFORE the 3-name cohort so the twin read carries the weight.
+    if (data.cohort_relative?.vmc_spread_30d_pp != null) {
+      const vs = data.cohort_relative.vmc_spread_30d_pp;
+      const active = data.cohort_relative.vmc_dislocation_active;
+      if (active && vs < -15)      { score += -14; notes.push(`VMC twin dislocation: MLM lagging VMC by ${(-vs).toFixed(1)}pp/30d — strong buy setup (verify mix-adjusted pricing before sizing)`); }
+      else if (active && vs < -10) { score += -10; notes.push(`VMC twin dislocation: MLM lagging VMC by ${(-vs).toFixed(1)}pp/30d — buy setup`); }
+      else if (active)             { score += -6;  notes.push(`VMC twin dislocation: MLM lagging VMC by ${(-vs).toFixed(1)}pp/30d`); }
+      else if (vs < -2)            { score += -2;  notes.push(`MLM mildly lagging VMC (${vs.toFixed(1)}pp/30d)`); }
+      else if (vs > 8)             { score += 4;   notes.push(`MLM outperforming VMC by ${vs.toFixed(1)}pp/30d`); }
+    }
+
+    // Aggregates-cohort rotation vs VMC/CRH/EXP (weighted). Threshold −5pp —
+    // MUST match fetch-market-data v4.17's peer_rotation_active boundary, or
+    // the engine and the fetch layer disagree about when rotation is live.
+    if (data.cohort_relative?.peer_rotation_pp != null) {
+      const rp = data.cohort_relative.peer_rotation_pp;
+      const active = data.cohort_relative.peer_rotation_active;
+      if (active && rp < -12)      { score += -10; notes.push(`Aggregates rotation ACTIVE: MLM lagging cohort by ${(-rp).toFixed(1)}pp/30d — strong buy setup`); }
+      else if (active && rp < -8)  { score += -7;  notes.push(`Aggregates rotation ACTIVE: MLM lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+      else if (active)             { score += -4;  notes.push(`Aggregates rotation ACTIVE: MLM lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+      else if (rp < -2)            { score += -2;  notes.push(`MLM mildly lagging aggregates cohort (${rp.toFixed(1)}pp/30d)`); }
+      else if (rp > 6)             { score += 3;   notes.push(`MLM outperforming aggregates cohort by ${rp.toFixed(1)}pp/30d`); }
+    }
+
+    // XLB vs SPY 30d — materials sector factor bid
+    if (data.factor_flow?.xlb_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.xlb_vs_spy_30d_pp;
+      if (x > 2)       { score += -3; notes.push(`XLB +${x.toFixed(1)}pp vs SPY (30d): strong materials bid`); }
+      else if (x > 1)  { score += -1; notes.push(`XLB +${x.toFixed(1)}pp vs SPY (30d): materials bid active`); }
+      else if (x < -2) { score += 3;  notes.push(`XLB ${x.toFixed(1)}pp vs SPY (30d): materials complex lagging — sector pressure`); }
+      else if (x < -1) { score += 1;  }
+    }
+
+    // VIX overlay — modest. Beta 1.11 does not take RDDT-scale collateral
+    // damage, so the amplitudes here are roughly half.
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -3) {
+        score += -6; notes.push(`VIX ${vix} + MLM ${chg}%: broad fear — dislocation, not information`);
+      } else if (vix > 25 && chg < -2) {
+        score += -3; notes.push(`VIX ${vix} + MLM ${chg}%: elevated fear pressure`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -1123,7 +1354,8 @@ export function scorePositional(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
-  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
+  const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -1178,6 +1410,13 @@ export function scorePositional(data, macro) {
       // fear cycle on a proven annuity. Buy the trend break less aggressively.
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -7, "above_200_below_50": -4, "below_both": -18, "below_both_death": -28 };
       if (m[ma] != null) { score += m[ma]; notes.push(`RDDT MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
+    } else if (isMLM) {
+      // Full compounder map. Unlike RDDT there is no live structural falsifier
+      // that a trend break might be correctly pricing — a quarry's reserve base
+      // does not decay because the stock fell below its 200DMA. Trend weakness
+      // in a local monopoly is a fear cycle, so buy it at compounder amplitude.
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`MLM MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -1323,6 +1562,19 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -14; notes.push(`RDDT 52w: ${w52}% — real drawdown, buy interest if ad growth intact`); }
       else if (w52 > 15) { score += -22; notes.push(`RDDT 52w: ${w52}% — major drawdown — verify the thesis is not breaking`); }
       else               { score += -30; notes.push(`RDDT 52w: ${w52}% — deep drawdown — check referral status and ad growth before conviction`); }
+    } else if (isMLM) {
+      // FULL compounder ladder (floor -50), unlike RDDT's shallow -30. MLM near
+      // 52w lows is a construction-cycle or funding-headline fear cycle, not a
+      // moat breaking — the reserve position is unchanged by the news flow.
+      // The one genuine falsifier (mix-adjusted pricing < 1%) is checked in the
+      // fundamentals block below, so price weakness can be bought at full size.
+      if (w52 > 95)      { score += 0;   notes.push(`MLM 52w: ${w52}% — at highs, normal for compounder`); }
+      else if (w52 > 85) { score += 0;   notes.push(`MLM 52w: ${w52}% — near highs, healthy`); }
+      else if (w52 > 70) { score += -3;  notes.push(`MLM 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -10; notes.push(`MLM 52w: ${w52}% — meaningful pullback, buy interest`); }
+      else if (w52 > 30) { score += -22; notes.push(`MLM 52w: ${w52}% — real drawdown, reserve moat on sale`); }
+      else if (w52 > 15) { score += -38; notes.push(`MLM 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
+      else               { score += -50; notes.push(`MLM 52w: ${w52}% — catastrophic drawdown — max conviction`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -1453,6 +1705,13 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -6)  { score += -3;  notes.push(`RDDT ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 25)  { score += 6;   notes.push(`RDDT ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta-1.94 band)`); }
       else if (pctFromSMA > 15)  { score += 2;   notes.push(`RDDT ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isMLM) {
+      // Beta-1.11 bands: -12/-6 down, +14/+8 up. MLM sat ~7% below SMA50 after
+      // the Q2'26 print, which on these bands is a genuine pullback reading.
+      if (pctFromSMA < -12)      { score += -15; notes.push(`MLM ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -6)  { score += -8;  notes.push(`MLM ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 14)  { score += 6;   notes.push(`MLM ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`MLM ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -2263,6 +2522,178 @@ export function scorePositional(data, macro) {
     else if (r30 < -4) { score += 2;  }
   }
 
+  // ─── MLM POSITIONAL (V8.4): PRICING + VOLUME + UNIT MARGIN + END MARKETS ───
+  // ★ ARCHITECTURAL RULE FOR THIS ARCHETYPE: pricing and volume are SEPARATE
+  //   signals with separate drivers and are never conflated. Pricing is
+  //   structural, near-unconditional, and historically RISES in recessions
+  //   because a local monopoly does not evaporate when demand softens. Volume
+  //   is cyclical and policy-driven. A quarter with weak volume and intact
+  //   pricing is a CYCLE datapoint. A quarter with intact volume and broken
+  //   pricing is a THESIS datapoint. The score weights them accordingly.
+
+  // XLB vs SPY 30d — materials sector factor bid
+  if (isMLM && data.factor_flow?.xlb_vs_spy_30d_pp != null) {
+    const x = data.factor_flow.xlb_vs_spy_30d_pp;
+    if (x > 2)       { score += -5; notes.push(`XLB +${x.toFixed(1)}pp vs SPY (30d): strong materials bid — MLM tailwind`); }
+    else if (x > 1)  { score += -2; notes.push(`XLB +${x.toFixed(1)}pp vs SPY (30d): materials bid active`); }
+    else if (x < -2) { score += 3;  notes.push(`XLB ${x.toFixed(1)}pp vs SPY (30d): materials complex lagging`); }
+    else if (x < -1) { score += 1;  }
+  }
+
+  // ★★ MIX-ADJUSTED ORGANIC PRICING — THE moat, measured directly, and the
+  // single highest-weighted operational input in this archetype. Aggregates
+  // have no exchange price anywhere in the world, so the ability to raise
+  // mix-adjusted organic price IS the local-monopoly test. Below 1% is the
+  // cleanest falsifier in the whole model and carries a thesis-level penalty.
+  if (isMLM && data.fundamentals?.mix_adjusted_organic_pricing_pct != null) {
+    const px = data.fundamentals.mix_adjusted_organic_pricing_pct;
+    if (px > 5)        { score += -12; notes.push(`Mix-adjusted organic pricing +${px.toFixed(1)}%: moat compounding above trend`); }
+    else if (px > 4)   { score += -9;  notes.push(`Mix-adjusted organic pricing +${px.toFixed(1)}%: strong — moat fully intact`); }
+    else if (px > 2.5) { score += -4;  notes.push(`Mix-adjusted organic pricing +${px.toFixed(1)}%: healthy structural pricing`); }
+    else if (px >= 1)  { score += 4;   notes.push(`Mix-adjusted organic pricing +${px.toFixed(1)}%: softening — below the mid-single-digit structural norm`); }
+    else if (px >= 0)  { score += 18;  notes.push(`Mix-adjusted organic pricing +${px.toFixed(1)}%: PRICING POWER BREAK (<1%) — the moat is the pricing. THESIS-LEVEL.`); }
+    else               { score += 28;  notes.push(`Mix-adjusted organic pricing ${px.toFixed(1)}%: NEGATIVE REAL PRICING — a local monopoly cutting price is a broken thesis, not a cycle`); }
+  }
+
+  // ⚠ REPORTED ASP IS DELIBERATELY NOT SCORED — Guardrail (b). It is
+  // mix-contaminated during integration: Q2'26 printed -2% reported against
+  // +3.7% organic mix-adjusted, the entire gap being acquisition and geographic
+  // mix from the Quikrete and New Frontier assets. Scoring it manufactures a
+  // pricing-power break that did not happen. Surfaced as a NOTE only.
+  if (isMLM && data.fundamentals?.reported_asp_signal_status === "null_signal_mix_contaminated") {
+    const rasp = data.fundamentals?.reported_asp_growth_pct;
+    notes.push(`Reported ASP${rasp != null ? ` ${rasp >= 0 ? "+" : ""}${rasp.toFixed(1)}%` : ""}: NOT SCORED — mix-contaminated during M&A integration; mix-adjusted organic pricing is the signal`);
+  }
+
+  // ORGANIC VOLUME — the cycle read. ★ WEATHER GATE (Guardrail c) applies:
+  // aggregates is the most weather-contaminated quarterly print in this book,
+  // and a rain-suppressed quarter is not demand destruction. When
+  // weather_impact_flag is "material_headwind" the penalty on a negative
+  // reading is REMOVED entirely rather than merely reduced — a half-penalty
+  // would still leak a false trim into the composite every wet quarter.
+  if (isMLM && data.fundamentals?.organic_volume_growth_pct != null) {
+    const ov = data.fundamentals.organic_volume_growth_pct;
+    const weatherHit = data.fundamentals?.weather_impact_flag === "material_headwind";
+    if (ov > 5)        { score += -8; notes.push(`Organic volume +${ov.toFixed(1)}%: cycle firing`); }
+    else if (ov > 3)   { score += -5; notes.push(`Organic volume +${ov.toFixed(1)}%: strong`); }
+    else if (ov > 1)   { score += -2; notes.push(`Organic volume +${ov.toFixed(1)}%: steady`); }
+    else if (ov >= -2) { score += 0;  notes.push(`Organic volume ${ov >= 0 ? "+" : ""}${ov.toFixed(1)}%: flat — inside the normal band`); }
+    else if (weatherHit) {
+      score += 0;
+      notes.push(`Organic volume ${ov.toFixed(1)}%: NEGATIVE but WEATHER-GATED (material headwind) — penalty removed. Rain is not demand destruction; check pricing instead.`);
+    }
+    else if (ov >= -5) { score += 6;  notes.push(`Organic volume ${ov.toFixed(1)}%: contracting with no weather explanation — cycle rolling`); }
+    else               { score += 12; notes.push(`Organic volume ${ov.toFixed(1)}%: sharply contracting with no weather explanation`); }
+  }
+
+  // Aggregates cash gross profit per ton — the industry's cleanest unit-economics
+  // measure, and the number that proves price is outrunning cost.
+  if (isMLM && data.fundamentals?.cash_gross_profit_per_ton != null) {
+    const gp = data.fundamentals.cash_gross_profit_per_ton;
+    if (gp > 13)      { score += -7; notes.push(`Cash gross profit $${gp.toFixed(2)}/ton: unit economics compounding`); }
+    else if (gp > 11) { score += -4; notes.push(`Cash gross profit $${gp.toFixed(2)}/ton: strong`); }
+    else if (gp > 9)  { score += 0;  notes.push(`Cash gross profit $${gp.toFixed(2)}/ton: normal`); }
+    else if (gp > 7)  { score += 5;  notes.push(`Cash gross profit $${gp.toFixed(2)}/ton: cost side winning`); }
+    else              { score += 10; notes.push(`Cash gross profit $${gp.toFixed(2)}/ton: unit margin impaired`); }
+  }
+
+  // COGS per ton EX pass-through freight — the real cost read. Including
+  // freight muddies it, since freight is a pass-through that inflates both
+  // sides of the ledger.
+  // ★ The price-minus-cost SPREAD is the margin read, not either leg alone. On a
+  // per-ton basis ANY positive spread expands gross margin, so the bands must
+  // credit sub-2pp spreads: Q2'26 printed +3.7% price against +2.1% cost — a
+  // 1.6pp spread — and adjusted cash gross profit still rose 15%. An earlier
+  // draft gated "margin expanding" at >2pp and refused to credit exactly that
+  // quarter. Absolute COGS is the FALLBACK only, used when pricing is null.
+  if (isMLM && data.fundamentals?.cogs_per_ton_growth_ex_freight_pct != null) {
+    const cg = data.fundamentals.cogs_per_ton_growth_ex_freight_pct;
+    const px = data.fundamentals?.mix_adjusted_organic_pricing_pct;
+    if (px != null) {
+      const sp = px - cg;
+      if (sp > 2.5)     { score += -7; notes.push(`Pricing +${px.toFixed(1)}% vs COGS/ton ex-freight +${cg.toFixed(1)}%: price outrunning cost by ${sp.toFixed(1)}pp — margin expanding hard`); }
+      else if (sp > 1)  { score += -5; notes.push(`Pricing +${px.toFixed(1)}% vs COGS/ton ex-freight +${cg.toFixed(1)}%: price outrunning cost by ${sp.toFixed(1)}pp — margin expanding`); }
+      else if (sp > 0)  { score += -2; notes.push(`Pricing +${px.toFixed(1)}% vs COGS/ton ex-freight +${cg.toFixed(1)}%: price marginally ahead by ${sp.toFixed(1)}pp — margin stable to slightly up`); }
+      else if (sp > -1) { score += 2;  notes.push(`Pricing +${px.toFixed(1)}% vs COGS/ton ex-freight +${cg.toFixed(1)}%: cost matching price (${sp.toFixed(1)}pp) — margin flat to slightly down`); }
+      else              { score += 6;  notes.push(`Pricing +${px.toFixed(1)}% vs COGS/ton ex-freight +${cg.toFixed(1)}%: cost outrunning price by ${(-sp).toFixed(1)}pp — margin compressing`); }
+    }
+    else if (cg < 3)    { score += -2; notes.push(`COGS/ton ex-freight +${cg.toFixed(1)}%: cost discipline holding (pricing unavailable — spread not computable)`); }
+    else if (cg > 5)    { score += 4;  notes.push(`COGS/ton ex-freight +${cg.toFixed(1)}%: cost inflation elevated (pricing unavailable — spread not computable)`); }
+  }
+
+  // Energy — the current margin culprit. Diesel is the swing input.
+  if (isMLM && data.fundamentals?.energy_headwind) {
+    const eh = String(data.fundamentals.energy_headwind).toLowerCase();
+    if (eh === "tailwind")       { score += -4; notes.push(`Energy: TAILWIND — cost relief flowing to unit margin`); }
+    else if (eh === "neutral")   { score += 0;  notes.push(`Energy: neutral`); }
+    else if (eh === "moderate")  { score += 3;  notes.push(`Energy: moderate headwind — transitory input cost, not a moat issue`); }
+    else if (eh === "severe")    { score += 6;  notes.push(`Energy: SEVERE headwind — margin pressure, but check whether pricing is still compounding`); }
+  }
+
+  // Adjusted EBITDA margin. The inventory step-up is a non-cash purchase-
+  // accounting artifact and is annotated so the margin is not read as
+  // operational deterioration.
+  if (isMLM && data.fundamentals?.ebitda_margin_pct != null) {
+    const em = data.fundamentals.ebitda_margin_pct;
+    if (em > 35)      { score += -5; notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: leverage compounding`); }
+    else if (em > 33) { score += -3; notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: strong`); }
+    else if (em > 30) { score += 0;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: normal`); }
+    else if (em > 28) { score += 3;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: compressing`); }
+    else              { score += 7;  notes.push(`Adj EBITDA margin ${em.toFixed(1)}%: leverage reversing`); }
+    const st = data.fundamentals?.inventory_step_up_charge_musd;
+    if (st != null && st > 0) {
+      notes.push(`⚠ Margin includes a $${st}M NON-CASH inventory step-up (purchase accounting) — strip before comparing to prior-year`);
+    }
+  }
+
+  // End markets, scored separately. Infrastructure and heavy nonres (data
+  // centers, power gen, warehouses) are the strong legs; residential is the
+  // weak one and is weighted lightly — it is the smallest share of demand.
+  if (isMLM && data.fundamentals?.infrastructure_demand) {
+    const d = String(data.fundamentals.infrastructure_demand).toLowerCase();
+    if (d === "strong")         { score += -5; notes.push(`Infrastructure demand: STRONG — the largest end market pulling`); }
+    else if (d === "softening") { score += 5;  notes.push(`Infrastructure demand: SOFTENING — check federal authorization status`); }
+  }
+  if (isMLM && data.fundamentals?.heavy_nonres_demand) {
+    const d = String(data.fundamentals.heavy_nonres_demand).toLowerCase();
+    if (d === "strong")         { score += -4; notes.push(`Heavy nonres demand: STRONG — data centers/power gen/warehouses pulling`); }
+    else if (d === "softening") { score += 4;  notes.push(`Heavy nonres demand: SOFTENING`); }
+  }
+  if (isMLM && data.fundamentals?.residential_demand) {
+    const d = String(data.fundamentals.residential_demand).toLowerCase();
+    if (d === "strong")         { score += -2; notes.push(`Residential demand: STRONG`); }
+    else if (d === "softening") { score += 2;  notes.push(`Residential demand: SOFTENING — smallest of the three legs, weighted lightly`); }
+  }
+
+  // Guidance actions
+  if (isMLM && data.fundamentals?.fy_revenue_guide_action) {
+    const g = String(data.fundamentals.fy_revenue_guide_action).toLowerCase();
+    if (g === "raised")   { score += -4; notes.push(`FY revenue guide: RAISED`); }
+    else if (g === "cut") { score += 6;  notes.push(`FY revenue guide: CUT`); }
+  }
+  if (isMLM && data.fundamentals?.fy_ebitda_guide_action) {
+    const g = String(data.fundamentals.fy_ebitda_guide_action).toLowerCase();
+    if (g === "raised")        { score += -5; notes.push(`FY adj EBITDA guide: RAISED`); }
+    else if (g === "reaffirmed") { score += 0; notes.push(`FY adj EBITDA guide: reaffirmed (conservative energy assumptions can hold this flat while revenue rises)`); }
+    else if (g === "cut")      { score += 8;  notes.push(`FY adj EBITDA guide: CUT`); }
+  }
+
+  // EPS revisions — LIN-class thresholds (+1 / -2), tighter than RDDT's
+  // +2/-4: consensus does not swing as hard on a 10%-growth industrial.
+  if (isMLM && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 3)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 1)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -2) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -5) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isMLM && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 2)       { score += -2; }
+    else if (r30 < -2) { score += 2;  }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -2288,7 +2719,8 @@ export function scoreStrategic(data, macro) {
   const isNOW = archetype === "ai_workflow_quality_compounder";            // ← V7.6
   const isMA = archetype === "payments_network_quality_compounder";        // ← V8.2
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
-  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3
+  const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
+  const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -3290,6 +3722,216 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── MLM STRATEGIC (V8.4): FWD PE + EV/EBITDA + VMC TWIN + FUNDING + LNA ──
+  if (isMLM) {
+    // ★★ GUARDRAIL (a) — DIVESTITURE-GAIN PE GATE, part 1: the cohort premium.
+    // fetch-market-data v4.17 computes the aggregates-cohort premium off
+    // Finnhub TRAILING P/E and sets premium_pct_reliable = false when the
+    // discount is steeper than -35% versus a same-industry cohort. MLM's TTM
+    // window carries a large non-operating gain from the Quikrete asset
+    // exchange, which drives that premium near -50%. Honouring the flag is what
+    // stops a fabricated deep-discount BUY from entering the composite.
+    const cv = data.cohort_valuation;
+    if (cv && cv.premium_pct != null && cv.premium_pct_reliable === false) {
+      score += 0;
+      notes.push(`MLM P/E ${cv.premium_pct.toFixed(1)}% vs aggregates cohort: ARTIFACT (trailing basis contaminated by the Quikrete divestiture gain). Deliberately scored ZERO — routed to forward PE / EV/EBITDA instead.`);
+    } else if (cv && cv.premium_pct != null) {
+      // Tighter bands than RDDT's ads cohort: two aggregates franchises with
+      // materially identical business models should track closely.
+      const prem = cv.premium_pct;
+      if (prem < -20)      { score += -16; notes.push(`MLM P/E ${prem.toFixed(1)}% vs aggregates cohort: deeply discounted — buy`); }
+      else if (prem < -8)  { score += -10; notes.push(`MLM P/E ${prem.toFixed(1)}% vs aggregates cohort: discounted — buy bias`); }
+      else if (prem <= 10) { score += 0;   notes.push(`MLM P/E ${prem >= 0 ? "+" : ""}${prem.toFixed(1)}% vs aggregates cohort: inside normal band`); }
+      else if (prem <= 18) { score += 5;   notes.push(`MLM P/E +${prem.toFixed(1)}% vs aggregates cohort: upper-normal band`); }
+      else                 { score += 14;  notes.push(`MLM P/E +${prem.toFixed(1)}% vs aggregates cohort: rich vs the complex — trim`); }
+    }
+
+    // ★ VMC TWIN PREMIUM — the flagship strategic read, on the MA/V twin
+    // pattern. Same artifact gate applies: if the trailing basis is
+    // contaminated, the twin comparison is equally meaningless.
+    if (cv && cv.mlm_vs_vmc_pct != null && cv.premium_pct_reliable !== false) {
+      const tw = cv.mlm_vs_vmc_pct;
+      if (tw < -15)      { score += -12; notes.push(`MLM ${tw.toFixed(1)}% vs VMC: the twin is trading at a wide premium — dislocation`); }
+      else if (tw < -8)  { score += -7;  notes.push(`MLM ${tw.toFixed(1)}% vs VMC: discounted to its own twin`); }
+      else if (tw <= 10) { score += 0;   notes.push(`MLM ${tw >= 0 ? "+" : ""}${tw.toFixed(1)}% vs VMC: parity band — normal`); }
+      else               { score += 8;   notes.push(`MLM +${tw.toFixed(1)}% vs VMC: premium to its own twin — trim bias`); }
+    }
+
+    // ★★ GUARDRAIL (a) part 2 — ABSOLUTE trailing P/E is scored ZERO whenever
+    // trailing < 0.6 x forward. Identical predicate to isTrailingPeArtifact()
+    // in mlm-strategy.jsx v1; keep the two in sync if either moves.
+    const pe = data.valuation?.trailingPE;
+    const fpe = data.fundamentals?.forward_pe;
+    const peArtifact = (pe != null && fpe != null && pe > 0 && fpe > 0 && pe < 0.6 * fpe);
+    if (peArtifact) {
+      score += 0;
+      notes.push(`Trailing P/E ${pe.toFixed(1)}x vs forward ${fpe.toFixed(1)}x: DIVESTITURE-GAIN ARTIFACT (trailing < 0.6x forward). Scored ZERO — a TTM profit margin above gross margin cannot come from operations.`);
+    }
+
+    // FORWARD P/E — the load-bearing multiple precisely because trailing is
+    // contaminated. Only scored when the consensus basis is established: a
+    // standalone forward EPS compared against a pro-forma context is the
+    // mixed-basis error Guardrail (b') exists to prevent.
+    if (fpe != null && fpe > 0) {
+      const basis = data.fundamentals?.forward_pe_consensus_basis;
+      if (basis === "mixed_or_unknown") {
+        notes.push(`Forward P/E ${fpe.toFixed(1)}x: consensus basis UNKNOWN (standalone vs LNA pro-forma) — not scored; EV/EBITDA carries the valuation read instead`);
+      } else {
+        const tag = basis ? ` [${basis}]` : "";
+        if (fpe < 22)      { score += -14; notes.push(`Forward P/E ${fpe.toFixed(1)}x: cheap for a reserve-moat franchise${tag}`); }
+        else if (fpe < 24) { score += -9;  notes.push(`Forward P/E ${fpe.toFixed(1)}x: buy zone${tag}`); }
+        else if (fpe < 26) { score += -4;  notes.push(`Forward P/E ${fpe.toFixed(1)}x: lower end of fair${tag}`); }
+        else if (fpe <= 32){ score += 0;   notes.push(`Forward P/E ${fpe.toFixed(1)}x: fair for the growth + moat profile${tag}`); }
+        else if (fpe <= 36){ score += 7;   notes.push(`Forward P/E ${fpe.toFixed(1)}x: elevated${tag}`); }
+        else               { score += 14;  notes.push(`Forward P/E ${fpe.toFixed(1)}x: stretched${tag}`); }
+      }
+    }
+
+    // EV/EBITDA — the cleaner lens whenever the forward-PE basis is murky,
+    // because both legs are controlled here rather than by sell-side consensus.
+    if (data.fundamentals?.ev_ebitda != null) {
+      const ev = data.fundamentals.ev_ebitda;
+      const evb = data.fundamentals?.ev_ebitda_basis;
+      const tag = evb ? ` [${evb}]` : "";
+      if (ev < 14)      { score += -12; notes.push(`EV/EBITDA ${ev.toFixed(1)}x: cheap vs the franchise's own history${tag}`); }
+      else if (ev < 15) { score += -8;  notes.push(`EV/EBITDA ${ev.toFixed(1)}x: buy zone${tag}`); }
+      else if (ev <= 19){ score += 0;   notes.push(`EV/EBITDA ${ev.toFixed(1)}x: fair${tag}`); }
+      else if (ev <= 21){ score += 5;   notes.push(`EV/EBITDA ${ev.toFixed(1)}x: upper end of fair${tag}`); }
+      else              { score += 12;  notes.push(`EV/EBITDA ${ev.toFixed(1)}x: rich${tag}`); }
+    }
+
+    // ★★ GUARDRAIL (b') — BASIS-CONSISTENCY ASSERTION. The pro-forma multiple
+    // is scored ONLY when both legs are confirmed on the same basis. The error
+    // this blocks: spot EV/EBITDA (~17.8x, TRAILING EBITDA) against a pro-forma
+    // ~15.6x (2026 EBITDA) reads as a two-turn re-rating. Like-for-like FORWARD
+    // it is ~15.8x standalone vs ~15.6x pro-forma — modestly accretive, roughly
+    // neutral. A mixed-basis multiple is a lie that looks like data.
+    if (data.fundamentals?.pro_forma_ev_ebitda != null) {
+      const pf = data.fundamentals.pro_forma_ev_ebitda;
+      if (data.fundamentals?.pro_forma_basis_consistent === true) {
+        if (pf < 14)      { score += -8; notes.push(`Pro-forma EV/EBITDA ${pf.toFixed(1)}x: LNA bought below MLM's own multiple — accretive`); }
+        else if (pf < 16) { score += -4; notes.push(`Pro-forma EV/EBITDA ${pf.toFixed(1)}x: modestly accretive`); }
+        else if (pf <= 19){ score += 0;  notes.push(`Pro-forma EV/EBITDA ${pf.toFixed(1)}x: neutral to the standalone multiple`); }
+        else              { score += 8;  notes.push(`Pro-forma EV/EBITDA ${pf.toFixed(1)}x: the deal makes the multiple worse — dilutive on valuation`); }
+      } else {
+        notes.push(`Pro-forma EV/EBITDA ${pf.toFixed(1)}x: BASIS NOT CONFIRMED CONSISTENT — not scored (mixed trailing/forward legs produce a spurious re-rating)`);
+      }
+    }
+
+    // ── FEDERAL AUTHORIZATION — the dominant structural binary. IIJA expires
+    // 2026-09-30; without reauthorization formula programs revert to pre-IIJA
+    // baseline in FY2027 (~$28B/yr cut). ⚠ A short-term extension is the BASE
+    // CASE and scores ZERO, not negative — patches are the historical rule.
+    if (data.fundamentals?.federal_authorization_status) {
+      const fa = String(data.fundamentals.federal_authorization_status).toLowerCase();
+      if (fa === "multiyear_enacted_at_or_above_iija") { score += -18; notes.push(`Federal authorization: MULTIYEAR AT/ABOVE IIJA — multi-year volume visibility restored, the re-rating catalyst`); }
+      else if (fa === "short_term_extension")          { score += 0;   notes.push(`Federal authorization: SHORT-TERM EXTENSION — the base case and the historical norm (12 extensions after TEA-21, 10 after SAFETEA-LU). Scored ZERO, not as a downgrade.`); }
+      else if (fa === "pending_no_action")             { score += 3;   notes.push(`Federal authorization: PENDING, no action — mild uncertainty premium as the deadline approaches`); }
+      else if (fa === "multiyear_enacted_below_iija")  { score += 20;  notes.push(`Federal authorization: MULTIYEAR BELOW IIJA — the volume cycle is structurally impaired. THESIS-LEVEL.`); }
+      else if (fa === "lapsed")                        { score += 16;  notes.push(`Federal authorization: LAPSED — formula funding reverting to pre-IIJA baseline`); }
+    }
+
+    // State DOT budgets — the partial buffer against federal uncertainty.
+    if (data.fundamentals?.state_dot_budget_trend) {
+      const dt = String(data.fundamentals.state_dot_budget_trend).toLowerCase();
+      if (dt === "accelerating")     { score += -6; notes.push(`State DOT budgets: ACCELERATING — buffers federal uncertainty`); }
+      else if (dt === "contracting") { score += 6;  notes.push(`State DOT budgets: CONTRACTING — the buffer is gone`); }
+    }
+
+    // ── LNA (Lhoist) — TREATED AS A KNOWN FORWARD EVENT. Approvals landed
+    // 2026-08-05 and the $6.5B notes priced 2026-08-12, so the model scores
+    // pro-forma rather than waiting for close.
+    // ★★ GUARDRAIL (b) — LEVERAGE IS SCORED ON THE GLIDEPATH, NOT THE LEVEL.
+    // 3.7x at close is the plan working exactly as announced. Penalising the
+    // level would trim on a deal that is already approved and financed.
+    if (data.fundamentals?.delever_glidepath_status) {
+      const gp = String(data.fundamentals.delever_glidepath_status).toLowerCase();
+      const lev = data.fundamentals?.pro_forma_net_leverage;
+      const levStr = lev != null ? ` (${lev.toFixed(2)}x)` : "";
+      if (gp === "ahead")                   { score += -8; notes.push(`LNA delever glidepath: AHEAD${levStr} — integration outperforming`); }
+      else if (gp === "on_track")           { score += -3; notes.push(`LNA delever glidepath: ON TRACK${levStr} — leverage is a non-event while the path holds`); }
+      else if (gp === "not_yet_measurable") { score += 0;  notes.push(`LNA delever glidepath: not yet measurable${levStr} — pre-close, scored neutral`); }
+      else if (gp === "behind")             { score += 14; notes.push(`LNA delever glidepath: BEHIND${levStr} — the deal is not working as underwritten`); }
+    }
+    if (data.fundamentals?.ma_integration_state) {
+      const st = String(data.fundamentals.ma_integration_state).toLowerCase();
+      if (st === "terminated") {
+        score += 6;
+        notes.push(`LNA state: TERMINATED — the pro-forma frame is void; every multiple above must be re-read on a standalone basis and the lime diversification thesis is gone`);
+      } else if (st === "complete") {
+        notes.push(`LNA state: COMPLETE — integration finished; pro-forma is now actual`);
+      }
+    }
+
+    // ★ NET share count change — sign convention INVERTED relative to RDDT:
+    // NEGATIVE = buyback. MLM is down ~1.1% YoY and genuinely satisfies the
+    // portfolio's aggressive-buyback criterion, which RDDT never did.
+    if (data.fundamentals?.share_count_change_yoy_pct != null) {
+      const sc = data.fundamentals.share_count_change_yoy_pct;
+      if (sc <= -2)      { score += -6; notes.push(`Net share count ${sc.toFixed(1)}% YoY: strong buyback — per-share compounding, satisfies the portfolio's buyback criterion`); }
+      else if (sc <= -0.5){ score += -3; notes.push(`Net share count ${sc.toFixed(1)}% YoY: genuine buyback — meets the criterion`); }
+      else if (sc <= 0.5){ score += 0;  notes.push(`Net share count ${sc >= 0 ? "+" : ""}${sc.toFixed(1)}% YoY: flat`); }
+      else if (sc < 3)   { score += 3;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: dilutive`); }
+      else               { score += 7;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: materially dilutive`); }
+    }
+    // Pro-forma share count books the LNA stock consideration NOW rather than
+    // being surprised at close. Deliberately scored LIGHTER than the realised
+    // figure: issuing equity to buy EBITDA at ~15x is not the same event as
+    // diluting to fund stock comp.
+    if (data.fundamentals?.pro_forma_share_count_change_pct != null) {
+      const pfs = data.fundamentals.pro_forma_share_count_change_pct;
+      if (pfs > 15)      { score += 5; notes.push(`Pro-forma share count +${pfs.toFixed(1)}% (incl. LNA stock consideration): large issuance — but purchasing EBITDA at ~15x, not funding stock comp`); }
+      else if (pfs > 5)  { score += 3; notes.push(`Pro-forma share count +${pfs.toFixed(1)}% (incl. LNA stock consideration): material issuance`); }
+    }
+
+    // Reserve life — the actual moat. A slow-moving structural constant, so it
+    // is scored gently: it does not change quarter to quarter and should not
+    // swing the composite.
+    if (data.fundamentals?.reserve_life_years != null) {
+      const rl = data.fundamentals.reserve_life_years;
+      if (rl > 75)      { score += -5; notes.push(`Reserve life ${rl}y: multi-generational permitted position — the moat, quantified`); }
+      else if (rl > 50) { score += -3; notes.push(`Reserve life ${rl}y: long permitted position`); }
+      else if (rl < 25) { score += 5;  notes.push(`Reserve life ${rl}y: short for this industry — permitting risk is the moat risk`); }
+    }
+
+    // ROIC — flagged, not scored, while acquisitions inflate the denominator.
+    if (data.fundamentals?.roic_pct != null) {
+      const ro = data.fundamentals.roic_pct;
+      const wc = data.fundamentals?.wacc_pct;
+      if (data.fundamentals?.roic_denominator_distorted === true) {
+        notes.push(`ROIC ${ro.toFixed(1)}%${wc != null ? ` vs WACC ${wc.toFixed(1)}%` : ""}: DENOMINATOR DISTORTED by fresh M&A (capital base inflated ahead of the earnings) — flagged, not scored as a quality break`);
+      } else if (wc != null) {
+        if (ro - wc > 3)      { score += -6; notes.push(`ROIC ${ro.toFixed(1)}% vs WACC ${wc.toFixed(1)}%: creating value`); }
+        else if (ro - wc < -2){ score += 6;  notes.push(`ROIC ${ro.toFixed(1)}% vs WACC ${wc.toFixed(1)}%: destroying value on clean capital — genuine quality concern`); }
+      }
+    }
+
+    // ⚠ DIVIDEND YIELD IS DELIBERATELY NOT SCORED. At ~0.64% MLM is not a yield
+    // vehicle — this is not ENB, LIN or KOF. Scoring it in either direction
+    // would import a signal the security does not carry.
+
+    // TIPS overlay — lighter than RDDT's. MLM has real near-term earnings and
+    // is far less duration-sensitive than a 50%-growth name, but construction
+    // demand IS rate-sensitive through housing and project financing.
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 5;  notes.push(`TIPS ${tips}%: restrictive — pressures residential and project financing`); }
+      else if (tips > 2.5) { score += 3;  notes.push(`TIPS ${tips}%: mildly restrictive`); }
+      else if (tips < 0)   { score += -5; notes.push(`TIPS ${tips}%: accommodative — construction financing tailwind`); }
+      else if (tips < 1)   { score += -2; notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // VIX overlay — modest amplitudes for beta 1.11.
+    const vixS = macro?.vix;
+    if (vixS != null) {
+      if (vixS > 35)      { score += -4; notes.push(`VIX ${vixS}: panic — quality industrial on sale`); }
+      else if (vixS > 25) { score += -2; notes.push(`VIX ${vixS}: elevated fear`); }
+      else if (vixS < 12) { score += 2;  notes.push(`VIX ${vixS}: complacency`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -3403,6 +4045,9 @@ export function computeDeterministicScores(data, macro) {
   } else if (data._archetype === "hypergrowth_platform_monetizer") {
     const r = computeRDDTRegimeWeights(data);
     weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "xlc_vs_spy_30d_pp";
+  } else if (data._archetype === "reserve_moat_infrastructure_compounder") {
+    const r = computeMLMRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "federal_authorization_status";
   }
 
   const composite = Math.round(
@@ -3422,9 +4067,11 @@ export function computeDeterministicScores(data, macro) {
                   // TMO: thawing|neutral|frozen. MA: fear_receding|neutral|fear_regime (V8.2).
                   // ISRG: bid_active|neutral|bid_absent (V8.2).
                   // RDDT: bid_active|neutral|bid_absent (V8.3, off a 25/35/40 base).
+                  // MLM: funded|neutral|unfunded, each optionally "_damped" post-LNA-close
+                  // (V8.4, off a 20/35/45 base — LIN's triple, deliberately reused).
     regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
     regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
-    regimeBasis,  // V8.1/V8.2 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp"
+    regimeBasis,  // V8.1/V8.2/V8.4 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp" | "xlc_vs_spy_30d_pp" | "federal_authorization_status"
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
