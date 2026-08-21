@@ -50,6 +50,32 @@
 //       pipeline run cannot fake a retirement. So for up to 3 trading days the
 //       benchmark carries IBIT alongside the 14 logged members, marking it at
 //       its last known price.
+//
+// v8.5.0 sync (August 2026) — ⚠ NOT NOTE-ONLY. This file needs ONE LIVE EDIT,
+//   unlike the other three symbol-agnostic consumers in this tier.
+//   The mechanism is unchanged and absorbs RDDT → MLM generically, exactly as
+//   it absorbed IBIT → RDDT: MLM joins membership at 1/14 on its first logged
+//   date, RDDT stays on the internal book at its last known price and retires
+//   on the 3rd consecutive debounced absent day, and the headline member count
+//   never leaves 14. No logic changes.
+//   BUT membership_convention is an emitted STRING in the output JSON, not a
+//   comment. Left untouched it would keep asserting that the IBIT→RDDT swap is
+//   the latest membership event, which stops being true the moment this
+//   deploys — a provenance field silently describing the wrong swap is worse
+//   than no provenance field. It is updated below.
+//   ★ VERSION BUMPED 1.1 → 1.2 for exactly that reason: the emitted convention
+//   string changed, so two scorecard JSONs both stamped "1.1" would otherwise
+//   carry different provenance text and be indistinguishable to anything
+//   reading the history. The version exists to make that distinction possible.
+//
+//   Two consequences worth expecting, both correct behaviour:
+//     • MLM's beta is 1.11 against RDDT's ~1.94, so the equal-weight leg of the
+//       benchmark gets slightly LESS volatile from the swap date forward. A
+//       comparison of excess-return volatility across the swap boundary is
+//       therefore not apples-to-apples; the membership changed, not just the
+//       market.
+//     • MLM enters the TWR series at n=0 like any new member. The EARLY
+//       (n<60) grade guard already covers the resulting small-sample period.
 //     • On the 3rd consecutive absent trading day the retirement confirms:
 //       IBIT liquidates at last known price and the proceeds fold into that
 //       day's deposit pool, redeployed equally across the 14 survivors.
@@ -347,8 +373,8 @@ async function main() {
 
   const out = {
     generated: new Date().toISOString(),
-    version: "1.1",
-    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 holds the count at 14, with IBIT retiring on the 3rd debounced absent day)",
+    version: "1.2",
+    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 and RDDT→MLM swap at v8.5.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
     days: series.length,
     date_range: { first, last },
     grade,
