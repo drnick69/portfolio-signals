@@ -108,6 +108,79 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //     prefix check, pads pre-v8.4 rows blank); it does NOT know about the
 //     consumer's width contract.
 
+// ── V8.5.0 (August 2026): HOLDINGS SWAP telemetry — RDDT out, MLM in
+//   (fetch-market-data v4.17 / score-engine V8.4 / generate-signals v8.5.0 sync;
+//   still 14 holdings).
+//
+//   REUSED columns (no new width): cohort_avg_pe + cohort_premium_pct (as for
+//   MSFT/LHX/ISRG/RDDT), cohort_avg_30d_return_pct, cohort_rotation_pp +
+//   cohort_rotation_active, revenue_growth_yoy_pct, ebitda_margin_pct,
+//   eps_revisions_30d/90d, trailing_pe.
+//   ⚠ NOTE ON THE ROTATION REUSE: fetch v4.17 emits MLM's rotation under the
+//   NEW key names peer_rotation_pp / peer_rotation_active (RDDT used
+//   cohort_rotation_pp / _active). The row builder and JSONL mapper accept
+//   EITHER key and write the shared column, so one column continues to mean
+//   "this holding's rotation vs its own cohort" across MSFT/ISRG/RDDT/MLM and
+//   stays comparable in attribution. Thresholds differ upstream (MLM −5pp,
+//   RDDT −8pp, ISRG −6pp) and the ACTIVE flag is already threshold-applied by
+//   fetch, so the column is safe to compare; the raw pp value is not.
+//
+//   ⚠ share_count_change_yoy_pct IS REUSED, and the V8.4.0 note above needs
+//   qualifying. That column is NOT a special "positive = dilution" convention —
+//   it is simply the raw YoY % change in share count. RDDT happened to print
+//   POSITIVE (+2.8%, stock comp exceeding buyback); MLM prints NEGATIVE
+//   (−1.11%, a genuine buyback that satisfies the portfolio's criterion). Same
+//   column, same arithmetic, opposite observed sign. The genuinely distinct
+//   column is MA's buyback_share_reduction_yoy_pct, which measures a different
+//   quantity — that is the pair a downstream consumer must not conflate.
+//
+//   NEW columns (48 appended: 186 → 234):
+//   • Aggregates cohort PEs vmc/crh/exp_pe + mlm_vs_vmc_pct (the TWIN premium —
+//     the flagship strategic read, carried separately from the cohort average
+//     because VMC is the only true like-for-like US aggregates pure play).
+//   • mlm_30d_return_pct, and vmc_spread_30d_pp + vmc_dislocation_active —
+//     the twin rotation read, deliberately NOT folded into the shared cohort
+//     columns. Diluting the twin signal inside a 3-name average would destroy
+//     the single most informative tactical input this archetype has.
+//   • ★★ premium_pct_reliable + trailing_discount_artifact_suspected — THE
+//     MOST IMPORTANT COLUMNS IN THIS APPEND. MLM's TTM window carries a large
+//     non-operating gain from the Quikrete asset exchange, so its TRAILING P/E
+//     (~12.9x vs ~26.8x forward) is an accounting artifact and the cohort
+//     premium computes near −50%. fetch v4.17 gates that and score-engine V8.4
+//     scores it ZERO — but the CSV would otherwise persist premium_pct = −50.7
+//     with NOTHING recording that it is invalid. Any calibration pass reading
+//     that column across history would learn a fabricated relationship between
+//     "deep cohort discount" and forward returns. These two flags are what
+//     make the stored number interpretable. Never drop them.
+//   • xlb_vs_spy_30d_pp — the materials factor-flow driver.
+//   • MLM fundamentals: mix-adjusted organic pricing (THE moat metric) and the
+//     organic/reported ASP + volume splits, reported_asp_signal_status,
+//     weather_impact_flag, cash GP/ton + COGS/ton (incl. and ex pass-through
+//     freight), energy, inventory step-up, the three end-market categoricals,
+//     guide actions, forward_pe + ev_ebitda + pro_forma_ev_ebitda WITH their
+//     basis tags, the federal authorization + state DOT regime fields, the LNA
+//     block, reserves, and ROIC/WACC with the distortion flag.
+//
+//   ⚠ COLUMN RENAMED VS ITS PAYLOAD KEY — the one deliberate mismatch here:
+//     payload  md.fundamentals.ma_integration_state
+//     column   lna_integration_state
+//     "ma_" is ALREADY triply ambiguous in this schema — ma_signal is the
+//     MOVING-AVERAGE signal, ma_30d_return_pct is MASTERCARD, and a third
+//     meaning (M&A) would make the prefix useless to anyone grepping columns.
+//     The column is named for the deal it tracks. The row builder and JSONL
+//     mapper read the payload key and write the renamed column.
+//
+//   • NO RDDT columns are removed. The 31 V8.4.0 columns stay and go blank on
+//     MLM rows, exactly as IBIT/ETHA-era columns did. Removal would break the
+//     pure-append invariant and orphan every historical RDDT row.
+//
+//   ⚠ PAIRED DEPLOY REQUIRED: signal-accuracy enforces an EXACT-width contract
+//     against the on-disk header. These 48 appended columns move the width
+//     186 → 234. signal-accuracy MUST be bumped in the SAME deploy or every new
+//     row is skipped. migrateCsvHeader() handles the on-disk file (pure-append
+//     prefix check, pads pre-v8.5 rows blank); it does NOT know about the
+//     consumer's width contract.
+
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
 const JSONL_PATH = `${HISTORY_DIR}/daily-log.jsonl`;
@@ -319,6 +392,72 @@ const CSV_HEADERS = [
   // P/S vs own history + the partial-window flag that governs how much the
   // downstream model is allowed to trust it (RDDT listed March 2024).
   "ps_pct_of_3y_avg", "own_history_window_partial",
+
+  // ─── V8.5.0 MLM additions (appended for CSV back-compat; MLM row only) ────
+  // Aggregates cohort PEs. cohort avg + premium REUSE cohort_avg_pe /
+  // cohort_premium_pct. mlm_vs_vmc_pct is the TWIN premium — the flagship
+  // strategic read, carried separately because VMC is the only true
+  // like-for-like US aggregates pure play and must not be averaged away.
+  "vmc_pe", "crh_pe", "exp_pe", "mlm_vs_vmc_pct",
+  // ★★ ARTIFACT GATE — the two most important columns in this append.
+  // MLM's trailing P/E (~12.9x vs ~26.8x forward) is contaminated by the
+  // Quikrete divestiture gain, so cohort_premium_pct computes near −50%.
+  // WITHOUT these flags the CSV persists a fabricated deep discount and any
+  // calibration pass reading history would learn a relationship that does not
+  // exist. premium_pct_reliable=false means cohort_premium_pct on that row is
+  // NOT a valuation observation. Never drop these two columns.
+  "premium_pct_reliable", "trailing_discount_artifact_suspected",
+  // Aggregates rotation. cohort_avg_30d_return_pct + cohort_rotation_pp +
+  // cohort_rotation_active are REUSED (fetch v4.17 emits peer_rotation_pp /
+  // peer_rotation_active — the row builder accepts either key), so only MLM's
+  // own leg plus the TWIN read are new here.
+  "mlm_30d_return_pct", "vmc_spread_30d_pp", "vmc_dislocation_active",
+  // Materials factor flow — the tactical overlay driver
+  "xlb_vs_spy_30d_pp",
+  // ── MLM fundamentals scaffolds (LLM-sourced; blank until populated) ──
+  // ★ mix_adjusted_organic_pricing_pct is THE moat metric: aggregates have no
+  // exchange price, so mix-adjusted organic pricing IS the local-monopoly test.
+  // Below 1% is the cleanest falsifier in this model.
+  "mix_adjusted_organic_pricing_pct", "organic_asp_growth_pct",
+  // ⚠ reported_asp_* are CONTEXT ONLY. reported_asp_signal_status carries
+  // "null_signal_mix_contaminated" during M&A integration, when the reported
+  // figure is mix-poisoned (Q2'26: −2% reported vs +3.7% organic mix-adjusted).
+  // Nothing downstream may score reported ASP while that flag is set.
+  "reported_asp_usd", "reported_asp_growth_pct", "reported_asp_signal_status",
+  "organic_volume_growth_pct", "reported_volume_growth_pct", "total_tons_millions",
+  // ⚠ weather_impact_flag governs whether a NEGATIVE organic-volume reading is
+  // real. Aggregates is the most weather-contaminated print in the book; the
+  // engine REMOVES (not reduces) the volume penalty when this is
+  // "material_headwind". Persisted so calibration can separate rain from demand.
+  "weather_impact_flag",
+  "cash_gross_profit_per_ton", "cogs_per_ton_growth_pct",
+  "cogs_per_ton_growth_ex_freight_pct", "energy_headwind",
+  "inventory_step_up_charge_musd",
+  "infrastructure_demand", "heavy_nonres_demand", "residential_demand",
+  "fy_revenue_guide_action", "fy_ebitda_guide_action",
+  // ⚠ Every multiple carries its BASIS tag. A forward multiple compared against
+  // a trailing one produces a spurious re-rating; the basis columns are what
+  // let a later reader tell which comparison a stored number supports.
+  "forward_pe", "forward_pe_consensus_basis", "ev_ebitda", "ev_ebitda_basis",
+  "pro_forma_ev_ebitda", "pro_forma_basis_consistent",
+  // Public construction funding regime — the V8.4 MLM weight-gate driver.
+  // ⚠ "short_term_extension" is the BASE CASE, not a downgrade.
+  "federal_authorization_status", "days_to_authorization_expiry",
+  "state_dot_budget_trend",
+  // ⚠ lna_integration_state is RENAMED from its payload key
+  // (md.fundamentals.ma_integration_state) — "ma_" already means MOVING AVERAGE
+  // (ma_signal) and MASTERCARD (ma_30d_return_pct) in this schema. Named for
+  // the deal it tracks. Leverage is scored on the GLIDEPATH, never the level.
+  "lna_integration_state", "pro_forma_net_leverage", "delever_glidepath_status",
+  "lna_synergies_credited_musd",
+  // Pro-forma share count books the $6.5B LNA stock consideration NOW.
+  // Pairs with the reused share_count_change_yoy_pct (raw YoY change).
+  "pro_forma_share_count_change_pct",
+  "reserve_tons_millions", "reserve_life_years",
+  // ⚠ roic_denominator_distorted=true means roic_pct is NOT a quality read on
+  // that row — the capital base was inflated by acquisitions ahead of their
+  // earnings. Same interpretive role as premium_pct_reliable above.
+  "roic_pct", "wacc_pct", "roic_denominator_distorted",
 ].join(",");
 
 // ── V8.2.0: CSV HEADER MIGRATION (pure-append schema evolution) ──────────────
@@ -579,8 +718,15 @@ for (const s of normalized) {
     md.cohort_valuation?.syk_pe ?? "",
     md.cohort_valuation?.bsx_pe ?? "",
     md.cohort_relative?.isrg_30d_return_pct ?? "",
-    md.cohort_relative?.cohort_rotation_pp ?? "",
-    md.cohort_relative?.cohort_rotation_active ?? "",
+    // V8.5.0: accept EITHER key — fetch v4.17 emits MLM's rotation as
+    // peer_rotation_pp / peer_rotation_active; ISRG and RDDT use
+    // cohort_rotation_pp / _active. One shared column keeps "this holding's
+    // rotation vs its own cohort" comparable across archetypes in attribution.
+    // Thresholds differ upstream (MLM −5pp / RDDT −8pp / ISRG −6pp) and the
+    // ACTIVE flag is already threshold-applied by fetch, so the flag compares
+    // cleanly even though the raw pp values are not directly comparable.
+    md.cohort_relative?.cohort_rotation_pp ?? md.cohort_relative?.peer_rotation_pp ?? "",
+    md.cohort_relative?.cohort_rotation_active ?? md.cohort_relative?.peer_rotation_active ?? "",
     md.factor_flow?.ihi_vs_spy_30d_pp ?? "",
     md.fundamentals?.procedure_growth_pct ?? "",
     md.fundamentals?.procedure_guide_low_pct ?? "",
@@ -628,6 +774,63 @@ for (const s of normalized) {
     esc(md.fundamentals?.competitive_threat ?? ""),
     md.fundamentals?.ps_pct_of_3y_avg ?? "",
     md.fundamentals?.own_history_window_partial ?? "",
+
+    // ─── V8.5.0 MLM additions (only MLM row populates these) ──────────────
+    md.cohort_valuation?.vmc_pe ?? "",
+    md.cohort_valuation?.crh_pe ?? "",
+    md.cohort_valuation?.exp_pe ?? "",
+    md.cohort_valuation?.mlm_vs_vmc_pct ?? "",
+    // ★★ The two flags that make cohort_premium_pct interpretable on MLM rows.
+    // premium_pct_reliable === false means the premium on this row is an
+    // accounting artifact (Quikrete divestiture gain in the TTM window), NOT a
+    // valuation observation. Written explicitly rather than left blank so a
+    // later reader can distinguish "gated" from "never populated".
+    md.cohort_valuation?.premium_pct_reliable ?? "",
+    md.cohort_valuation?.trailing_discount_artifact_suspected ?? "",
+    md.cohort_relative?.mlm_30d_return_pct ?? "",
+    md.cohort_relative?.vmc_spread_30d_pp ?? "",
+    md.cohort_relative?.vmc_dislocation_active ?? "",
+    md.factor_flow?.xlb_vs_spy_30d_pp ?? "",
+    md.fundamentals?.mix_adjusted_organic_pricing_pct ?? "",
+    md.fundamentals?.organic_asp_growth_pct ?? "",
+    md.fundamentals?.reported_asp_usd ?? "",
+    md.fundamentals?.reported_asp_growth_pct ?? "",
+    esc(md.fundamentals?.reported_asp_signal_status ?? ""),
+    md.fundamentals?.organic_volume_growth_pct ?? "",
+    md.fundamentals?.reported_volume_growth_pct ?? "",
+    md.fundamentals?.total_tons_millions ?? "",
+    esc(md.fundamentals?.weather_impact_flag ?? ""),
+    md.fundamentals?.cash_gross_profit_per_ton ?? "",
+    md.fundamentals?.cogs_per_ton_growth_pct ?? "",
+    md.fundamentals?.cogs_per_ton_growth_ex_freight_pct ?? "",
+    esc(md.fundamentals?.energy_headwind ?? ""),
+    md.fundamentals?.inventory_step_up_charge_musd ?? "",
+    esc(md.fundamentals?.infrastructure_demand ?? ""),
+    esc(md.fundamentals?.heavy_nonres_demand ?? ""),
+    esc(md.fundamentals?.residential_demand ?? ""),
+    esc(md.fundamentals?.fy_revenue_guide_action ?? ""),
+    esc(md.fundamentals?.fy_ebitda_guide_action ?? ""),
+    md.fundamentals?.forward_pe ?? "",
+    esc(md.fundamentals?.forward_pe_consensus_basis ?? ""),
+    md.fundamentals?.ev_ebitda ?? "",
+    esc(md.fundamentals?.ev_ebitda_basis ?? ""),
+    md.fundamentals?.pro_forma_ev_ebitda ?? "",
+    md.fundamentals?.pro_forma_basis_consistent ?? "",
+    esc(md.fundamentals?.federal_authorization_status ?? ""),
+    md.fundamentals?.days_to_authorization_expiry ?? "",
+    esc(md.fundamentals?.state_dot_budget_trend ?? ""),
+    // ⚠ Column lna_integration_state is fed from the PAYLOAD key
+    // ma_integration_state — deliberate rename, see the schema note above.
+    esc(md.fundamentals?.ma_integration_state ?? ""),
+    md.fundamentals?.pro_forma_net_leverage ?? "",
+    esc(md.fundamentals?.delever_glidepath_status ?? ""),
+    md.fundamentals?.lna_synergies_credited_musd ?? "",
+    md.fundamentals?.pro_forma_share_count_change_pct ?? "",
+    md.fundamentals?.reserve_tons_millions ?? "",
+    md.fundamentals?.reserve_life_years ?? "",
+    md.fundamentals?.roic_pct ?? "",
+    md.fundamentals?.wacc_pct ?? "",
+    md.fundamentals?.roic_denominator_distorted ?? "",
   ].join(",");
 
   csvContent += row + "\n";
@@ -750,9 +953,22 @@ const dailyEntry = {
         meta_pe:        md.cohort_valuation.meta_pe ?? null,
         pins_pe:        md.cohort_valuation.pins_pe ?? null,
         app_pe:         md.cohort_valuation.app_pe ?? null,
+        // V8.5.0: MLM aggregates cohort (weighted VMC .50 / CRH .25 / EXP .25).
+        mlm_pe:         md.cohort_valuation.mlm_pe ?? null,
+        vmc_pe:         md.cohort_valuation.vmc_pe ?? null,
+        crh_pe:         md.cohort_valuation.crh_pe ?? null,
+        exp_pe:         md.cohort_valuation.exp_pe ?? null,
+        mlm_vs_vmc_pct: md.cohort_valuation.mlm_vs_vmc_pct ?? null,
+        cohort_weighting: md.cohort_valuation.cohort_weighting ?? null,
         basis:          md.cohort_valuation.basis ?? null,
         cohort_avg_pe:  md.cohort_valuation.cohort_avg_pe ?? null,
         premium_pct:    md.cohort_valuation.premium_pct ?? null,
+        // ★★ Interpretive flags for premium_pct. FALSE means the premium above
+        // is an accounting artifact, not a valuation read. daily-log.jsonl is
+        // the authoritative record that feeds attribution → calibration, so
+        // storing the number without these would teach a false relationship.
+        premium_pct_reliable: md.cohort_valuation.premium_pct_reliable ?? null,
+        trailing_discount_artifact_suspected: md.cohort_valuation.trailing_discount_artifact_suspected ?? null,
       } : null,
       // Cohort relative — 30d returns + rotation (NOW keys + V8.3.0 ISRG keys)
       cohort_relative: md.cohort_relative ? {
@@ -771,6 +987,21 @@ const dailyEntry = {
         meta_30d_return_pct:         md.cohort_relative.meta_30d_return_pct ?? null,
         pins_30d_return_pct:         md.cohort_relative.pins_30d_return_pct ?? null,
         app_30d_return_pct:          md.cohort_relative.app_30d_return_pct ?? null,
+        // V8.5.0: MLM aggregates rotation. peer_rotation_* are the NEW key
+        // names from fetch v4.17; both are recorded raw here and ALSO folded
+        // into the shared cohort_rotation_* CSV columns by the row builder.
+        mlm_30d_return_pct:          md.cohort_relative.mlm_30d_return_pct ?? null,
+        vmc_30d_return_pct:          md.cohort_relative.vmc_30d_return_pct ?? null,
+        crh_30d_return_pct:          md.cohort_relative.crh_30d_return_pct ?? null,
+        exp_30d_return_pct:          md.cohort_relative.exp_30d_return_pct ?? null,
+        cohort_weighting:            md.cohort_relative.cohort_weighting ?? null,
+        peer_rotation_pp:            md.cohort_relative.peer_rotation_pp ?? null,
+        peer_rotation_active:        md.cohort_relative.peer_rotation_active ?? null,
+        // ★ The TWIN read — deliberately NOT folded into the cohort average.
+        // MLM and VMC are the two dominant US aggregates franchises; diluting
+        // this inside a 3-name mean destroys the archetype's best tactical signal.
+        vmc_spread_30d_pp:           md.cohort_relative.vmc_spread_30d_pp ?? null,
+        vmc_dislocation_active:      md.cohort_relative.vmc_dislocation_active ?? null,
       } : null,
       // Factor flow — software cohort vs SPY (NOW row primarily)
       igv_vs_spy_30d_pp:    md.factor_flow?.igv_vs_spy_30d_pp ?? null,
@@ -864,6 +1095,69 @@ const dailyEntry = {
       competitive_threat:              md.fundamentals?.competitive_threat ?? null,
       ps_pct_of_3y_avg:                md.fundamentals?.ps_pct_of_3y_avg ?? null,
       own_history_window_partial:      md.fundamentals?.own_history_window_partial ?? null,
+
+      // ─── V8.5.0 MLM additions (MLM row only; null elsewhere) ───────────
+      xlb_vs_spy_30d_pp:               md.factor_flow?.xlb_vs_spy_30d_pp ?? null,
+      // ★ THE moat metric. Aggregates have no exchange price, so mix-adjusted
+      // organic pricing IS the local-monopoly test. Below 1% is the cleanest
+      // falsifier in this model — thesis-level regardless of volume.
+      mix_adjusted_organic_pricing_pct: md.fundamentals?.mix_adjusted_organic_pricing_pct ?? null,
+      organic_asp_growth_pct:          md.fundamentals?.organic_asp_growth_pct ?? null,
+      // ⚠ reported_asp_* are CONTEXT ONLY while reported_asp_signal_status is
+      // "null_signal_mix_contaminated" — the figure is mix-poisoned by M&A
+      // (Q2'26: −2% reported vs +3.7% organic mix-adjusted). Never score it.
+      reported_asp_usd:                md.fundamentals?.reported_asp_usd ?? null,
+      reported_asp_growth_pct:         md.fundamentals?.reported_asp_growth_pct ?? null,
+      reported_asp_signal_status:      md.fundamentals?.reported_asp_signal_status ?? null,
+      organic_volume_growth_pct:       md.fundamentals?.organic_volume_growth_pct ?? null,
+      reported_volume_growth_pct:      md.fundamentals?.reported_volume_growth_pct ?? null,
+      total_tons_millions:             md.fundamentals?.total_tons_millions ?? null,
+      // ⚠ Governs whether a negative organic-volume reading is real demand
+      // weakness. The engine REMOVES (not reduces) the penalty when this is
+      // "material_headwind". Persisted so calibration can separate rain from demand.
+      weather_impact_flag:             md.fundamentals?.weather_impact_flag ?? null,
+      cash_gross_profit_per_ton:       md.fundamentals?.cash_gross_profit_per_ton ?? null,
+      cogs_per_ton_growth_pct:         md.fundamentals?.cogs_per_ton_growth_pct ?? null,
+      cogs_per_ton_growth_ex_freight_pct: md.fundamentals?.cogs_per_ton_growth_ex_freight_pct ?? null,
+      energy_headwind:                 md.fundamentals?.energy_headwind ?? null,
+      inventory_step_up_charge_musd:   md.fundamentals?.inventory_step_up_charge_musd ?? null,
+      infrastructure_demand:           md.fundamentals?.infrastructure_demand ?? null,
+      heavy_nonres_demand:             md.fundamentals?.heavy_nonres_demand ?? null,
+      residential_demand:              md.fundamentals?.residential_demand ?? null,
+      fy_revenue_guide_action:         md.fundamentals?.fy_revenue_guide_action ?? null,
+      fy_ebitda_guide_action:          md.fundamentals?.fy_ebitda_guide_action ?? null,
+      // ⚠ Every multiple carries its BASIS tag. Comparing a forward multiple
+      // against a trailing one fabricates a re-rating; the basis fields are
+      // what let a later reader tell which comparison a number supports.
+      forward_pe:                      md.fundamentals?.forward_pe ?? null,
+      forward_pe_consensus_basis:      md.fundamentals?.forward_pe_consensus_basis ?? null,
+      ev_ebitda:                       md.fundamentals?.ev_ebitda ?? null,
+      ev_ebitda_basis:                 md.fundamentals?.ev_ebitda_basis ?? null,
+      pro_forma_ev_ebitda:             md.fundamentals?.pro_forma_ev_ebitda ?? null,
+      pro_forma_basis_consistent:      md.fundamentals?.pro_forma_basis_consistent ?? null,
+      // Public construction funding regime — the V8.4 MLM weight-gate driver.
+      // ⚠ "short_term_extension" is the BASE CASE, not a downgrade.
+      federal_authorization_status:    md.fundamentals?.federal_authorization_status ?? null,
+      days_to_authorization_expiry:    md.fundamentals?.days_to_authorization_expiry ?? null,
+      state_dot_budget_trend:          md.fundamentals?.state_dot_budget_trend ?? null,
+      // ⚠ Payload key ma_integration_state; the CSV column is renamed
+      // lna_integration_state to escape the ma_ prefix collision. JSONL keeps
+      // the payload key so the two artifacts stay traceable to each other.
+      ma_integration_state:            md.fundamentals?.ma_integration_state ?? null,
+      // ⚠ Leverage is scored on the GLIDEPATH, never the level. 3.7x at close
+      // is the plan working as announced; a missed schedule is the signal.
+      pro_forma_net_leverage:          md.fundamentals?.pro_forma_net_leverage ?? null,
+      delever_glidepath_status:        md.fundamentals?.delever_glidepath_status ?? null,
+      lna_synergies_credited_musd:     md.fundamentals?.lna_synergies_credited_musd ?? null,
+      pro_forma_share_count_change_pct: md.fundamentals?.pro_forma_share_count_change_pct ?? null,
+      reserve_tons_millions:           md.fundamentals?.reserve_tons_millions ?? null,
+      reserve_life_years:              md.fundamentals?.reserve_life_years ?? null,
+      // ⚠ roic_denominator_distorted=true means roic_pct is NOT a quality read
+      // on that row — the capital base was inflated by acquisitions ahead of
+      // their earnings. Same interpretive role as premium_pct_reliable.
+      roic_pct:                        md.fundamentals?.roic_pct ?? null,
+      wacc_pct:                        md.fundamentals?.wacc_pct ?? null,
+      roic_denominator_distorted:      md.fundamentals?.roic_denominator_distorted ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
