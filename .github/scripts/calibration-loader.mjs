@@ -60,6 +60,35 @@
 //   as evidence that its VALUATION history is equally trustworthy. Different
 //   window, different question.
 //
+// v8.5.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The RDDT → MLM swap needs nothing here. The v1.3 pending mechanism is
+//   symbol-agnostic and behaves identically in both directions:
+//     • MLM enters at n=0 against the 60-observation threshold and surfaces
+//       "CALIBRATION PENDING — 0/60 observations" from its first run, with the
+//       accompanying instruction not to make own-history-percentile claims.
+//       Eligibility should arrive around late October / November 2026.
+//     • RDDT simply stops appearing in calibration-v2.json as its rows age out
+//       of the trailing window. No retirement handling is needed.
+//   ✓ THE RDDT PARTIAL-WINDOW CAVEAT ABOVE RETIRES ENTIRELY. It existed because
+//   RDDT listed in March 2024 and had the shallowest own-history in the book.
+//   MLM has traded continuously since 1994 and carries roughly two decades of
+//   Item 1A disclosure and multi-cycle valuation history, including the
+//   2008-2011 construction collapse. There is no partial-window constraint on
+//   this name and none is carried in the scoring layers.
+//   ⚠ ONE THING NOT TO CONFLATE, because it is the opposite trap. MLM's deep
+//   PRICE history says nothing about its SCORE history in this system, which
+//   starts at zero on the swap date exactly as MA's and ISRG's did. The
+//   60-observation gate measures the latter. A reader who knows this company
+//   has thirty years of market data may be tempted to treat an early temporal z
+//   as well-founded — it is not; the baseline it is measured against is days
+//   old. Same gate, same discipline, for a name whose long history makes the
+//   shortcut more tempting rather than less.
+//   ⚠ Separately: MLM's trailing P/E is currently an accounting artifact (the
+//   Quikrete divestiture gain — fetch v4.17 gates it, score-engine V8.4 scores
+//   it zero). That does NOT touch temporal z, which measures score-vs-own-
+//   baseline rather than any valuation multiple. Noted only so the two gates
+//   are not mistaken for one another.
+//
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
 //
