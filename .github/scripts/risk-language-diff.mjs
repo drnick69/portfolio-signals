@@ -1,5 +1,50 @@
 #!/usr/bin/env node
-// risk-language-diff.mjs v1.2 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+// risk-language-diff.mjs v1.3 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+//
+// v1.3 (August 2026): HOLDINGS SWAP — RDDT out, MLM in (Martin Marietta
+// Materials, Inc., CIK 916076), generate-signals v8.5.0 sync; still 14. MLM is
+// a plain US filer (10-K/10-Q Item 1A — the MSFT/NOW/MA/ISRG class), so no form
+// handling changes. CIK verified against EDGAR at build time: MARTIN MARIETTA
+// MATERIALS INC, CIK 0000916076, EIN 56-1848578, State of Incorporation NC,
+// SIC 1400 (Mining & Quarrying of Nonmetallic Minerals, No Fuels), Commission
+// file number 1-12744, fiscal year end 1231.
+// RDDT's fallback CIK (1713445) is REMOVED rather than left behind, exactly as
+// IBIT's was at v1.2: this script is stateless and only ever processes the
+// current HOLDINGS list, so unlike score-engine's retired archetype branches
+// there is no historical re-scoring path that could still reach it.
+//
+// ✓ DEEP FILING HISTORY — the v1.2 caveat INVERTS here. Where RDDT listed in
+// March 2024 and carried only ~2.4 years of EDGAR history, Martin Marietta has
+// filed since the mid-1990s and has roughly two decades of Item 1A risk-factor
+// disclosure (Item 1A became mandatory in 2005). Prior same-form comparators
+// sit comfortably inside the 40-filing lookback for both 10-K and 10-Q, and
+// there is a genuine multi-cycle baseline for what this company's risk language
+// looks like in calm conditions — including through the 2008-2011 construction
+// collapse, which is the most informative stress period this business has.
+//
+// ⚠ BUT TWO SOURCES OF EXPECTED CHURN IN THE NEXT FEW FILINGS. Both will
+// produce large Item 1A diffs that are CORPORATE-ACTION and CALENDAR artifacts
+// rather than deterioration in the aggregates business. Structurally this is
+// the same "read the next few diffs as baseline, not signal" caution the v1.2
+// block carried for RDDT — same shape, entirely different cause:
+//   (a) THE LHOIST NORTH AMERICA ACQUISITION. A $13.5B transaction ($7.0B cash
+//       + $6.5B stock) that closes in H2 2026 and takes combined net leverage
+//       to roughly 3.7x. The next 10-Q/10-K will almost certainly add a block
+//       of new risk factors — integration execution, debt covenants and
+//       leverage, synergy realization, and lime/industrial-minerals end-market
+//       risks that simply did not exist in the prior filing. Expect a high
+//       churn rate. That is the company describing a deal it announced, not a
+//       signal that the underlying business got riskier.
+//   (b) THE SURFACE TRANSPORTATION AUTHORIZATION DEADLINE. IIJA authorizations
+//       expire 2026-09-30. Whatever Congress does — a multiyear bill, a
+//       short-term extension, or a lapse — the government-funding risk factor
+//       will be revised in the next filing, because the paragraph describing
+//       the funding environment necessarily changes when the statute does. A
+//       revision there is expected and near-certain; only its DIRECTION is
+//       informative. Read the substance, not the churn magnitude.
+// Once the LNA language settles (likely two filings after close) and the
+// authorization outcome is in the text, MLM should produce cleaner diffs than
+// RDDT ever could, precisely because the baseline is deep.
 //
 // v1.2 (August 2026): HOLDINGS SWAP — IBIT out, RDDT in (Reddit, Inc.,
 // CIK 1713445), generate-signals v8.4.0 sync; still 14. RDDT is a plain US
@@ -103,7 +148,7 @@ const HOLDINGS = [
   { symbol: "ENB",   edgarTicker: "ENB" },
   { symbol: "PBR.A", edgarTicker: "PBR" },   // same registrant as the preferreds
   { symbol: "KOF",   edgarTicker: "KOF" },
-  { symbol: "RDDT",  edgarTicker: "RDDT" },  // Reddit — 10-K/10-Q Item 1A (v1.2); IPO Mar 2024, shallow history
+  { symbol: "MLM",   edgarTicker: "MLM" },   // Martin Marietta Materials — 10-K/10-Q Item 1A (v1.3); ~2 decades of Item 1A history
   { symbol: "MA",    edgarTicker: "MA" },    // Mastercard — 10-K/10-Q Item 1A (v1.1)
   { symbol: "ISRG",  edgarTicker: "ISRG" },  // Intuitive Surgical — 10-K/10-Q Item 1A (v1.1)
   { symbol: "GLNCY", edgarTicker: null },    // Glencore — LSE listing, no SEC reporting
@@ -116,7 +161,9 @@ const FALLBACK_CIK = {
   MSFT: 789019, ASML: 937966, LIN: 1707925, TMO: 97745, NOW: 1373715,
   LHX: 202058, ENB: 895728, PBR: 1119639, KOF: 910631,
   MA: 1141391, ISRG: 1035267,   // v1.1 — verified against EDGAR filing indexes
-  RDDT: 1713445,                // v1.2 — Reddit, Inc.; verified against EDGAR (Delaware, SIC 7374)
+  MLM: 916076,                  // v1.3 — Martin Marietta Materials, Inc.; verified against EDGAR
+                                //        (NC incorporation, SIC 1400 Mining & Quarrying of
+                                //        Nonmetallic Minerals, file no. 1-12744, EIN 56-1848578)
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
