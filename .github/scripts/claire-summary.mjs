@@ -64,6 +64,59 @@
 //   business substance) is a QUALITY problem that banned substrings cannot
 //   catch — the words involved are ordinary English. Prompt guidance is the
 //   right instrument; a hard gate is not. Revisit if the logs show otherwise.
+// v2.3 (August 2026): HOLDINGS SWAP — RDDT out, MLM in (generate-signals
+//   v8.5.0 sync; still 14). PORTFOLIO, TICKER_IDENTITY, the prompt glossary,
+//   the disambiguation block, and one voice example swap over. The Reddit voice
+//   example is REPLACED rather than dropped so the example count and the
+//   variety of sentence shapes are preserved.
+//
+//   MLM inverts the RDDT problem. Reddit was a name Claire probably KNEW
+//   attached to a business she did not — the risk was a fluent sentence about
+//   the website. Martin Marietta is a name she has almost certainly NEVER heard
+//   attached to a business she has never thought about. There is no false
+//   anchor to fight, but the sentence has to carry all the explanatory weight
+//   itself, and the failure mode is vagueness: "the construction company had a
+//   soft quarter" is fluent, true, and completely uninformative.
+//   The good news is that this business is a gift for Claire's voice — the moat
+//   is genuinely explicable in one clause. Rock is heavy and cheap, so hauling
+//   it far costs more than it is worth, so every quarry owns its own patch.
+//   That single fact explains the whole company and needs no market vocabulary.
+//
+//   ★★ HARD identity gate: MLM DOES get poison words — the first new entry
+//   since ISRG at v2.1, and a deliberate departure from the MA (v2.1) and RDDT
+//   (v2.2) non-entries. The policy those followed is "documented failure
+//   classes only, because a false positive disqualifies a good candidate." MLM
+//   satisfies that policy rather than bending it:
+//     • The collision is EXACT and certain, not speculative. "MLM" is the
+//       standard abbreviation for multi-level marketing — the most common
+//       expansion of those three letters in English. This is a structural
+//       property of the ticker, the same class as AMKBY→AmBev, which this book
+//       HAS produced. It is not a guess about a plausible future drift.
+//     • The banned strings have ZERO legitimate use in a sentence about
+//       quarries. There is no correct Claire sentence about crushed stone that
+//       contains "downline". The false-positive risk the policy guards against
+//       is simply absent.
+//
+//   ⚠ DIVERGENCE FROM generate-signals v8.5.0, deliberate — read before
+//   "fixing" the apparent inconsistency. That file bans the marketing terms but
+//   NOT "lockheed"; this file bans BOTH. The reason is the output register, not
+//   an oversight:
+//     • generate-signals produces analytical prose that may legitimately
+//       disambiguate ("Martin Marietta Materials, not Lockheed Martin"), so a
+//       hard fail there would punish a CORRECT output and burn a corrective turn.
+//     • Claire produces one plain-English descriptive sentence that never
+//       disambiguates and has no reason to name Lockheed at all. If "Lockheed"
+//       appears in an MLM Claire sentence, the model has drifted to the wrong
+//       company — and the result would be fluent, confident, and about defense
+//       contracts. Worse, LHX sits in this same portfolio, so the drift could
+//       produce two rows describing the same imagined business.
+//     • The gate is PER-TICKER, so banning "lockheed" for MLM cannot affect the
+//       LHX sentence, whose own identity text names Lockheed legitimately as
+//       one of the five big primes.
+//
+//   NOT banned, deliberately: "vulcan". Vulcan Materials is MLM's one genuine
+//   competitor and the two are constantly compared, exactly as Visa is to
+//   Mastercard. Mirrors the MA/Visa precedent at v2.1.
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -78,7 +131,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL_ID = "claude-opus-4-8";
 const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
 
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "RDDT", "KOF", "PBR.A", "AMKBY", "MA", "ISRG"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "MLM", "KOF", "PBR.A", "AMKBY", "MA", "ISRG"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -92,7 +145,7 @@ const TICKER_IDENTITY = {
   "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
   "NOW":   { name: "ServiceNow",           business: "enterprise software company that helps large organizations automate their internal workflows — IT operations, HR requests, customer service ticketing — and is now a leading provider of 'agentic AI' tools that let companies deploy AI assistants for routine business tasks. Used heavily by Fortune 500 companies and the US federal government" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
-  "RDDT":  { name: "Reddit, Inc.",         business: "the online discussion site, where people ask questions and swap advice across thousands of topic communities. Almost all its money comes from selling advertising alongside those conversations, and it separately licenses its archive of human discussion to AI companies training their systems. The live business question is how many of its visitors arrive through Google searches, because that traffic depends on decisions Google makes, not Reddit" },
+  "MLM":   { name: "Martin Marietta Materials", business: "American company that digs crushed stone, sand, and gravel out of quarries and sells it to road builders and construction crews. The quirk that makes the business work: rock is heavy and cheap, so trucking it any real distance costs more than the rock is worth — which means each quarry effectively owns its own patch of the map that nobody else can economically serve. Prices therefore tend to drift upward year after year regardless of the economy. Roughly a third of what they sell goes into roads and bridges paid for with government money, so federal highway funding matters a lot to how much they ship. They are also in the middle of buying a large lime business. Note: MLM here is Martin Marietta MATERIALS, the quarry company. It is NOT multi-level marketing, and it is NOT Lockheed Martin — those two companies split apart in the 1990s and this one has no defense work at all" },
   "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
   "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
   "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
@@ -114,7 +167,7 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - ENB     = Enbridge (Canadian oil & gas pipeline operator)
 - NOW     = ServiceNow (enterprise software that automates IT/HR/customer service workflows, increasingly via AI agents; heavy Fortune 500 and US federal government customer base)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
-- RDDT    = Reddit, Inc. (the online discussion site — earns its money selling advertising against those conversations, plus licensing its archive of human discussion to AI companies)
+- MLM     = Martin Marietta Materials (owns quarries; sells crushed stone, sand and gravel to road builders and construction crews — NOT multi-level marketing, NOT Lockheed Martin)
 - KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
 - PBR.A   = Petrobras preferred shares (Brazilian state oil major)
 - AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
@@ -128,7 +181,8 @@ CRITICAL DISAMBIGUATION:
 - LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
 - NOW is the ticker for ServiceNow, the enterprise workflow-automation software company. It is NEVER a generic adverb and NEVER any retail or consumer brand. ServiceNow's product helps big companies and government agencies automate the boring, repetitive parts of running an organization — IT tickets, HR forms, employee onboarding — and they're now leaders in deploying AI agents to do this work autonomously.
 - MA is the ticker for Mastercard, the payments network. It is NEVER Massachusetts, never "moving average," and never any other company. Mentioning Visa in a Mastercard sentence is fine — they're the two halves of the same duopoly and are often compared — but the sentence must be ABOUT Mastercard.
-- RDDT is Reddit, Inc. Claire may already recognise Reddit as a website — that is a fine anchor, but the sentence must be about the BUSINESS: advertising revenue, how many people visit, what advertisers pay, whether Google keeps sending traffic. It must NOT be about site drama, moderators, individual communities, or anything posted on Reddit. Reddit-the-website having a controversy is not the same thing as Reddit-the-company having a business problem, and conflating them would read fluently while telling her something false. Also: this is a profitable operating company, so do not frame it as a "meme stock" or a gamble — that is both jargon and inaccurate. Mentioning Google is expected and correct; a large share of Reddit's visitors arrive through Google searches, which is the central uncertainty in the story.
+- MLM is Martin Marietta Materials, which owns quarries and sells crushed stone, sand and gravel. This is the easiest ticker in the portfolio to get wrong, and it can go wrong in two completely different directions. FIRST: "MLM" is also the everyday abbreviation for multi-level marketing — the pyramid-style selling schemes people get recruited into. That has nothing whatsoever to do with this company. If you are about to write "multi-level marketing", "network marketing", "downline", or "pyramid", STOP — you are writing about the wrong subject entirely. SECOND: Martin Marietta is NOT Lockheed Martin. The original Martin Marietta merged with Lockheed back in 1995, but the materials business was split off separately and has no defense, aerospace or military work of any kind. This portfolio already holds L3Harris (LHX) for defense — do not let the two bleed into one another. Mentioning Vulcan Materials is fine and often useful; it is the one genuine competitor and the two are constantly compared.
+  What an MLM sentence SHOULD be about: the price they get per ton of rock, how much rock they are actually shipping, whether government road funding keeps flowing, and how the lime acquisition is going. Two specific traps to avoid. (a) WEATHER IS NOT DEMAND. Heavy rain stops construction crews working, so a wet quarter means less rock shipped — that is the sky, not the business weakening, and saying "demand is falling" when it rained would read perfectly fluently and be false. (b) DO NOT CALL IT CHEAP. Their reported earnings currently look artificially large because of a one-off gain from swapping some assets, which makes the stock screen as though it is on a bargain price. It is not. Never describe this one as cheap or a bargain on that basis.
 - ISRG is Intuitive Surgical, the da Vinci surgical robot company. It is NEVER Intuit — Intuit is the TurboTax/QuickBooks software company (ticker INTU), which is not in this portfolio. If you are about to write "TurboTax," "QuickBooks," or "tax software" in an ISRG sentence, STOP — you have the wrong company. Intuitive Surgical makes robots that help surgeons operate. Mentioning Medtronic or Johnson & Johnson as competitors is fine — they're real rivals building competing surgical robots.
 
 RULES:
@@ -145,7 +199,7 @@ EXAMPLES of the voice:
 - "L3Harris is down a bit, but defense spending is on a steady tailwind, so nothing has really changed about the business."
 - "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
 - "Linde is having a quiet week — industrial gas demand is steady and they keep raising prices a little each quarter, which is the whole story with this one."
-- "Reddit dropped hard even though it had a strong quarter — the worry is that Google may send fewer people its way, and a lot of its visitors arrive that route."
+- "Martin Marietta slipped after its last update, but the shortfall was mostly rain in Texas stopping crews from working — the price it gets for a ton of crushed stone is still creeping up, which is the part that actually matters."
 - "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
 - "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
 - "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
@@ -226,15 +280,35 @@ const HARD_BANNED_BY_TICKER = {
   // "MA" — deliberately NO entry (mirrors generate-signals v8.3.0): the bare
   // ticker collides with everyday prose, and Visa mentions are legitimate
   // (duopoly twin). Documented-failure classes only.
-  // "RDDT" — deliberately NO entry (v2.2, mirrors generate-signals v8.4.0).
-  // No identity-confusion failure is documented for this ticker. Its
-  // plausible failure mode is a sentence about site drama or a viral post
-  // instead of the advertising business — but the vocabulary for that is
-  // ordinary English ("post", "community", "users"), all of which appear
-  // legitimately in a correct sentence about Reddit. Banning those strings
-  // would disqualify good candidates and still miss bad ones. Handled in
-  // the prompt's CRITICAL DISAMBIGUATION block instead. Google mentions are
-  // legitimate and expected — the referral dependency is the actual story.
+  // ★★ v2.3: MLM DOES get an entry — the first new one since ISRG, and a
+  // deliberate departure from the MA/RDDT non-entries above. The governing
+  // policy is "documented failure classes only", and MLM satisfies it rather
+  // than bending it: "MLM" is the standard abbreviation for multi-level
+  // marketing, so the collision is exact and certain rather than speculative
+  // (same class as AMKBY→AmBev, which this book HAS produced), and none of the
+  // banned strings has any legitimate use in a sentence about quarries.
+  //
+  // ⚠ "lockheed" is banned HERE but NOT in generate-signals v8.5.0. That is
+  // deliberate and follows from the output register. Analytical prose may
+  // legitimately disambiguate ("Martin Marietta Materials, not Lockheed
+  // Martin"), so a hard fail there would punish a correct output. A Claire
+  // sentence never disambiguates — it is one plain descriptive line — so
+  // "Lockheed" appearing in it means the model has drifted to the wrong
+  // company, and the result would be fluent, confident and about defense
+  // contracts. LHX sits in this same portfolio, so the drift could produce two
+  // rows describing the same imagined business. The gate is PER-TICKER, so this
+  // cannot affect the LHX sentence, whose identity text names Lockheed
+  // legitimately as one of the five big primes.
+  //
+  // NOT banned, deliberately: /vulcan/. Vulcan Materials is MLM's one genuine
+  // competitor and the two are constantly compared — the same reasoning that
+  // keeps Visa legitimate in a Mastercard sentence (see the MA note above).
+  // Also NOT banned: defense/military/aerospace vocabulary. Those would catch
+  // the Lockheed drift, but a correct sentence might mention federal
+  // infrastructure spending, and "lockheed" already catches the confusion at
+  // its root without that risk.
+  "MLM":   [/\bmulti-?level marketing\b/i, /\bnetwork marketing\b/i, /\bdownline\b/i,
+            /\bpyramid scheme\b/i, /\blockheed\b/i],
 };
 
 // Jargon blacklist (from prompt RULES). Soft.
