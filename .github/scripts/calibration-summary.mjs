@@ -46,6 +46,29 @@
 // are unweighted by volatility — that is a known and accepted simplification
 // across all tickers, but RDDT is where it bites hardest.
 //
+// v8.5.0 sync (August 2026) — NO CODE CHANGE REQUIRED; note only. The
+// RDDT → MLM swap behaves exactly like the ETHA → NOW and IBIT → RDDT
+// precedents: MLM's panel begins accumulating from its first attributed date
+// and will show small-n / insufficient-data grades for its first weeks
+// (correct, not a bug), while RDDT's historical stats persist until its log
+// entries age out.
+// ✓ THE RDDT VOLATILITY CAUTION ABOVE RETIRES. MLM is a beta-1.11 name with
+// correspondingly tight scoring bands (score-engine V8.4: RSI 38/70, ±2% daily
+// noise floor, against RDDT's 32/72 and ±4%), so its forward-return
+// distribution is far closer to LIN's or MA's than to RDDT's. The known
+// simplification that these grades are unweighted by volatility still applies
+// across all tickers — it simply bites much less on this one. MLM panels should
+// be readable at smaller n than RDDT's were.
+// ⚠ A CALENDAR CAUTION REPLACES THE VOLATILITY ONE, and it is sharper in the
+// first two months. Two scheduled events land inside MLM's earliest panels: the
+// surface-transportation authorization expires 2026-09-30, and the Lhoist
+// acquisition closes in H2 2026. Both are known, dated, and capable of moving
+// the stock hard on a single session for reasons unrelated to signal quality.
+// An early MLM hit rate computed over a handful of observations that straddle
+// those dates is measuring the calendar as much as the model. Prefer to judge
+// this name's calibration from panels that begin after the authorization
+// outcome is settled and the acquisition has closed.
+//
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
 
