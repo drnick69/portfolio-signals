@@ -1,5 +1,56 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.16 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.17 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.17 (August 2026): HOLDINGS SWAP — sold RDDT (Reddit), bought MLM
+// (Martin Marietta Materials / reserve_moat_infrastructure_compounder).
+// Still 14 scored holdings.
+//   Removals:
+//     - RDDT removed from SYMBOLS
+//     - PINS, APP, XLC aux entries removed (RDDT-only; no other consumer)
+//     - ⚠ META is NOT removed. It carries purpose "msft_cohort+rddt_cohort"
+//       and is LOAD-BEARING for the MSFT mega-cap cohort. Deleting it with the
+//       ads cohort would silently break MSFT cohort_valuation and
+//       cohort_relative. Its purpose tag is narrowed back to "msft_cohort".
+//   Additions for MLM (cohort pattern analogous to ISRG/RDDT):
+//     - VMC, CRH, EXP aux quotes WITH metrics (US aggregates cohort P/E).
+//       VMC is the only true like-for-like pure play and carries 50% of the
+//       cohort weight; CRH and EXP carry 25% each as the breadth check.
+//       ★ The cohort average here is WEIGHTED, unlike every prior cohort in
+//         this file (which use simple means). Weights renormalize over
+//         whichever peers actually resolved.
+//     - XLB aux quote (Materials Select Sector SPDR — materials factor proxy)
+//     - cohort_valuation (MLM vs VMC/CRH/EXP weighted TRAILING P/E)
+//     - cohort_relative (peer_rotation_pp = MLM 30d − weighted cohort 30d;
+//       rotation_active = TRUE if < -5pp. Threshold is TIGHTER than RDDT's -8
+//       because MLM beta is 1.11, not 1.94 — a 5pp spread is real information
+//       on this name. vmc_spread_30d_pp is carried SEPARATELY: the twin
+//       comparison is the flagship tactical read, the 3-name cohort is breadth.)
+//     - factor_flow.xlb_vs_spy_30d_pp (materials sector bid signal)
+//     - New fetchMLMHistoricalReturns() (6 Alpaca calls: MLM, VMC, CRH, EXP,
+//       XLB, SPY — same call budget as the RDDT function it replaces)
+//     - fundamentals v1 explicit-null fields: the mix-adjusted organic pricing
+//       block (THE moat metric), organic vs reported volume, cash gross profit
+//       per ton, COGS/ton, end-market split, weather flag, the LNA pro-forma
+//       block, federal authorization + state DOT categoricals, and NET share
+//       count change (negative = buyback — MLM genuinely satisfies the
+//       criterion, the inverse of RDDT's position)
+//
+//   ★★ NEW GATE — trailing_discount_artifact_suspected ★★
+//   MLM's TTM window contains a large non-operating gain from the Quikrete
+//   asset exchange: trailing P/E ~12.9x against a ~26.8x forward, and a TTM
+//   profit margin (36.7%) that EXCEEDS gross margin (28.2%) — impossible from
+//   operations. Finnhub aux metrics are trailing-basis, so the cohort premium
+//   computed here reads roughly -50% versus the aggregates cohort and the
+//   inherited RDDT zone logic would label that "COMPRESSED (BUY)". That is a
+//   fabricated buy signal sourced entirely from an accounting gain.
+//   Score-engine Guardrail A cannot help at this layer because it needs a
+//   FORWARD P/E, which is LLM-sourced downstream and unavailable here.
+//   So this file gates it itself: two aggregates producers with materially
+//   identical business models do not trade at half each other's multiple, so a
+//   trailing discount steeper than 35% vs a same-industry cohort is an artifact,
+//   not an opportunity. When it fires, premium_pct is still emitted for the
+//   record but premium_pct_reliable goes FALSE and the zone label becomes
+//   ARTIFACT_SUSPECTED so nothing downstream can read it as a buy.
 //
 // v4.16 (August 2026): HOLDINGS SWAP — sold IBIT (spot BTC ETF), bought
 // RDDT (Reddit / hypergrowth_platform_monetizer). Still 14 scored holdings.
@@ -132,7 +183,7 @@ const SYMBOLS = [
   { symbol: "TMO",   finnhub: "TMO",   td: "TMO" },
   { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
-  { symbol: "RDDT",  finnhub: "RDDT",  td: "RDDT" },
+  { symbol: "MLM",   finnhub: "MLM",   td: "MLM" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
   { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
@@ -147,7 +198,7 @@ const AUX_SYMBOLS = [
   { symbol: "APD",   finnhub: "APD",   purpose: "lin_peer",          needsMetrics: true },  // Air Products
   { symbol: "AIQUY", finnhub: "AIQUY", purpose: "lin_peer",          needsMetrics: true },  // Air Liquide ADR
   { symbol: "GOOGL", finnhub: "GOOGL", purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
-  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort+rddt_cohort", needsMetrics: true }, // MSFT mega-cap cohort AND RDDT ads cohort (dual-use — single fetch)
+  { symbol: "META",  finnhub: "META",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort. ⚠ DO NOT REMOVE — was dual-use with the retired RDDT ads cohort; MSFT still depends on it.
   { symbol: "AAPL",  finnhub: "AAPL",  purpose: "msft_cohort",       needsMetrics: true },  // MSFT mega-cap cohort
   { symbol: "LMT",   finnhub: "LMT",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
   { symbol: "NOC",   finnhub: "NOC",   purpose: "lhx_cohort",        needsMetrics: true },  // Defense prime cohort
@@ -165,9 +216,10 @@ const AUX_SYMBOLS = [
   { symbol: "SYK",   finnhub: "SYK",   purpose: "isrg_cohort",       needsMetrics: true },  // Stryker — devices cohort
   { symbol: "BSX",   finnhub: "BSX",   purpose: "isrg_cohort",       needsMetrics: true },  // Boston Scientific — devices cohort
   { symbol: "IHI",   finnhub: "IHI",   purpose: "isrg_devices_factor" },                    // iShares U.S. Medical Devices ETF
-  { symbol: "PINS",  finnhub: "PINS",  purpose: "rddt_cohort",       needsMetrics: true },  // Pinterest — digital-ads cohort
-  { symbol: "APP",   finnhub: "APP",   purpose: "rddt_cohort",       needsMetrics: true },  // AppLovin — digital-ads cohort
-  { symbol: "XLC",   finnhub: "XLC",   purpose: "rddt_ads_factor" },                        // Communication Services SPDR — ads factor proxy
+  { symbol: "VMC",   finnhub: "VMC",   purpose: "mlm_cohort",        needsMetrics: true },  // Vulcan Materials — the ONLY true like-for-like US aggregates pure play (50% cohort weight)
+  { symbol: "CRH",   finnhub: "CRH",   purpose: "mlm_cohort",        needsMetrics: true },  // CRH plc — building materials breadth check (25%)
+  { symbol: "EXP",   finnhub: "EXP",   purpose: "mlm_cohort",        needsMetrics: true },  // Eagle Materials — aggregates/cement breadth check (25%)
+  { symbol: "XLB",   finnhub: "XLB",   purpose: "mlm_materials_factor" },                   // Materials Select Sector SPDR — materials factor proxy
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1070,22 +1122,42 @@ async function fetchISRGHistoricalReturns() {
   return result;
 }
 
-// ─── STAGE 3j: RDDT ADS-COHORT HISTORICAL RETURNS (v4.16) ────────────────────
-// Pulls daily closes for RDDT, META, PINS, APP, XLC, SPY and computes:
-//   • cohort_rotation_pp = RDDT 30d − META/PINS/APP avg 30d (rotation read —
-//     <-8pp WITHOUT an ad-revenue print confirming weakness = buy setup)
-//   • xlc_vs_spy_30d_pp  = ads sector factor bid — the regime-gate input for
-//     RDDT (bid_active >+1pp | neutral ±1pp | bid_absent <-1pp)
-// Threshold note: -8pp here vs ISRG's -6pp. RDDT beta is 1.94; a 6pp spread is
-// inside this name's noise band and would fire the flag on ordinary sessions.
-async function fetchRDDTHistoricalReturns() {
+// ─── STAGE 3j: MLM AGGREGATES-COHORT HISTORICAL RETURNS (v4.17) ─────────────
+// Pulls daily closes for MLM, VMC, CRH, EXP, XLB, SPY and computes:
+//   • peer_rotation_pp   = MLM 30d − WEIGHTED cohort 30d (VMC .50 / CRH .25 /
+//     EXP .25). <-5pp WITHOUT an organic-volume or mix-adjusted-pricing print
+//     confirming weakness = buy setup.
+//   • vmc_spread_30d_pp  = MLM 30d − VMC 30d, carried SEPARATELY. VMC is the
+//     twin; the 3-name cohort is the breadth check. The twin read is the
+//     flagship tactical signal and must not be diluted inside an average.
+//   • xlb_vs_spy_30d_pp  = materials sector factor bid — the tactical overlay
+//     for MLM (bid_active >+1pp | neutral ±1pp | bid_absent <-1pp)
+// Threshold note: -5pp here vs RDDT's -8pp. MLM beta is 1.11, not 1.94, so a
+// 5pp/30d divergence between the two dominant US aggregates franchises is real
+// information rather than noise.
+// ★ WEIGHTED average — unlike every other cohort in this file, which use simple
+//   means. Weights renormalize over whichever peers actually resolved, so a
+//   missing CRH leg does not silently reweight VMC to 67%.
+const MLM_PEER_WEIGHTS = { VMC: 0.50, CRH: 0.25, EXP: 0.25 };
+
+function mlmWeightedCohort(rets) {
+  const avail = Object.keys(MLM_PEER_WEIGHTS).filter(
+    k => rets[k] != null && Number.isFinite(rets[k])
+  );
+  if (avail.length === 0) return { avg: null, count: 0 };
+  const wsum = avail.reduce((a, k) => a + MLM_PEER_WEIGHTS[k], 0);
+  const acc = avail.reduce((a, k) => a + rets[k] * MLM_PEER_WEIGHTS[k], 0);
+  return { avg: +(acc / wsum).toFixed(3), count: avail.length };
+}
+
+async function fetchMLMHistoricalReturns() {
   if (!ALPACA_KEY || !ALPACA_SECRET) {
-    console.log("  [ALPACA-RDDT] No keys — skipping RDDT historical returns");
+    console.log("  [ALPACA-MLM] No keys — skipping MLM historical returns");
     return null;
   }
 
-  console.log("  [ALPACA-RDDT] Fetching RDDT/META/PINS/APP/XLC/SPY bars for ads-cohort rotation + ads factor...");
-  const symbols = ["RDDT", "META", "PINS", "APP", "XLC", "SPY"];
+  console.log("  [ALPACA-MLM] Fetching MLM/VMC/CRH/EXP/XLB/SPY bars for aggregates-cohort rotation + materials factor...");
+  const symbols = ["MLM", "VMC", "CRH", "EXP", "XLB", "SPY"];
   const closes = {};
   const end = new Date().toISOString().split("T")[0];
   const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
@@ -1115,46 +1187,55 @@ async function fetchRDDTHistoricalReturns() {
     return +(((last - ago) / ago) * 100).toFixed(3);
   };
 
-  const rddtRet30 = retNDays(closes.RDDT, 30);
-  const metaRet30 = retNDays(closes.META, 30);
-  const pinsRet30 = retNDays(closes.PINS, 30);
-  const appRet30  = retNDays(closes.APP,  30);
-  const xlcRet30  = retNDays(closes.XLC,  30);
-  const spyRet30  = retNDays(closes.SPY,  30);
+  const mlmRet30 = retNDays(closes.MLM, 30);
+  const vmcRet30 = retNDays(closes.VMC, 30);
+  const crhRet30 = retNDays(closes.CRH, 30);
+  const expRet30 = retNDays(closes.EXP, 30);
+  const xlbRet30 = retNDays(closes.XLB, 30);
+  const spyRet30 = retNDays(closes.SPY, 30);
 
-  const cohortRets = [metaRet30, pinsRet30, appRet30].filter(r => r != null);
-  const cohortAvg = cohortRets.length > 0
-    ? +(cohortRets.reduce((a, b) => a + b, 0) / cohortRets.length).toFixed(3)
+  const { avg: cohortAvg, count: cohortCount } = mlmWeightedCohort({
+    VMC: vmcRet30, CRH: crhRet30, EXP: expRet30,
+  });
+
+  const rotationPp = (mlmRet30 != null && cohortAvg != null)
+    ? +(mlmRet30 - cohortAvg).toFixed(3)
     : null;
 
-  const rotationPp = (rddtRet30 != null && cohortAvg != null)
-    ? +(rddtRet30 - cohortAvg).toFixed(3)
+  // The twin read — deliberately NOT folded into the cohort average.
+  const vmcSpreadPp = (mlmRet30 != null && vmcRet30 != null)
+    ? +(mlmRet30 - vmcRet30).toFixed(3)
     : null;
 
-  const xlcVsSpyPp = (xlcRet30 != null && spyRet30 != null)
-    ? +(xlcRet30 - spyRet30).toFixed(3)
+  const xlbVsSpyPp = (xlbRet30 != null && spyRet30 != null)
+    ? +(xlbRet30 - spyRet30).toFixed(3)
     : null;
 
   const result = {
-    rddt_30d_return_pct:       rddtRet30,
-    meta_30d_return_pct:       metaRet30,
-    pins_30d_return_pct:       pinsRet30,
-    app_30d_return_pct:        appRet30,
+    mlm_30d_return_pct:        mlmRet30,
+    vmc_30d_return_pct:        vmcRet30,
+    crh_30d_return_pct:        crhRet30,
+    exp_30d_return_pct:        expRet30,
     cohort_avg_30d_return_pct: cohortAvg,
-    cohort_rotation_pp:        rotationPp,
-    cohort_rotation_active:    rotationPp != null && rotationPp < -8,
-    cohort_count:              cohortRets.length,
-    xlc_30d_return_pct:        xlcRet30,
+    cohort_weighting:          "VMC .50 / CRH .25 / EXP .25 (renormalized over available)",
+    peer_rotation_pp:          rotationPp,
+    peer_rotation_active:      rotationPp != null && rotationPp < -5,
+    vmc_spread_30d_pp:         vmcSpreadPp,
+    vmc_dislocation_active:    vmcSpreadPp != null && vmcSpreadPp < -5,
+    cohort_count:              cohortCount,
+    xlb_30d_return_pct:        xlbRet30,
     spy_30d_return_pct:        spyRet30,
-    xlc_vs_spy_30d_pp:         xlcVsSpyPp,
+    xlb_vs_spy_30d_pp:         xlbVsSpyPp,
   };
 
-  const activeStr = result.cohort_rotation_active ? " [ACTIVE — buy setup absent an ad-revenue print]" : "";
-  const xlcStr = xlcVsSpyPp == null ? "—"
-    : xlcVsSpyPp > 1 ? `ads bid active (+${xlcVsSpyPp}pp)`
-    : xlcVsSpyPp < -1 ? `ads lagging (${xlcVsSpyPp}pp)`
+  const activeStr = result.peer_rotation_active ? " [ACTIVE — buy setup absent an organic-volume/pricing print]" : "";
+  const twinStr = vmcSpreadPp == null ? "—"
+    : `${vmcSpreadPp >= 0 ? "+" : ""}${vmcSpreadPp}pp${result.vmc_dislocation_active ? " [TWIN DISLOCATION]" : ""}`;
+  const xlbStr = xlbVsSpyPp == null ? "—"
+    : xlbVsSpyPp > 1 ? `materials bid active (+${xlbVsSpyPp}pp)`
+    : xlbVsSpyPp < -1 ? `materials lagging (${xlbVsSpyPp}pp)`
     : "inline";
-  console.log(`  [ALPACA-RDDT] ✓ RDDT 30d=${rddtRet30 != null ? (rddtRet30 >= 0 ? "+" : "") + rddtRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | XLC-SPY 30d: ${xlcStr}`);
+  console.log(`  [ALPACA-MLM] ✓ MLM 30d=${mlmRet30 != null ? (mlmRet30 >= 0 ? "+" : "") + mlmRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} (weighted, ${cohortCount}/3) | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | vs VMC: ${twinStr} | XLB-SPY 30d: ${xlbStr}`);
   return result;
 }
 
@@ -1331,9 +1412,9 @@ async function main() {
   console.log("\n─── STAGE 3i: ISRG COHORT HISTORICAL RETURNS (Alpaca) ───");
   const isrgHistReturns = await fetchISRGHistoricalReturns();
 
-  // Stage 3j: RDDT ads-cohort historical returns (Alpaca — ads rotation + XLC factor)
-  console.log("\n─── STAGE 3j: RDDT ADS-COHORT HISTORICAL RETURNS (Alpaca) ───");
-  const rddtHistReturns = await fetchRDDTHistoricalReturns();
+  // Stage 3j: MLM aggregates-cohort historical returns (Alpaca — peer rotation + VMC twin + XLB factor)
+  console.log("\n─── STAGE 3j: MLM AGGREGATES-COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const mlmHistReturns = await fetchMLMHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -2141,130 +2222,229 @@ async function main() {
     console.log(`  ISRG v1 sourced: ${isrgCoverage.length > 0 ? isrgCoverage.join(", ") : "(none)"} | pending external data: procedure growth + guide, dV placements/dV5 mix, Ion, recurring %, I&A growth, installed base, op margin, EPS revs, forward PE, moat/instrument-transition categoricals`);
   }
 
-  // ─── RDDT (v4.16) — ads-cohort valuation + rotation + ads factor flow ──────
-  // Cohort is DIGITAL ADVERTISING (META, PINS, APP). NOT enterprise software
-  // (NOW/CRM/WDAY/ADBE are a different category in this portfolio).
-  // ★ Unlike ISRG/NOW there is NO structural premium baseline. RDDT sits inside
-  //   the cohort band: <-15% = compressed = buy; -15% to +40% = normal;
-  //   >+80% = rich even on this growth.
-  // ★ CAVEAT: this is TRAILING P/E (all Finnhub aux metrics are). The RDDT model
-  //   reasons on FORWARD P/E, sourced separately by the LLM. Do not conflate.
-  if (output.RDDT) {
-    const rddtPE = output.RDDT.valuation?.trailingPE;
-    const metaPE = auxQuotes.META?.pe;
-    const pinsPE = auxQuotes.PINS?.pe;
-    const appPE  = auxQuotes.APP?.pe;
-    const cohortPEs = [metaPE, pinsPE, appPE].filter(p => p != null && p > 0);
+  // ─── MLM (v4.17) — aggregates-cohort valuation + rotation + materials factor ──
+  // Cohort is US CONSTRUCTION AGGREGATES (VMC, CRH, EXP). NOT industrial gases
+  // (LIN/APD/AIQUY are a different category in this portfolio).
+  // ★ WEIGHTED cohort: VMC .50 / CRH .25 / EXP .25. VMC is the only true
+  //   like-for-like pure play; the other two are the breadth check. Weights
+  //   renormalize over whichever peers resolved.
+  // ★ Zone band is TIGHTER than RDDT's: <-8% = discount; -8% to +10% = normal;
+  //   >+18% = rich. Two aggregates franchises should track closely.
+  //
+  // ★★ CRITICAL — TRAILING-BASIS ARTIFACT GATE ★★
+  //   All Finnhub aux metrics are TRAILING P/E. MLM's TTM window carries a
+  //   large non-operating gain from the Quikrete asset exchange (trailing ~12.9x
+  //   against a ~26.8x forward; TTM profit margin 36.7% EXCEEDS gross margin
+  //   28.2%, which operations cannot produce). Left ungated, the premium below
+  //   computes near -50% versus the cohort and the inherited zone logic would
+  //   stamp it "COMPRESSED (BUY)" — a fabricated signal made of accounting.
+  //   Score-engine Guardrail A cannot reach this layer: it keys on FORWARD P/E,
+  //   which is LLM-sourced downstream. So the gate lives here. Two aggregates
+  //   producers with materially identical business models do not trade at half
+  //   each other's multiple; a trailing discount steeper than 35% against a
+  //   same-industry cohort is an artifact, not an opportunity.
+  if (output.MLM) {
+    const mlmPE = output.MLM.valuation?.trailingPE;
+    const vmcPE = auxQuotes.VMC?.pe;
+    const crhPE = auxQuotes.CRH?.pe;
+    const expPE = auxQuotes.EXP?.pe;
+    const peerPEs = { VMC: vmcPE, CRH: crhPE, EXP: expPE };
+    const { avg: cohortAvgPE, count: peCount } = mlmWeightedCohort(peerPEs);
 
-    if (rddtPE && cohortPEs.length > 0) {
-      const cohortAvg = cohortPEs.reduce((a, b) => a + b, 0) / cohortPEs.length;
-      const premiumPct = +(((rddtPE - cohortAvg) / cohortAvg) * 100).toFixed(2);
+    if (mlmPE && cohortAvgPE) {
+      const premiumPct = +(((mlmPE - cohortAvgPE) / cohortAvgPE) * 100).toFixed(2);
+      const artifactSuspected = premiumPct < -35;
+      const vmcPremiumPct = (vmcPE && vmcPE > 0)
+        ? +(((mlmPE - vmcPE) / vmcPE) * 100).toFixed(2)
+        : null;
 
-      output.RDDT.cohort_valuation = {
-        rddt_pe: rddtPE,
-        meta_pe: metaPE ?? null,
-        pins_pe: pinsPE ?? null,
-        app_pe: appPE ?? null,
-        cohort_avg_pe: +cohortAvg.toFixed(2),
+      output.MLM.cohort_valuation = {
+        mlm_pe: mlmPE,
+        vmc_pe: vmcPE ?? null,
+        crh_pe: crhPE ?? null,
+        exp_pe: expPE ?? null,
+        cohort_avg_pe: cohortAvgPE,
+        cohort_weighting: "VMC .50 / CRH .25 / EXP .25 (renormalized over available)",
         premium_pct: premiumPct,
-        cohort_count: cohortPEs.length,
+        mlm_vs_vmc_pct: vmcPremiumPct,
+        cohort_count: peCount,
         basis: "trailing",
+        // ↓ The gate. FALSE means nothing downstream may read premium_pct as a
+        //   valuation signal — the number is emitted for the record only.
+        premium_pct_reliable: !artifactSuspected,
+        trailing_discount_artifact_suspected: artifactSuspected,
       };
 
-      const zone = premiumPct < -15 ? "COMPRESSED (BUY)"
-        : premiumPct < 15 ? "BELOW MID-BAND (BUY-leaning)"
-        : premiumPct < 40 ? "NORMAL BAND"
-        : premiumPct < 80 ? "ABOVE NORMAL BAND"
+      const zone = artifactSuspected ? "ARTIFACT_SUSPECTED (NOT A BUY — trailing basis contaminated)"
+        : premiumPct < -8 ? "DISCOUNT (BUY)"
+        : premiumPct <= 10 ? "NORMAL BAND"
+        : premiumPct <= 18 ? "ABOVE NORMAL BAND"
         : "RICH (TRIM)";
-      console.log(`  RDDT cohort-valuation: RDDT ${rddtPE}x | META ${metaPE ?? "—"}x | PINS ${pinsPE ?? "—"}x | APP ${appPE ?? "—"}x | cohort avg ${cohortAvg.toFixed(1)}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone}) [trailing basis]`);
+      console.log(`  MLM cohort-valuation: MLM ${mlmPE}x | VMC ${vmcPE ?? "—"}x | CRH ${crhPE ?? "—"}x | EXP ${expPE ?? "—"}x | weighted cohort ${cohortAvgPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (${zone}) [trailing basis]`);
+      if (artifactSuspected) {
+        console.log(`  MLM ⚠⚠ TRAILING-DISCOUNT ARTIFACT GATE FIRED — premium ${premiumPct}% vs same-industry cohort is not credible as valuation.`);
+        console.log(`  MLM     Cause: TTM window carries the Quikrete divestiture gain. premium_pct_reliable=false; downstream MUST route to forward PE / EV/EBITDA.`);
+      }
     } else {
-      const reason = !rddtPE ? "no RDDT P/E" : "no cohort P/E (META/PINS/APP unavailable)";
-      console.log(`  RDDT cohort-valuation: skipped (${reason})`);
+      const reason = !mlmPE ? "no MLM P/E" : "no cohort P/E (VMC/CRH/EXP unavailable)";
+      console.log(`  MLM cohort-valuation: skipped (${reason})`);
     }
 
-    // ── RDDT cohort-relative (ads rotation: 30d return spread) ─────────
-    if (rddtHistReturns) {
-      output.RDDT.cohort_relative = {
-        rddt_30d_return_pct:       rddtHistReturns.rddt_30d_return_pct,
-        meta_30d_return_pct:       rddtHistReturns.meta_30d_return_pct,
-        pins_30d_return_pct:       rddtHistReturns.pins_30d_return_pct,
-        app_30d_return_pct:        rddtHistReturns.app_30d_return_pct,
-        cohort_avg_30d_return_pct: rddtHistReturns.cohort_avg_30d_return_pct,
-        cohort_rotation_pp:        rddtHistReturns.cohort_rotation_pp,
-        cohort_rotation_active:    rddtHistReturns.cohort_rotation_active,
-        cohort_count:              rddtHistReturns.cohort_count,
+    // ── MLM cohort-relative (aggregates rotation: 30d return spread) ────
+    if (mlmHistReturns) {
+      output.MLM.cohort_relative = {
+        mlm_30d_return_pct:        mlmHistReturns.mlm_30d_return_pct,
+        vmc_30d_return_pct:        mlmHistReturns.vmc_30d_return_pct,
+        crh_30d_return_pct:        mlmHistReturns.crh_30d_return_pct,
+        exp_30d_return_pct:        mlmHistReturns.exp_30d_return_pct,
+        cohort_avg_30d_return_pct: mlmHistReturns.cohort_avg_30d_return_pct,
+        cohort_weighting:          mlmHistReturns.cohort_weighting,
+        peer_rotation_pp:          mlmHistReturns.peer_rotation_pp,
+        peer_rotation_active:      mlmHistReturns.peer_rotation_active,
+        vmc_spread_30d_pp:         mlmHistReturns.vmc_spread_30d_pp,
+        vmc_dislocation_active:    mlmHistReturns.vmc_dislocation_active,
+        cohort_count:              mlmHistReturns.cohort_count,
       };
 
-      const rp = rddtHistReturns.cohort_rotation_pp;
+      const rp = mlmHistReturns.peer_rotation_pp;
       const rpStr = rp == null ? "—"
-        : rddtHistReturns.cohort_rotation_active ? `RDDT lagging ads cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION ACTIVE — buy setup if no ad-revenue print confirms it)`
-        : rp < 0 ? `RDDT lagging ads cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
-        : `RDDT leading ads cohort by ${rp.toFixed(1)}pp/30d`;
-      console.log(`  RDDT cohort-relative: ${rpStr}`);
+        : mlmHistReturns.peer_rotation_active ? `MLM lagging aggregates cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION ACTIVE — buy setup if no organic-volume/pricing print confirms it)`
+        : rp < 0 ? `MLM lagging aggregates cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `MLM leading aggregates cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  MLM cohort-relative: ${rpStr}`);
 
-      // factor_flow: XLC vs SPY 30d (ads sector bid — regime-gate input)
-      output.RDDT.factor_flow = {
-        xlc_vs_spy_30d_pp:  rddtHistReturns.xlc_vs_spy_30d_pp,
-        xlc_30d_return_pct: rddtHistReturns.xlc_30d_return_pct,
-        spy_30d_return_pct: rddtHistReturns.spy_30d_return_pct,
+      const vs = mlmHistReturns.vmc_spread_30d_pp;
+      if (vs != null) {
+        console.log(`  MLM twin read: MLM vs VMC ${vs >= 0 ? "+" : ""}${vs}pp/30d${mlmHistReturns.vmc_dislocation_active ? " [TWIN DISLOCATION — the signature MLM setup]" : ""}`);
+      }
+
+      // factor_flow: XLB vs SPY 30d (materials sector bid)
+      output.MLM.factor_flow = {
+        xlb_vs_spy_30d_pp:  mlmHistReturns.xlb_vs_spy_30d_pp,
+        xlb_30d_return_pct: mlmHistReturns.xlb_30d_return_pct,
+        spy_30d_return_pct: mlmHistReturns.spy_30d_return_pct,
       };
     } else {
-      console.log(`  RDDT cohort-relative: skipped (no historical returns)`);
-      output.RDDT.factor_flow = { xlc_vs_spy_30d_pp: null, xlc_30d_return_pct: null, spy_30d_return_pct: null };
+      console.log(`  MLM cohort-relative: skipped (no historical returns)`);
+      output.MLM.factor_flow = { xlb_vs_spy_30d_pp: null, xlb_30d_return_pct: null, spy_30d_return_pct: null };
     }
 
-    // RDDT fundamentals — explicit nulls for fields needing earnings disclosure.
+    // MLM fundamentals — explicit nulls for fields needing earnings disclosure.
     // LLM web-search prompt sources these as fallback fetch targets.
-    output.RDDT.fundamentals.ad_revenue_growth_yoy_pct   = null;  // earnings release — THE ops metric (advertising revenue YoY)
-    output.RDDT.fundamentals.next_qtr_guide_low_musd     = null;  // guidance low  ($M)
-    output.RDDT.fundamentals.next_qtr_guide_high_musd    = null;  // guidance high ($M)
-    output.RDDT.fundamentals.arpu_global                 = null;  // earnings release (global ARPU, USD)
-    output.RDDT.fundamentals.arpu_growth_yoy_pct         = null;  // earnings release (monetization ramp)
-    output.RDDT.fundamentals.arpu_us                     = null;  // earnings release (US ARPU)
-    output.RDDT.fundamentals.arpu_row                    = null;  // earnings release (rest-of-world ARPU)
-    output.RDDT.fundamentals.dauq_millions               = null;  // earnings release (daily active uniques)
-    output.RDDT.fundamentals.dauq_growth_yoy_pct         = null;  // earnings release
-    output.RDDT.fundamentals.wauq_growth_yoy_pct         = null;  // earnings release (weekly active uniques)
-    // ⚠ DISCLOSURE CHANGE: Reddit discontinued the logged-in / logged-out DAU
-    // split from Q3 2026. These stay in the schema for back-compat and for
-    // historical rows, but for current periods they are UNOBTAINABLE, not
-    // merely unfetched. dau_disclosure_status carries which regime applies.
-    // The downstream prompt forbids estimating them — null is the correct value.
-    output.RDDT.fundamentals.logged_in_dau_growth_pct    = null;  // DISCONTINUED from Q3 2026 — do not estimate
-    output.RDDT.fundamentals.logged_out_dau_growth_pct   = null;  // DISCONTINUED from Q3 2026 — do not estimate (the cleanest Google-referral read, now withdrawn)
-    output.RDDT.fundamentals.dau_disclosure_status       = null;  // categorical: full_split (<=Q2 2026) / aggregate_only (Q3 2026+)
-    output.RDDT.fundamentals.ebitda_margin_pct           = null;  // earnings release (adjusted EBITDA margin)
-    output.RDDT.fundamentals.fcf_margin_pct              = null;  // earnings release
-    output.RDDT.fundamentals.ttm_operating_cash_flow_musd = null; // earnings release ($M, TTM)
-    output.RDDT.fundamentals.sbc_trend                   = null;  // categorical: rising/stable/falling (the dilution source)
-    output.RDDT.fundamentals.eps_revisions_30d_pct       = null;  // FactSet/Refinitiv consensus EPS delta 30d
-    output.RDDT.fundamentals.eps_revisions_90d_pct       = null;  // FactSet/Refinitiv consensus EPS delta 90d
-    // ⚠ NET share count change, POSITIVE = dilution. This is the shareholder-
-    // return read for RDDT — NOT buyback yield. Gross repurchase is carried
-    // separately for context only. RDDT repurchased $235M in Q2 2026 and share
-    // count still rose ~2.8% YoY: stock comp exceeds buyback. This holding does
-    // not satisfy the portfolio's aggressive-buyback criterion and the pipeline
-    // must not let a gross-buyback figure imply otherwise.
-    output.RDDT.fundamentals.share_count_change_yoy_pct  = null;  // POSITIVE = dilution
-    output.RDDT.fundamentals.gross_buyback_musd          = null;  // context only — never the shareholder-return signal
-    output.RDDT.fundamentals.search_referral_status      = null;  // categorical: stable/choppy/deteriorating/decoupling_progress (THE structural binary)
-    output.RDDT.fundamentals.licensing_status            = null;  // categorical: renewed_up/renewed_flat/unresolved/renewed_down/lost
-    output.RDDT.fundamentals.licensing_annual_musd       = null;  // Google + OpenAI combined ($M/yr)
-    output.RDDT.fundamentals.competitive_threat          = null;  // categorical: negligible/emerging/taking_share (engagement share, not app launches)
-    output.RDDT.fundamentals.ps_pct_of_3y_avg            = null;  // P/S vs own history — see partial-window flag below
-    // ⚠ RDDT listed March 2024. Every own-history multiple average covers a
-    // PARTIAL WINDOW spanning the crossing into GAAP profitability, and any
-    // quoted 10-year average is spurious. Emitted as TRUE (not null) because
-    // this is a known structural property of the ticker, not a missing fetch.
-    output.RDDT.fundamentals.own_history_window_partial  = true;
+    // Key names match the mlm-strategy.jsx v1 JSON contract exactly.
 
-    const rddtCoverage = [
-      output.RDDT.cohort_valuation ? "cohort-PE(trailing)" : null,
-      output.RDDT.cohort_relative?.cohort_rotation_pp != null ? "rotation" : null,
-      output.RDDT.factor_flow?.xlc_vs_spy_30d_pp != null ? "XLC" : null,
+    // ⚠ PRICING — the moat, measured directly. mix_adjusted_organic_pricing_pct
+    // is THE metric: aggregates have no exchange price, so the ability to raise
+    // mix-adjusted organic price IS the local-monopoly test. Below 1% is the
+    // cleanest single falsifier in this model.
+    output.MLM.fundamentals.mix_adjusted_organic_pricing_pct = null;  // earnings release — THE moat metric
+    output.MLM.fundamentals.organic_asp_growth_pct           = null;  // earnings release (organic ASP, mix NOT adjusted)
+    output.MLM.fundamentals.reported_asp_usd                 = null;  // earnings release ($/ton) — CONTEXT ONLY
+    output.MLM.fundamentals.reported_asp_growth_pct          = null;  // earnings release — CONTEXT ONLY
+    // ⚠ REPORTED ASP IS A NULL SIGNAL during M&A integration. Q2 2026 printed
+    // -2% reported against +3.7% organic mix-adjusted — the entire gap is
+    // acquisition and geographic mix from the Quikrete and New Frontier assets.
+    // Scoring the reported figure manufactures a pricing-power break that did
+    // not happen. Emitted as a categorical, not null, because this is a known
+    // structural property of the current period, not a missing fetch.
+    output.MLM.fundamentals.reported_asp_signal_status       = "null_signal_mix_contaminated";
+
+    // VOLUME — the cycle read. Separate from pricing and never conflated with it.
+    output.MLM.fundamentals.organic_volume_growth_pct        = null;  // earnings release (organic shipments YoY)
+    output.MLM.fundamentals.reported_volume_growth_pct       = null;  // earnings release (incl. acquisitions)
+    output.MLM.fundamentals.total_tons_millions              = null;  // earnings release (aggregates shipments)
+
+    // UNIT ECONOMICS — the industry's cleanest margin measure.
+    output.MLM.fundamentals.cash_gross_profit_per_ton        = null;  // earnings release ($/ton)
+    output.MLM.fundamentals.cogs_per_ton_growth_pct          = null;  // earnings release (incl. pass-through freight)
+    output.MLM.fundamentals.cogs_per_ton_growth_ex_freight_pct = null; // earnings release (ex pass-through freight — the real cost read)
+    output.MLM.fundamentals.energy_headwind                  = null;  // categorical: severe/moderate/neutral/tailwind
+    output.MLM.fundamentals.ebitda_margin_pct                = null;  // earnings release (adjusted EBITDA margin)
+    output.MLM.fundamentals.inventory_step_up_charge_musd    = null;  // non-cash purchase-accounting charge ($M) — strip before comparing
+
+    // END MARKETS — scored separately; residential is the weak leg, heavy
+    // nonres (data centers, power gen, warehouses) the strong one.
+    output.MLM.fundamentals.infrastructure_demand            = null;  // categorical: strong/steady/softening
+    output.MLM.fundamentals.heavy_nonres_demand              = null;  // categorical: strong/steady/softening
+    output.MLM.fundamentals.residential_demand               = null;  // categorical: strong/steady/softening
+    // ⚠ WEATHER IS NOISE, NOT SIGNAL. Aggregates is the most weather-contaminated
+    // quarterly print in this book. Heavy Texas/Southeast rain suppressed Q2 2026
+    // volumes and ran into July. The downstream prompt forbids reading a
+    // weather-driven volume miss as demand destruction.
+    output.MLM.fundamentals.weather_impact_flag              = null;  // categorical: material_headwind/modest/none/tailwind
+
+    output.MLM.fundamentals.eps_revisions_30d_pct            = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.MLM.fundamentals.eps_revisions_90d_pct            = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.MLM.fundamentals.fy_revenue_guide_action          = null;  // categorical: raised/reaffirmed/cut
+    output.MLM.fundamentals.fy_ebitda_guide_action           = null;  // categorical: raised/reaffirmed/cut
+
+    // ── VALUATION (LLM-sourced; forward basis is NOT available from Finnhub) ──
+    // ⚠ forward_pe is the load-bearing multiple for this name precisely because
+    // trailing is contaminated. forward_pe_consensus_basis records whether
+    // sell-side consensus includes LNA — if it cannot be established, the VMC
+    // forward-PE comparison must route through EV/EBITDA instead.
+    output.MLM.fundamentals.forward_pe                       = null;  // LLM-sourced (Finnhub aux metrics are trailing only)
+    output.MLM.fundamentals.forward_pe_consensus_basis       = null;  // categorical: standalone/pro_forma/mixed_or_unknown
+    output.MLM.fundamentals.ev_ebitda                        = null;  // LLM-sourced
+    output.MLM.fundamentals.ev_ebitda_basis                  = null;  // categorical: standalone_trailing/standalone_forward/pro_forma_forward
+    output.MLM.fundamentals.pro_forma_ev_ebitda              = null;  // LLM-sourced — BOTH legs forward or null
+    output.MLM.fundamentals.pro_forma_basis_consistent       = null;  // boolean — mixed-basis multiples return null, never a number
+
+    // ── FEDERAL FUNDING REGIME — the dominant macro binary for this name ──────
+    // IIJA authorizations expire 2026-09-30. Without reauthorization, formula
+    // programs revert to pre-IIJA baseline in FY2027 (~$28B/yr cut).
+    // ⚠ CALIBRATION: "short_term_extension" is the NEUTRAL regime, not a
+    // contraction. Twelve extensions followed TEA-21 and ten followed
+    // SAFETEA-LU — patches are the historical rule, and the base case is not a
+    // downgrade. This is a config-level categorical, not an API field.
+    output.MLM.fundamentals.federal_authorization_status     = null;  // categorical: multiyear_enacted_at_or_above_iija/multiyear_enacted_below_iija/short_term_extension/pending_no_action/lapsed
+    output.MLM.fundamentals.days_to_authorization_expiry     = null;  // days to 2026-09-30 (or to the current extension's expiry)
+    output.MLM.fundamentals.state_dot_budget_trend           = null;  // categorical: accelerating/stable/contracting
+
+    // ── LNA (Lhoist North America) — TREATED AS A KNOWN FORWARD EVENT ─────────
+    // All regulatory approvals received 2026-08-05; $6.5B notes priced
+    // 2026-08-12. The model scores PRO-FORMA from day one rather than waiting
+    // for close. $13.5B EV ($7.0B cash + $6.5B stock), $786M LNA adj EBITDA for
+    // TTM ended 2025-12-31, ~$85M run-rate synergies, ~3.7x combined net
+    // leverage at close targeting sub-2.5x within 24 months.
+    // ⚠ Leverage is scored against the GLIDEPATH, never the level.
+    // ⚠ Synergies are credited at ZERO until disclosed as realized.
+    // ⚠ If ma_integration_state becomes "terminated", every field above reverts
+    //    to standalone basis and the model re-scores from scratch.
+    output.MLM.fundamentals.ma_integration_state             = null;  // categorical: announced/approved_financed/integrating/closed/complete/terminated
+    output.MLM.fundamentals.pro_forma_net_leverage           = null;  // x (combined net debt / combined adj EBITDA)
+    output.MLM.fundamentals.delever_glidepath_status         = null;  // categorical: ahead/on_track/behind/not_yet_measurable
+    output.MLM.fundamentals.lna_synergies_credited_musd      = null;  // $M — 0 until disclosed as realized
+
+    // ⚠ NET share count change, NEGATIVE = buyback. This is the INVERSE of
+    // RDDT's position: MLM is down ~1.1% YoY and genuinely satisfies the
+    // portfolio's aggressive-buyback criterion. But $6.5B of stock
+    // consideration against a ~$31.6B market cap is material issuance, so
+    // pro_forma_share_count_change_pct books that now rather than being
+    // surprised at close.
+    output.MLM.fundamentals.share_count_change_yoy_pct       = null;  // NEGATIVE = buyback
+    output.MLM.fundamentals.pro_forma_share_count_change_pct = null;  // includes LNA stock consideration
+
+    output.MLM.fundamentals.reserve_tons_millions            = null;  // permitted reserves — the actual moat, slow-moving
+    output.MLM.fundamentals.reserve_life_years               = null;  // years at current extraction rate
+    output.MLM.fundamentals.roic_pct                         = null;  // see distortion flag below
+    output.MLM.fundamentals.wacc_pct                         = null;
+    // ⚠ ROIC (~6.7%) sits below WACC (~9.1%), but the denominator was just
+    // inflated by acquisitions whose earnings are not yet in the numerator.
+    // Emitted as TRUE (not null) because this is a known structural property of
+    // the current period, not a missing fetch. Flag it; do not score it as a
+    // quality break while integration is in progress.
+    output.MLM.fundamentals.roic_denominator_distorted       = true;
+
+    const mlmCoverage = [
+      output.MLM.cohort_valuation ? (output.MLM.cohort_valuation.premium_pct_reliable ? "cohort-PE(trailing)" : "cohort-PE(trailing, GATED)") : null,
+      output.MLM.cohort_relative?.peer_rotation_pp != null ? "rotation" : null,
+      output.MLM.cohort_relative?.vmc_spread_30d_pp != null ? "VMC-twin" : null,
+      output.MLM.factor_flow?.xlb_vs_spy_30d_pp != null ? "XLB" : null,
     ].filter(Boolean);
-    console.log(`  RDDT v1 sourced: ${rddtCoverage.length > 0 ? rddtCoverage.join(", ") : "(none)"} | pending external data: ad revenue growth, ARPU block (global/US/RoW), DAUq/WAUq, margins + FCF, guide range, EPS revs, forward PE + P/S vs own history, NET share count, search-referral/licensing/competitive categoricals`);
-    console.log(`  RDDT ⚠ own-history window PARTIAL (listed Mar 2024) — downstream must discount multiple-history anchors`);
+    console.log(`  MLM v1 sourced: ${mlmCoverage.length > 0 ? mlmCoverage.join(", ") : "(none)"} | pending external data: mix-adjusted organic pricing, organic/reported volume, cash GP per ton, COGS/ton, end-market split, weather flag, forward PE + EV/EBITDA (+ basis tags), federal authorization + state DOT, LNA pro-forma + glidepath, NET share count`);
+    console.log(`  MLM ⚠ trailing P/E is DIVESTITURE-GAIN CONTAMINATED (Quikrete exchange in TTM) — downstream must score on forward PE / EV/EBITDA`);
+    console.log(`  MLM ⚠ reported ASP is MIX-CONTAMINATED during integration — score mix-adjusted organic pricing only`);
   }
 
   output._macro = macro;
@@ -2309,9 +2489,10 @@ async function main() {
   console.log(`  ISRG cohort PE: ${output.ISRG?.cohort_valuation ? `ISRG ${output.ISRG.cohort_valuation.isrg_pe}x vs ${output.ISRG.cohort_valuation.cohort_count}-name cohort avg ${output.ISRG.cohort_valuation.cohort_avg_pe}x = ${output.ISRG.cohort_valuation.premium_pct}% premium` : "unavailable"}`);
   console.log(`  ISRG rotation:  ${output.ISRG?.cohort_relative ? `ISRG 30d=${output.ISRG.cohort_relative.isrg_30d_return_pct}%, cohort=${output.ISRG.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.ISRG.cohort_relative.cohort_rotation_pp}pp${output.ISRG.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  ISRG IHI-SPY:   ${output.ISRG?.factor_flow?.ihi_vs_spy_30d_pp != null ? `${output.ISRG.factor_flow.ihi_vs_spy_30d_pp >= 0 ? "+" : ""}${output.ISRG.factor_flow.ihi_vs_spy_30d_pp}pp` : "unavailable"}`);
-  console.log(`  RDDT cohort PE: ${output.RDDT?.cohort_valuation ? `RDDT ${output.RDDT.cohort_valuation.rddt_pe}x vs ${output.RDDT.cohort_valuation.cohort_count}-name ads cohort avg ${output.RDDT.cohort_valuation.cohort_avg_pe}x = ${output.RDDT.cohort_valuation.premium_pct}% premium [trailing]` : "unavailable"}`);
-  console.log(`  RDDT rotation:  ${output.RDDT?.cohort_relative ? `RDDT 30d=${output.RDDT.cohort_relative.rddt_30d_return_pct}%, cohort=${output.RDDT.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.RDDT.cohort_relative.cohort_rotation_pp}pp${output.RDDT.cohort_relative.cohort_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
-  console.log(`  RDDT XLC-SPY:   ${output.RDDT?.factor_flow?.xlc_vs_spy_30d_pp != null ? `${output.RDDT.factor_flow.xlc_vs_spy_30d_pp >= 0 ? "+" : ""}${output.RDDT.factor_flow.xlc_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  MLM cohort PE:  ${output.MLM?.cohort_valuation ? `MLM ${output.MLM.cohort_valuation.mlm_pe}x vs ${output.MLM.cohort_valuation.cohort_count}-name weighted aggregates cohort avg ${output.MLM.cohort_valuation.cohort_avg_pe}x = ${output.MLM.cohort_valuation.premium_pct}% premium [trailing]${output.MLM.cohort_valuation.trailing_discount_artifact_suspected ? " ⚠ ARTIFACT GATED — NOT A BUY" : ""}` : "unavailable"}`);
+  console.log(`  MLM rotation:   ${output.MLM?.cohort_relative ? `MLM 30d=${output.MLM.cohort_relative.mlm_30d_return_pct}%, cohort=${output.MLM.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.MLM.cohort_relative.peer_rotation_pp}pp${output.MLM.cohort_relative.peer_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  MLM vs VMC:     ${output.MLM?.cohort_relative?.vmc_spread_30d_pp != null ? `${output.MLM.cohort_relative.vmc_spread_30d_pp >= 0 ? "+" : ""}${output.MLM.cohort_relative.vmc_spread_30d_pp}pp/30d${output.MLM.cohort_relative.vmc_dislocation_active ? " [TWIN DISLOCATION]" : ""}` : "unavailable"}`);
+  console.log(`  MLM XLB-SPY:    ${output.MLM?.factor_flow?.xlb_vs_spy_30d_pp != null ? `${output.MLM.factor_flow.xlb_vs_spy_30d_pp >= 0 ? "+" : ""}${output.MLM.factor_flow.xlb_vs_spy_30d_pp}pp` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
