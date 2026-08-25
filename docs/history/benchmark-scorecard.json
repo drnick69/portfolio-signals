@@ -1,38 +1,38 @@
 {
-  "generated": "2026-08-24T13:09:02.146Z",
+  "generated": "2026-08-25T13:05:46.017Z",
   "version": "1.2",
   "membership_convention": "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 and RDDT→MLM swap at v8.5.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
-  "days": 114,
+  "days": 115,
   "date_range": {
     "first": "2026-03-08",
-    "last": "2026-08-24"
+    "last": "2026-08-25"
   },
   "grade": "SEASONED",
   "final": {
-    "deposited": 2140000,
-    "signal": 2411935.53,
-    "ew": 2300533.09,
-    "spy": 1196543.98
+    "deposited": 2150000,
+    "signal": 2418515.64,
+    "ew": 2318309.73,
+    "spy": 1203165.54
   },
   "since_inception": {
-    "signal_twr_pct": 13.289,
-    "ew_twr_pct": 9.782,
+    "signal_twr_pct": 13.129,
+    "ew_twr_pct": 10.151,
     "spy_twr_pct": null
   },
   "excess": {
-    "signal_vs_ew_pp": 3.507,
+    "signal_vs_ew_pp": 2.978,
     "signal_vs_spy_pp": null
   },
   "trailing": {
     "d30": {
-      "signal": 10.579,
-      "ew": 6.132,
-      "spy": 1.805
+      "signal": 9.283,
+      "ew": 5.706,
+      "spy": 1.141
     },
     "d90": {
-      "signal": 8.289,
-      "ew": 5.2,
-      "spy": 12.369
+      "signal": 8.071,
+      "ew": 4.613,
+      "spy": 11.007
     }
   },
   "membership_events": [
@@ -296,10 +296,25 @@
       ],
       "removed": [],
       "members_after": 15
+    },
+    {
+      "date": "2026-08-25",
+      "added": [],
+      "removed": [
+        "RDDT"
+      ],
+      "members_after": 14,
+      "liquidated": [
+        {
+          "symbol": "RDDT",
+          "proceeds": 25668.9,
+          "absent_days": 3
+        }
+      ]
     }
   ],
   "data_quality": {
-    "dates": 114,
+    "dates": 115,
     "dates_missing_log": 0,
     "dates_missing_spy": 2,
     "members_skipped_no_price": 1,
@@ -1335,8 +1350,17 @@
       "flow": 10000,
       "signal": 2411935.53,
       "ew": 2300533.09,
-      "spy": 1196543.98,
+      "spy": 1193165.54,
       "members": 15
+    },
+    {
+      "date": "2026-08-25",
+      "deposited": 2150000,
+      "flow": 10000,
+      "signal": 2418515.64,
+      "ew": 2318309.73,
+      "spy": 1203165.54,
+      "members": 14
     }
   ]
 }
