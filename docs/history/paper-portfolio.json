@@ -1,13 +1,13 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 129,
-  "cash": 14222.35,
-  "total_deposited": 2290000,
+  "day_count": 130,
+  "cash": 12631.91,
+  "total_deposited": 2300000,
   "holdings": {
     "ASML": {
-      "shares": 26.9173,
-      "cost_basis": 35117.68,
-      "avg_price": 1304.6509
+      "shares": 26.1098,
+      "cost_basis": 34064.17,
+      "avg_price": 1304.6507
     },
     "LIN": {
       "shares": 187.8555,
@@ -35,9 +35,9 @@
       "avg_price": 16.5572
     },
     "AMKBY": {
-      "shares": 7669.2366,
-      "cost_basis": 100567.95,
-      "avg_price": 13.1132
+      "shares": 7811.3641,
+      "cost_basis": 103119.85,
+      "avg_price": 13.2013
     },
     "MSFT": {
       "shares": 226.7364,
@@ -45,9 +45,9 @@
       "avg_price": 391.5901
     },
     "LHX": {
-      "shares": 1129.2139,
-      "cost_basis": 325946.49,
-      "avg_price": 288.649
+      "shares": 1145.4577,
+      "cost_basis": 330029.53,
+      "avg_price": 288.1202
     },
     "TMO": {
       "shares": 443.8146,
@@ -70,9 +70,9 @@
       "avg_price": 576.5433
     },
     "MLM": {
-      "shares": 891.4134,
-      "cost_basis": 466344.52,
-      "avg_price": 523.1518
+      "shares": 903.7254,
+      "cost_basis": 472596.67,
+      "avg_price": 522.9428
     }
   },
   "history": [
@@ -10500,7 +10500,104 @@
         "MA": "neutral",
         "ISRG": "bid_absent"
       }
+    },
+    {
+      "date": "2026-09-16",
+      "day": 130,
+      "total_value": 2592749.66,
+      "total_deposited": 2300000,
+      "cash": 12631.91,
+      "holdings_value": 2580117.75,
+      "pnl": 292749.66,
+      "pnl_pct": 12.73,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "ASML",
+          "shares": -0.8075,
+          "price": 1605.76,
+          "value": 1296.65,
+          "composite_score": 1,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "LHX",
+          "shares": 16.2438,
+          "price": 251.36,
+          "value": 4083.04,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -27,
+          "recommendation": "BUY",
+          "regime": "bid_absent",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "MLM",
+          "shares": 12.312,
+          "price": 507.81,
+          "value": 6252.15,
+          "confidence": 1,
+          "score_magnitude": 0.7,
+          "composite_score": -48,
+          "recommendation": "BUY",
+          "regime": "neutral",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "AMKBY",
+          "shares": 142.1275,
+          "price": 17.955,
+          "value": 2551.9,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": 1,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "LHX",
+        "positionalBuy": "MLM",
+        "strategicBuy": "AMKBY",
+        "trim": "ASML"
+      },
+      "composite_scores": {
+        "LHX": -27,
+        "ASML": 1,
+        "LIN": -21,
+        "MSFT": -2,
+        "TMO": -3,
+        "NOW": 0,
+        "ENB": -27,
+        "GLNCY": -5,
+        "MLM": -48,
+        "KOF": -2,
+        "PBR.A": -2,
+        "AMKBY": 1,
+        "MA": -10,
+        "ISRG": -24
+      },
+      "regimes": {
+        "LHX": "bid_absent",
+        "LIN": "neutral",
+        "MSFT": "neutral",
+        "TMO": "thawing",
+        "NOW": "neutral",
+        "MLM": "neutral",
+        "MA": "neutral",
+        "ISRG": "bid_absent"
+      }
     }
   ],
-  "total_value": 2589620.02
+  "total_value": 2592749.66
 }
