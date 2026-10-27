@@ -1,8 +1,8 @@
 {
   "start_date": "2026-03-08",
-  "day_count": 157,
-  "cash": 22254.72,
-  "total_deposited": 2570000,
+  "day_count": 158,
+  "cash": 20965.76,
+  "total_deposited": 2580000,
   "holdings": {
     "ASML": {
       "shares": 17.5059,
@@ -10,14 +10,14 @@
       "avg_price": 1357.6211
     },
     "LIN": {
-      "shares": 176.7532,
-      "cost_basis": 90144.1,
+      "shares": 171.4506,
+      "cost_basis": 87439.77,
       "avg_price": 509.9998
     },
     "ENB": {
-      "shares": 587.7122,
-      "cost_basis": 29988.09,
-      "avg_price": 51.0251
+      "shares": 689.2694,
+      "cost_basis": 34880.1,
+      "avg_price": 50.6045
     },
     "GLNCY": {
       "shares": 15056.8921,
@@ -35,9 +35,9 @@
       "avg_price": 16.5572
     },
     "AMKBY": {
-      "shares": 11590.7916,
-      "cost_basis": 170655.45,
-      "avg_price": 14.7234
+      "shares": 11787.764,
+      "cost_basis": 174149.74,
+      "avg_price": 14.7738
     },
     "MSFT": {
       "shares": 226.7364,
@@ -70,9 +70,9 @@
       "avg_price": 576.5433
     },
     "MLM": {
-      "shares": 1200.3284,
-      "cost_basis": 617464.82,
-      "avg_price": 514.4132
+      "shares": 1211.4348,
+      "cost_basis": 623055.69,
+      "avg_price": 514.3122
     }
   },
   "history": [
@@ -13202,7 +13202,104 @@
         "MA": "fear_receding",
         "ISRG": "bid_active"
       }
+    },
+    {
+      "date": "2026-10-27",
+      "day": 158,
+      "total_value": 2987934.49,
+      "total_deposited": 2580000,
+      "cash": 20965.76,
+      "holdings_value": 2966968.73,
+      "pnl": 407934.49,
+      "pnl_pct": 15.81,
+      "trades": [
+        {
+          "type": "TRIM",
+          "symbol": "LIN",
+          "shares": -5.3026,
+          "price": 506.96,
+          "value": 2688.21,
+          "composite_score": 4,
+          "recommendation": "HOLD",
+          "regime": "neutral",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "⚡ TAC",
+          "symbol": "MLM",
+          "shares": 11.1064,
+          "price": 503.39,
+          "value": 5590.87,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -32,
+          "recommendation": "BUY",
+          "regime": "neutral",
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "📐 POS",
+          "symbol": "ENB",
+          "shares": 101.5572,
+          "price": 48.17,
+          "value": 4892.01,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -29,
+          "recommendation": "BUY",
+          "regime": null,
+          "regime_pmi": null
+        },
+        {
+          "type": "BUY",
+          "signal": "🏗️ STR",
+          "symbol": "AMKBY",
+          "shares": 196.9724,
+          "price": 17.74,
+          "value": 3494.29,
+          "confidence": 1,
+          "score_magnitude": 0.4,
+          "composite_score": -6,
+          "recommendation": "HOLD",
+          "regime": null,
+          "regime_pmi": null
+        }
+      ],
+      "assignments": {
+        "tacticalBuy": "MLM",
+        "positionalBuy": "ENB",
+        "strategicBuy": "AMKBY",
+        "trim": "LIN"
+      },
+      "composite_scores": {
+        "LHX": -11,
+        "ASML": 3,
+        "LIN": 4,
+        "MSFT": 1,
+        "TMO": -2,
+        "NOW": 2,
+        "ENB": -29,
+        "GLNCY": -12,
+        "MLM": -32,
+        "KOF": 3,
+        "PBR.A": -7,
+        "AMKBY": -6,
+        "MA": -8,
+        "ISRG": -12
+      },
+      "regimes": {
+        "LHX": "bid_absent",
+        "LIN": "neutral",
+        "MSFT": "neutral",
+        "TMO": "neutral",
+        "NOW": "neutral",
+        "MLM": "neutral",
+        "MA": "fear_receding",
+        "ISRG": "bid_active"
+      }
     }
   ],
-  "total_value": 2967101
+  "total_value": 2987934.49
 }
