@@ -4,7 +4,8 @@
 // What it does:
 //   1. Reads every logged signal from docs/history/daily-log.jsonl
 //      (one line per DAY containing all holdings — 14 since v8.3.0's MA/ISRG
-//      add; still 14 after v8.4.0's IBIT → RDDT swap; flattens to
+//      add; still 14 after the v8.4.0 IBIT → RDDT, v8.5.0 RDDT → MLM,
+//      v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps; flattens to
 //      per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
@@ -69,8 +70,71 @@
 //     earliest observations sit on top of two known event dates rather than a
 //     quiet baseline.
 //
+//     v8.6.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//     The PBR.A → UBER swap needs nothing here. Uber Technologies is a plain US
+//     listing (NYSE, since May 2019), so Alpaca bar coverage is complete from
+//     its first logged date. PBR.A's logged rows keep attributing normally as
+//     closed history — and that is verified, not assumed: Alpaca serves the
+//     "PBR.A" symbol natively, and 165 of PBR.A's 166 attributed records
+//     already carry forward returns (the 166th is the newest, whose first
+//     horizon had not yet elapsed). Its last rows will finish filling in as
+//     their 60d/120d windows elapse, with no SYMBOL_MAP entry needed.
+//     UBER sits between MLM and RDDT on volatility (beta ~1.26; score-engine
+//     V8.5: RSI 35/70, ±2.5% daily noise floor), so the RDDT-style single-
+//     session distortion is a moderate risk here, not a large one.
+//     ⚠ The calendar hazard recurs, front-loaded. UBER's Q3 print lands on
+//     2026-11-04 (before the open) and the Delivery Hero acceptance period
+//     closes 2026-11-05, so its very first 5d windows straddle an earnings
+//     session. Separately, this name is exposed to UNSCHEDULED autonomous-
+//     vehicle headline days (fetch v4.19 screens for sessions down 4% or more,
+//     and the LLM attributes them). Both are computed faithfully here; a panel
+//     reader should know UBER's earliest observations sit on an earnings date,
+//     not a quiet baseline.
+//     NOT a price event, and so irrelevant to this file: the GAAP trailing P/E
+//     roughly doubles at the same print as a $4.9B tax release rolls out of
+//     the TTM window. Accounting only — returns are untouched.
+//
+//     v8.7.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//     The ENB → CVX swap needs nothing here. Chevron is a plain US listing
+//     (NYSE), so Alpaca bar coverage is complete from its first logged date.
+//     ENB's logged rows keep attributing normally as closed history — verified,
+//     not assumed: Alpaca serves "ENB" natively (the NYSE listing), and 165 of
+//     ENB's 166 attributed records already carry forward returns (the 166th is
+//     the newest, 2026-10-27, whose first horizon had not yet elapsed). Its last
+//     rows finish filling in as their windows elapse; no SYMBOL_MAP entry.
+//     CVX's five-year beta is 0.52, but its 2026 realized volatility is the oil
+//     war's (a −21.5% oil-driven drawdown from 2026-03-27 to 2026-07-01);
+//     score-engine V8.6 uses RSI 35/70 and a ±2% daily noise floor.
+//     ⚠ The calendar hazard recurs, and sooner than UBER's. CVX's Q3 print lands
+//     on 2026-10-30 (before the open), so its very first 5d windows straddle an
+//     earnings session. And this name carries an UNSCHEDULED event class of its
+//     own: geopolitical air pockets on Iran / Hormuz / Kazakhstan-pipeline
+//     headlines (fetch v4.20 screens for sessions that move 4% or more; the LLM
+//     classifies them). In a dislocated-high oil regime a de-escalation
+//     sell-off is the war premium leaving the oil price, not news about
+//     Chevron. Computed faithfully here; a panel reader should know what those
+//     returns are measuring.
+//     NOT a price event, and so irrelevant to this file: the GAAP trailing P/E
+//     falls from ~22x toward ~17x at the same print as Q3'25 leaves the TTM
+//     window. Accounting only — returns are untouched.
+//
+//     October 2026 — TWELVEDATA FALLBACK FOR OTC ADRs (code change).
+//     AMKBY and GLNCY trade over the counter, and Alpaca's free IEX feed
+//     carries no bars for them: through 2026-10-27 not one of AMKBY's 165 or
+//     GLNCY's 139 logged signals had a forward return, so both were absent
+//     from every calibration panel. When Alpaca returns no bars for a symbol,
+//     this script now asks TwelveData for the same window of daily closes —
+//     the source fetch-market-data already uses for these two names' RSI and
+//     moving averages, so coverage is established, not hoped for. Such
+//     records carry entry_price_source "twelvedata_close". Symbols Alpaca
+//     serves are untouched (TwelveData is never called for them), and with
+//     TD_KEY unset the script behaves exactly as before. The first run after
+//     deploy back-fills AMKBY's and GLNCY's whole history in one pass.
+//
 // Env vars required:
 //   ALPK, ALPS  — Alpaca API key + secret (already in GitHub Secrets)
+//   TD_KEY      — TwelveData key, OPTIONAL: only the OTC fallback uses it
+//                 (already in GitHub Secrets for fetch-market-data)
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -84,6 +148,9 @@ const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "signals
 const ALPACA_KEY      = process.env.ALPK;
 const ALPACA_SECRET   = process.env.ALPS;
 const ALPACA_DATA_URL = "https://data.alpaca.markets/v2";
+const TD_KEY          = process.env.TD_KEY;        // optional — OTC fallback only
+const TD_DATA_URL     = "https://api.twelvedata.com";
+const TD_DELAY_MS     = parseInt(process.env.TD_DELAY_MS || "8000", 10);   // spacing after each TwelveData call
 
 // Forward horizons in TRADING days
 const HORIZONS = {
@@ -107,10 +174,12 @@ const LAYER_NATIVE_HORIZON = {
 // Neutral band around 0 — scores in this range don't predict direction
 const NEUTRAL_BAND = 5;
 
-// Alpaca ticker overrides (if any). Most match 1:1. PBR.A works as-is on Alpaca.
-// OTC/ADR symbols (AMKBY, GLNCY) may need free IEX data or delayed quotes —
-// adjust here if/when the symbol fetch fails. NOW (ServiceNow, NYSE) added
-// in V7.6 — no override needed, fetches natively.
+// Alpaca ticker overrides (if any). Most match 1:1. PBR.A works as-is on Alpaca
+// (closed history since v8.6.0 — its old rows still fetch and attribute).
+// OTC/ADR symbols (AMKBY, GLNCY) get no bars from Alpaca at all; they are
+// served by the TwelveData fallback in fetchTwelveDataCloses() below rather
+// than by an override here. NOW (ServiceNow, NYSE) added in V7.6 — no
+// override needed, fetches natively.
 const SYMBOL_MAP = {};
 
 // ─── US MARKET CALENDAR ───────────────────────────────────────────────────────
@@ -164,6 +233,34 @@ async function fetchDailyBars(symbol, startDate, endDate) {
   }
   const data = await resp.json();
   return data.bars || [];
+}
+
+// TwelveData daily closes for the same window — used ONLY when Alpaca returned
+// no bars (the OTC ADRs). end_date is pushed one day past today because
+// TwelveData can treat it as exclusive; future dates simply have no data.
+async function fetchTwelveDataCloses(symbol, startDate, endDate) {
+  const end = new Date(endDate + "T00:00:00Z");
+  end.setUTCDate(end.getUTCDate() + 1);
+  const url = `${TD_DATA_URL}/time_series?symbol=${encodeURIComponent(symbol)}`
+            + `&interval=1day&start_date=${startDate}&end_date=${end.toISOString().slice(0, 10)}`
+            + `&outputsize=5000&order=ASC&apikey=${TD_KEY}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    console.warn(`  [${symbol}] TwelveData HTTP ${resp.status}`);
+    return {};
+  }
+  const data = await resp.json();
+  if (data.status !== "ok" || !Array.isArray(data.values)) {
+    console.warn(`  [${symbol}] TwelveData: ${data.message || data.status || "no values"}`);
+    return {};
+  }
+  const idx = {};
+  for (const v of data.values) {
+    const d = String(v.datetime).slice(0, 10);
+    const c = parseFloat(v.close);
+    if (d && c > 0) idx[d] = c;
+  }
+  return idx;
 }
 
 function indexBarsByDate(bars) {
@@ -366,7 +463,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT and v8.5.0 RDDT → MLM swaps)
+  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT, v8.5.0 RDDT → MLM, v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
@@ -393,20 +490,35 @@ async function main() {
     bySymbol[sig.symbol].push(sig);
   }
 
-  // 5. Fetch Alpaca bars per symbol (batched per-ticker, not per-signal)
+  // 5. Fetch Alpaca bars per symbol (batched per-ticker, not per-signal);
+  //    TwelveData daily closes for any symbol Alpaca has no bars for.
   const priceIndices = {};
+  const priceSource = {};   // symbol → "alpaca" | "twelvedata" | "none"
   for (const symbol of Object.keys(bySymbol).sort()) {
     const sigs = bySymbol[symbol];
     const earliest = sigs.reduce((m, s) => s.date < m ? s.date : m, sigs[0].date);
     try {
       const bars = await fetchDailyBars(symbol, earliest, todayIso);
       priceIndices[symbol] = indexBarsByDate(bars);
+      priceSource[symbol] = bars.length > 0 ? "alpaca" : "none";
       console.log(`  ${symbol.padEnd(8)} ${bars.length.toString().padStart(4)} bars  ${earliest} → ${todayIso}`);
     } catch (e) {
       console.error(`  ${symbol.padEnd(8)} fetch error: ${e.message}`);
       priceIndices[symbol] = {};
+      priceSource[symbol] = "none";
     }
     await new Promise(r => setTimeout(r, 200)); // gentle rate limit
+    if (priceSource[symbol] === "none" && TD_KEY) {
+      try {
+        const idx = await fetchTwelveDataCloses(SYMBOL_MAP[symbol] || symbol, earliest, todayIso);
+        const n = Object.keys(idx).length;
+        if (n > 0) { priceIndices[symbol] = idx; priceSource[symbol] = "twelvedata"; }
+        console.log(`  ${symbol.padEnd(8)} ${n.toString().padStart(4)} TwelveData closes (Alpaca had none)`);
+      } catch (e) {
+        console.error(`  ${symbol.padEnd(8)} TwelveData fetch error: ${e.message}`);
+      }
+      await new Promise(r => setTimeout(r, TD_DELAY_MS)); // free tier: 8 requests/minute
+    }
   }
 
   // 6. Compute forward returns + layer attribution for every signal
@@ -415,7 +527,9 @@ async function main() {
     const priceIdx     = priceIndices[sig.symbol] || {};
     const barEntry     = priceIdx[sig.date]; // bar close on logged date
     const entryPrice   = barEntry ?? sig.entry_price;
-    const entrySource  = barEntry ? "alpaca_close" : (sig.entry_price ? "logged" : "none");
+    const entrySource  = barEntry
+      ? (priceSource[sig.symbol] === "twelvedata" ? "twelvedata_close" : "alpaca_close")
+      : (sig.entry_price ? "logged" : "none");
 
     const { returns, status } = computeForwardReturns(sig.date, entryPrice, priceIdx, todayIso);
     const layerAttribution    = buildLayerAttribution(sig.scores, returns);
