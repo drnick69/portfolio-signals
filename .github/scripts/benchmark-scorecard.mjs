@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// benchmark-scorecard.mjs v1.1 — Signal-following P&L vs equal-weight and SPY.
+// benchmark-scorecard.mjs v1.4 — Signal-following P&L vs equal-weight and SPY.
 //
 // v1.1 (July 2026, first prod run feedback):
 //   • RETIREMENT DEBOUNCE — the point-in-time membership convention read
@@ -90,6 +90,58 @@
 //   the signal-following book, this tracks the equal-weight benchmark — but if
 //   the swap-date mark matters for a given analysis, cross-check both.
 //
+// v8.6.0 sync (October 2026) — ⚠ NOT NOTE-ONLY, same ONE LIVE EDIT as v8.5.0.
+//   The mechanism absorbs PBR.A → UBER generically, exactly as before: UBER
+//   joins membership at 1/14 on its first logged date, PBR.A stays on the
+//   internal book at its last LOGGED price and retires on the 3rd consecutive
+//   debounced absent day, and the headline member count never leaves 14. No
+//   logic changes.
+//   membership_convention (an emitted STRING) is updated to name this swap, and
+//   the version bumps 1.2 → 1.3 for the same provenance reason given at
+//   v8.5.0. The header line above had been left at "v1.1" through v8.5.0
+//   although the emitted version was already "1.2"; both now read 1.3.
+//   Expect, all designed behaviour:
+//     • The stale-mark discontinuity recurs, and its size is knowable on the
+//       day. paper-trader exits PBR.A at 19.6 (MIGRATION_EXIT_PRICE, decision
+//       2026-10-27); this file marks and then liquidates PBR.A at its LAST
+//       LOGGED price — whatever the final pre-deploy run recorded (19.93 on
+//       2026-10-27, 19.57 on 2026-10-28). The two legs therefore exit the same
+//       name up to ~1.7% apart; on a 1/14 position that is about 12 basis
+//       points of the equal-weight leg at most. Small and explainable; do not
+//       chase it.
+//     • The equal-weight leg's factor mix moves from an oil, BRL and dividend
+//       name to a consumer-platform growth name (beta ~1.26, no dividend).
+//       Excess-return comparisons across the swap boundary are not
+//       apples-to-apples; the membership changed, not just the market.
+//     • UBER enters the TWR series at n=0; the EARLY (n<60) grade guard
+//       covers the small-sample period.
+//
+// v8.7.0 sync (October 2026) — ⚠ NOT NOTE-ONLY, the same ONE LIVE EDIT again.
+//   BUILT ON the v8.6.0 sync above (PBR.A → UBER): both swaps live in this
+//   file. The mechanism absorbs ENB → CVX generically: CVX joins membership at
+//   1/14 on its first logged date, ENB stays on the internal book at its last
+//   LOGGED price and retires on the 3rd consecutive debounced absent day, and
+//   the headline member count never leaves 14. If both swaps land in the same
+//   deploy, PBR.A and ENB ride the same debounce and liquidate on the same
+//   day, carried alongside the 14 logged members until then. No logic changes.
+//   membership_convention names this swap too, and the version bumps
+//   1.3 → 1.4 for the same provenance reason as before.
+//   Expect, all designed behaviour:
+//     • The stale-mark discontinuity is small again. paper-trader v8.8 exits
+//       ENB at 48.26 (MIGRATION_EXIT_PRICE, decision 2026-10-27); this file
+//       marks and then liquidates ENB at its LAST LOGGED price — whatever the
+//       final pre-deploy run recorded (48.17 on 2026-10-27, 48.70 on
+//       2026-10-28). On the prices logged so far the two legs exit the same
+//       name up to ~0.9% apart; on a 1/14 position that is about 7 basis points
+//       of the equal-weight leg. Small and explainable; do not chase it.
+//     • The equal-weight leg's factor mix moves from a rate-sensitive pipeline
+//       toll road to an oil major trading on a war-time oil price (Brent ~64%
+//       above Chevron's $70 planning deck). From the swap date the leg carries
+//       direct crude exposure it did not carry before; excess-return
+//       comparisons across the swap boundary are not apples-to-apples.
+//     • CVX enters the TWR series at n=0; the EARLY (n<60) grade guard covers
+//       the small-sample period.
+//
 // INPUTS (all existing history; no new state files):
 //   docs/history/paper-portfolio.json — the signal-following value series +
 //     the authoritative deposit schedule (per-date flow = delta of
@@ -112,7 +164,9 @@
 //   • Price-return only, all three legs: daily-log prices are quote closes
 //     (no dividend reinvestment) and SPY uses split-adjusted closes for
 //     consistency. Dividend-blind on BOTH sides of every comparison — this
-//     understates the income names (ENB/PBR.A/KOF) and SPY alike; treat
+//     understates the income names (KOF and CVX; ENB until its v8.7.0
+//     retirement and PBR.A until its v8.6.0; UBER pays none) and SPY alike;
+//     treat
 //     small excess readings near zero as noise accordingly.
 //   • TWR flow convention: deposits land BEFORE trading (matches the paper
 //     trader: cash += deposit, then buys), so r_t = V_t / (V_{t-1} + F_t) - 1
@@ -373,8 +427,8 @@ async function main() {
 
   const out = {
     generated: new Date().toISOString(),
-    version: "1.2",
-    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 and RDDT→MLM swap at v8.5.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
+    version: "1.4",
+    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0, RDDT→MLM swap at v8.5.0, PBR.A→UBER swap at v8.6.0 and ENB→CVX swap at v8.7.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
     days: series.length,
     date_range: { first, last },
     grade,
