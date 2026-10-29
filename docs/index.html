@@ -111,13 +111,32 @@
     // from LHX here and 175 from its nearest neighbour in the strategy-file
     // palette, so it is well separated on BOTH surfaces — and pale straw is
     // arguably the more accurate colour for crushed limestone anyway.
+    //
+    // Accent note (v8.6.0, PBR.A → UBER): UBER is #eb92c5, the uber-strategy.jsx
+    // v1 accent, used UNCHANGED — unlike MLM there is no conflation to engineer
+    // around. On THIS palette (same redmean weighted-RGB metric as the MLM note)
+    // its nearest neighbours are TMO #a06bc8 at 147, the SELL orange #f4a261 at
+    // 148 and the TRIM red #ff6b6b at 154; every other accent and signal colour
+    // is 169 or more. All clear the ~120 same-colour floor, so the strategy
+    // file and the hub show UBER in the same pink. Petrobras green (#00a651)
+    // leaves the map with PBR.A; its historical rows (paper trades before the
+    // swap) fall back to the default text colour, as IBIT's and RDDT's did.
+    //
+    // Accent note (v8.7.0, ENB → CVX): CVX is #99ddff, the cvx-strategy.jsx v1
+    // accent, used UNCHANGED. Same redmean metric: its nearest neighbour is the
+    // DEFAULT text colour #e0e8f0 at 122 — just over the ~120 floor, and the
+    // colour unmapped symbols render in — then the POSITIONAL BUY teal #4ecdc4
+    // at 154; every holding accent is 189 or more (ASML #5b8dee nearest), and
+    // UBER's #eb92c5 is 220 away. Enbridge orange (#e8963e — itself only 59
+    // from the SELL orange) leaves the map with ENB; its historical rows fall
+    // back to the default text colour, as PBR.A's do.
     const HOLDINGS = {
       LHX: { name: "L3Harris", accent: "#b8a04a" }, ASML: { name: "ASML", accent: "#5b8dee" },
       LIN: { name: "Linde", accent: "#5b8c7c" }, MSFT: { name: "Microsoft", accent: "#5e8ba8" },
-      TMO: { name: "Thermo Fisher", accent: "#a06bc8" }, ENB: { name: "Enbridge", accent: "#e8963e" },
+      TMO: { name: "Thermo Fisher", accent: "#a06bc8" }, CVX: { name: "Chevron", accent: "#99ddff" },
       NOW: { name: "ServiceNow", accent: "#62d84e" }, GLNCY: { name: "Glencore", accent: "#5ba784" },
       MLM: { name: "Martin Marietta", accent: "#dada80" }, KOF: { name: "Coca-Cola FEMSA", accent: "#e63946" },
-      "PBR.A": { name: "Petrobras", accent: "#00a651" }, AMKBY: { name: "Maersk", accent: "#009fda" },
+      UBER: { name: "Uber", accent: "#eb92c5" }, AMKBY: { name: "Maersk", accent: "#009fda" },
       MA: { name: "Mastercard", accent: "#c65b52" }, ISRG: { name: "Intuitive Surgical", accent: "#4a9db5" },
     };
     const ROLES = {
