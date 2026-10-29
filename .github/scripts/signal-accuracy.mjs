@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.6 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.8 — Forward-looking signal accuracy tracker.
 //
 // v1.3 (June 2026) — CSV PARSE HARDENING:
 //   The naive split(",") parser accepted rows WIDER than the header and read
@@ -202,6 +202,166 @@
 // so other holdings and pre-v8.5 history stay clean. Aggregation logic remains
 // symbol-agnostic — MLM stats accumulate from its first logged date forward,
 // and RDDT's historical rows keep aggregating unchanged as closed history.
+
+// v1.7 — UBER v8.6 context propagation (PBR.A → UBER holdings swap; sync with
+// log-signals V8.6.0, which appends 53 columns and migrates the header
+// 234 → 287). As at v1.4–v1.6, the EXACT-width contract is DYNAMIC against the
+// on-disk header (headers.length), so NO width constant changes here. Re-tested
+// rather than assumed: genuine v1.6 parses a post-migration 287-wide file with
+// zero rows skipped, and so does this file.
+//
+// ★★ AS AT v1.6, THE IMPORTANT CHANGE IS A FLAG, NOT A METRIC — two of them.
+//   • value_trap_gate_active travels with strategic_score. score-engine V8.5
+//     FLOORS UBER's blended strategic score at 0 when the AV supply regime is
+//     disintermediating and the Mobility canary is below 12% cc (or unknown).
+//     On such a day the snapshot's strategic_score is a RULE OUTPUT, not a
+//     judgment, and a calibration study that fits strategic scores to forward
+//     returns without the flag would credit the model with a call it never
+//     made. This is the first flag in this file that qualifies a SCORE rather
+//     than an input. false = evaluated and clear; absent = not evaluated
+//     (every other holding).
+//   • premium_unreliable_reason + tax_release_in_ttm travel with the
+//     already-propagated cohort_premium_pct / premium_pct_reliable pair. On
+//     UBER rows the premium computes near −72% from GAAP trailing P/Es on both
+//     legs (UBER's $4.9B tax release + equity revaluations; LYFT's tax-benefit
+//     P/E). premium_pct_reliable=false already says it is invalid; the reason
+//     says why, which matters once a study pools gated rows from MLM
+//     (divestiture gain) and UBER (tax release) — different artifacts.
+//     ⚠ CALENDAR TRAP: the tax release rolls out of UBER's TTM window at the
+//     2026-11-04 print. Trailing P/E roughly doubles and cohort_premium_pct
+//     jumps by tens of points overnight with no change in the business.
+//     tax_release_in_ttm flips true → false on exactly that day; it is the
+//     only field that labels the discontinuity as accounting.
+//   Scope, stated precisely as at v1.6: calibration-loader v1.3 renders only
+//   regime / regime_pmi / weights / scores / price / role into the LLM prompt,
+//   so none of these reach today's prompt. The exposure is the future
+//   calibration substrate.
+//
+// Yesterday-snapshot additionally propagates:
+//   • av_supply_regime_state — the V8.5 UBER weight-gate driver, the second
+//     CATEGORICAL driver in this file after MLM's federal authorization status.
+//     ⚠ "leader_exiting_tail_aggregating" is the BASE CASE (regime contested,
+//     scores zero), not a downgrade; a study must not read it as negative. The
+//     engine regime it maps to already arrives via the v1.1 regime field.
+//   • dh_offer_state + dh_basis_scored + gross_leverage — Delivery Hero is
+//     PENDING and scored STANDALONE. dh_basis_scored labels the basis change
+//     when the deal closes; leverage is read against the stated <2x gross
+//     ceiling, never as a level.
+//   • xly_vs_spy_30d_pp — the consumer factor overlay (tactical, not the gate)
+//   • mobility_gb_growth_cc_pct + delivery_gb_growth_cc_pct — UBER's signature
+//     operational metric, propagated as a PAIR. The canary is the GAP:
+//     Mobility below 12% WHILE Delivery holds is the AV-disintermediation
+//     signature; both slowing together is the consumer cycle. Either number
+//     alone cannot tell those apart.
+//   • owner_fcf_yield_pct — the flagship strategic lens (FCF less SBC, ~6.1%,
+//     not the ~7.5% headline)
+//   • av_shock_candidate_active + worst_1d_return_5s_pct +
+//     av_headline_shock_active — the PRICE event and the LLM's ATTRIBUTION of
+//     it, kept apart. Whether unattributed −4% days turn out to be AV news is
+//     exactly what this loop should learn, and it can only learn it from both.
+//   • forward_pe_non_gaap + non_gaap_eps_sbc_treatment, ev_adj_ebitda +
+//     ev_adj_ebitda_basis — each multiple WITH its basis tag (v1.6
+//     principle). These are UBER's own fields, deliberately separate from
+//     MLM's forward_pe / ev_ebitda: the Adj, Adj-less-SBC and GAAP EBITDA bases
+//     span ~5 turns on the same EV.
+//   • roic_gaap_inflated — pairs with roic_pct (propagated since v1.6). ⚠ Not
+//     the same flag as MLM's roic_denominator_distorted: UBER's NUMERATOR is
+//     tax-inflated, MLM's DENOMINATOR is acquisition-inflated. Both mean
+//     "roic_pct is not a quality read on this row", for opposite reasons.
+//
+// Needs nothing new, already read by earlier blocks: cohort_premium_pct +
+// premium_pct_reliable (v1.2 / v1.6), cohort_rotation_pp (v1.4 — log-signals
+// folds fetch v4.19's peer_rotation_pp into it; UBER fires at −6pp),
+// share_count_change_yoy_pct (v1.5 — UBER prints NEGATIVE, a net buyback),
+// roic_pct (v1.6). NOT propagated, deliberately: gaap_pe_signal_status and
+// revenue_signal_status (structural constants on every UBER row, and the
+// numbers they qualify — trailing_pe, reported revenue — are not in the
+// snapshot), and dash_spread_30d_pp (context only; the engine does not score
+// it). All three remain in signals.csv.
+//
+// Same forward-compatibility pattern throughout: blanks/absent columns no-op,
+// fields attach only when populated, so other holdings and pre-v8.6 history
+// stay clean. Aggregation logic remains symbol-agnostic — UBER stats
+// accumulate from its first logged date forward, and PBR.A's historical rows
+// keep aggregating unchanged as closed history.
+
+// v1.8 — CVX v8.7 context propagation (ENB → CVX holdings swap; sync with
+// log-signals V8.7.0, which appends 54 columns and migrates the header
+// 287 → 341 — or 234 → 341 if V8.6.0 never ran; both are pure appends). BUILT
+// ON v1.7 (PBR.A → UBER): deploy this file INSTEAD of v1.7. As at v1.4–v1.7,
+// the EXACT-width contract is DYNAMIC against the on-disk header
+// (headers.length), so NO width constant changes here. Re-tested rather than
+// assumed: genuine v1.6 and v1.7 parse a post-migration 341-wide file with zero
+// rows skipped, and so does this file.
+//
+// ★★ AS AT v1.6/v1.7, THE IMPORTANT CHANGES ARE FLAGS, NOT METRICS.
+//   • cycle_gate_active + cycle_gate_side travel with strategic_score — the
+//     second score-qualifying flag in this file, after UBER's
+//     value_trap_gate_active. score-engine V8.6 FLOORS CVX's blended strategic
+//     score at 0 ("no_buy") while Brent is more than 40% above the $70 deck
+//     unless normalized FCF yield is ≥ 6% on a full normalization, and CAPS it
+//     at 0 ("no_trim") more than 40% below unless that yield is < 4%. ⚠ The
+//     engine's normalization inputs are LLM-sourced, so the gate FAILS CLOSED:
+//     every CVX snapshot reads true / no_buy while Brent sits above $98. On
+//     such a day strategic_score is rule-bounded, and a calibration study
+//     fitting strategic scores to forward returns without the flag would credit
+//     the model with calls it never made. false = evaluated and clear; absent =
+//     not evaluated (every other holding).
+//   • share_count_base_clean travels with share_count_change_yoy_pct (v1.5).
+//     ⚠ HESS ANNIVERSARY: Hess closed 2025-07-18 with ~301M shares issued, so a
+//     YoY window crossing that date shows ~+14% mechanical "dilution". FALSE =
+//     the number is not a buyback or dilution read. Without the flag the
+//     snapshot would hand a study a fabricated dilution event every day until
+//     the first clean comparison.
+//   • premium_pct_reliable + premium_unreliable_reason need NO new code —
+//     log-signals V8.7.0 folds CVX's twin-block keys into the existing columns,
+//     so the v1.6 / v1.7 reads attach them. On CVX rows they qualify
+//     twin_premium_pct (v1.4), which computes from GAAP trailing P/Es on BOTH
+//     legs (windfall earnings + CVX's Hess DD&A step-up) and is hard-gated
+//     false upstream.
+//   Scope, stated precisely as at v1.6/v1.7: calibration-loader v1.3 renders
+//   only regime / regime_pmi / weights / scores / price / role into the LLM
+//   prompt, so none of these reach today's prompt. The exposure is the future
+//   calibration substrate.
+//
+// Yesterday-snapshot additionally propagates:
+//   • brent_spot — the V8.6 CVX weight-gate driver, the first PRICE-LEVEL
+//     driver in this file (numeric, like the factor spreads, but an absolute
+//     commodity price against a fixed $70 deck). The band it maps to already
+//     arrives via the v1.1 regime field ("dislocated_high" etc.).
+//   • xle_vs_spy_30d_pp — the energy factor overlay (tactical, not the gate).
+//   • xom_spread_30d_pp + xom_dislocation_active — the TWIN read (peer of MLM's
+//     vmc_spread_30d_pp / vmc_dislocation_active and MA's twin_spread_30d_pp).
+//   • air_pocket_candidate_active + largest_1d_move_5s_pct + idiosyncratic_pp —
+//     the geopolitical air-pocket PRICE event with its sector-relative
+//     classification (≥3pp worse than XLE = possibly a Chevron asset event).
+//     Price only: the headline classification lives in the LLM's prose.
+//   • tco_canary_status — CVX's signature operational metric (TCO ≈ $6B of
+//     Chevron-share FCF at $70 Brent, exported through one pipeline).
+//   • buyback_guide_trend — whether the windfall reaches shareholders.
+//   • adj_fcf_ttm_busd + downstream_earnings_ttm_busd + brent_ttm_avg +
+//     henry_hub_ttm_avg + market_cap_busd — the five inputs of the normalized
+//     FCF yield (the flagship strategic lens), propagated TOGETHER: no single
+//     one is a valuation read, and any four cannot reproduce the yield.
+//   • net_debt_ratio_ex_deconsolidation_pct + hesm_deconsolidation_state —
+//     leverage travels with its basis state (the HESM exit removes ~$3.7B of
+//     debt with no cash generated).
+//
+// Needs nothing new, already read by earlier blocks: regime (v1.1),
+// twin_premium_pct (v1.4), share_count_change_yoy_pct (v1.5), the
+// premium_pct_reliable / premium_unreliable_reason pair (v1.6 / v1.7, via the
+// log-signals fold). NOT propagated, deliberately: q3_2025_in_ttm (it labels
+// trailing_pe, which the snapshot does not carry, and the twin premium it
+// would otherwise qualify is already hard-gated), revisions_signal_status and
+// roce_spot_inflated (eps_revisions_* and roce_pct are not in the snapshot),
+// forward_pe_consensus (SPOT — never scored), and production_growth_yoy_pct
+// (Hess-contaminated context). All remain in signals.csv.
+//
+// Same forward-compatibility pattern throughout: blanks/absent columns no-op,
+// fields attach only when populated, so other holdings and pre-v8.7 history
+// stay clean. Aggregation logic remains symbol-agnostic — CVX stats accumulate
+// from its first logged date forward, and ENB's historical rows keep
+// aggregating unchanged as closed history.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -545,6 +705,25 @@ function aggregateStats(forwardReturns) {
 // ps_pct_of_3y_avg / own_history_window_partial pair) when the CSV row
 // carries those columns. Added by log-signals V8.4.0. Same pattern. RDDT's
 // rotation reuses the shared cohort_rotation_pp read above.
+//
+// v1.7: Also propagates UBER v8.6 context — value_trap_gate_active (the first
+// flag here that qualifies a SCORE: true means strategic_score was floored at
+// 0 by rule), premium_unreliable_reason + tax_release_in_ttm (completing the
+// cohort_premium_pct pairing across the 2026-11-04 calendar trap),
+// av_supply_regime_state, the Delivery Hero state/basis/leverage triple,
+// xly_vs_spy_30d_pp, the Mobility/Delivery canary PAIR, owner_fcf_yield_pct,
+// the AV-shock price-event/attribution trio, UBER's multiples WITH their basis
+// tags, and roic_gaap_inflated — when the CSV row carries those columns. Added
+// by log-signals V8.6.0. Same pattern.
+//
+// v1.8: Also propagates CVX v8.7 context — cycle_gate_active + cycle_gate_side
+// (the second flag here that qualifies a SCORE: true means strategic_score was
+// bounded at 0 by rule), share_count_base_clean (pairs with
+// share_count_change_yoy_pct across the Hess anniversary), brent_spot (the
+// weight-gate driver), xle_vs_spy_30d_pp, the XOM twin read, the air-pocket
+// price event, tco_canary_status, buyback_guide_trend, the five
+// normalized-FCF inputs, and leverage ex-HESM with its state — when the CSV
+// row carries those columns. Added by log-signals V8.7.0. Same pattern.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -787,6 +966,161 @@ function getYesterdaySnapshot(rows, tradingDates) {
     const roicDistorted = boolOrNull(row.roic_denominator_distorted);
     if (roic != null) holding.roic_pct = roic;
     if (roicDistorted != null) holding.roic_denominator_distorted = roicDistorted;
+
+    // v1.7: UBER v8.6 context — only attached when CSV cells are populated
+    // (UBER-only in current builds). Pre-v8.6 CSV history leaves these columns
+    // undefined, helpers no-op, other holdings stay clean. UBER's marketplace
+    // rotation arrives via the shared cohort_rotation_pp read above, its net
+    // share count via share_count_change_yoy_pct, its ROIC via roic_pct.
+
+    // ★★ THE FLAG THAT QUALIFIES A SCORE. true = UBER's blended strategic
+    // score was FLOORED at 0 by the value-trap gate (disintermediating AV
+    // regime + Mobility canary <12% cc or unknown) — strategic_score above is a
+    // rule output on that day, not a judgment. false = evaluated and clear.
+    // Attached first so the pairing with strategic_score cannot be missed.
+    const valueTrapGate = boolOrNull(row.value_trap_gate_active);
+    if (valueTrapGate != null) holding.value_trap_gate_active = valueTrapGate;
+
+    // ★★ Completes the cohort_premium_pct / premium_pct_reliable pairing. The
+    // reason distinguishes UBER's artifact (tax release + revaluations on its
+    // own leg, LYFT's tax-benefit P/E on the peer leg) from MLM's (divestiture
+    // gain). tax_release_in_ttm flips true → false at the 2026-11-04 print —
+    // the day UBER's trailing P/E roughly doubles on accounting alone.
+    const premiumReason = strOrNull(row.premium_unreliable_reason);
+    const taxReleaseInTtm = boolOrNull(row.tax_release_in_ttm);
+    if (premiumReason != null) holding.premium_unreliable_reason = premiumReason;
+    if (taxReleaseInTtm != null) holding.tax_release_in_ttm = taxReleaseInTtm;
+
+    // AV supply regime — the V8.5 UBER weight-gate driver (categorical, like
+    // MLM's federal_authorization_status). ⚠ "leader_exiting_tail_aggregating"
+    // is the BASE CASE (contested, scores zero), NOT a downgrade.
+    const avSupplyState = strOrNull(row.av_supply_regime_state);
+    const xlyVsSpy = numOrNull(row.xly_vs_spy_30d_pp);
+    if (avSupplyState != null) holding.av_supply_regime_state = avSupplyState;
+    if (xlyVsSpy != null) holding.xly_vs_spy_30d_pp = xlyVsSpy;
+
+    // Delivery Hero — PENDING, scored STANDALONE. dh_basis_scored labels the
+    // day the basis changes; gross_leverage is read against the stated <2x
+    // ceiling, never as a level, so it travels with the deal state.
+    const dhState = strOrNull(row.dh_offer_state);
+    const dhBasis = strOrNull(row.dh_basis_scored);
+    const grossLeverage = numOrNull(row.gross_leverage);
+    if (dhState != null) holding.dh_offer_state = dhState;
+    if (dhBasis != null) holding.dh_basis_scored = dhBasis;
+    if (grossLeverage != null) holding.gross_leverage = grossLeverage;
+
+    // UBER's signature operational metric, as a PAIR. The canary is the GAP:
+    // Mobility below 12% WHILE Delivery holds = AV disintermediation; both
+    // slowing together = the consumer cycle. Neither number alone separates them.
+    const mobilityGb = numOrNull(row.mobility_gb_growth_cc_pct);
+    const deliveryGb = numOrNull(row.delivery_gb_growth_cc_pct);
+    if (mobilityGb != null) holding.mobility_gb_growth_cc_pct = mobilityGb;
+    if (deliveryGb != null) holding.delivery_gb_growth_cc_pct = deliveryGb;
+
+    // The flagship strategic lens — FCF less SBC (~6.1%, not the ~7.5% headline).
+    const ownerFcfYield = numOrNull(row.owner_fcf_yield_pct);
+    if (ownerFcfYield != null) holding.owner_fcf_yield_pct = ownerFcfYield;
+
+    // The AV-shock PRICE event and the LLM's ATTRIBUTION of it, kept apart —
+    // whether unattributed −4% days prove to be AV news is what this loop
+    // should learn, and it needs both sides to learn it.
+    const shockCandidate = boolOrNull(row.av_shock_candidate_active);
+    const worst1d = numOrNull(row.worst_1d_return_5s_pct);
+    const shockAttributed = boolOrNull(row.av_headline_shock_active);
+    if (shockCandidate != null) holding.av_shock_candidate_active = shockCandidate;
+    if (worst1d != null) holding.worst_1d_return_5s_pct = worst1d;
+    if (shockAttributed != null) holding.av_headline_shock_active = shockAttributed;
+
+    // Each multiple WITH its basis tag (v1.6 principle). UBER's own fields,
+    // separate from MLM's forward_pe / ev_ebitda — the Adj, Adj-less-SBC and
+    // GAAP EBITDA bases span ~5 turns on the same EV.
+    const fwdPeNonGaap = numOrNull(row.forward_pe_non_gaap);
+    const sbcTreatment = strOrNull(row.non_gaap_eps_sbc_treatment);
+    const evAdjEbitda = numOrNull(row.ev_adj_ebitda);
+    const evAdjEbitdaBasis = strOrNull(row.ev_adj_ebitda_basis);
+    if (fwdPeNonGaap != null) holding.forward_pe_non_gaap = fwdPeNonGaap;
+    if (sbcTreatment != null) holding.non_gaap_eps_sbc_treatment = sbcTreatment;
+    if (evAdjEbitda != null) holding.ev_adj_ebitda = evAdjEbitda;
+    if (evAdjEbitdaBasis != null) holding.ev_adj_ebitda_basis = evAdjEbitdaBasis;
+
+    // Pairs with roic_pct (v1.6). ⚠ NOT roic_denominator_distorted: UBER's
+    // NUMERATOR is tax-inflated, MLM's DENOMINATOR is acquisition-inflated.
+    const roicGaapInflated = boolOrNull(row.roic_gaap_inflated);
+    if (roicGaapInflated != null) holding.roic_gaap_inflated = roicGaapInflated;
+
+    // v1.8: CVX v8.7 context — only attached when CSV cells are populated
+    // (CVX-only in current builds). Pre-v8.7 CSV history leaves these columns
+    // undefined, helpers no-op, other holdings stay clean. CVX's twin premium
+    // arrives via twin_premium_pct (v1.4), its qualifier pair via
+    // premium_pct_reliable / premium_unreliable_reason (log-signals folds the
+    // twin-block keys), its oil-regime band via regime (v1.1).
+
+    // ★★ THE SECOND FLAG THAT QUALIFIES A SCORE. true = CVX's blended strategic
+    // score was BOUNDED by the cycle-position gate — floored at 0 (no_buy,
+    // Brent > $98) or capped at 0 (no_trim, Brent < $42). strategic_score above
+    // is rule-bounded on that day. ⚠ Fails closed: true / no_buy every day
+    // Brent sits above $98. false = evaluated and clear. Attached first so the
+    // pairing with strategic_score cannot be missed.
+    const cycleGate = boolOrNull(row.cycle_gate_active);
+    const cycleGateSide = strOrNull(row.cycle_gate_side);
+    if (cycleGate != null) holding.cycle_gate_active = cycleGate;
+    if (cycleGateSide != null) holding.cycle_gate_side = cycleGateSide;
+
+    // ★★ Pairs with share_count_change_yoy_pct (v1.5). FALSE = the YoY window
+    // crosses the 2025-07-18 Hess close (~+14% mechanical "dilution") — the
+    // number on that row is not a buyback or dilution read.
+    const shareBaseClean = boolOrNull(row.share_count_base_clean);
+    if (shareBaseClean != null) holding.share_count_base_clean = shareBaseClean;
+
+    // The V8.6 CVX weight-gate driver — spot Brent against the fixed $70 deck
+    // (the first price-level driver here). The band arrives via regime.
+    const brentSpot = numOrNull(row.brent_spot);
+    const xleVsSpy = numOrNull(row.xle_vs_spy_30d_pp);
+    if (brentSpot != null) holding.brent_spot = brentSpot;
+    if (xleVsSpy != null) holding.xle_vs_spy_30d_pp = xleVsSpy;
+
+    // The TWIN read — peer of MLM's vmc_spread_30d_pp / vmc_dislocation_active.
+    // CVX lagging XOM by more than 4pp over 30 days is the signature setup.
+    const xomSpread30d = numOrNull(row.xom_spread_30d_pp);
+    const xomDislocation = boolOrNull(row.xom_dislocation_active);
+    if (xomSpread30d != null) holding.xom_spread_30d_pp = xomSpread30d;
+    if (xomDislocation != null) holding.xom_dislocation_active = xomDislocation;
+
+    // The air-pocket PRICE event with its sector-relative classification
+    // (idiosyncratic_pp ≤ −3 = possibly a Chevron asset event, not bought blind).
+    const airPocket = boolOrNull(row.air_pocket_candidate_active);
+    const largestMove = numOrNull(row.largest_1d_move_5s_pct);
+    const idiosyncratic = numOrNull(row.idiosyncratic_pp);
+    if (airPocket != null) holding.air_pocket_candidate_active = airPocket;
+    if (largestMove != null) holding.largest_1d_move_5s_pct = largestMove;
+    if (idiosyncratic != null) holding.idiosyncratic_pp = idiosyncratic;
+
+    // CVX's signature operational metric, and whether the windfall reaches
+    // shareholders.
+    const tcoCanary = strOrNull(row.tco_canary_status);
+    const buybackGuideTrend = strOrNull(row.buyback_guide_trend);
+    if (tcoCanary != null) holding.tco_canary_status = tcoCanary;
+    if (buybackGuideTrend != null) holding.buyback_guide_trend = buybackGuideTrend;
+
+    // The five inputs of the normalized FCF yield travel TOGETHER — no single
+    // one is a valuation read, and any four cannot reproduce the yield.
+    const adjFcfTtm = numOrNull(row.adj_fcf_ttm_busd);
+    const downstreamTtm = numOrNull(row.downstream_earnings_ttm_busd);
+    const brentTtm = numOrNull(row.brent_ttm_avg);
+    const henryHubTtm = numOrNull(row.henry_hub_ttm_avg);
+    const marketCapBusd = numOrNull(row.market_cap_busd);
+    if (adjFcfTtm != null) holding.adj_fcf_ttm_busd = adjFcfTtm;
+    if (downstreamTtm != null) holding.downstream_earnings_ttm_busd = downstreamTtm;
+    if (brentTtm != null) holding.brent_ttm_avg = brentTtm;
+    if (henryHubTtm != null) holding.henry_hub_ttm_avg = henryHubTtm;
+    if (marketCapBusd != null) holding.market_cap_busd = marketCapBusd;
+
+    // Leverage travels with its basis state — the HESM exit removes ~$3.7B of
+    // debt with no cash generated.
+    const ndrExDecon = numOrNull(row.net_debt_ratio_ex_deconsolidation_pct);
+    const hesmState = strOrNull(row.hesm_deconsolidation_state);
+    if (ndrExDecon != null) holding.net_debt_ratio_ex_deconsolidation_pct = ndrExDecon;
+    if (hesmState != null) holding.hesm_deconsolidation_state = hesmState;
 
     snapshot.holdings[row.symbol] = holding;
   }
