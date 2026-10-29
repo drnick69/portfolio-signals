@@ -1,11 +1,17 @@
 name: Risk Language Diff
 
-# Weekly SEC EDGAR risk-factor section diff (risk-language-diff.mjs v1.0).
+# Weekly SEC EDGAR risk-factor section diff (risk-language-diff.mjs v1.6).
 # Slow-moving fundamental signal: filings change quarterly at most, so weekly
 # is already generous headroom. Sunday 14:00 UTC — outside the daily-signal
 # and calibration windows, so no commit races on docs/history/.
 # v1 is a data producer only: writes docs/history/risk-language.json; nothing
 # consumes it yet (prompt integration is a separate, explicitly-approved step).
+#
+# REQUIRED SECRET: RLD_USER_AGENT — SEC refuses automated requests that don't
+# declare a contact ("Name email@domain"). Set it under Settings → Secrets and
+# variables → Actions. It is a secret rather than a literal here because this
+# repository is public. Without it every request returns 403 and, from v1.5,
+# the run fails instead of committing a file of errors.
 on:
   schedule:
     - cron: "0 14 * * 0"
@@ -35,6 +41,8 @@ jobs:
         run: node .github/scripts/risk-language-diff.mjs --selftest
 
       - name: Run risk-language diff
+        env:
+          RLD_USER_AGENT: ${{ secrets.RLD_USER_AGENT }}
         run: node .github/scripts/risk-language-diff.mjs
 
       - name: Commit risk-language.json
