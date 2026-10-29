@@ -69,6 +69,54 @@
 // this name's calibration from panels that begin after the authorization
 // outcome is settled and the acquisition has closed.
 //
+// v8.6.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only. The
+// PBR.A → UBER swap behaves exactly like the ETHA → NOW, IBIT → RDDT and
+// RDDT → MLM precedents: UBER's panel begins accumulating from its first
+// attributed date and will show small-n / insufficient-data grades for its
+// first weeks (correct, not a bug), while PBR.A's historical stats persist
+// until its log entries age out.
+// Volatility sits between the two previous cautions: beta ~1.26, with scoring
+// bands to match (score-engine V8.5: RSI 35/70, ±2.5% daily noise floor) —
+// wider than MLM's 38/70 and ±2%, narrower than RDDT's 32/72 and ±4%.
+// ⚠ THE CALENDAR CAUTION RECURS, AND ARRIVES FASTER. UBER's Q3 print is
+// 2026-11-04 (before the open), and the Delivery Hero acceptance period closes
+// 2026-11-05 — inside its very first week. Its earliest tactical observations
+// therefore straddle an earnings session. On top of that, this name carries an
+// UNSCHEDULED event class: autonomous-vehicle headline days (fetch v4.19
+// screens for sessions down 4% or more; the LLM attributes them). An early
+// UBER hit rate built on a handful of observations around either is measuring
+// events as much as the model. Prefer panels that begin after the Q3 print.
+// ⚠ And if score-engine V8.5's value-trap gate ever fires, UBER's strategic
+// score is floored at 0 by rule on those days. Such scores land in the
+// neutral band and drop out of the hit rate — correctly, since a floored score
+// is not a call — but a strategic panel that looks thin on UBER may be thin
+// for that reason. log-signals V8.6.0 records the gate state per day.
+//
+// v8.7.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only. The
+// ENB → CVX swap behaves like every precedent: CVX's panel begins accumulating
+// from its first attributed date with small-n / insufficient-data grades for
+// its first weeks, while ENB's historical stats persist until its log entries
+// age out.
+// Volatility: five-year beta 0.52, but 2026's realized volatility is the oil
+// war's, so score-engine V8.6 uses RSI 35/70 (as UBER) with a ±2% daily noise
+// floor (as MLM).
+// ⚠ THE CALENDAR CAUTION ARRIVES FASTEST YET. CVX's Q3 print is 2026-10-30
+// (before the open) — inside its very first week — so its earliest tactical
+// observations straddle an earnings session. It also carries an UNSCHEDULED
+// event class: geopolitical air pockets on Iran / Hormuz / Kazakhstan-pipeline
+// headlines (fetch v4.20 screens for sessions that move 4% or more; the LLM
+// classifies them). Prefer panels that begin after the Q3 print.
+// ⚠⚠ CVX'S STRATEGIC PANEL IS ONE-SIDED BY RULE FROM DAY ONE. score-engine
+// V8.6's cycle-position gate floors CVX's blended strategic score at 0 while
+// Brent is more than 40% above the $70 deck — and because the engine's
+// normalization inputs are LLM-sourced, it fails CLOSED, so with Brent near
+// $115 it is active every day. Floored scores land in the neutral band and
+// drop out of the hit rate (correctly — a floored score is not a call), which
+// leaves only TRIM-side strategic calls able to register. A CVX strategic
+// panel showing no buy-side calls while Brent is above $98 is the gate, not a
+// model finding. log-signals V8.7.0 records cycle_gate_active /
+// cycle_gate_side per day.
+//
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
 
