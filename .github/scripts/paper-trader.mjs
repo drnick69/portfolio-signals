@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// paper-trader.mjs v8.5 — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v8.8 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across the holdings present on day one.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
@@ -123,6 +123,123 @@
 //       KNOWN rather than discovered later as an unexplained kink.
 //       Do not let the same thing happen to RDDT: set
 //       MIGRATION_EXIT_PRICE["RDDT"] before the first post-deploy run.
+//
+// v8.6: HOLDINGS SWAP — PBR.A → UBER (Uber Technologies). Same true-swap path
+//       as V8.4/v8.5: sell the position at its exit price, redeploy the ACTUAL
+//       proceeds into UBER at the run's price. Mechanic unchanged; this build is
+//       the map entry, the exit price, and a correction to the record.
+//
+//       A NEW, INDEPENDENT LINEAGE — no chain. PBR.A → UBER; UBER is not a key,
+//       so resolveTerminalSymbol() returns UBER in one hop with via = [].
+//
+//       EXIT PRICE: 19.6 (decision 2026-10-27), SET IN THIS FILE — not as a
+//       follow-up edit (see the correction below for why that matters). The
+//       live book holds 10,897.8762 PBR.A shares at a 180,438.54 cost basis
+//       (avg 16.5572). At 19.6 the position exits for 213,598.37, REALIZING A
+//       GAIN of 33,159.83 (+18.4%) against cost. Direction is the usual one,
+//       and the opposite of RDDT's: cost-basis fallback here would have
+//       redeployed only 180,438.54 and silently DISCARDED that gain.
+//
+//       ★★ CORRECTION TO THE v8.5 RECORD. The v8.5 note at MIGRATION_EXIT_PRICE
+//       said setting "RDDT": 150 "reduces recorded book value by ~22.8k". That
+//       never happened. v8.5 was committed 2026-08-20 23:10 EDT with RDDT still
+//       null; the pipeline run that committed at 00:12 EDT executed RDDT → MLM
+//       in COST-BASIS FALLBACK (paper-portfolio.json swaps[] for 2026-08-21:
+//       exit_price null, basis_mode "cost_basis_fallback", proceeds 365,238.48).
+//       "RDDT": 150 was committed at 11:04 EDT, ~11 hours AFTER the one-time
+//       swap had run, and has never executed. So BOTH prior true swaps ran in
+//       fallback: IBIT → RDDT (2026-08-05, discarded P&L unknown) and
+//       RDDT → MLM (2026-08-21, flattering the book by ~22.8k at the 150 mark).
+//       MLM's 365,238.48 cost basis therefore carries RDDT's break-even fiction
+//       forward. Not repairable from this file — the swaps are one-time and
+//       already consumed — but it should be known, not rediscovered.
+//
+//       ⚠⚠ DEPLOY THIS FILE IN THE SAME COMMIT AS fetch-market-data v4.19.
+//       v4.19 removes PBR.A from SYMBOLS, so from its first run PBR.A has no
+//       price. The valuation loop below skips any holding without a price, so
+//       under v8.5 (no PBR.A map entry) the ~$214k PBR.A position would drop
+//       out of total_value on every run — a phantom drawdown in the series
+//       benchmark-scorecard reads — until this file landed. This is not
+//       hypothetical: on 2026-08-04 IBIT was still held but no longer priced
+//       (the swap only executed on the 2026-08-05 run), and TMO also failed
+//       scoring that day; both dropped out of total_value, which fell
+//       2,123,851 → 1,528,114 and recovered on 2026-08-05.
+//       Landing this file EARLIER than the rest is harmless: the migration
+//       needs a UBER price, which does not exist until generate-signals v8.6.0
+//       scores UBER, so until then it logs "UBER price unavailable" and
+//       retries, and the book is otherwise untouched. Landing it LATER is not.
+//
+// v8.7: LAST-KNOWN-PRICE MARKS — an unpriced holding is no longer dropped from
+//       total_value. Builds on v8.6 (the PBR.A → UBER swap is unchanged).
+//
+//       THE DEFECT. The valuation loop skipped any holding without a price in
+//       today's signal data. A holding goes unpriced whenever it fails scoring
+//       (a partial run) or has been retired from SYMBOLS but not yet migrated,
+//       and on every such day its whole market value vanished from
+//       total_value, then reappeared the next day. Through 2026-10-28 that had
+//       happened on 23 days — e.g. 2026-08-04, −$595,737, and 2026-10-22,
+//       −$170,230 — each a phantom drawdown in the series benchmark-scorecard
+//       reads as the signal leg. (The scorecard's own equal-weight leg already
+//       carries forward last known prices, so the two legs were not even
+//       measured the same way on those days.)
+//
+//       THE FIX. Each priced run now stores last_price / last_price_date on the
+//       holding. An unpriced holding is marked at, in order: its stored
+//       last_price; else its most recent price in docs/history/daily-log.jsonl
+//       (which seeds holdings that predate this version — log-signals runs
+//       before this script, so the log is current); else, with no price
+//       anywhere, it is still excluded, as before, and named in the log and in
+//       the snapshot's `unpriced` list. Every carried mark is recorded in the
+//       snapshot's `stale_marks` { symbol: { price, as_of, source } }, so a
+//       carried day is auditable, not just smoothed. Trades never execute on a
+//       carried price — buys and trims still require today's price.
+//
+//       THE SAME FIX FOR SWAPS. A retiring position with no MIGRATION_EXIT_PRICE
+//       and no price today used to fall straight to the cost-basis fallback
+//       that silently re-marked IBIT and RDDT at break-even. It now exits at its
+//       last known price first (basis_mode "last_known_price", with
+//       exit_price_source / exit_price_as_of on the swap record). Cost-basis
+//       fallback now only happens when no price for the position exists anywhere.
+//       An explicit MIGRATION_EXIT_PRICE still wins, so PBR.A still exits at 19.6.
+//
+//       HISTORY IS NOT REWRITTEN. The 23 recorded phantom drops stay in
+//       paper-portfolio.json as they were logged; this fixes every day from
+//       deploy forward. Restating them would mean reconstructing past share
+//       counts from the trade log and re-pricing from daily-log.jsonl — a
+//       separate, deliberate step if wanted.
+//
+// v8.8: HOLDINGS SWAP — ENB → CVX (Chevron). BUILT ON v8.7 (v8.6's PBR.A → UBER
+//       plus v8.7's last-known-price marks): everything above lives in this
+//       file, so v8.8 supersedes v8.7 — deploy this one, not both. Same
+//       true-swap path and mechanic as v8.4–v8.7; this build is the map entry
+//       and the exit price, nothing else.
+//
+//       A NEW, INDEPENDENT LINEAGE — no chain. ENB → CVX; CVX is not a key, so
+//       resolveTerminalSymbol() returns CVX in one hop with via = []. If both
+//       swaps run on the same first post-deploy run, each source position is
+//       consumed exactly once and they land in two separate positions.
+//
+//       EXIT PRICE: 48.26 (decision 2026-10-27), SET IN THIS FILE, per the v8.6
+//       rule; as an override it outranks the v8.7 last-known-price fallback. As
+//       of the 2026-10-28 book the position is 780.7905 ENB shares at a
+//       39,337.18 cost basis (avg 50.3812). At 48.26 it exits for 37,680.95,
+//       REALIZING A LOSS of 1,656.23 (−4.2%) against cost. ⚠ The direction is RDDT's, not PBR.A's: cost-basis
+//       fallback would have redeployed the full 39,337.18 and silently
+//       FLATTERED the book by pretending ENB exited at break-even. 48.26 is
+//       below ENB's last logged price (48.70 on 2026-10-28), so the swap also
+//       marks the position ~0.9% under its last valuation; that is the decided
+//       exit, not an error. (If a trim or buy changes the ENB position before
+//       the swap runs, the swap sells whatever is held then; only the price is
+//       fixed here.)
+//
+//       ⚠ DEPLOY THIS FILE IN THE SAME COMMIT AS fetch-market-data v4.20, which
+//       supersedes v4.19 and removes BOTH PBR.A and ENB from SYMBOLS. Under the
+//       v8.7 carry-forward a late landing no longer drops either position out
+//       of total_value — each would be marked at its last known price — but
+//       neither swap executes until this file is live, so the book would sit
+//       holding two retired names at stale marks. Landing this file EARLIER
+//       than the rest is harmless: each migration waits, logging "<symbol>
+//       price unavailable", until generate-signals v8.7.0 scores UBER and CVX.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
@@ -211,6 +328,33 @@ console.log("============");
 console.log(`Date: ${date}`);
 console.log(`Prices: ${Object.keys(prices).length}/${normalized.length}`);
 
+// ─── LAST-KNOWN PRICES (v8.7) ───────────────────────────────────────────────
+// Used ONLY to mark an unpriced holding (valuation) or a retiring position
+// with no exit price (swaps). Never used to trade.
+const DAILY_LOG_PATH = "docs/history/daily-log.jsonl";
+let loggedPriceCache = null;
+function lastLoggedPrices() {
+  if (loggedPriceCache) return loggedPriceCache;
+  loggedPriceCache = {};
+  if (!existsSync(DAILY_LOG_PATH)) return loggedPriceCache;
+  for (const line of readFileSync(DAILY_LOG_PATH, "utf-8").split("\n")) {
+    if (!line.trim()) continue;
+    let e; try { e = JSON.parse(line); } catch { continue; }
+    if (!e?.date || !Array.isArray(e.holdings)) continue;
+    for (const lh of e.holdings) {
+      const p = typeof lh?.price === "number" ? lh.price : lh?.price?.current;
+      // Later entries overwrite earlier ones, so each symbol ends on its most
+      // recent logged price — the log is appended in date order.
+      if (lh?.symbol && typeof p === "number" && p > 0) loggedPriceCache[lh.symbol] = { price: p, as_of: e.date, source: "daily_log" };
+    }
+  }
+  return loggedPriceCache;
+}
+function lastKnownMark(sym, h) {
+  if (h?.last_price > 0) return { price: h.last_price, as_of: h.last_price_date ?? null, source: "last_price" };
+  return lastLoggedPrices()[sym] ?? null;
+}
+
 // ─── LOAD OR INITIALIZE PORTFOLIO ───────────────────────────────────────────
 let portfolio;
 if (existsSync(PORTFOLIO_PATH)) {
@@ -252,7 +396,10 @@ if (portfolio.history.some(h => h.date === date)) {
 
 // ─── HOLDINGS SWAP (one-time migrations) ────────────────────────────────────
 // V7.6: ETHA → NOW (already executed; entry retained, no-ops).
-// V8.4: IBIT → RDDT.
+// V8.4: IBIT → RDDT (executed 2026-08-05, cost-basis fallback).
+// v8.5: RDDT → MLM (executed 2026-08-21, cost-basis fallback — see v8.6 note).
+// v8.6: PBR.A → UBER.
+// v8.8: ENB → CVX.
 //
 // Mechanic (v8.4, corrected): the retiring position is SOLD at its exit price
 // and the proceeds are redeployed into the new symbol at today's price. Cash
@@ -271,7 +418,7 @@ if (portfolio.history.some(h => h.date === date)) {
 // Entries are LINEAGE, not shortcuts: each records what a symbol actually
 // became at the time. Chains are resolved at run time by
 // resolveTerminalSymbol(), so IBIT → RDDT → MLM lands on MLM in one hop.
-const HOLDINGS_MIGRATION = { "ETHA": "NOW", "IBIT": "RDDT", "RDDT": "MLM" };
+const HOLDINGS_MIGRATION = { "ETHA": "NOW", "IBIT": "RDDT", "RDDT": "MLM", "PBR.A": "UBER", "ENB": "CVX" };
 
 // ── CHAIN RESOLUTION (v8.5) ─────────────────────────────────────────────────
 // Follow a migration chain to its terminal symbol. Necessary because a
@@ -299,22 +446,22 @@ function resolveTerminalSymbol(sym) {
 // migration; see the note above for why it cannot be derived automatically.
 // Set to the retiring symbol's market price on the swap date.
 //
-// ⚠⚠ RDDT IS CURRENTLY null — SET IT BEFORE THE FIRST POST-DEPLOY RUN.
-//   This matters more than the IBIT entry ever did. IBIT was already gone by
-//   the time its price was needed; RDDT is a LIVE position with real unrealized
-//   P&L, and leaving this null means the swap runs in COST-BASIS FALLBACK and
-//   discards that P&L, stepping total_value and putting a kink into the TWR
-//   series benchmark-scorecard reads. The code will warn loudly and record
-//   basis_mode in history, but it cannot recover the number afterwards.
-//   Set it to RDDT's market price on the swap date.
+// ⚠⚠ THE EXIT PRICE MUST BE IN THE DEPLOY COMMIT, NEVER A FOLLOW-UP EDIT.
+//   The swap is ONE-TIME: it runs on the first pipeline run after deploy and
+//   then no-ops forever. An exit price committed after that run changes
+//   nothing. That is exactly how RDDT → MLM ran in cost-basis fallback on
+//   2026-08-21 despite "RDDT": 150 below (see the v8.6 header note).
+//   PBR.A's price (v8.6) and ENB's (v8.8) are set below, each in the same file
+//   that adds its map entry.
 //
-// ⚠ IBIT remains null. That swap has already executed (v8.4), so this value can
-//   no longer change anything — but its nullness is why the historical record
-//   likely shows basis_mode "cost_basis_fallback" for IBIT → RDDT. Left in
-//   place as documentation of that, not as a live setting.
-//
-// ETHA is intentionally absent: that migration already executed at V7.6 under
-// the old mechanic and no-ops now. Adding a price here could not change it.
+// Settled entries — documentation of what ran, not live settings:
+//   • IBIT: null — IBIT → RDDT executed 2026-08-05 in cost-basis fallback.
+//   • RDDT: 150 — NEVER EXECUTED. Committed ~11h after RDDT → MLM had already
+//     run in fallback; the swaps[] record shows exit_price null. Kept so the
+//     intended mark (and the ~22.8k it would have taken off the book) stays
+//     on record.
+//   • ETHA is intentionally absent: that migration executed at V7.6 under the
+//     old mechanic and no-ops now. Adding a price here could not change it.
 const MIGRATION_EXIT_PRICE = {
   "IBIT": null,   // executed at v8.4 in fallback mode; no longer settable
   // ⚠ NOTE THE DIRECTION HERE — it is the opposite of the usual case. The live
@@ -324,7 +471,17 @@ const MIGRATION_EXIT_PRICE = {
   // 365,238.48 — i.e. it would have silently FLATTERED the book by pretending
   // RDDT exited at break-even. Setting a real exit price here reduces recorded
   // book value by ~22.8k, and that is the correct, honest mark.
-  "RDDT": 150,    // market price on the swap date
+  "RDDT": 150,    // NEVER EXECUTED — swap ran in fallback before this was committed
+  // v8.6: the live book holds 10,897.8762 PBR.A shares at a 180,438.54 cost
+  // basis (avg 16.5572). At 19.6 the position exits for 213,598.37, REALIZING A
+  // GAIN of 33,159.83 (+18.4%) against cost — the gain cost-basis fallback
+  // would have silently discarded.
+  "PBR.A": 19.6,  // exit price, decision 2026-10-27 — live, executes on the first post-deploy run
+  // v8.8: as of the 2026-10-28 book, 780.7905 ENB shares at a 39,337.18 cost
+  // basis (avg 50.3812). At 48.26 the position exits for 37,680.95, REALIZING A
+  // LOSS of 1,656.23 (−4.2%) against cost — the loss cost-basis fallback would
+  // have silently hidden.
+  "ENB": 48.26,   // exit price, decision 2026-10-27 — live, executes on the first post-deploy run
 };
 
 const swaps = [];
@@ -349,15 +506,24 @@ for (const oldSym of Object.keys(HOLDINGS_MIGRATION)) {
   }
 
   // Exit price precedence: explicit override, then today's price map (present
-  // only if the retiring symbol somehow still scores), then no price at all.
-  const exitPrice = MIGRATION_EXIT_PRICE[oldSym] ?? prices[oldSym] ?? null;
+  // only if the retiring symbol somehow still scores), then — v8.7 — the
+  // position's last known price, and only then no price at all.
+  const override  = MIGRATION_EXIT_PRICE[oldSym] ?? null;
+  const lastMark  = override == null && prices[oldSym] == null ? lastKnownMark(oldSym, old) : null;
+  const exitPrice = override ?? prices[oldSym] ?? lastMark?.price ?? null;
+  const exitPriceSource = override != null ? "override" : prices[oldSym] != null ? "today" : lastMark ? lastMark.source : null;
+  const exitPriceAsOf   = override != null ? null : prices[oldSym] != null ? date : (lastMark?.as_of ?? null);
 
   // Proceeds = what the position is actually WORTH at exit. Falling back to
   // cost basis discards unrealized P&L and steps total_value by exactly that
   // amount — tolerated so the pipeline never blocks, but never silent.
   const marketValue = exitPrice != null ? +(old.shares * exitPrice).toFixed(2) : null;
   const proceeds = marketValue != null ? marketValue : old.cost_basis;
-  const basisMode = marketValue != null ? "market_value" : "cost_basis_fallback";
+  const basisMode = marketValue == null ? "cost_basis_fallback" : lastMark ? "last_known_price" : "market_value";
+  if (basisMode === "last_known_price") {
+    console.log(`  ⚠ ${oldSym} → ${newSym}: no MIGRATION_EXIT_PRICE and no price today — exiting at last known $${exitPrice} (${exitPriceAsOf}, ${exitPriceSource}).`);
+    console.log(`  ⚠ Value-preserving at that mark; set MIGRATION_EXIT_PRICE["${oldSym}"] if the real exit differed.`);
+  }
   // In fallback mode the discarded P&L is UNKNOWABLE — computing it requires
   // the exit price, whose absence is the reason we are in fallback at all.
   // Record null, never 0: a zero here would assert "nothing was lost", which
@@ -400,15 +566,17 @@ for (const oldSym of Object.keys(HOLDINGS_MIGRATION)) {
     old_cost_basis: old.cost_basis,
     old_avg_price: old.avg_price ?? null,
     exit_price: exitPrice,
+    exit_price_source: exitPriceSource,    // v8.7: "override" | "today" | "last_price" | "daily_log" | null
+    exit_price_as_of: exitPriceAsOf,       // v8.7
     proceeds,
-    basis_mode: basisMode,                 // "market_value" | "cost_basis_fallback"
+    basis_mode: basisMode,                 // "market_value" | "last_known_price" (v8.7) | "cost_basis_fallback"
     unrealized_pnl_discarded_usd: discardedPnl,   // null in fallback = unknown, NOT zero
     new_shares: newShares,
     new_price: newPrice,
   });
-  const modeStr = basisMode === "market_value"
-    ? `sold ${old.shares} @ $${exitPrice.toFixed(2)} = $${proceeds.toFixed(0)} proceeds`
-    : `$${proceeds.toFixed(0)} cost basis (FALLBACK — no exit price)`;
+  const modeStr = basisMode !== "cost_basis_fallback"
+    ? `sold ${old.shares} @ $${exitPrice.toFixed(2)} = $${proceeds.toFixed(0)} proceeds${basisMode === "last_known_price" ? ` (last known, ${exitPriceAsOf})` : ""}`
+    : `$${proceeds.toFixed(0)} cost basis (FALLBACK — no price anywhere)`;
   console.log(`  🔄 SWAP ${oldSym} → ${newSym}: ${modeStr} → ${newShares} ${newSym} shares @ $${newPrice.toFixed(2)}`);
 }
 
@@ -486,14 +654,29 @@ for (const { key, pct, label } of buyAllocations) {
 // ─── COMPUTE PORTFOLIO VALUE ────────────────────────────────────────────────
 let holdingsValue = 0;
 const holdingSummary = [];
+const staleMarks = {};   // v8.7: holdings marked at a carried (not today's) price
+const unpriced = [];     // v8.7: holdings with no price anywhere — still excluded
 for (const [sym, h] of Object.entries(portfolio.holdings)) {
-  const price = prices[sym];
-  if (!price) continue;
+  let price = prices[sym];
+  if (price) {
+    h.last_price = price;            // v8.7: remembered for any later unpriced day
+    h.last_price_date = date;
+  } else {
+    const mark = lastKnownMark(sym, h);
+    if (!mark) {
+      unpriced.push(sym);
+      console.log(`  ⚠ ${sym}: no price today and none on record — EXCLUDED from total_value.`);
+      continue;
+    }
+    price = mark.price;
+    staleMarks[sym] = { price: mark.price, as_of: mark.as_of, source: mark.source };
+    console.log(`  ⚠ ${sym}: not priced today — marked at last known $${mark.price} (${mark.as_of}, ${mark.source}).`);
+  }
   const mktValue = +(h.shares * price).toFixed(2);
   const pnl = +(mktValue - h.cost_basis).toFixed(2);
   const pnlPct = h.cost_basis > 0 ? +((pnl / h.cost_basis) * 100).toFixed(2) : 0;
   holdingsValue += mktValue;
-  holdingSummary.push({ symbol: sym, shares: h.shares, price, mktValue, costBasis: h.cost_basis, pnl, pnlPct });
+  holdingSummary.push({ symbol: sym, shares: h.shares, price, mktValue, costBasis: h.cost_basis, pnl, pnlPct, stale: !!staleMarks[sym] });
 }
 
 const totalValue = +(holdingsValue + portfolio.cash).toFixed(2);
@@ -524,6 +707,8 @@ const snapshot = {
   composite_scores,
   ...(Object.keys(regimes).length > 0 ? { regimes } : {}),
   ...(swaps.length > 0 ? { swaps } : {}),                  // ← V7.6: only present on migration day
+  ...(Object.keys(staleMarks).length > 0 ? { stale_marks: staleMarks } : {}),   // ← v8.7: only on carried-mark days
+  ...(unpriced.length > 0 ? { unpriced } : {}),                                // ← v8.7: only if something had no price anywhere
 };
 portfolio.history.push(snapshot);
 
@@ -544,7 +729,8 @@ console.log("  POSITION BREAKDOWN:");
 for (const h of holdingSummary) {
   const pnlSign = h.pnl >= 0 ? "+" : "";
   const pct = ((h.mktValue / holdingsValue) * 100).toFixed(1);
-  console.log(`    ${h.symbol.padEnd(7)} ${h.shares.toFixed(1).padStart(8)} sh @ $${h.price.toFixed(2).padStart(8)} = $${h.mktValue.toFixed(0).padStart(9)}  (${pct}%)  P&L: ${pnlSign}$${h.pnl.toFixed(0)} (${pnlSign}${h.pnlPct}%)`);
+  console.log(`    ${h.symbol.padEnd(7)} ${h.shares.toFixed(1).padStart(8)} sh @ $${h.price.toFixed(2).padStart(8)}${h.stale ? "*" : " "}= $${h.mktValue.toFixed(0).padStart(9)}  (${pct}%)  P&L: ${pnlSign}$${h.pnl.toFixed(0)} (${pnlSign}${h.pnlPct}%)`);
 }
 
+if (Object.keys(staleMarks).length > 0) console.log("    * marked at last known price (not priced today) — see stale_marks in today's snapshot");
 console.log("\n✓ Paper portfolio updated");
