@@ -1,7 +1,7 @@
 {
-  "generated": "2026-10-29T18:24:46.542Z",
-  "version": "1.2",
-  "membership_convention": "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0 and RDDT→MLM swap at v8.5.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
+  "generated": "2026-10-29T19:54:22.479Z",
+  "version": "1.4",
+  "membership_convention": "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0, RDDT→MLM swap at v8.5.0, PBR.A→UBER swap at v8.6.0 and ENB→CVX swap at v8.7.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
   "days": 160,
   "date_range": {
     "first": "2026-03-08",
@@ -11,28 +11,28 @@
   "final": {
     "deposited": 2600000,
     "signal": 2974250.11,
-    "ew": 2812170.98,
-    "spy": 1659323.05
+    "ew": 2814337.44,
+    "spy": 1662847.52
   },
   "since_inception": {
     "signal_twr_pct": 17.346,
-    "ew_twr_pct": 12.111,
+    "ew_twr_pct": 12.197,
     "spy_twr_pct": null
   },
   "excess": {
-    "signal_vs_ew_pp": 5.235,
+    "signal_vs_ew_pp": 5.149,
     "signal_vs_spy_pp": null
   },
   "trailing": {
     "d30": {
       "signal": 7.644,
-      "ew": 2.742,
-      "spy": 0.627
+      "ew": 2.821,
+      "spy": 0.841
     },
     "d90": {
       "signal": 53.17,
-      "ew": 7.841,
-      "spy": 3.085
+      "ew": 7.924,
+      "spy": 3.304
     }
   },
   "membership_events": [
@@ -311,6 +311,15 @@
           "absent_days": 3
         }
       ]
+    },
+    {
+      "date": "2026-10-29",
+      "added": [
+        "CVX",
+        "UBER"
+      ],
+      "removed": [],
+      "members_after": 16
     }
   ],
   "data_quality": {
@@ -318,7 +327,7 @@
     "dates_missing_log": 0,
     "dates_missing_spy": 1,
     "members_skipped_no_price": 1,
-    "absences_debounced": 40
+    "absences_debounced": 42
   },
   "notes": [
     "Price-return only on all three legs (no dividend reinvestment anywhere) — income names and SPY are understated symmetrically.",
@@ -1763,9 +1772,9 @@
       "deposited": 2600000,
       "flow": 10000,
       "signal": 2974250.11,
-      "ew": 2812170.98,
-      "spy": 1659323.05,
-      "members": 14
+      "ew": 2814337.44,
+      "spy": 1662847.52,
+      "members": 16
     }
   ]
 }
