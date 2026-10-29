@@ -89,6 +89,61 @@
 //   baseline rather than any valuation multiple. Noted only so the two gates
 //   are not mistaken for one another.
 //
+// v8.6.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The PBR.A → UBER swap needs nothing here. The v1.3 pending mechanism is
+//   symbol-agnostic and behaves identically in both directions:
+//     • UBER enters at n=0 against the 60-observation threshold and surfaces
+//       "CALIBRATION PENDING — 0/60 observations" from its first run, with the
+//       accompanying instruction not to make own-history-percentile claims.
+//       If it is first logged on 2026-10-28, the 60th session falls on
+//       2027-01-25; any later deploy pushes that back day for day.
+//     • PBR.A simply stops appearing in calibration-v2.json as its rows age
+//       out of the trailing window. No retirement handling is needed.
+//   The MLM note above applies again unchanged: a company with a long price
+//   history (UBER, public since 2019) still has a score history in THIS system
+//   that starts at zero on the swap date.
+//   ⚠ NEW, AND WORTH KNOWING BEFORE TRUSTING UBER'S STRATEGIC TEMPORAL Z.
+//   score-engine V8.5 can FLOOR UBER's blended strategic score at 0 (the
+//   value-trap gate: disintermediating AV regime + Mobility canary below 12%
+//   cc or unknown). On those days the strategic score is a rule output, not a
+//   judgment, and a run of them compresses the dispersion of the baseline that
+//   temporal z is measured against — inflating |tz| on the first ungated day.
+//   log-signals V8.6.0 records strategic.value_trap_gate_active in
+//   daily-log.jsonl; calibration-v2.mjs does not read it. The gate is inactive
+//   today (AV regime "contested"), so this is latent — but if it ever fires,
+//   read UBER's strategic tz with that in mind.
+//   ⚠ Not to be confused with UBER's GAAP trailing P/E, which roughly doubles
+//   at the 2026-11-04 print as a $4.9B tax release leaves the TTM window.
+//   fetch v4.19 gates it and score-engine V8.5 never scores it, so — like
+//   MLM's Quikrete artifact — it does not touch temporal z.
+//
+// v8.7.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The ENB → CVX swap needs nothing here, for the same reasons as UBER above:
+//     • CVX enters at n=0 and surfaces "CALIBRATION PENDING — 0/60
+//       observations" from its first run. If it is first logged on 2026-10-28
+//       (the same day as UBER, if the two swaps deploy together), its 60th
+//       session also falls on 2027-01-25; any later deploy pushes that back
+//       day for day.
+//     • ENB stops appearing in calibration-v2.json as its rows age out of the
+//       trailing window. No retirement handling is needed.
+//   ⚠⚠ UNLIKE UBER'S VALUE-TRAP GATE, CVX'S GATE IS NOT LATENT — IT IS ON FROM
+//   DAY ONE. score-engine V8.6's cycle-position gate floors CVX's blended
+//   strategic score at 0 whenever Brent is more than 40% above the $70 deck
+//   (above $98), unless normalized FCF yield is ≥ 6% on a full normalization.
+//   The normalization inputs are LLM-sourced and null in the engine's data, so
+//   the gate fails CLOSED: with Brent near $115, every CVX strategic score is
+//   bounded at ≥ 0 from the first run. CVX's strategic baseline is therefore
+//   one-sided — censored at zero from below — for as long as Brent stays above
+//   $98. Its dispersion is compressed, and |tz| on the first ungated day will
+//   read larger than the move deserves. log-signals V8.7.0 records
+//   strategic.cycle_gate_active / cycle_gate_side in daily-log.jsonl;
+//   calibration-v2.mjs does not read them. Read CVX's strategic tz with that
+//   in mind until Brent drops back inside the deck's ±40% band.
+//   ⚠ Not to be confused with CVX's GAAP trailing P/E, which falls from ~22x
+//   toward ~17x at the 2026-10-30 print as Q3'25 leaves the TTM window. fetch
+//   v4.20 labels it and score-engine V8.6 never scores it, so it does not
+//   touch temporal z.
+//
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
 //
