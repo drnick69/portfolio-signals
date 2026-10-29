@@ -205,6 +205,286 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //     Ship them together anyway — there is no reason not to — but if they do
 //     land in separate commits, nothing breaks and nothing needs repairing.
 
+// ── V8.6.0 (October 2026): HOLDINGS SWAP telemetry — PBR.A out, UBER in
+//   (fetch-market-data v4.19 / score-engine V8.5 / generate-signals v8.6.0 sync;
+//   still 14 holdings).
+//
+//   REUSED columns (no new width — fetch v4.19's payload keys already match):
+//   cohort_avg_pe + cohort_premium_pct, premium_pct_reliable (hard-gated FALSE
+//   on every UBER row), cohort_avg_30d_return_pct, cohort_rotation_pp +
+//   cohort_rotation_active (fetch emits peer_rotation_*, exactly as for MLM, and
+//   the V8.5.0 either-key fold writes the shared columns; UBER fires at −6pp),
+//   eps_revisions_30d/90d, share_count_change_yoy_pct (raw YoY change — UBER
+//   prints NEGATIVE, −2.28%, a genuine net buyback), roic_pct, trailing_pe, and
+//   regime / weight_* / regime_basis. score-engine V8.5 writes regime =
+//   aggregating | contested | disintermediating and regime_basis =
+//   "av_supply_regime_state". regime_driver stays BLANK on UBER rows: the gate
+//   is categorical and has no numeric driver (MLM's is categorical too, but
+//   carries days_to_authorization_expiry as a driver; UBER has no equivalent).
+//
+//   ★★ THREE INTERPRETIVE FLAGS — the most important columns in this append.
+//   Each makes an EXISTING number readable on UBER rows. Without them the CSV
+//   persists values that look like observations and are not.
+//   • premium_unreliable_reason — pairs with the reused premium_pct_reliable.
+//     cohort_premium_pct computes near −72% on UBER rows because BOTH legs are
+//     GAAP trailing: UBER's TTM carries a $4.9B tax valuation-allowance release
+//     plus ±$1.5B quarterly equity revaluations, and LYFT's ~2x P/E is a
+//     tax-benefit artifact. The flag records THAT the number is invalid; the
+//     reason records WHY. MLM's artifact (a divestiture gain) is a different
+//     cause, and a study pooling gated rows needs to tell them apart.
+//   • tax_release_in_ttm + gaap_pe_signal_status — label the trailing_pe column.
+//     ⚠ CALENDAR TRAP: the tax release rolls out of the TTM window at the
+//     2026-11-04 print, so UBER's trailing_pe roughly DOUBLES and
+//     cohort_premium_pct jumps by tens of points overnight, with no change in
+//     the business. tax_release_in_ttm flips true → false on exactly that row.
+//     It is the column that tells a later reader the discontinuity is
+//     accounting, not a re-rating.
+//   • value_trap_gate_active — score-engine V8.5 FLOORS the blended strategic
+//     score at 0 when the AV regime is disintermediating and the Mobility
+//     canary is below 12% cc (or unknown). On a "true" row strategic_score is a
+//     RULE OUTPUT, not a judgment, and a calibration study fitting strategic
+//     scores to forward returns must be able to separate it. Written
+//     "true"/"false" on every row of the av_supply_regime_state branch (keyed
+//     off regime_basis, not the ticker) and BLANK elsewhere, so "gate clear" is
+//     distinguishable from "gate not evaluated". This is the one new column fed
+//     by an engine OUTPUT rather than the market payload.
+//
+//   NEW columns (53 appended: 234 → 287):
+//   • Marketplace cohort PEs dash/lyft/grab_pe + uber_vs_dash_pct — all GAAP
+//     trailing, record only, gated with the premium. uber_vs_dash_pct is NOT a
+//     twin premium (contrast mlm_vs_vmc_pct): DASH is half the weighted cohort.
+//   • uber_30d_return_pct and dash_spread_30d_pp. The DASH spread is CONTEXT
+//     ONLY — the engine does not score it (contrast MLM's vmc_spread_30d_pp,
+//     which it does).
+//   • xly_vs_spy_30d_pp — the consumer factor overlay (GICS says Industrials;
+//     the tape trades UBER as a consumer platform). Tactical, not the gate.
+//   • The AV-headline-shock PRICE screen: worst_1d_return_5s_pct,
+//     worst_1d_date, spy_same_day_return_pct, worst_1d_on_known_print,
+//     av_shock_candidate_active. The candidate flag is the PRICE event only;
+//     av_headline_shock_active (in the fundamentals block) is the LLM's
+//     ATTRIBUTION. They are two columns on purpose — the gap between them is
+//     what calibration needs to learn whether unattributed −4% days are AV
+//     news or noise.
+//     ⚠ The payload block is tactical_extras, which LIN (iv_rv_ratio,
+//     spy_10d_drawdown_pct, lin_vs_spy_10d_pp) and TMO (tmo_30d_return_pct,
+//     tmo_vs_dhr_30d_pp) also emit. The key sets are DISJOINT — verified
+//     against fetch v4.19 output — so no existing column changes meaning: LIN's
+//     columns stay blank on UBER rows and these stay blank on LIN/TMO rows.
+//   • Config / regime state: av_supply_regime_state (THE regime driver,
+//     human-maintained in fetch v4.19; ⚠ "leader_exiting_tail_aggregating" is
+//     the BASE CASE — regime contested, scores zero, NOT a downgrade) and
+//     dh_offer_state + dh_basis_scored ("standalone" until Delivery Hero
+//     closes; when it flips, the multiples and leverage columns change basis
+//     on that row — the same labelling job tax_release_in_ttm does).
+//   • UBER fundamentals scaffolds (LLM-sourced; blank until populated): cc and
+//     reported gross bookings, ★ mobility_gb_growth_cc_pct (THE canary) with
+//     delivery_gb_growth_cc_pct beside it (the signature is the GAP — Mobility
+//     below 12% WHILE Delivery holds), trips, MAPCs, Adj EBITDA $ and % of GB,
+//     segment OI, driver incentive pressure, guide vs consensus.
+//   • reported_revenue_growth_pct + business_model_drag_pp +
+//     revenue_signal_status. ⚠ Deliberately NOT folded into the shared
+//     revenue_growth_yoy_pct column (RDDT/MLM): UBER's reported revenue is a
+//     null signal (business-model changes cut Q2'26 growth by 8pp), and
+//     folding it in would hand a cross-sectional study a contaminated number
+//     under a clean name.
+//   • Multiples, each WITH its basis tag, and deliberately NOT folded into
+//     MLM's forward_pe / ev_ebitda columns: forward_pe_non_gaap +
+//     non_gaap_eps_sbc_treatment, ev_adj_ebitda + ev_adj_ebitda_basis,
+//     ev_adj_ebitda_less_sbc, ev_gaap_ebitda. On the same ~$140B EV these span
+//     ~13.9x / ~17.3x / ~18.7x — five turns of basis, not of valuation.
+//   • Owner FCF: fcf_ttm_busd, sbc_ttm_busd, owner_fcf_yield_pct (after SBC,
+//     ~6.1% — not the ~7.5% headline).
+//   • AV supply detail: tier1_operators_direct_only / _on_uber (counts),
+//     exclusive_pipeline_status, av_headline_shock_active.
+//   • Delivery Hero: dh_acceptance_pct, gross_leverage (scored against the
+//     stated <2x gross ceiling, never the level).
+//   • buyback_pace (context only — UBER is scored on NET share count) and
+//     insider_buying_recent.
+//   • roic_gaap_inflated — pairs with the reused roic_pct. ⚠ NOT the same flag
+//     as MLM's roic_denominator_distorted: MLM's DENOMINATOR is inflated by
+//     acquisitions; UBER's NUMERATOR is inflated by the tax release. Both mean
+//     "roic_pct on this row is not a quality read", for opposite reasons.
+//   Every LLM-sourced UBER value is written through esc(), numbers and
+//   booleans included. esc() is the identity on a value with no comma or
+//   quote, so this costs nothing on well-typed input; it means a model that
+//   returns "1,234" or a two-item list can no longer shift the row width.
+//
+//   • NO PBR.A columns are removed — none were ever added. PBR.A's only
+//     specific inputs were the wti / brl_usd MACRO columns, which every row
+//     carries and which fetch v4.19 keeps fetching (decision 2026-10-27).
+//     PBR.A's historical rows remain valid closed history.
+//
+//   JSONL: the cohort_valuation / cohort_relative mappers gain the UBER keys,
+//   unreliable_reason, and cohort_count. cohort_count was emitted by every
+//   cohort holding's fetch block but never mapped, so it now populates on
+//   LHX/MSFT/NOW/ISRG/MLM rows too — the one change visible on non-UBER
+//   entries, and purely additive. The factor flow, the shock screen and the
+//   fundamentals are flat keys. strategic.value_trap_gate_active sits beside
+//   the blended score it clips. Every pre-existing key and value is unchanged.
+//
+//   DEPLOY ORDERING — as V8.5.0 established, and RE-TESTED at this width:
+//   genuine signal-accuracy v1.6 reading a post-migration 287-wide file skips
+//   ZERO rows (its width contract is headers.length off disk, and
+//   migrateCsvHeader() rewrites the header before any row is appended). An
+//   unpaired deploy therefore loses only the UBER context in accuracy.json's
+//   yesterday-snapshot until v1.7 lands. Ship the pair together anyway.
+//   ⚠ WHAT THIS FILE CANNOT SURVIVE is a NON-PREFIX header — e.g. a parallel
+//   build that also appends to the 234-wide V8.5.0 base, deployed after this
+//   one has run. migrateCsvHeader() then refuses (correctly), warns, and the
+//   append below still runs at the code's width: signal-accuracy skips those
+//   rows, or misparses them by position if the widths happen to coincide. The
+//   warning's advice — run rebuild-signals-csv.mjs — is the repair, and as of
+//   rebuild-signals-csv v2.0 it works again: the file on main had been a
+//   misfiled copy of claire-summary since 2026-07-07 (a80251d), and v2.0 also
+//   reads this file's CSV_HEADERS at run time instead of carrying its own copy,
+//   so it rebuilds at exactly this width (verified cell-for-cell against this
+//   file's own output; only the six never-logged columns come back blank).
+//   Still: every schema change to this file should build on the CURRENT
+//   deployed header, so the repair is never needed.
+
+// ── V8.7.0 (October 2026): HOLDINGS SWAP telemetry — ENB out, CVX in
+//   (fetch-market-data v4.20 / score-engine V8.6 / generate-signals v8.7.0 sync;
+//   still 14 holdings). BUILT ON V8.6.0 (PBR.A → UBER) — both swaps live in this
+//   file, and the CVX columns append AFTER the 287 V8.6.0 columns, so the header
+//   stays a strict prefix chain 234 → 287 → 341. Deploy this file INSTEAD of
+//   V8.6.0; whichever of the two has already run, migrateCsvHeader() takes the
+//   on-disk header forward as a pure append.
+//
+//   REUSED columns (no new width — fetch v4.20's payload keys already match):
+//   trailing_pe, dividend_yield, roce_pct + operating_margin_pct (Finnhub
+//   generic), eps_revisions_30d/90d, share_count_change_yoy_pct (raw YoY change
+//   in period-end count), gaap_pe_signal_status (UBER's column; CVX writes
+//   "null_signal_cycle_contaminated"), twin_premium_pct + twin_daily_spread_pp
+//   (MA's columns, fed from twin_valuation.premium_pct / twin_relative.
+//   relative_spread_pp — on CVX rows they read CVX vs XOM), and regime /
+//   weight_* / regime_driver / regime_basis. score-engine V8.6 writes regime =
+//   anchored | transitional_high|low | dislocated_high|low, regime_driver = the
+//   NUMERIC deviation of spot Brent from the $70 deck (%), and regime_basis =
+//   "brent_vs_70_deck_pct" — the first price-level driver in this schema.
+//
+//   ⚠ TWO EXISTING ROW EXPRESSIONS GAIN A FALLBACK KEY — the V8.5.0 either-key
+//   fold pattern, not a new column:
+//     premium_pct_reliable       ← cohort_valuation.premium_pct_reliable
+//                                  ?? twin_valuation.premium_pct_reliable
+//     premium_unreliable_reason  ← cohort_valuation.unreliable_reason
+//                                  ?? twin_valuation.unreliable_reason
+//   CVX has a TWIN block, not a cohort block, and fetch v4.20 hard-gates the
+//   twin premium (premium_pct_reliable = false, reason
+//   "trailing_gaap_windfall_and_hess_dda_step_up"). Without the fold the CVX row
+//   would persist twin_premium_pct ≈ −5% with NOTHING recording that it is
+//   invalid — the exact failure the V8.5.0 flags exist to prevent. On a CVX row
+//   the pair therefore qualifies twin_premium_pct (cohort_premium_pct is blank);
+//   on MLM/UBER rows it still qualifies cohort_premium_pct. Read whichever
+//   premium is populated. No other holding carries either key in a twin block
+//   (MA's twin_valuation is ma_pe / v_pe / premium_pct only), so every non-CVX
+//   row is byte-identical — verified.
+//
+//   ★★ FIVE INTERPRETIVE FLAGS — as at V8.5.0/V8.6.0, the most important
+//   columns in this append. Each makes an EXISTING number readable on CVX rows.
+//   • cycle_gate_active + cycle_gate_side — score-engine V8.6 Guardrail (e). With
+//     Brent more than 40% above the deck (> $98) the BLENDED strategic score is
+//     FLOORED at 0 ("no_buy") unless normalized FCF yield is ≥ 6% on a FULL
+//     normalization; more than 40% below (< $42) it is CAPPED at 0 ("no_trim")
+//     unless that yield is < 4%. On a "true" row strategic_score is
+//     RULE-BOUNDED, not a judgment. ⚠ The engine's normalization inputs are
+//     LLM-sourced and null in its data, so the gate FAILS CLOSED — while Brent
+//     sits above $98 EVERY CVX row reads true / no_buy. That is the designed
+//     behaviour, and exactly why a calibration study must be able to see it.
+//     Written "true"/"false" on every row of the brent_vs_70_deck_pct branch
+//     (keyed off regime_basis, not the ticker) and BLANK elsewhere, so "gate
+//     clear" ≠ "gate not evaluated". Second engine-OUTPUT column after UBER's
+//     value_trap_gate_active.
+//   • q3_2025_in_ttm — labels trailing_pe. ⚠ CALENDAR TRAP: Q3'25 ($1.82 GAAP
+//     EPS on $69 Brent) rolls out of the TTM at the 2026-10-30 print and
+//     trailing_pe falls ~22x → ~17x overnight with no change in the business.
+//     fetch v4.20 flips it true → false once Q3'26 counts as reported. Same
+//     labelling job as UBER's tax_release_in_ttm, for a different event.
+//   • revisions_signal_status — labels eps_revisions_*. "commodity_driven"
+//     whenever the oil regime is not ANCHORED: the revisions track the strip,
+//     not execution, and the engine does not score them.
+//   • roce_spot_inflated — labels the reused roce_pct (windfall oil).
+//   • share_count_base_clean — labels the reused share_count_change_yoy_pct.
+//     ⚠ HESS ANNIVERSARY: any YoY window crossing the 2025-07-18 close shows
+//     ~+14% mechanical "dilution" (~301M shares issued). FALSE = do not read
+//     the number as dilution or buyback. Date-derived upstream.
+//
+//   NEW columns (54 appended: 287 → 341):
+//   • xom_pe + european_ref_avg_pe — the twin leg (GATED with the premium) and
+//     the SHEL/TTE structural-discount REFERENCE (never a premium to score).
+//   • cvx_30d_return_pct, xom_30d_return_pct, xom_spread_30d_pp and
+//     xom_dislocation_active — THE signature tactical setup (CVX lagging XOM by
+//     more than 4pp over 30 days). Deliberately NOT folded into MA's
+//     twin_spread_30d_pp / twin_dislocation_active (MLM's VMC precedent).
+//     european_avg_30d_return_pct is context only.
+//   ⚠ COLUMN RENAMED VS ITS PAYLOAD KEY — the second deliberate mismatch here
+//     (after MLM's lna_integration_state):
+//       payload  md.cohort_relative.twin_dislocation_active
+//       column   xom_dislocation_active
+//     twin_dislocation_active is ALREADY MA's column (fed from
+//     duopoly_relative), so the CVX column is named for the twin it tracks. The
+//     JSONL keeps the payload key so the two artifacts stay traceable.
+//   • xle_vs_spy_30d_pp — the energy factor overlay (spread only, as for
+//     xlb/xly/ihi/igv).
+//   • The geopolitical AIR-POCKET screen (payload block tactical_extras — the
+//     key set is DISJOINT from LIN's, TMO's and UBER's, verified against fetch
+//     v4.20 output): largest_1d_move_5s_pct, largest_1d_date,
+//     xle_same_day_return_pct, idiosyncratic_pp, largest_1d_on_known_print,
+//     air_pocket_candidate_active. The candidate flag is the PRICE event only;
+//     classifying the headline (disruption duration vs a Chevron asset) is the
+//     LLM's job and is not in the market payload.
+//   • The oil regime itself: brent_spot + brent_spot_stale (FRED/EIA, ~1-week
+//     lag), henry_hub_spot. The deviation is already regime_driver.
+//   • Deck-normalization inputs fetch v4.20 computes: brent_ttm_avg and
+//     henry_hub_ttm_avg (equal-weighted quarterly means over 4 REPORTED
+//     quarters; Henry Hub is the daily spot as a bid-week proxy) and
+//     market_cap_busd. With adj_fcf_ttm_busd and downstream_earnings_ttm_busd
+//     below, these are the five numbers the normalized FCF yield is computed
+//     from — kept so it can be recomputed for any row:
+//       normalized FCF = adj FCF − (Brent TTM − 70)×0.60 − (HH TTM − 3.50)×0.70
+//                        − (downstream TTM − 3.0)
+//   • The four labels above plus forward_pe_signal_status ("spot_contaminated"
+//     unless anchored).
+//   • CVX fundamentals scaffolds (LLM-sourced; blank until populated): TTM
+//     adjusted FCF, TTM downstream earnings + crack_environment, TTM CFFO ex-WC,
+//     TTM capex + capex_vs_guide, last-quarter timing effects and working
+//     capital + quarterly_eps_signal_status, production + production_vs_guide
+//     (⚠ production_growth_yoy_pct is CONTEXT ONLY — Hess anniversary), ★
+//     tco_canary_status (THE operational canary) with cpc_export_status beside
+//     it (⚠ "CPC" = the Caspian Pipeline Consortium, never Chevron Phillips
+//     Chemical), guyana_status, the next-quarter buyback guide range + trend,
+//     TTM buybacks + buyback_vs_range, forward_pe_consensus (⚠ SPOT — never
+//     scored; deliberately NOT folded into MLM's forward_pe), xom_fwd_pe,
+//     breakeven_status, net_debt_ratio_pct and
+//     net_debt_ratio_ex_deconsolidation_pct with hesm_deconsolidation_state
+//     between them (⚠ the HESM exit removes ~$3.7B of debt with no cash
+//     generated — the ex-deconsolidation figure is the read), and
+//     insider_net_selling_90d.
+//   Every LLM-sourced CVX value is written through esc(), numbers and booleans
+//   included — the V8.6.0 rule.
+//
+//   • NO ENB columns are removed — none were ever added. ENB's only specific
+//     inputs were dividend_yield and us10y, which every row carries. ENB's
+//     historical rows remain valid closed history.
+//
+//   JSONL: twin_valuation gains the CVX keys incl. premium_pct_reliable +
+//   unreliable_reason (the mapper previously kept only ma_pe / v_pe /
+//   premium_pct — without this the CVX premium would land in daily-log with no
+//   gate beside it); twin_relative gains cvx/xom_change_pct + xom_price;
+//   cohort_relative gains the CVX twin/European keys (payload names); a new
+//   oil_regime object carries fetch v4.20's block whole; the factor flow, the
+//   air-pocket screen and the fundamentals are flat keys; and
+//   strategic.cycle_gate_active / cycle_gate_side sit beside the blended score
+//   they bound. Every pre-existing key and value is unchanged — the additions
+//   read null on non-CVX entries.
+//
+//   DEPLOY ORDERING — unchanged from V8.6.0, re-tested at this width: genuine
+//   signal-accuracy v1.7 (and v1.6) reading a post-migration 341-wide file skips
+//   ZERO rows. An unpaired deploy loses only the CVX context in accuracy.json's
+//   yesterday-snapshot until v1.8 lands. Ship the pair together anyway. The
+//   V8.6.0 warning stands: never deploy a log-signals built on the 234-wide base
+//   after this one runs. If a non-prefix header ever does land, the repair is
+//   rebuild-signals-csv v2.1, which knows the CVX columns' JSONL paths.
+
 const HISTORY_DIR = "docs/history";
 const CSV_PATH = `${HISTORY_DIR}/signals.csv`;
 const JSONL_PATH = `${HISTORY_DIR}/daily-log.jsonl`;
@@ -224,6 +504,39 @@ function resolveRegime(s) {
     regime_driver: s.regime_driver ?? s.composite?.regime_driver ?? null,
     regime_basis: s.regime_basis ?? s.composite?.regime_basis ?? null,
   };
+}
+
+
+// ── V8.6.0: UBER value-trap gate state (score-engine V8.5, Guardrail E).
+// The gate is an engine OUTPUT, so it is read from the scored holding, not the
+// market payload: blendScores() sets strategic.value_trap_gate_active = true
+// ONLY when it floored the blended strategic score at 0, and omits the key
+// otherwise. Absence therefore means "clear" — but only on a holding the
+// gate is evaluated for. Returns:
+//   true  — gate active; strategic_score on this row is a RULE OUTPUT
+//   false — gate evaluated and clear
+//   null  — gate not evaluated for this holding (every non-UBER archetype)
+// Keyed off regime_basis rather than the ticker, so it follows the engine
+// branch if the symbol ever changes and needs no edit on a future swap.
+function valueTrapGateState(s) {
+  if (resolveRegime(s).regime_basis !== "av_supply_regime_state") return null;
+  return s.strategic?.value_trap_gate_active === true;
+}
+
+// ── V8.7.0: CVX cycle-position gate state (score-engine V8.6, Guardrail E).
+// An engine OUTPUT, read from the scored holding like valueTrapGateState():
+// blendScores() sets strategic.cycle_gate_active = true and cycle_gate_side =
+// "no_buy" | "no_trim" ONLY when the gate bounded the blended strategic score,
+// and omits both keys otherwise. Returns { active, side }:
+//   active true  — gate in force; strategic_score on this row is RULE-BOUNDED
+//                  (floored at 0 for no_buy, capped at 0 for no_trim)
+//   active false — gate evaluated and clear (side null)
+//   active null  — not evaluated for this holding (every non-CVX archetype)
+// Keyed off regime_basis rather than the ticker, as valueTrapGateState() is.
+function cycleGateState(s) {
+  if (resolveRegime(s).regime_basis !== "brent_vs_70_deck_pct") return { active: null, side: null };
+  const active = s.strategic?.cycle_gate_active === true;
+  return { active, side: active ? (s.strategic.cycle_gate_side ?? null) : null };
 }
 
 // ─── LOAD TODAY'S DATA ───────────────────────────────────────────────────────
@@ -482,6 +795,163 @@ const CSV_HEADERS = [
   // that row — the capital base was inflated by acquisitions ahead of their
   // earnings. Same interpretive role as premium_pct_reliable above.
   "roic_pct", "wacc_pct", "roic_denominator_distorted",
+
+  // ─── V8.6.0 UBER additions (appended for CSV back-compat; UBER row only) ───
+  // Marketplace cohort PEs. cohort avg + premium REUSE cohort_avg_pe /
+  // cohort_premium_pct, and the gate REUSES premium_pct_reliable (fetch v4.19
+  // hard-gates it FALSE on every UBER row). All four are GAAP trailing — record
+  // only. uber_vs_dash_pct is NOT a twin premium (contrast mlm_vs_vmc_pct):
+  // DASH is half the weighted cohort, not a like-for-like twin.
+  "dash_pe", "lyft_pe", "grab_pe", "uber_vs_dash_pct",
+  // ★★ WHY premium_pct_reliable is false on this row. MLM's artifact was a
+  // divestiture gain; UBER's is a tax valuation-allowance release plus equity
+  // revaluations on its own leg AND LYFT's tax-benefit P/E on the peer leg.
+  // A study pooling gated rows across holdings needs to tell the causes apart.
+  "premium_unreliable_reason",
+  // Marketplace rotation. cohort_avg_30d_return_pct + cohort_rotation_pp +
+  // cohort_rotation_active are REUSED (fetch v4.19 emits peer_rotation_* — the
+  // V8.5.0 either-key fold writes the shared columns; UBER fires at −6pp).
+  // ⚠ dash_spread_30d_pp is CONTEXT ONLY — the engine does not score it.
+  "uber_30d_return_pct", "dash_spread_30d_pp",
+  // Consumer factor overlay (GICS says Industrials; the tape trades UBER as a
+  // consumer platform). Tactical overlay, NOT the regime gate.
+  "xly_vs_spy_30d_pp",
+  // ── AV-headline-shock PRICE screen (payload block tactical_extras) ──
+  // ⚠ tactical_extras is shared with LIN and TMO; the key sets are DISJOINT,
+  // so LIN's iv_rv_ratio / spy_10d_drawdown_pct / lin_vs_spy_10d_pp columns
+  // stay blank on UBER rows and these stay blank on LIN/TMO rows.
+  // av_shock_candidate_active is the PRICE event only (worst session in 5,
+  // ≤ −4%, Uber print day excluded). ATTRIBUTION is av_headline_shock_active,
+  // further down — keep the two apart; the gap between them is the lesson.
+  "worst_1d_return_5s_pct", "worst_1d_date", "spy_same_day_return_pct",
+  "worst_1d_on_known_print", "av_shock_candidate_active",
+  // ── Config / regime state (fetch v4.19 human-maintained constants) ──
+  // av_supply_regime_state is THE regime driver (V8.5 UBER weight gate; maps
+  // to the reused regime column). ⚠ "leader_exiting_tail_aggregating" is the
+  // BASE CASE — regime contested, scores zero, NOT a downgrade.
+  // dh_basis_scored reads "standalone" until Delivery Hero closes; when it
+  // flips, the multiples and leverage columns change basis ON THAT ROW.
+  "av_supply_regime_state", "dh_offer_state", "dh_basis_scored",
+  // ★★ The trailing_pe column's interpretive pair on UBER rows.
+  // ⚠ CALENDAR TRAP: the $4.9B tax release rolls out of the TTM window at the
+  // 2026-11-04 print — trailing_pe roughly DOUBLES and cohort_premium_pct jumps
+  // with no change in the business. tax_release_in_ttm flips true → false on
+  // exactly that row: it is what labels the discontinuity as accounting.
+  "tax_release_in_ttm", "gaap_pe_signal_status",
+  // ★★ score-engine V8.5 FLOORS the blended strategic score at 0 when the AV
+  // regime is disintermediating and the Mobility canary is <12% cc (or
+  // unknown). On a "true" row, strategic_score is a RULE OUTPUT, not a
+  // judgment — calibration must be able to separate it. "true"/"false" on the
+  // av_supply_regime_state branch (keyed off regime_basis, not the ticker);
+  // BLANK elsewhere, so "gate clear" ≠ "gate not evaluated".
+  "value_trap_gate_active",
+  // ── UBER fundamentals scaffolds (LLM-sourced; blank until populated) ──
+  // ★ mobility_gb_growth_cc_pct is THE canary. It travels with
+  // delivery_gb_growth_cc_pct because the signature is the GAP: Mobility below
+  // 12% WHILE Delivery holds = AV disintermediation; both slowing = cycle.
+  "gross_bookings_growth_cc_pct", "gross_bookings_growth_reported_pct",
+  "mobility_gb_growth_cc_pct", "delivery_gb_growth_cc_pct",
+  "trips_growth_pct", "mapcs_millions", "mapcs_growth_pct",
+  "adj_ebitda_musd", "adj_ebitda_pct_gb",
+  "mobility_segment_oi_growth_pct", "delivery_segment_oi_growth_pct",
+  "driver_incentive_pressure",
+  // ⚠ reported_revenue_* are CONTEXT ONLY while revenue_signal_status reads
+  // "null_signal_business_model_contaminated" (Q2'26: business-model changes
+  // cut growth by 8pp). Deliberately NOT folded into the shared
+  // revenue_growth_yoy_pct column — that would hand a cross-sectional study a
+  // contaminated number under a clean name.
+  "reported_revenue_growth_pct", "business_model_drag_pp", "revenue_signal_status",
+  "guide_vs_consensus",
+  // ⚠ Every multiple carries its BASIS tag, and none is folded into MLM's
+  // forward_pe / ev_ebitda columns. On the same ~$140B EV: Adj EBITDA (SBC
+  // excluded) ~13.9x, Adj less SBC ~17.3x, GAAP ~18.7x — five turns of basis.
+  "forward_pe_non_gaap", "non_gaap_eps_sbc_treatment",
+  "ev_adj_ebitda", "ev_adj_ebitda_basis", "ev_adj_ebitda_less_sbc", "ev_gaap_ebitda",
+  // Owner FCF — the flagship strategic lens: FCF less SBC (~6.1%, not ~7.5%).
+  "fcf_ttm_busd", "sbc_ttm_busd", "owner_fcf_yield_pct",
+  // AV supply detail (counts + categoricals) and the LLM's shock attribution.
+  "tier1_operators_direct_only", "tier1_operators_on_uber",
+  "exclusive_pipeline_status", "av_headline_shock_active",
+  // Delivery Hero — PENDING. Leverage is scored against the stated <2x gross
+  // ceiling, never the level.
+  "dh_acceptance_pct", "gross_leverage",
+  // buyback_pace is CONTEXT ONLY — UBER is scored on the reused NET
+  // share_count_change_yoy_pct, never gross dollars.
+  "buyback_pace", "insider_buying_recent",
+  // ⚠ Pairs with the reused roic_pct — and is NOT MLM's
+  // roic_denominator_distorted. MLM's DENOMINATOR is inflated by acquisitions;
+  // UBER's NUMERATOR is inflated by the tax release. Both mean "roic_pct on
+  // this row is not a quality read", for opposite reasons.
+  "roic_gaap_inflated",
+  // ─── V8.7.0 CVX additions (appended for CSV back-compat; CVX row only) ───
+  // The twin leg (GATED — the reused premium_pct_reliable / premium_unreliable_
+  // reason pair now folds twin_valuation's keys, so on CVX rows it qualifies
+  // the reused twin_premium_pct) and the SHEL/TTE structural-discount
+  // REFERENCE — never a premium to score.
+  "xom_pe", "european_ref_avg_pe",
+  // ★ THE signature tactical setup — CVX lagging XOM by >4pp over 30d. NOT
+  // folded into MA's twin columns (MLM/VMC precedent).
+  // ⚠ xom_dislocation_active is fed from payload key
+  // cohort_relative.twin_dislocation_active — renamed because
+  // twin_dislocation_active is already MA's column.
+  "cvx_30d_return_pct", "xom_30d_return_pct", "xom_spread_30d_pp", "xom_dislocation_active",
+  "european_avg_30d_return_pct",
+  // Energy factor overlay — spread only, as for xlb/xly/ihi/igv.
+  "xle_vs_spy_30d_pp",
+  // ── Geopolitical AIR-POCKET screen (payload block tactical_extras) ──
+  // ⚠ Key set DISJOINT from LIN's, TMO's and UBER's. The candidate flag is the
+  // PRICE event only (|move| ≥ 4% in 5 sessions, the 2026-10-30 print day
+  // excluded); classifying the headline is the LLM's job.
+  "largest_1d_move_5s_pct", "largest_1d_date", "xle_same_day_return_pct",
+  "idiosyncratic_pp", "largest_1d_on_known_print", "air_pocket_candidate_active",
+  // ── The oil regime vs Chevron's $70 deck. The deviation itself is the reused
+  // regime_driver; regime_basis reads "brent_vs_70_deck_pct".
+  "brent_spot", "brent_spot_stale", "henry_hub_spot",
+  // Deck-normalization inputs fetch v4.20 computes (4 REPORTED quarters).
+  // With adj_fcf_ttm_busd + downstream_earnings_ttm_busd below, these five
+  // numbers recompute the normalized FCF yield for any row.
+  "brent_ttm_avg", "henry_hub_ttm_avg", "market_cap_busd",
+  // ★★ Labels for REUSED columns on CVX rows:
+  //   q3_2025_in_ttm          → trailing_pe (⚠ CALENDAR TRAP: flips at the
+  //                             2026-10-30 print, trailing P/E ~22x → ~17x)
+  //   forward_pe_signal_status → forward_pe_consensus below ("spot_contaminated")
+  //   revisions_signal_status → eps_revisions_* ("commodity_driven" = not scored)
+  //   roce_spot_inflated      → roce_pct (windfall oil)
+  //   share_count_base_clean  → share_count_change_yoy_pct (⚠ HESS ANNIVERSARY:
+  //                             FALSE = the YoY window crosses 2025-07-18)
+  "q3_2025_in_ttm", "forward_pe_signal_status", "revisions_signal_status",
+  "roce_spot_inflated", "share_count_base_clean",
+  // ★★ score-engine V8.6 Guardrail (e). "true" = the BLENDED strategic score was
+  // bounded by rule — floored at 0 (side no_buy, Brent > $98) or capped at 0
+  // (side no_trim, Brent < $42). ⚠ Fails CLOSED: the engine's normalization
+  // inputs are LLM-sourced, so every CVX row reads true/no_buy while Brent sits
+  // above $98. "true"/"false" on the brent_vs_70_deck_pct branch (keyed off
+  // regime_basis, not the ticker); BLANK elsewhere.
+  "cycle_gate_active", "cycle_gate_side",
+  // ── CVX fundamentals scaffolds (LLM-sourced; blank until populated) ──
+  // Normalization numerator inputs + the crack read behind the downstream leg.
+  "adj_fcf_ttm_busd", "downstream_earnings_ttm_busd", "crack_environment",
+  // ⚠ Guardrail (b): single-quarter EPS and headline CFFO are NULL SIGNALS while
+  // timing effects / working capital are material — TTM ex-WC is the read.
+  "cffo_ex_wc_ttm_busd", "capex_ttm_busd", "capex_vs_guide",
+  "timing_effects_last_q_busd", "working_capital_last_q_busd", "quarterly_eps_signal_status",
+  // Scored vs the FY26 3,980–4,100 MBOED guide. ⚠ production_growth_yoy_pct is
+  // CONTEXT ONLY — the Hess anniversary collapses it mechanically at Q3'26.
+  "production_mboed", "production_vs_guide", "production_growth_yoy_pct",
+  // ★ THE operational canary (TCO ≈ $6B Chevron-share FCF at $70, one export
+  // pipeline). ⚠ CPC = the Caspian Pipeline Consortium, NOT Chevron Phillips
+  // Chemical.
+  "tco_canary_status", "cpc_export_status", "guyana_status",
+  // Whether the windfall reaches shareholders — the post-print read.
+  "next_q_buyback_guide_low_busd", "next_q_buyback_guide_high_busd", "buyback_guide_trend",
+  "buyback_ttm_busd", "buyback_vs_range",
+  // ⚠ forward_pe_consensus is SPOT-contaminated (reported, never scored) and
+  // deliberately NOT folded into MLM's forward_pe.
+  "forward_pe_consensus", "xom_fwd_pe", "breakeven_status",
+  // ⚠ Guardrail (d): the HESM exit removes ~$3.7B of debt with no cash
+  // generated — the ex-deconsolidation ratio is the read.
+  "net_debt_ratio_pct", "hesm_deconsolidation_state", "net_debt_ratio_ex_deconsolidation_pct",
+  "insider_net_selling_90d",
 ].join(",");
 
 // ── V8.2.0: CSV HEADER MIGRATION (pure-append schema evolution) ──────────────
@@ -809,7 +1279,9 @@ for (const s of normalized) {
     // accounting artifact (Quikrete divestiture gain in the TTM window), NOT a
     // valuation observation. Written explicitly rather than left blank so a
     // later reader can distinguish "gated" from "never populated".
-    md.cohort_valuation?.premium_pct_reliable ?? "",
+    // V8.7.0: either-key fold — CVX carries the flag in its TWIN block (no
+    // cohort block), so on CVX rows this qualifies twin_premium_pct.
+    md.cohort_valuation?.premium_pct_reliable ?? md.twin_valuation?.premium_pct_reliable ?? "",
     md.cohort_valuation?.trailing_discount_artifact_suspected ?? "",
     md.cohort_relative?.mlm_30d_return_pct ?? "",
     md.cohort_relative?.vmc_spread_30d_pp ?? "",
@@ -855,6 +1327,130 @@ for (const s of normalized) {
     md.fundamentals?.roic_pct ?? "",
     md.fundamentals?.wacc_pct ?? "",
     md.fundamentals?.roic_denominator_distorted ?? "",
+
+    // ─── V8.6.0 UBER additions (only UBER row populates these) ────────────
+    md.cohort_valuation?.dash_pe ?? "",
+    md.cohort_valuation?.lyft_pe ?? "",
+    md.cohort_valuation?.grab_pe ?? "",
+    md.cohort_valuation?.uber_vs_dash_pct ?? "",
+    // Pairs with premium_pct_reliable above (already written for UBER rows by
+    // the V8.5.0 column — fetch v4.19 emits the same key).
+    // V8.7.0: same either-key fold as premium_pct_reliable (CVX: twin block).
+    esc(md.cohort_valuation?.unreliable_reason ?? md.twin_valuation?.unreliable_reason ?? ""),
+    md.cohort_relative?.uber_30d_return_pct ?? "",
+    md.cohort_relative?.dash_spread_30d_pp ?? "",
+    md.factor_flow?.xly_vs_spy_30d_pp ?? "",
+    md.tactical_extras?.worst_1d_return_5s_pct ?? "",
+    esc(md.tactical_extras?.worst_1d_date ?? ""),
+    md.tactical_extras?.spy_same_day_return_pct ?? "",
+    md.tactical_extras?.worst_1d_on_known_print ?? "",
+    md.tactical_extras?.av_shock_candidate_active ?? "",
+    esc(md.fundamentals?.av_supply_regime_state ?? ""),
+    esc(md.fundamentals?.dh_offer_state ?? ""),
+    esc(md.fundamentals?.dh_basis_scored ?? ""),
+    md.fundamentals?.tax_release_in_ttm ?? "",
+    esc(md.fundamentals?.gaap_pe_signal_status ?? ""),
+    // Engine OUTPUT, not a payload field — read from the blended strategic
+    // object generate-signals v8.6.0 passes through from blendScores().
+    valueTrapGateState(s) ?? "",
+    // ── LLM-sourced scaffolds: EVERY value goes through esc(), numbers and
+    // booleans included. esc() is the identity on a value with no comma or
+    // quote, so this costs nothing on well-typed input — and a model that
+    // writes "1,234" or "yes, CEO ~$10M" can no longer shift the row width.
+    esc(md.fundamentals?.gross_bookings_growth_cc_pct ?? ""),
+    esc(md.fundamentals?.gross_bookings_growth_reported_pct ?? ""),
+    esc(md.fundamentals?.mobility_gb_growth_cc_pct ?? ""),
+    esc(md.fundamentals?.delivery_gb_growth_cc_pct ?? ""),
+    esc(md.fundamentals?.trips_growth_pct ?? ""),
+    esc(md.fundamentals?.mapcs_millions ?? ""),
+    esc(md.fundamentals?.mapcs_growth_pct ?? ""),
+    esc(md.fundamentals?.adj_ebitda_musd ?? ""),
+    esc(md.fundamentals?.adj_ebitda_pct_gb ?? ""),
+    esc(md.fundamentals?.mobility_segment_oi_growth_pct ?? ""),
+    esc(md.fundamentals?.delivery_segment_oi_growth_pct ?? ""),
+    esc(md.fundamentals?.driver_incentive_pressure ?? ""),
+    esc(md.fundamentals?.reported_revenue_growth_pct ?? ""),
+    esc(md.fundamentals?.business_model_drag_pp ?? ""),
+    esc(md.fundamentals?.revenue_signal_status ?? ""),
+    esc(md.fundamentals?.guide_vs_consensus ?? ""),
+    esc(md.fundamentals?.forward_pe_non_gaap ?? ""),
+    esc(md.fundamentals?.non_gaap_eps_sbc_treatment ?? ""),
+    esc(md.fundamentals?.ev_adj_ebitda ?? ""),
+    esc(md.fundamentals?.ev_adj_ebitda_basis ?? ""),
+    esc(md.fundamentals?.ev_adj_ebitda_less_sbc ?? ""),
+    esc(md.fundamentals?.ev_gaap_ebitda ?? ""),
+    esc(md.fundamentals?.fcf_ttm_busd ?? ""),
+    esc(md.fundamentals?.sbc_ttm_busd ?? ""),
+    esc(md.fundamentals?.owner_fcf_yield_pct ?? ""),
+    esc(md.fundamentals?.tier1_operators_direct_only ?? ""),
+    esc(md.fundamentals?.tier1_operators_on_uber ?? ""),
+    esc(md.fundamentals?.exclusive_pipeline_status ?? ""),
+    esc(md.fundamentals?.av_headline_shock_active ?? ""),
+    esc(md.fundamentals?.dh_acceptance_pct ?? ""),
+    esc(md.fundamentals?.gross_leverage ?? ""),
+    esc(md.fundamentals?.buyback_pace ?? ""),
+    esc(md.fundamentals?.insider_buying_recent ?? ""),
+    esc(md.fundamentals?.roic_gaap_inflated ?? ""),
+    // ─── V8.7.0 CVX additions (only CVX row populates these) ─────────────
+    md.twin_valuation?.xom_pe ?? "",
+    md.twin_valuation?.reference_european_avg_pe ?? "",
+    md.cohort_relative?.cvx_30d_return_pct ?? "",
+    md.cohort_relative?.xom_30d_return_pct ?? "",
+    md.cohort_relative?.xom_spread_30d_pp ?? "",
+    // ⚠ Column xom_dislocation_active is fed from the PAYLOAD key
+    // twin_dislocation_active — deliberate rename, see the schema note above.
+    md.cohort_relative?.twin_dislocation_active ?? "",
+    md.cohort_relative?.european_avg_30d_return_pct ?? "",
+    md.factor_flow?.xle_vs_spy_30d_pp ?? "",
+    md.tactical_extras?.largest_1d_move_5s_pct ?? "",
+    esc(md.tactical_extras?.largest_1d_date ?? ""),
+    md.tactical_extras?.xle_same_day_return_pct ?? "",
+    md.tactical_extras?.idiosyncratic_pp ?? "",
+    md.tactical_extras?.largest_1d_on_known_print ?? "",
+    md.tactical_extras?.air_pocket_candidate_active ?? "",
+    md.oil_regime?.brent_spot ?? "",
+    md.oil_regime?.brent_spot_stale ?? "",
+    md.oil_regime?.henry_hub_spot ?? "",
+    md.fundamentals?.brent_ttm_avg ?? "",
+    md.fundamentals?.henry_hub_ttm_avg ?? "",
+    md.fundamentals?.market_cap_busd ?? "",
+    md.fundamentals?.q3_2025_in_ttm ?? "",
+    esc(md.fundamentals?.forward_pe_signal_status ?? ""),
+    esc(md.fundamentals?.revisions_signal_status ?? ""),
+    md.fundamentals?.roce_spot_inflated ?? "",
+    md.fundamentals?.share_count_base_clean ?? "",
+    // Engine OUTPUT, not a payload field — read from the blended strategic
+    // object generate-signals v8.7.0 passes through from blendScores().
+    cycleGateState(s).active ?? "",
+    esc(cycleGateState(s).side ?? ""),
+    // ── LLM-sourced scaffolds: EVERY value goes through esc() (V8.6.0 rule).
+    esc(md.fundamentals?.adj_fcf_ttm_busd ?? ""),
+    esc(md.fundamentals?.downstream_earnings_ttm_busd ?? ""),
+    esc(md.fundamentals?.crack_environment ?? ""),
+    esc(md.fundamentals?.cffo_ex_wc_ttm_busd ?? ""),
+    esc(md.fundamentals?.capex_ttm_busd ?? ""),
+    esc(md.fundamentals?.capex_vs_guide ?? ""),
+    esc(md.fundamentals?.timing_effects_last_q_busd ?? ""),
+    esc(md.fundamentals?.working_capital_last_q_busd ?? ""),
+    esc(md.fundamentals?.quarterly_eps_signal_status ?? ""),
+    esc(md.fundamentals?.production_mboed ?? ""),
+    esc(md.fundamentals?.production_vs_guide ?? ""),
+    esc(md.fundamentals?.production_growth_yoy_pct ?? ""),
+    esc(md.fundamentals?.tco_canary_status ?? ""),
+    esc(md.fundamentals?.cpc_export_status ?? ""),
+    esc(md.fundamentals?.guyana_status ?? ""),
+    esc(md.fundamentals?.next_q_buyback_guide_low_busd ?? ""),
+    esc(md.fundamentals?.next_q_buyback_guide_high_busd ?? ""),
+    esc(md.fundamentals?.buyback_guide_trend ?? ""),
+    esc(md.fundamentals?.buyback_ttm_busd ?? ""),
+    esc(md.fundamentals?.buyback_vs_range ?? ""),
+    esc(md.fundamentals?.forward_pe_consensus ?? ""),
+    esc(md.fundamentals?.xom_fwd_pe ?? ""),
+    esc(md.fundamentals?.breakeven_status ?? ""),
+    esc(md.fundamentals?.net_debt_ratio_pct ?? ""),
+    esc(md.fundamentals?.hesm_deconsolidation_state ?? ""),
+    esc(md.fundamentals?.net_debt_ratio_ex_deconsolidation_pct ?? ""),
+    esc(md.fundamentals?.insider_net_selling_90d ?? ""),
   ].join(",");
 
   csvContent += row + "\n";
@@ -983,6 +1579,21 @@ const dailyEntry = {
         crh_pe:         md.cohort_valuation.crh_pe ?? null,
         exp_pe:         md.cohort_valuation.exp_pe ?? null,
         mlm_vs_vmc_pct: md.cohort_valuation.mlm_vs_vmc_pct ?? null,
+        // V8.6.0: UBER marketplace cohort (weighted DASH .50 / LYFT .25 /
+        // GRAB .25, renormalized over the peers available). ⚠ basis
+        // "trailing_gaap" on BOTH legs — gated by premium_pct_reliable below.
+        uber_pe:        md.cohort_valuation.uber_pe ?? null,
+        dash_pe:        md.cohort_valuation.dash_pe ?? null,
+        lyft_pe:        md.cohort_valuation.lyft_pe ?? null,
+        grab_pe:        md.cohort_valuation.grab_pe ?? null,
+        uber_vs_dash_pct: md.cohort_valuation.uber_vs_dash_pct ?? null,
+        // V8.6.0: cohort_count — how many peers cohort_avg_pe actually averaged
+        // over. Emitted by EVERY cohort holding's fetch block (LHX, MSFT, NOW,
+        // ISRG, MLM, UBER) but never mapped until now, so it populates on all
+        // of those rows from V8.6.0 — additive. It matters most for weighted
+        // cohorts (MLM, UBER), whose weights renormalize when a peer is
+        // missing: the mean is unreadable without the count behind it.
+        cohort_count:   md.cohort_valuation.cohort_count ?? null,
         cohort_weighting: md.cohort_valuation.cohort_weighting ?? null,
         basis:          md.cohort_valuation.basis ?? null,
         cohort_avg_pe:  md.cohort_valuation.cohort_avg_pe ?? null,
@@ -993,6 +1604,11 @@ const dailyEntry = {
         // storing the number without these would teach a false relationship.
         premium_pct_reliable: md.cohort_valuation.premium_pct_reliable ?? null,
         trailing_discount_artifact_suspected: md.cohort_valuation.trailing_discount_artifact_suspected ?? null,
+        // V8.6.0: WHY premium_pct_reliable is false. Travels with the flag —
+        // MLM's cause (divestiture gain) and UBER's (tax release + equity
+        // revaluations on its own leg, LYFT's tax-benefit P/E on the peer leg)
+        // are different artifacts and a pooled study must tell them apart.
+        unreliable_reason: md.cohort_valuation.unreliable_reason ?? null,
       } : null,
       // Cohort relative — 30d returns + rotation (NOW keys + V8.3.0 ISRG keys)
       cohort_relative: md.cohort_relative ? {
@@ -1026,6 +1642,32 @@ const dailyEntry = {
         // this inside a 3-name mean destroys the archetype's best tactical signal.
         vmc_spread_30d_pp:           md.cohort_relative.vmc_spread_30d_pp ?? null,
         vmc_dislocation_active:      md.cohort_relative.vmc_dislocation_active ?? null,
+        // V8.6.0: UBER marketplace rotation. Like MLM, fetch v4.19 emits
+        // peer_rotation_pp / _active (recorded raw above, and folded into the
+        // shared cohort_rotation_* CSV columns by the row builder). UBER fires
+        // at −6pp.
+        uber_30d_return_pct:         md.cohort_relative.uber_30d_return_pct ?? null,
+        dash_30d_return_pct:         md.cohort_relative.dash_30d_return_pct ?? null,
+        lyft_30d_return_pct:         md.cohort_relative.lyft_30d_return_pct ?? null,
+        grab_30d_return_pct:         md.cohort_relative.grab_30d_return_pct ?? null,
+        // ⚠ CONTEXT ONLY — not a twin read. DASH is already half the weighted
+        // cohort; contrast vmc_spread_30d_pp above, which IS scored.
+        dash_spread_30d_pp:          md.cohort_relative.dash_spread_30d_pp ?? null,
+        // V8.6.0: cohort_count — mapped for every cohort holding (see the
+        // cohort_valuation note); the 30d mean is unreadable without it.
+        cohort_count:                md.cohort_relative.cohort_count ?? null,
+        // V8.7.0: CVX twin rotation vs XOM — THE signature tactical setup (fires
+        // below −4pp). Payload key names kept here (twin_dislocation_active);
+        // the CSV renames that one to xom_dislocation_active. SHEL/TTE and the
+        // European average are context only — the engine does not score them.
+        cvx_30d_return_pct:          md.cohort_relative.cvx_30d_return_pct ?? null,
+        xom_30d_return_pct:          md.cohort_relative.xom_30d_return_pct ?? null,
+        shel_30d_return_pct:         md.cohort_relative.shel_30d_return_pct ?? null,
+        tte_30d_return_pct:          md.cohort_relative.tte_30d_return_pct ?? null,
+        xom_spread_30d_pp:           md.cohort_relative.xom_spread_30d_pp ?? null,
+        twin_dislocation_active:     md.cohort_relative.twin_dislocation_active ?? null,
+        european_avg_30d_return_pct: md.cohort_relative.european_avg_30d_return_pct ?? null,
+        european_count:              md.cohort_relative.european_count ?? null,
       } : null,
       // Factor flow — software cohort vs SPY (NOW row primarily)
       igv_vs_spy_30d_pp:    md.factor_flow?.igv_vs_spy_30d_pp ?? null,
@@ -1041,11 +1683,29 @@ const dailyEntry = {
         ma_pe:       md.twin_valuation.ma_pe ?? null,
         v_pe:        md.twin_valuation.v_pe ?? null,
         premium_pct: md.twin_valuation.premium_pct ?? null,
+        // V8.7.0: CVX vs XOM — the twin. ⚠ basis "trailing_gaap" on BOTH legs
+        // (windfall earnings plus CVX's Hess DD&A step-up): fetch v4.20 hard-
+        // gates premium_pct_reliable FALSE. The flag and its reason travel with
+        // premium_pct above — without them this object would store a twin
+        // premium with nothing recording that it is invalid. SHEL/TTE are a
+        // structural-discount REFERENCE only, never a premium to score.
+        cvx_pe:                    md.twin_valuation.cvx_pe ?? null,
+        xom_pe:                    md.twin_valuation.xom_pe ?? null,
+        basis:                     md.twin_valuation.basis ?? null,
+        premium_pct_reliable:      md.twin_valuation.premium_pct_reliable ?? null,
+        unreliable_reason:         md.twin_valuation.unreliable_reason ?? null,
+        reference_shel_pe:         md.twin_valuation.reference_shel_pe ?? null,
+        reference_tte_pe:          md.twin_valuation.reference_tte_pe ?? null,
+        reference_european_avg_pe: md.twin_valuation.reference_european_avg_pe ?? null,
       } : null,
       twin_relative: md.twin_relative ? {
         ma_change_pct:      md.twin_relative.ma_change_pct ?? null,
         v_change_pct:       md.twin_relative.v_change_pct ?? null,
         relative_spread_pp: md.twin_relative.relative_spread_pp ?? null,
+        // V8.7.0: CVX vs XOM, today's session.
+        cvx_change_pct:     md.twin_relative.cvx_change_pct ?? null,
+        xom_change_pct:     md.twin_relative.xom_change_pct ?? null,
+        xom_price:          md.twin_relative.xom_price ?? null,
       } : null,
       duopoly_relative: md.duopoly_relative ? {
         ma_30d_return_pct:          md.duopoly_relative.ma_30d_return_pct ?? null,
@@ -1182,6 +1842,155 @@ const dailyEntry = {
       roic_pct:                        md.fundamentals?.roic_pct ?? null,
       wacc_pct:                        md.fundamentals?.wacc_pct ?? null,
       roic_denominator_distorted:      md.fundamentals?.roic_denominator_distorted ?? null,
+      // ─── V8.6.0 UBER additions (UBER row only; null elsewhere) ─────────
+      // Consumer factor overlay. Spread only, as for xlb/ihi/igv: the raw legs
+      // are not logged for any holding — and a flat spy_30d_return_pct key
+      // would NOT be UBER-only (LHX/NOW/ISRG/MLM factor_flow blocks emit it too).
+      xly_vs_spy_30d_pp:               md.factor_flow?.xly_vs_spy_30d_pp ?? null,
+      // AV-headline-shock PRICE screen — flattened under the payload key names,
+      // as LIN's tactical_extras fields are above (the key sets are disjoint).
+      // ⚠ av_shock_candidate_active is the PRICE event only; the LLM's
+      // attribution is av_headline_shock_active, further down.
+      worst_1d_return_5s_pct:          md.tactical_extras?.worst_1d_return_5s_pct ?? null,
+      worst_1d_date:                   md.tactical_extras?.worst_1d_date ?? null,
+      spy_same_day_return_pct:         md.tactical_extras?.spy_same_day_return_pct ?? null,
+      worst_1d_on_known_print:         md.tactical_extras?.worst_1d_on_known_print ?? null,
+      av_shock_candidate_active:       md.tactical_extras?.av_shock_candidate_active ?? null,
+      // Config / regime state. ⚠ "leader_exiting_tail_aggregating" is the BASE
+      // CASE (contested regime, scores zero), not a downgrade.
+      av_supply_regime_state:          md.fundamentals?.av_supply_regime_state ?? null,
+      dh_offer_state:                  md.fundamentals?.dh_offer_state ?? null,
+      dh_basis_scored:                 md.fundamentals?.dh_basis_scored ?? null,
+      // ★★ Labels the trailing_pe field on this row. Flips true → false at the
+      // 2026-11-04 print, when trailing P/E roughly doubles on accounting alone.
+      tax_release_in_ttm:              md.fundamentals?.tax_release_in_ttm ?? null,
+      gaap_pe_signal_status:           md.fundamentals?.gaap_pe_signal_status ?? null,
+      // ★ THE canary, with Delivery beside it — the signature is the GAP
+      // (Mobility below 12% WHILE Delivery holds), not either number alone.
+      gross_bookings_growth_cc_pct:    md.fundamentals?.gross_bookings_growth_cc_pct ?? null,
+      gross_bookings_growth_reported_pct: md.fundamentals?.gross_bookings_growth_reported_pct ?? null,
+      mobility_gb_growth_cc_pct:       md.fundamentals?.mobility_gb_growth_cc_pct ?? null,
+      delivery_gb_growth_cc_pct:       md.fundamentals?.delivery_gb_growth_cc_pct ?? null,
+      trips_growth_pct:                md.fundamentals?.trips_growth_pct ?? null,
+      mapcs_millions:                  md.fundamentals?.mapcs_millions ?? null,
+      mapcs_growth_pct:                md.fundamentals?.mapcs_growth_pct ?? null,
+      adj_ebitda_musd:                 md.fundamentals?.adj_ebitda_musd ?? null,
+      adj_ebitda_pct_gb:               md.fundamentals?.adj_ebitda_pct_gb ?? null,
+      mobility_segment_oi_growth_pct:  md.fundamentals?.mobility_segment_oi_growth_pct ?? null,
+      delivery_segment_oi_growth_pct:  md.fundamentals?.delivery_segment_oi_growth_pct ?? null,
+      driver_incentive_pressure:       md.fundamentals?.driver_incentive_pressure ?? null,
+      // ⚠ CONTEXT ONLY while revenue_signal_status is
+      // "null_signal_business_model_contaminated". Kept apart from the shared
+      // revenue_growth_yoy_pct field on purpose.
+      reported_revenue_growth_pct:     md.fundamentals?.reported_revenue_growth_pct ?? null,
+      business_model_drag_pp:          md.fundamentals?.business_model_drag_pp ?? null,
+      revenue_signal_status:           md.fundamentals?.revenue_signal_status ?? null,
+      guide_vs_consensus:              md.fundamentals?.guide_vs_consensus ?? null,
+      // ⚠ Each multiple WITH its basis tag; none shares MLM's forward_pe /
+      // ev_ebitda fields. ~13.9x / ~17.3x / ~18.7x on one EV is basis, not value.
+      forward_pe_non_gaap:             md.fundamentals?.forward_pe_non_gaap ?? null,
+      non_gaap_eps_sbc_treatment:      md.fundamentals?.non_gaap_eps_sbc_treatment ?? null,
+      ev_adj_ebitda:                   md.fundamentals?.ev_adj_ebitda ?? null,
+      ev_adj_ebitda_basis:             md.fundamentals?.ev_adj_ebitda_basis ?? null,
+      ev_adj_ebitda_less_sbc:          md.fundamentals?.ev_adj_ebitda_less_sbc ?? null,
+      ev_gaap_ebitda:                  md.fundamentals?.ev_gaap_ebitda ?? null,
+      // Owner FCF — FCF less SBC; the flagship strategic lens.
+      fcf_ttm_busd:                    md.fundamentals?.fcf_ttm_busd ?? null,
+      sbc_ttm_busd:                    md.fundamentals?.sbc_ttm_busd ?? null,
+      owner_fcf_yield_pct:             md.fundamentals?.owner_fcf_yield_pct ?? null,
+      tier1_operators_direct_only:     md.fundamentals?.tier1_operators_direct_only ?? null,
+      tier1_operators_on_uber:         md.fundamentals?.tier1_operators_on_uber ?? null,
+      exclusive_pipeline_status:       md.fundamentals?.exclusive_pipeline_status ?? null,
+      av_headline_shock_active:        md.fundamentals?.av_headline_shock_active ?? null,
+      // ⚠ Leverage vs the stated <2x gross ceiling, never the level.
+      dh_acceptance_pct:               md.fundamentals?.dh_acceptance_pct ?? null,
+      gross_leverage:                  md.fundamentals?.gross_leverage ?? null,
+      // buyback_pace is context only — scored on the NET share count above.
+      buyback_pace:                    md.fundamentals?.buyback_pace ?? null,
+      insider_buying_recent:           md.fundamentals?.insider_buying_recent ?? null,
+      // ⚠ Pairs with roic_pct above. NOT roic_denominator_distorted: UBER's
+      // NUMERATOR is tax-inflated; MLM's DENOMINATOR is acquisition-inflated.
+      roic_gaap_inflated:              md.fundamentals?.roic_gaap_inflated ?? null,
+      // ─── V8.7.0 CVX additions (CVX row only; null elsewhere) ──────────
+      // The oil regime vs Chevron's $70 planning deck — fetch v4.20's block
+      // whole (spot Brent is FRED/EIA daily, ~1-week lag; brent_spot_stale
+      // flags > 14 days). score-engine V8.6 recomputes the band from the
+      // number; its result is regime / regime_driver below.
+      oil_regime: md.oil_regime ? {
+        brent_spot:          md.oil_regime.brent_spot ?? null,
+        brent_spot_date:     md.oil_regime.brent_spot_date ?? null,
+        brent_spot_stale:    md.oil_regime.brent_spot_stale ?? null,
+        brent_source:        md.oil_regime.brent_source ?? null,
+        deck_brent:          md.oil_regime.deck_brent ?? null,
+        deck_deviation_pct:  md.oil_regime.deck_deviation_pct ?? null,
+        oil_price_regime:    md.oil_regime.oil_price_regime ?? null,
+        regime_direction:    md.oil_regime.regime_direction ?? null,
+        driver_missing:      md.oil_regime.driver_missing ?? null,
+        wti_spot:            md.oil_regime.wti_spot ?? null,
+        brent_wti_spread:    md.oil_regime.brent_wti_spread ?? null,
+        henry_hub_spot:      md.oil_regime.henry_hub_spot ?? null,
+        henry_hub_spot_date: md.oil_regime.henry_hub_spot_date ?? null,
+      } : null,
+      // Energy factor overlay. Spread only, as for xlb/xly/ihi/igv.
+      xle_vs_spy_30d_pp:               md.factor_flow?.xle_vs_spy_30d_pp ?? null,
+      // Geopolitical AIR-POCKET screen — flattened under the payload key names,
+      // as LIN's and UBER's tactical_extras fields are above (the key sets are
+      // disjoint). The candidate flag is the PRICE event only.
+      largest_1d_move_5s_pct:          md.tactical_extras?.largest_1d_move_5s_pct ?? null,
+      largest_1d_date:                 md.tactical_extras?.largest_1d_date ?? null,
+      largest_1d_direction:            md.tactical_extras?.largest_1d_direction ?? null,
+      xle_same_day_return_pct:         md.tactical_extras?.xle_same_day_return_pct ?? null,
+      idiosyncratic_pp:                md.tactical_extras?.idiosyncratic_pp ?? null,
+      largest_1d_on_known_print:       md.tactical_extras?.largest_1d_on_known_print ?? null,
+      air_pocket_candidate_active:     md.tactical_extras?.air_pocket_candidate_active ?? null,
+      // Deck-normalization inputs computed by fetch v4.20 (4 REPORTED quarters;
+      // Henry Hub is the daily spot as a bid-week proxy — henry_hub_basis says so).
+      brent_ttm_avg:                   md.fundamentals?.brent_ttm_avg ?? null,
+      henry_hub_ttm_avg:               md.fundamentals?.henry_hub_ttm_avg ?? null,
+      henry_hub_basis:                 md.fundamentals?.henry_hub_basis ?? null,
+      ttm_window:                      md.fundamentals?.ttm_window ?? null,
+      market_cap_busd:                 md.fundamentals?.market_cap_busd ?? null,
+      // ★★ Labels for reused fields on this row. q3_2025_in_ttm flips true →
+      // false once Q3'26 is reported (2026-10-30 print): trailing_pe falls
+      // ~22x → ~17x on accounting alone. share_count_base_clean = false means
+      // the YoY window crosses the 2025-07-18 Hess close (~+14% mechanical).
+      q3_2025_in_ttm:                  md.fundamentals?.q3_2025_in_ttm ?? null,
+      forward_pe_signal_status:        md.fundamentals?.forward_pe_signal_status ?? null,
+      revisions_signal_status:         md.fundamentals?.revisions_signal_status ?? null,
+      roce_spot_inflated:              md.fundamentals?.roce_spot_inflated ?? null,
+      share_count_base_clean:          md.fundamentals?.share_count_base_clean ?? null,
+      // LLM-sourced scaffolds (null until populated).
+      adj_fcf_ttm_busd:                md.fundamentals?.adj_fcf_ttm_busd ?? null,
+      downstream_earnings_ttm_busd:    md.fundamentals?.downstream_earnings_ttm_busd ?? null,
+      crack_environment:               md.fundamentals?.crack_environment ?? null,
+      cffo_ex_wc_ttm_busd:             md.fundamentals?.cffo_ex_wc_ttm_busd ?? null,
+      capex_ttm_busd:                  md.fundamentals?.capex_ttm_busd ?? null,
+      capex_vs_guide:                  md.fundamentals?.capex_vs_guide ?? null,
+      timing_effects_last_q_busd:      md.fundamentals?.timing_effects_last_q_busd ?? null,
+      working_capital_last_q_busd:     md.fundamentals?.working_capital_last_q_busd ?? null,
+      quarterly_eps_signal_status:     md.fundamentals?.quarterly_eps_signal_status ?? null,
+      // ⚠ Scored vs the FY26 guide; production_growth_yoy_pct is CONTEXT ONLY.
+      production_mboed:                md.fundamentals?.production_mboed ?? null,
+      production_vs_guide:             md.fundamentals?.production_vs_guide ?? null,
+      production_growth_yoy_pct:       md.fundamentals?.production_growth_yoy_pct ?? null,
+      // ★ THE operational canary. CPC = Caspian Pipeline Consortium.
+      tco_canary_status:               md.fundamentals?.tco_canary_status ?? null,
+      cpc_export_status:               md.fundamentals?.cpc_export_status ?? null,
+      guyana_status:                   md.fundamentals?.guyana_status ?? null,
+      next_q_buyback_guide_low_busd:   md.fundamentals?.next_q_buyback_guide_low_busd ?? null,
+      next_q_buyback_guide_high_busd:  md.fundamentals?.next_q_buyback_guide_high_busd ?? null,
+      buyback_guide_trend:             md.fundamentals?.buyback_guide_trend ?? null,
+      buyback_ttm_busd:                md.fundamentals?.buyback_ttm_busd ?? null,
+      buyback_vs_range:                md.fundamentals?.buyback_vs_range ?? null,
+      // ⚠ SPOT-contaminated — reported, never scored; not MLM's forward_pe.
+      forward_pe_consensus:            md.fundamentals?.forward_pe_consensus ?? null,
+      xom_fwd_pe:                      md.fundamentals?.xom_fwd_pe ?? null,
+      breakeven_status:                md.fundamentals?.breakeven_status ?? null,
+      // ⚠ Read leverage EX-deconsolidation (HESM exit: ~$3.7B debt, no cash).
+      net_debt_ratio_pct:              md.fundamentals?.net_debt_ratio_pct ?? null,
+      hesm_deconsolidation_state:      md.fundamentals?.hesm_deconsolidation_state ?? null,
+      net_debt_ratio_ex_deconsolidation_pct: md.fundamentals?.net_debt_ratio_ex_deconsolidation_pct ?? null,
+      insider_net_selling_90d:         md.fundamentals?.insider_net_selling_90d ?? null,
 
       // Det/LLM/blended scores per timeframe
       tactical: {
@@ -1201,6 +2010,16 @@ const dailyEntry = {
         llm: s.strategic?.llm_score ?? null,
         blended: s.strategic?.score ?? null,
         signal: s.strategic?.signal ?? null,
+        // V8.6.0: true = blended was FLOORED at 0 by the UBER value-trap gate
+        // (a rule output, not a judgment); false = evaluated and clear; null =
+        // not evaluated for this holding. Lives beside the number it clips.
+        value_trap_gate_active: valueTrapGateState(s),
+        // V8.7.0: CVX cycle-position gate (score-engine V8.6, Guardrail E).
+        // true = blended was BOUNDED by rule — floored at 0 (side "no_buy") or
+        // capped at 0 (side "no_trim"); false = evaluated and clear; null = not
+        // evaluated for this holding.
+        cycle_gate_active: cycleGateState(s).active,
+        cycle_gate_side:   cycleGateState(s).side,
       },
       composite: {
         det: s.composite?.det_score ?? null,
