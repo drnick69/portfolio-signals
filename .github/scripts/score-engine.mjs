@@ -230,6 +230,146 @@
 //   for historical re-scoring, exactly as momentum_store_of_value (IBIT) was
 //   after V8.3 and high_beta_crypto (ETHA) after v7.6.
 
+// V8.5 (October 2026): HOLDINGS SWAP — sold PBR.A (em_state_oil_dividend),
+// bought UBER (marketplace_demand_aggregator). Still 14 scored holdings.
+// One new archetype branch per layer + one new categorical regime gate.
+//   - MARKETPLACE_DEMAND_AGGREGATOR (UBER) — V1: bands between MLM and RDDT
+//     (beta 1.26) — RSI 35/70, daily-move noise floor ±2.5%, drawdown ladder
+//     scaled to 50% (setup >18%, strong >30%). Marketplace-cohort rotation vs
+//     DASH/LYFT/GRAB (weighted .50/.25/.25) at a −6pp threshold — and this
+//     MUST stay aligned with fetch-market-data v4.19, which sets
+//     peer_rotation_active on the same −6pp boundary. The DASH spread is
+//     REPORTED, NOT SCORED: DASH is the heaviest cohort weight, not a twin, so
+//     scoring it again would double-count. The signature tactical setup is the
+//     AV-HEADLINE SHOCK — fetch v4.19's price screen (≤ −4% session in the last
+//     5, not a print day) scored lightly as an unattributed candidate and fully
+//     only once fundamentals.av_headline_shock_active confirms it.
+//     Positional runs on constant-currency gross bookings, the MOBILITY CANARY
+//     (Mobility GB cc growth — below 12% while Delivery holds is the
+//     AV-disintermediation signature and the thesis-level falsifier), trips,
+//     Adj EBITDA as % of bookings, Mobility segment OI, incentive pressure,
+//     guide vs consensus and EPS revisions. The MA map and 52w ladder are
+//     DAMPENED (RDDT-style map, −35 floor): below-both on this name may be the
+//     market pricing a live structural falsifier, not a fear cycle.
+//     Strategic runs on SBC-adjusted OWNER FCF YIELD (the flagship), non-GAAP
+//     forward PE, basis-tagged EV / Adj EBITDA, the AV supply state, the
+//     exclusive pipeline, Delivery Hero state, gross leverage vs the stated
+//     <2x ceiling and NET share count.
+//     Regime gate: AV SUPPLY (human-maintained categorical from fetch v4.19) —
+//     aggregating 25/40/35 · contested 20/35/45 · disintermediating 15/30/55.
+//     The triple is LIN/MLM's, reused for its calibration history.
+//     ⚠ CALIBRATION: "leader_exiting_tail_aggregating" — Waymo going direct
+//     while the tail of AV operators signs on — maps to CONTESTED and scores
+//     ZERO. The leader exiting was the base case and is in the price.
+//   FIVE CALIBRATION GUARDRAILS ARE LOAD-BEARING HERE:
+//     (a) GAAP EARNINGS GATE. TTM GAAP net income carries a $4.9B tax
+//         valuation-allowance release (rolls off at the 2026-11-04 print) and
+//         ±$1.5B quarterly equity revaluations that never roll off. Trailing
+//         P/E is NEVER scored — not by threshold, not after the roll-off — and
+//         the cohort premium honours premium_pct_reliable (hard FALSE from fetch
+//         v4.19). ⚠ The roll-off roughly doubles trailing P/E overnight; the
+//         gate is what keeps that from reading as a re-rating.
+//     (b) REVENUE NULL SIGNAL. Business-model changes cut Q2'26 revenue growth
+//         by 8pp; revenue is surfaced as a NOTE only. (b') BASIS ASSERTION:
+//         EV / Adj EBITDA is scored only when tagged adjusted_sbc_excluded_*;
+//         EV / GAAP EBITDA and EV / (Adj − SBC) are notes, never compared.
+//     (c) OWNER-FCF RULE. Yield is scored after SBC; buybacks on NET share
+//         count, never gross dollars.
+//     (d) DELIVERY HERO scored standalone until closed; leverage against the
+//         stated <2x gross ceiling, not the level; no synergies credited.
+//     (e) VALUE-TRAP GATE. av_supply_regime "disintermediating" AND Mobility
+//         GB cc < 12% (or unknown — FAILS CLOSED) → strategic floored at 0.
+//         Enforced twice: on the deterministic strategic score here, and on
+//         the BLENDED strategic score in blendScores(), because the LLM carries
+//         70% of that layer and a deterministic-only cap would leak. The
+//         blendScores() change is flag-driven (value_trap_gate_active on the
+//         deterministic strategic result) and is a no-op for every other
+//         archetype — no other branch sets the flag.
+//   Dividend yield is a NON-FIELD (no dividend). NOT added to
+//   CYCLICAL_ARCHETYPES — the PBR.A inverted-PE logic this slot used to carry
+//   does NOT apply; the post-roll-off jump in trailing P/E is accounting, not a
+//   cycle. Blend weights untouched (archetype uses defaults).
+//   regimeDriver is null for UBER: the gate is categorical with no numeric
+//   driver (regimeBasis "av_supply_regime_state" carries the provenance).
+//   PBR.A's em_state_oil_dividend branches are RETAINED as dead code for
+//   historical re-scoring, exactly as RDDT's were after V8.4, IBIT's after
+//   V8.3 and ETHA's after v7.6. em_state_oil_dividend stays in
+//   CYCLICAL_ARCHETYPES for the same reason.
+
+// V8.6 (October 2026): HOLDINGS SWAP — sold ENB (dividend_compounder), bought
+// CVX (integrated_major_capital_returner). Still 14 scored holdings. BUILT ON
+// V8.5 (PBR.A → UBER): both swaps live in this file, so V8.6 supersedes V8.5 —
+// deploy this one, not both. One new archetype branch per layer + the first
+// NUMERIC price-level regime gate since V8.1's factor spreads.
+//   - INTEGRATED_MAJOR_CAPITAL_RETURNER (CVX) — V1. A capital-return franchise
+//     (capex + dividend breakeven < $50 Brent through 2030, $10–20B/yr buybacks
+//     at $60–80, a 39-year dividend streak) bolted to a commodity that sets the
+//     level of every reported number. Scored at CHEVRON'S OWN $70 BRENT
+//     PLANNING DECK, never at spot.
+//     Tactical: RSI 35/70, ±2% daily noise floor, drawdown ladder (setup >12%,
+//     strong >20% — 2026 realized a 21.5% oil-driven drawdown on a 0.52 beta).
+//     The signature setup is the XOM TWIN DISLOCATION (CVX lagging XOM by
+//     >4pp/30d — MUST match fetch-market-data v4.20's twin_dislocation_active
+//     boundary), oil-neutral by construction. ★ REGIME-AWARE: in a
+//     DISLOCATED-HIGH regime, drawdowns, down days and down air pockets are
+//     the windfall premium unwinding — information, not oversold — and score
+//     ZERO (precedent: 2026-04-01, −4.6% on Iranian de-escalation headlines,
+//     the worst day of a −21.5% unwind from 03-27 to 07-01 as Brent fell from
+//     ~$118 to ~$72). RSI >70 with price >10% over SMA50 in that regime is a
+//     trim lean. The air-pocket screen (|move| ≥ 4%, XLE-aligned) is scored
+//     only where its classification is unambiguous from price alone.
+//     Positional: dampened MA map and 52w ladder (a trend break in an oil
+//     major usually IS the commodity); production vs the FY26 guide (never
+//     YoY — Hess anniversary), the TCO/CPC CANARY (~$6B of Chevron-share FCF
+//     at $70 exits via one pipeline to a Black Sea terminal: "broken" is a
+//     thesis-level penalty), capex vs guide and the $21B ceiling, the
+//     next-quarter buyback guide, and EPS revisions scored ONLY in an anchored
+//     regime (elsewhere they track the strip).
+//     Strategic: NORMALIZED adjusted FCF at the $70 Brent / $3.50 Henry Hub
+//     deck (Chevron's FY26 sensitivities: ~$0.60B per $1 Brent, ~$0.70B per $1
+//     HH; downstream measured against a $3.0B/yr mid-cycle — v1 assumptions
+//     recorded 2026-10-27), the PRICE-IMPLIED BRENT at a 6% yield, the forward
+//     twin premium vs XOM (secondary), breakeven vs $50, NET period-end share
+//     count on a clean post-Hess base, and net debt ex-HESM deconsolidation.
+//     Regime gate: OIL PRICE — spot Brent vs the $70 deck, |dev| ≤ 20%
+//     anchored 25/40/35 · ≤ 40% transitional 20/35/45 · beyond dislocated
+//     15/30/55. Identical bands to cvx-strategy.jsx v1 and fetch v4.20.
+//     regimeDriver is the numeric deviation (%); regime carries the direction
+//     ("dislocated_high", "transitional_low", plain "anchored").
+//   FIVE CALIBRATION GUARDRAILS ARE LOAD-BEARING HERE:
+//     (a) WINDFALL NORMALIZATION. Trailing GAAP P/E and consensus forward P/E
+//         are NEVER scored — in either direction, and NOT via the cyclical
+//         inversion (CVX is deliberately NOT in CYCLICAL_ARCHETYPES; explicit
+//         deck normalization supersedes it). ⚠ The 2026-10-30 print rolls Q3'25
+//         ($1.82 GAAP on $69 Brent) out of the TTM: trailing P/E falls ~22x →
+//         ~17x with no change in the business. The trailing twin premium vs XOM
+//         honours premium_pct_reliable (hard FALSE from fetch v4.20).
+//     (b) TIMING + WORKING CAPITAL. Single-quarter EPS and headline CFFO are
+//         contaminated (Q1'26 CFFO $2.5B vs $7.1B ex-WC). Only TTM ex-WC and
+//         adjusted FCF feed the normalization. DD&A ($23–24B) above organic
+//         capex ($18–19B) means earnings understate cash — FCF is the anchor.
+//     (c) HESS ANNIVERSARY. Share count is scored ONLY when fetch v4.20 reports
+//         share_count_base_clean (both period ends after 2025-07-18); production
+//         is scored vs guide, never YoY.
+//     (d) BALANCE-SHEET OPTICS. Leverage is read EX-deconsolidation: the HESM
+//         exit removes ~$3.7B of debt with no cash generated.
+//     (e) CYCLE-POSITION GATE. DISLOCATED-HIGH (Brent > $98): strategic may not
+//         sit on the BUY side unless the normalized FCF yield is ≥ 6% on a FULL
+//         normalization — FAILS CLOSED on null or partial. DISLOCATED-LOW
+//         (Brent < $42): strategic may not sit on the TRIM side unless that
+//         yield is < 4% — the framework's trough-entry rule made mechanical.
+//         Enforced twice, as UBER's value-trap gate is: on the deterministic
+//         score here and on the BLENDED score in blendScores(), flag-driven
+//         (cycle_gate_side on the deterministic strategic result). ⚠ The
+//         normalization inputs (TTM adjusted FCF, TTM downstream earnings) are
+//         LLM-sourced and null in the engine's fetch-only data today, so while
+//         Brent sits above $98 the gate holds strategic at or above zero every
+//         day. That is the designed fail-closed behaviour, not a bug.
+//   Dividend yield is REPORTED, NOT SCORED — ENB's spread-vs-10Y logic is
+//   explicitly not inherited. Blend weights untouched (archetype uses
+//   defaults). ENB's dividend_compounder branches are RETAINED as dead code
+//   for historical re-scoring, exactly as PBR.A's were after V8.5.
+
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
 const CYCLICAL_ARCHETYPES = new Set([
@@ -434,6 +574,154 @@ function computeMLMRegimeWeights(data) {
   return { weights: w, regime: key, driver };
 }
 
+// ─── UBER REGIME-CONDITIONAL WEIGHTS (V8.5) ─────────────────────────────────
+// Gated on the AV SUPPLY regime — the second categorical-driven gate in this
+// file after MLM. The driver is whether autonomous-vehicle supply is listing ON
+// Uber's network or routing AROUND it; fetch-market-data v4.19 emits it from a
+// human-maintained constant. Weight triple is LIN/MLM's, deliberately.
+//
+// Swing direction follows the MA fear-regime logic: when supply is AGGREGATING
+// onto Uber, near-term operating prints carry the signal (tactical/positional
+// up); when it is DISINTERMEDIATING, the question becomes terminal value and
+// the strategic anchor carries it — which is exactly why Guardrail (e) floors
+// that anchor at zero when the Mobility canary has broken.
+//
+// ⚠ "leader_exiting_tail_aggregating" is the CONTESTED state, not a
+// downgrade. Waymo was on Uber in only three of its 15 metros. The regime
+// flips on a SECOND tier-1 exit or Uber's exclusive pipeline slipping.
+const UBER_AV_SUPPLY_REGIME = {
+  partners_adding_uber_supply:     "aggregating",
+  leader_exiting_tail_aggregating: "contested",
+  pending_unknown:                 "contested",
+  second_tier1_exiting:            "disintermediating",
+  exclusive_pipeline_slipping:     "disintermediating",
+};
+
+const UBER_REGIME_TRIPLES = {
+  aggregating:       { t: 0.25, p: 0.40, s: 0.35 },
+  contested:         { t: 0.20, p: 0.35, s: 0.45 },
+  disintermediating: { t: 0.15, p: 0.30, s: 0.55 },
+};
+
+// Same dual-path read as MLM: fetch writes the state under fundamentals, the
+// LLM/hub payload carries it under strategic. Unknown or missing → contested.
+function resolveUBERRegime(data) {
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const state = f.av_supply_regime_state ?? st.av_supply_regime_state ?? null;
+  return { state, key: UBER_AV_SUPPLY_REGIME[state] ?? "contested" };
+}
+
+function computeUBERRegimeWeights(data) {
+  const { key } = resolveUBERRegime(data);
+  // No numeric driver exists for a categorical gate; regimeBasis carries it.
+  // No post-close damping (contrast MLM/LNA) — Delivery Hero's EBITDA is not
+  // disclosed, so any damping constant would be invented. Revisit at close.
+  return { weights: UBER_REGIME_TRIPLES[key], regime: key, driver: null };
+}
+
+// Guardrail (e) predicate — identical to isValueTrapGateActive() in
+// uber-strategy.jsx v1; keep the two in sync if either moves. FAILS CLOSED:
+// under a disintermediating regime an unknown canary counts as broken.
+const UBER_CANARY_FLOOR = 12;
+function isUBERValueTrapGateActive(data) {
+  if (resolveUBERRegime(data).key !== "disintermediating") return false;
+  const canary = data?.fundamentals?.mobility_gb_growth_cc_pct ?? data?.positional?.mobility_gb_growth_cc_pct ?? null;
+  if (canary == null) return true;
+  return canary < UBER_CANARY_FLOOR;
+}
+
+// ─── CVX REGIME-CONDITIONAL WEIGHTS + DECK NORMALIZATION (V8.6) ─────────────
+// Gated on the OIL PRICE regime — spot Brent against Chevron's own $70
+// planning deck. Numeric and self-updating (fetch-market-data v4.20 reads FRED
+// Brent); no human-maintained constant. Bands are IDENTICAL to cvx-strategy.jsx
+// v1 resolveOilRegime() and fetch v4.20 cvxOilRegime() — keep all three in sync.
+//
+// Swing direction: near the deck (ANCHORED) reported prints reflect execution,
+// so near-term layers carry signal; far from it in EITHER direction
+// (DISLOCATED) the prints are mostly the commodity and only the normalized
+// strategic anchor is honest — which is why Guardrail (e) stops that anchor
+// reading spot.
+const CVX_DECK_BRENT              = 70;
+const CVX_DECK_HENRY_HUB          = 3.50;   // v1 assumption — decision recorded 2026-10-27
+const CVX_BRENT_SENS_BUSD         = 0.60;   // after-tax earnings AND cash flow per $1/bbl (FY26 guidance)
+const CVX_HH_SENS_BUSD            = 0.70;   // per $1/MMBtu Henry Hub (FY26 guidance)
+const CVX_DOWNSTREAM_MID_BUSD     = 3.0;    // v1 assumption — mid-cycle downstream earnings per year
+const CVX_REGIME_ANCHORED_MAX     = 20;     // %
+const CVX_REGIME_TRANSITIONAL_MAX = 40;     // %
+const CVX_NORM_YIELD_BUY          = 6.0;    // % — the yield the cycle gate demands before a windfall buy
+const CVX_NORM_YIELD_TRIM         = 4.0;    // % — the yield below which a trough trim is earned
+
+const CVX_REGIME_TRIPLES = {
+  anchored:     { t: 0.25, p: 0.40, s: 0.35 },
+  transitional: { t: 0.20, p: 0.35, s: 0.45 },
+  dislocated:   { t: 0.15, p: 0.30, s: 0.55 },
+};
+
+// Reads Brent from fetch v4.20's oil_regime block first, then fundamentals,
+// then a strategic block (re-score from a logged/LLM payload). Recomputes the
+// band from the number rather than trusting an upstream label.
+function resolveCVXRegime(data) {
+  const b = data?.oil_regime?.brent_spot ?? data?.fundamentals?.brent_spot ?? data?.strategic?.brent_spot ?? null;
+  if (b == null || !(b > 0)) return { key: "transitional", direction: "none", deviationPct: null, brent: null };
+  const dev = (b / CVX_DECK_BRENT - 1) * 100;
+  const mag = Math.abs(dev);
+  const key = mag <= CVX_REGIME_ANCHORED_MAX ? "anchored"
+    : mag <= CVX_REGIME_TRANSITIONAL_MAX ? "transitional"
+    : "dislocated";
+  return { key, direction: dev > 0 ? "high" : dev < 0 ? "low" : "none", deviationPct: +dev.toFixed(1), brent: b };
+}
+
+function computeCVXRegimeWeights(data) {
+  const r = resolveCVXRegime(data);
+  const regime = r.key !== "anchored" && r.direction !== "none" ? `${r.key}_${r.direction}` : r.key;
+  return { weights: CVX_REGIME_TRIPLES[r.key], regime, driver: r.deviationPct };
+}
+
+// Guardrail (a) — normalized adjusted FCF at the deck. Identical arithmetic to
+// cvx-strategy.jsx v1 computeNormalizedFcf(). Symmetric: a TTM below the deck
+// ADDS back. partial = TRUE when Henry Hub or downstream is missing — in a
+// crack windfall a crude-only figure OVERSTATES normalized FCF.
+function computeCVXNormalization(data) {
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const pick = k => f[k] ?? st[k] ?? null;
+  const fcf = pick("adj_fcf_ttm_busd");
+  const brent = pick("brent_ttm_avg");
+  const hh = pick("henry_hub_ttm_avg");
+  const ds = pick("downstream_earnings_ttm_busd");
+  const mcap = pick("market_cap_busd");
+  if (fcf == null || brent == null) return { fcf: null, yieldPct: null, impliedBrent: null, partial: true };
+  let v = fcf - (brent - CVX_DECK_BRENT) * CVX_BRENT_SENS_BUSD;
+  let partial = false;
+  if (hh != null) v -= (hh - CVX_DECK_HENRY_HUB) * CVX_HH_SENS_BUSD; else partial = true;
+  if (ds != null) v -= ds - CVX_DOWNSTREAM_MID_BUSD; else partial = true;
+  v = +v.toFixed(2);   // round first, as the JSX does, so yield and implied Brent match it exactly
+  const yieldPct = mcap != null && mcap > 0 ? +((v / mcap) * 100).toFixed(2) : null;
+  const impliedBrent = mcap != null && mcap > 0
+    ? +(CVX_DECK_BRENT + ((CVX_NORM_YIELD_BUY / 100) * mcap - v) / CVX_BRENT_SENS_BUSD).toFixed(1)
+    : null;
+  return { fcf: v, yieldPct, impliedBrent, partial };
+}
+
+// Guardrail (e) predicate — identical to evaluateCycleGate() in
+// cvx-strategy.jsx v1; keep the two in sync if either moves.
+// Returns { active, side } with side "no_buy" (floor at 0) or "no_trim" (cap at 0).
+function evaluateCVXCycleGate(data) {
+  const r = resolveCVXRegime(data);
+  if (r.key !== "dislocated") return { active: false, side: null };
+  const n = computeCVXNormalization(data);
+  if (r.direction === "high") {
+    const earnedBuy = n.yieldPct != null && !n.partial && n.yieldPct >= CVX_NORM_YIELD_BUY;
+    return { active: !earnedBuy, side: "no_buy" };
+  }
+  if (r.direction === "low") {
+    const earnedTrim = n.yieldPct != null && n.yieldPct < CVX_NORM_YIELD_TRIM;
+    return { active: !earnedTrim, side: "no_trim" };
+  }
+  return { active: false, side: null };
+}
+
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
@@ -451,11 +739,11 @@ export function scoreTactical(data, macro) {
   const archetype = data._archetype || "";
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";
+  const isENB = archetype === "dividend_compounder";                        // (RETAINED — dead code since V8.6, historical re-scoring)
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";
+  const isPBRA = archetype === "em_state_oil_dividend";                     // (RETAINED — dead code since V8.5, historical re-scoring)
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
   const isLHX = archetype === "defense_prime_backlog_compounder";
@@ -465,6 +753,8 @@ export function scoreTactical(data, macro) {
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
   const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
+  const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
+  const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -1307,6 +1597,227 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── UBER TACTICAL (V8.5): BETA-1.26 BANDS + AV-SHOCK SCREEN + MARKETPLACE ROTATION ──
+  if (isUBER) {
+    // RSI 35/70 — beta 1.26 sits between MLM (1.11, 38/70) and RDDT (1.94,
+    // 32/72). Borrowing either neighbour's ladder mis-calls this name.
+    if (rsi != null) {
+      if (rsi < 20)       { score += -55; notes.push(`RSI ${rsi}: UBER extreme oversold — rare washout`); }
+      else if (rsi < 25)  { score += -44; notes.push(`RSI ${rsi}: UBER deeply oversold`); }
+      else if (rsi < 30)  { score += -32; notes.push(`RSI ${rsi}: UBER oversold`); }
+      else if (rsi < 33)  { score += -20; notes.push(`RSI ${rsi}: UBER meaningfully oversold`); }
+      else if (rsi < 35)  { score += -12; notes.push(`RSI ${rsi}: UBER approaching oversold (beta-1.26 band)`); }
+      else if (rsi <= 60) { score += 0;   notes.push(`RSI ${rsi}: UBER normal trending range`); }
+      else if (rsi < 70)  { score += 5;   notes.push(`RSI ${rsi}: UBER healthy momentum`); }
+      else if (rsi < 75)  { score += 15;  notes.push(`RSI ${rsi}: UBER overbought`); }
+      else if (rsi < 80)  { score += 27;  notes.push(`RSI ${rsi}: UBER extended`); }
+      else                { score += 40;  notes.push(`RSI ${rsi}: UBER extreme — trim bias`); }
+    }
+
+    // Drawdown ladder scaled to 50% (MLM 35%, RDDT 60%). AV headlines produce
+    // genuine 30%+ drawdowns in this name while its operating prints still
+    // beat, so the strong rung sits at 30%, not MLM's 25%.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (ddMag > 40)      { score += -30; notes.push(`UBER drawdown ${dd.toFixed(1)}%: extreme — max tactical conviction IF the Mobility canary holds`); }
+      else if (ddMag > 30) { score += -24; notes.push(`UBER drawdown ${dd.toFixed(1)}%: deep — high-conviction setup`); }
+      else if (ddMag > 25) { score += -16; notes.push(`UBER drawdown ${dd.toFixed(1)}%: meaningful`); }
+      else if (ddMag > 18) { score += -10; notes.push(`UBER drawdown ${dd.toFixed(1)}%: setup territory`); }
+      else if (ddMag > 10) { score += -4;  notes.push(`UBER drawdown ${dd.toFixed(1)}%: mild`); }
+      else if (ddMag < 3)  { score += 3;   notes.push(`UBER at/near 52w highs`); }
+    }
+
+    // Daily move — noise floor ±2.5%.
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -8)        { score += -18; notes.push(`UBER daily ${chg}%: capitulation/event-driven — check whether it is an AV-supply headline or an operating print`); }
+      else if (chg < -6)   { score += -12; notes.push(`UBER daily ${chg}%: severe drop`); }
+      else if (chg < -4)   { score += -7;  notes.push(`UBER daily ${chg}%: sharp drop`); }
+      else if (chg < -2.5) { score += -3;  notes.push(`UBER daily ${chg}%: notable decline`); }
+      else if (chg > 8)    { score += 14;  notes.push(`UBER daily +${chg}%: parabolic spike`); }
+      else if (chg > 6)    { score += 9;   notes.push(`UBER daily +${chg}%: sharp rally`); }
+      else if (chg > 4)    { score += 5;   notes.push(`UBER daily +${chg}%: strong rally`); }
+      else if (chg > 2.5)  { score += 2;   notes.push(`UBER daily +${chg}%: notable rally`); }
+      else                 { notes.push(`UBER daily ${chg}%: inside the ±2.5% noise band for this beta`); }
+    }
+
+    // ★ AV-HEADLINE SHOCK — the signature UBER tactical setup: a sharp down day
+    // on a competitor's robotaxi news with no Uber operating print behind it.
+    // fetch v4.19 only establishes the PRICE event; attribution is LLM work and
+    // lands in fundamentals.av_headline_shock_active. Unattributed candidates
+    // score lightly, and less again when SPY fell hard the same session (a
+    // market-wide day is not an AV headline).
+    const tx = data.tactical_extras;
+    const confirmed = data.fundamentals?.av_headline_shock_active;
+    if (tx?.av_shock_candidate_active === true) {
+      const w = tx.worst_1d_return_5s_pct, d = tx.worst_1d_date, spy = tx.spy_same_day_return_pct;
+      const spyStr = spy != null ? `, SPY ${spy}%` : "";
+      if (confirmed === true)          { score += -12; notes.push(`AV-HEADLINE SHOCK CONFIRMED: ${w}% on ${d}${spyStr} — narrative shock with no operating print, the signature buy setup`); }
+      else if (confirmed === false)    { score += 0;   notes.push(`Shock screen ${w}% on ${d}${spyStr}: attributed to something OTHER than an AV-supply headline — not the setup`); }
+      else if (spy != null && spy <= -2.5) { score += -3; notes.push(`Shock candidate ${w}% on ${d}${spyStr}: market-wide session — likely not idiosyncratic; unattributed`); }
+      else                             { score += -6;  notes.push(`Shock candidate ${w}% on ${d}${spyStr}: unattributed — scored lightly until an AV headline is confirmed`); }
+    } else if (tx?.worst_1d_on_known_print === true) {
+      notes.push(`Worst session in the last 5 (${tx.worst_1d_return_5s_pct}% on ${tx.worst_1d_date}) was an Uber print day — operating information, excluded from the shock screen`);
+    }
+
+    // Marketplace-cohort rotation vs DASH/LYFT/GRAB (weighted). Threshold −6pp —
+    // MUST match fetch-market-data v4.19's peer_rotation_active boundary.
+    if (data.cohort_relative?.peer_rotation_pp != null) {
+      const rp = data.cohort_relative.peer_rotation_pp;
+      const active = data.cohort_relative.peer_rotation_active;
+      if (active && rp < -14)      { score += -10; notes.push(`Marketplace rotation ACTIVE: UBER lagging cohort by ${(-rp).toFixed(1)}pp/30d — strong buy setup absent an operating print`); }
+      else if (active && rp < -10) { score += -7;  notes.push(`Marketplace rotation ACTIVE: UBER lagging cohort by ${(-rp).toFixed(1)}pp/30d — buy setup`); }
+      else if (active)             { score += -4;  notes.push(`Marketplace rotation ACTIVE: UBER lagging cohort by ${(-rp).toFixed(1)}pp/30d`); }
+      else if (rp < -2)            { score += -2;  notes.push(`UBER mildly lagging marketplace cohort (${rp.toFixed(1)}pp/30d)`); }
+      else if (rp > 8)             { score += 3;   notes.push(`UBER outperforming marketplace cohort by ${rp.toFixed(1)}pp/30d`); }
+    }
+    // DASH spread — REPORTED, NOT SCORED. DASH already carries 50% of the cohort
+    // average above; it is not a twin, so scoring it again would double-count.
+    if (data.cohort_relative?.dash_spread_30d_pp != null) {
+      const ds = data.cohort_relative.dash_spread_30d_pp;
+      notes.push(`UBER vs DASH ${ds >= 0 ? "+" : ""}${ds.toFixed(1)}pp/30d (context — not scored; DASH is already 50% of the cohort read)`);
+    }
+
+    // XLY vs SPY 30d — consumer factor bid (GICS says Industrials; the tape says consumer)
+    if (data.factor_flow?.xly_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.xly_vs_spy_30d_pp;
+      if (x > 2)       { score += -3; notes.push(`XLY +${x.toFixed(1)}pp vs SPY (30d): strong consumer bid`); }
+      else if (x > 1)  { score += -1; notes.push(`XLY +${x.toFixed(1)}pp vs SPY (30d): consumer bid active`); }
+      else if (x < -2) { score += 3;  notes.push(`XLY ${x.toFixed(1)}pp vs SPY (30d): consumer complex lagging — sector pressure`); }
+      else if (x < -1) { score += 1;  }
+    }
+
+    // VIX overlay — between MLM's and RDDT's amplitudes for beta 1.26.
+    if (vix != null && chg != null) {
+      if (vix > 35 && chg < -3) {
+        score += -7; notes.push(`VIX ${vix} + UBER ${chg}%: broad fear — collateral damage, not information`);
+      } else if (vix > 25 && chg < -2.5) {
+        score += -3; notes.push(`VIX ${vix} + UBER ${chg}%: elevated fear pressure`);
+      }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── CVX TACTICAL (V8.6): REGIME-AWARE BANDS + XOM TWIN + AIR-POCKET SCREEN ──
+  if (isCVX) {
+    const reg = resolveCVXRegime(data);
+    const windfall = reg.key === "dislocated" && reg.direction === "high";
+    const regTag = reg.key === "anchored" || reg.direction === "none" ? reg.key.toUpperCase() : `${reg.key.toUpperCase()}-${reg.direction.toUpperCase()}`;
+
+    // RSI 35/70. Five-year beta is 0.52 but 2026 volatility is the oil war's,
+    // so the ladder sits with the compounders, not with ENB's flattened one.
+    if (rsi != null) {
+      if (rsi < 20)       { score += -50; notes.push(`RSI ${rsi}: CVX extreme oversold — rare washout`); }
+      else if (rsi < 25)  { score += -40; notes.push(`RSI ${rsi}: CVX deeply oversold`); }
+      else if (rsi < 30)  { score += -28; notes.push(`RSI ${rsi}: CVX oversold`); }
+      else if (rsi < 35)  { score += -14; notes.push(`RSI ${rsi}: CVX approaching oversold`); }
+      else if (rsi <= 60) { score += 0;   notes.push(`RSI ${rsi}: CVX normal range`); }
+      else if (rsi < 70)  { score += 4;   notes.push(`RSI ${rsi}: CVX healthy momentum`); }
+      else if (rsi < 75)  { score += 12;  notes.push(`RSI ${rsi}: CVX overbought`); }
+      else if (rsi < 80)  { score += 22;  notes.push(`RSI ${rsi}: CVX extended`); }
+      else                { score += 35;  notes.push(`RSI ${rsi}: CVX extreme — trim bias`); }
+    }
+
+    // Drawdown ladder (0–35% scale; setup >12%, strong >20%). ★ In a
+    // DISLOCATED-HIGH regime a drawdown is the windfall premium unwinding and
+    // scores ZERO — buying the 2026-04-01 air pocket bought the top of a −21.5%
+    // unwind. Near highs in that regime is a mild trim lean.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      if (windfall) {
+        if (ddMag < 3)  { score += 4; notes.push(`CVX at/near 52w highs (${dd.toFixed(1)}%) on windfall oil [${regTag}] — mild trim lean`); }
+        else            { notes.push(`CVX drawdown ${dd.toFixed(1)}% [${regTag}]: premium unwinding, not oversold — scored ZERO`); }
+      } else {
+        if (ddMag > 30)      { score += -26; notes.push(`CVX drawdown ${dd.toFixed(1)}%: extreme — max tactical conviction IF the TCO canary holds`); }
+        else if (ddMag > 20) { score += -20; notes.push(`CVX drawdown ${dd.toFixed(1)}%: deep — high-conviction setup`); }
+        else if (ddMag > 15) { score += -12; notes.push(`CVX drawdown ${dd.toFixed(1)}%: meaningful`); }
+        else if (ddMag > 12) { score += -8;  notes.push(`CVX drawdown ${dd.toFixed(1)}%: setup territory`); }
+        else if (ddMag > 6)  { score += -3;  notes.push(`CVX drawdown ${dd.toFixed(1)}%: mild`); }
+        else if (ddMag < 3)  { score += 2;   notes.push(`CVX at/near 52w highs`); }
+      }
+    }
+
+    // Daily move — noise floor ±2%. Down days in a windfall regime are
+    // information (the premium unwinding), so only the up side scores there.
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      if (chg < -2 && windfall) {
+        notes.push(`CVX daily ${chg}% [${regTag}]: windfall premium unwinding — information, not oversold; scored ZERO`);
+      }
+      else if (chg < -6)   { score += -12; notes.push(`CVX daily ${chg}%: severe drop — check for a Chevron-asset event (CPC, Leviathan, Partitioned Zone) before buying it`); }
+      else if (chg < -4)   { score += -7;  notes.push(`CVX daily ${chg}%: sharp drop`); }
+      else if (chg < -2)   { score += -3;  notes.push(`CVX daily ${chg}%: notable decline`); }
+      else if (chg > 6)    { score += 9;   notes.push(`CVX daily +${chg}%: sharp spike`); }
+      else if (chg > 4)    { score += 5;   notes.push(`CVX daily +${chg}%: strong rally`); }
+      else if (chg > 2)    { score += 2;   notes.push(`CVX daily +${chg}%: notable rally`); }
+      else                 { notes.push(`CVX daily ${chg}%: inside the ±2% noise band`); }
+    }
+
+    // ★ XOM TWIN DISLOCATION — the signature CVX tactical setup. Same commodity,
+    // same calendar, same listing: the 30d spread is close to oil-neutral, so
+    // it stays live in every regime. Threshold −4pp MUST match fetch v4.20's
+    // twin_dislocation_active boundary.
+    if (data.cohort_relative?.xom_spread_30d_pp != null) {
+      const ts = data.cohort_relative.xom_spread_30d_pp;
+      const active = data.cohort_relative.twin_dislocation_active === true;
+      if (active && ts < -10)     { score += -10; notes.push(`XOM TWIN DISLOCATION: CVX lagging XOM by ${(-ts).toFixed(1)}pp/30d — strong buy setup absent a Chevron-specific event`); }
+      else if (active && ts < -7) { score += -7;  notes.push(`XOM TWIN DISLOCATION: CVX lagging XOM by ${(-ts).toFixed(1)}pp/30d — buy setup`); }
+      else if (active)            { score += -5;  notes.push(`XOM TWIN DISLOCATION: CVX lagging XOM by ${(-ts).toFixed(1)}pp/30d`); }
+      else if (ts < -2)           { score += -2;  notes.push(`CVX mildly lagging XOM (${ts.toFixed(1)}pp/30d)`); }
+      else if (ts > 6)            { score += 3;   notes.push(`CVX outrunning XOM by ${ts.toFixed(1)}pp/30d — twin stretched the other way`); }
+    }
+
+    // GEOPOLITICAL AIR-POCKET SCREEN (fetch v4.20). Price alone cannot classify
+    // a headline, so only the unambiguous cases score: a sector-wide down
+    // session (CVX within 2pp of XLE) is an oil/macro air pocket — zero in a
+    // windfall regime, a light sympathy buy elsewhere. A Chevron-specific drop
+    // (≥3pp worse than XLE) may be an asset event and is NOT bought blind. An
+    // escalation spike in a windfall regime extends the windfall — mild trim.
+    const tx = data.tactical_extras;
+    if (tx?.air_pocket_candidate_active === true) {
+      const mv = tx.largest_1d_move_5s_pct, d = tx.largest_1d_date, idio = tx.idiosyncratic_pp;
+      const xleStr = tx.xle_same_day_return_pct != null ? `, XLE ${tx.xle_same_day_return_pct}%` : "";
+      if (mv < 0) {
+        if (idio != null && idio <= -3)          { notes.push(`Air pocket ${mv}% on ${d}${xleStr}: CHEVRON-SPECIFIC (${idio}pp vs XLE) — possible asset event (CPC/Leviathan/PZ); not bought blind`); }
+        else if (windfall)                       { notes.push(`Air pocket ${mv}% on ${d}${xleStr}: sector-wide [${regTag}] — premium unwinding, scored ZERO`); }
+        else if (idio != null && Math.abs(idio) < 2) { score += -4; notes.push(`Air pocket ${mv}% on ${d}${xleStr}: sector-wide sympathy — light buy`); }
+        else                                     { score += -2; notes.push(`Air pocket ${mv}% on ${d}${xleStr}: unclassified — scored lightly`); }
+      } else {
+        if (windfall) { score += 3; notes.push(`Spike +${mv}% on ${d}${xleStr} [${regTag}]: extends the windfall — mild trim lean`); }
+        else          { notes.push(`Spike +${mv}% on ${d}${xleStr}: noted`); }
+      }
+    } else if (tx?.largest_1d_on_known_print === true) {
+      notes.push(`Largest session in the last 5 (${tx.largest_1d_move_5s_pct}% on ${tx.largest_1d_date}) was the Q3 print — operating information, excluded from the air-pocket screen`);
+    }
+
+    // Overextension in a windfall regime — the JSX rule: RSI >70 AND >10% over SMA50.
+    const sma50 = data.technicals?.sma50, px = data.price?.current;
+    if (windfall && rsi != null && rsi > 70 && sma50 && px) {
+      const ext = ((px - sma50) / sma50) * 100;
+      if (ext > 10) { score += 6; notes.push(`CVX ${ext.toFixed(1)}% over SMA50 with RSI ${rsi} on windfall oil — overextension trim lean`); }
+    }
+
+    // XLE vs SPY 30d — sector factor. In a windfall regime a strong energy bid
+    // IS the windfall trade, not a tailwind.
+    if (data.factor_flow?.xle_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.xle_vs_spy_30d_pp;
+      if (x > 2 && windfall)  { notes.push(`XLE +${x.toFixed(1)}pp vs SPY (30d) [${regTag}]: the windfall trade itself — not scored as a tailwind`); }
+      else if (x > 2)         { score += -2; notes.push(`XLE +${x.toFixed(1)}pp vs SPY (30d): energy bid active`); }
+      else if (x < -2)        { score += 2;  notes.push(`XLE ${x.toFixed(1)}pp vs SPY (30d): energy complex lagging — sector pressure`); }
+    }
+
+    // VIX overlay — broad fear as collateral damage, outside the windfall regime.
+    if (vix != null && chg != null && !windfall) {
+      if (vix > 35 && chg < -3)        { score += -6; notes.push(`VIX ${vix} + CVX ${chg}%: broad fear — collateral damage, not information`); }
+      else if (vix > 25 && chg < -2)   { score += -3; notes.push(`VIX ${vix} + CVX ${chg}%: elevated fear pressure`); }
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -1341,12 +1852,12 @@ export function scorePositional(data, macro) {
   const archetype = data._archetype || "";
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";
+  const isENB = archetype === "dividend_compounder";                        // (RETAINED — dead code since V8.6, historical re-scoring)
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";
+  const isPBRA = archetype === "em_state_oil_dividend";                     // (RETAINED — dead code since V8.5, historical re-scoring)
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
   const isLHX = archetype === "defense_prime_backlog_compounder";
@@ -1356,6 +1867,8 @@ export function scorePositional(data, macro) {
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
   const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
+  const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
+  const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -1417,6 +1930,21 @@ export function scorePositional(data, macro) {
       // in a local monopoly is a fear cycle, so buy it at compounder amplitude.
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -10, "above_200_below_50": -5, "below_both": -25, "below_both_death": -40 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MLM MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal compounder trend"})`); }
+    } else if (isUBER) {
+      // RDDT's dampened map, not MLM's full compounder map. A quarry's reserve
+      // base does not decay when the stock breaks its 200DMA; Uber's Mobility
+      // economics CAN, if the trend break is the market pricing AV supply
+      // routing around the network. Buy the break, but at reduced amplitude —
+      // the Mobility canary in the fundamentals block is the arbiter.
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -7, "above_200_below_50": -4, "below_both": -18, "below_both_death": -28 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`UBER MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
+    } else if (isCVX) {
+      // Dampened map. A trend break in an oil major usually IS the commodity
+      // moving, not a fear cycle on a compounder — and above-both on windfall
+      // oil is not strength the franchise earned. Buy the break at reduced
+      // amplitude; the TCO canary and the normalization decide conviction.
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -6, "above_200_below_50": -3, "below_both": -15, "below_both_death": -22 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`CVX MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -1575,6 +2103,32 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -22; notes.push(`MLM 52w: ${w52}% — real drawdown, reserve moat on sale`); }
       else if (w52 > 15) { score += -38; notes.push(`MLM 52w: ${w52}% — major drawdown, high-conviction buy (rare)`); }
       else               { score += -50; notes.push(`MLM 52w: ${w52}% — catastrophic drawdown — max conviction`); }
+    } else if (isUBER) {
+      // Between RDDT's −30 floor and the compounders' −50: UBER near 52w lows
+      // is usually an AV-narrative cycle on intact bookings, but it COULD be
+      // the disintermediation falsifier landing. Price weakness alone does not
+      // earn max conviction — the Mobility canary below has to agree.
+      if (w52 > 95)      { score += 0;   notes.push(`UBER 52w: ${w52}% — at highs`); }
+      else if (w52 > 85) { score += 0;   notes.push(`UBER 52w: ${w52}% — near highs`); }
+      else if (w52 > 70) { score += -2;  notes.push(`UBER 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -8;  notes.push(`UBER 52w: ${w52}% — meaningful pullback`); }
+      else if (w52 > 30) { score += -16; notes.push(`UBER 52w: ${w52}% — real drawdown, buy interest if bookings intact`); }
+      else if (w52 > 15) { score += -26; notes.push(`UBER 52w: ${w52}% — major drawdown — verify the Mobility canary`); }
+      else               { score += -35; notes.push(`UBER 52w: ${w52}% — at/near lows — the canary, not the price, decides conviction`); }
+    } else if (isCVX) {
+      // Regime-aware top rung: at 52w highs on WINDFALL oil (dislocated-high)
+      // is a mild trim lean; at highs near the deck it is a normal compounder
+      // reading. Lower rungs dampened vs the compounders (−30 floor): a 52w low
+      // in an oil major can be the commodity, which the normalization owns.
+      const reg52 = resolveCVXRegime(data);
+      const windfall52 = reg52.key === "dislocated" && reg52.direction === "high";
+      if (w52 > 95)      { score += windfall52 ? 4 : 0; notes.push(`CVX 52w: ${w52}% — at highs${windfall52 ? " on windfall oil — mild trim lean" : ""}`); }
+      else if (w52 > 85) { score += 0;   notes.push(`CVX 52w: ${w52}% — near highs`); }
+      else if (w52 > 70) { score += -2;  notes.push(`CVX 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -6;  notes.push(`CVX 52w: ${w52}% — meaningful pullback`); }
+      else if (w52 > 30) { score += -14; notes.push(`CVX 52w: ${w52}% — real drawdown, buy interest if the TCO canary holds`); }
+      else if (w52 > 15) { score += -22; notes.push(`CVX 52w: ${w52}% — major drawdown — verify the canary and the normalization`); }
+      else               { score += -30; notes.push(`CVX 52w: ${w52}% — at/near lows — trough entries are the framework's buy signal; the deck, not the price, decides`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -1712,6 +2266,21 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -6)  { score += -8;  notes.push(`MLM ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 14)  { score += 6;   notes.push(`MLM ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 8)   { score += 2;   notes.push(`MLM ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isUBER) {
+      // Beta-1.26 bands: −15/−8/−4 down, +18/+10 up — between MLM's −12/−6 and
+      // RDDT's −20/−12/−6.
+      if (pctFromSMA < -15)      { score += -15; notes.push(`UBER ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -8)  { score += -8;  notes.push(`UBER ${pctFromSMA.toFixed(1)}% below SMA50 — meaningful pullback`); }
+      else if (pctFromSMA < -4)  { score += -3;  notes.push(`UBER ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 18)  { score += 6;   notes.push(`UBER ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta-1.26 band)`); }
+      else if (pctFromSMA > 10)  { score += 2;   notes.push(`UBER ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isCVX) {
+      // −15/−8/−4 down, +15/+8 up — oil-war volatility on a low-beta name.
+      if (pctFromSMA < -15)      { score += -12; notes.push(`CVX ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down`); }
+      else if (pctFromSMA < -8)  { score += -6;  notes.push(`CVX ${pctFromSMA.toFixed(1)}% below SMA50 — meaningful pullback`); }
+      else if (pctFromSMA < -4)  { score += -2;  notes.push(`CVX ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 15)  { score += 6;   notes.push(`CVX ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
+      else if (pctFromSMA > 8)   { score += 2;   notes.push(`CVX ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -2694,6 +3263,201 @@ export function scorePositional(data, macro) {
     else if (r30 < -2) { score += 2;  }
   }
 
+  // ─── UBER POSITIONAL (V8.5): BOOKINGS + MOBILITY CANARY + MARGIN ON BOOKINGS ──
+  // ★ ARCHITECTURAL RULE FOR THIS ARCHETYPE: operating momentum and AV supply
+  //   structure are SEPARATE signals on separate clocks. Bookings, trips and
+  //   margin print quarterly; AV supply changes on announcements that may not
+  //   touch reported numbers for years. The one place they meet is the
+  //   MOBILITY CANARY: Mobility bookings decelerating while Delivery holds is
+  //   the specific fingerprint of supply routing around the network.
+  //   All fundamentals below are null-safe (LLM-sourced — fetch emits nulls).
+
+  // XLY vs SPY 30d — consumer factor bid
+  if (isUBER && data.factor_flow?.xly_vs_spy_30d_pp != null) {
+    const x = data.factor_flow.xly_vs_spy_30d_pp;
+    if (x > 2)       { score += -4; notes.push(`XLY +${x.toFixed(1)}pp vs SPY (30d): strong consumer bid — UBER tailwind`); }
+    else if (x > 1)  { score += -2; notes.push(`XLY +${x.toFixed(1)}pp vs SPY (30d): consumer bid active`); }
+    else if (x < -2) { score += 3;  notes.push(`XLY ${x.toFixed(1)}pp vs SPY (30d): consumer complex lagging`); }
+    else if (x < -1) { score += 1;  }
+  }
+
+  // Constant-currency gross bookings — the demand engine.
+  if (isUBER && data.fundamentals?.gross_bookings_growth_cc_pct != null) {
+    const gb = data.fundamentals.gross_bookings_growth_cc_pct;
+    if (gb > 22)       { score += -8; notes.push(`Gross bookings +${gb.toFixed(1)}% cc: flywheel accelerating`); }
+    else if (gb > 20)  { score += -6; notes.push(`Gross bookings +${gb.toFixed(1)}% cc: flywheel firing`); }
+    else if (gb >= 15) { score += -2; notes.push(`Gross bookings +${gb.toFixed(1)}% cc: healthy`); }
+    else if (gb >= 12) { score += 3;  notes.push(`Gross bookings +${gb.toFixed(1)}% cc: decelerating`); }
+    else               { score += 8;  notes.push(`Gross bookings +${gb.toFixed(1)}% cc: demand engine weak`); }
+  }
+
+  // ★★ THE MOBILITY CANARY — the highest-weighted operational input in this
+  // archetype and the cleanest falsifier in the model. Below 12% while Delivery
+  // holds is the AV-disintermediation signature and carries a thesis-level
+  // penalty. Below 12% with Delivery ALSO weak is a broad demand slowdown — real,
+  // but a cycle datapoint, not the structural one. Delivery unknown is treated
+  // as holding: the canary does not get the benefit of the doubt.
+  if (isUBER && data.fundamentals?.mobility_gb_growth_cc_pct != null) {
+    const mob = data.fundamentals.mobility_gb_growth_cc_pct;
+    const del = data.fundamentals?.delivery_gb_growth_cc_pct;
+    if (mob > 18)       { score += -6; notes.push(`Mobility bookings +${mob.toFixed(1)}% cc: CANARY INTACT — no visible AV leakage`); }
+    else if (mob >= 12) { score += 2;  notes.push(`Mobility bookings +${mob.toFixed(1)}% cc: canary softening — watch, not yet a break`); }
+    else if (del == null || del >= 12) {
+      score += 20;
+      notes.push(`Mobility bookings +${mob.toFixed(1)}% cc while Delivery ${del != null ? `+${del.toFixed(1)}%` : "unknown"}: CANARY BROKEN — the AV-disintermediation signature. THESIS-LEVEL.`);
+    }
+    else { score += 10; notes.push(`Mobility +${mob.toFixed(1)}% and Delivery +${del.toFixed(1)}% cc both below 12%: broad demand slowdown — a cycle read, not the AV signature`); }
+  }
+
+  if (isUBER && data.fundamentals?.trips_growth_pct != null) {
+    const tg = data.fundamentals.trips_growth_pct;
+    if (tg > 15)      { score += -3; notes.push(`Trips +${tg.toFixed(1)}%: engagement compounding`); }
+    else if (tg < 10) { score += 4;  notes.push(`Trips +${tg.toFixed(1)}%: engagement slowing`); }
+  }
+
+  // Adj EBITDA as % of GROSS BOOKINGS — the margin read. Not % of revenue:
+  // business-model changes move revenue without moving the economics.
+  if (isUBER && data.fundamentals?.adj_ebitda_pct_gb != null) {
+    const m = data.fundamentals.adj_ebitda_pct_gb;
+    if (m > 5.0)       { score += -6; notes.push(`Adj EBITDA ${m.toFixed(1)}% of GB: operating leverage compounding`); }
+    else if (m > 4.6)  { score += -3; notes.push(`Adj EBITDA ${m.toFixed(1)}% of GB: leverage intact`); }
+    else if (m >= 4.3) { score += 0;  notes.push(`Adj EBITDA ${m.toFixed(1)}% of GB: flat`); }
+    else               { score += 8;  notes.push(`Adj EBITDA ${m.toFixed(1)}% of GB: MARGIN REVERSAL — incentives, AV economics or mix eating leverage`); }
+  }
+
+  // Mobility segment OI — the profit pool AV supply would route around.
+  if (isUBER && data.fundamentals?.mobility_segment_oi_growth_pct != null) {
+    const so = data.fundamentals.mobility_segment_oi_growth_pct;
+    if (so > 20)      { score += -3; notes.push(`Mobility segment OI +${so.toFixed(1)}%: profit pool expanding`); }
+    else if (so < 5)  { score += 5;  notes.push(`Mobility segment OI ${so >= 0 ? "+" : ""}${so.toFixed(1)}%: profit pool stalling`); }
+  }
+
+  // ⚠ REPORTED REVENUE IS DELIBERATELY NOT SCORED — Guardrail (b). Business-
+  // model changes cut Q2'26 revenue growth by 8pp and Mobility revenue rose 1%
+  // on Mobility bookings up 22%. Surfaced as a NOTE only.
+  if (isUBER && data.fundamentals?.revenue_signal_status === "null_signal_business_model_contaminated") {
+    const rg = data.fundamentals?.reported_revenue_growth_pct;
+    const bd = data.fundamentals?.business_model_drag_pp;
+    notes.push(`Reported revenue${rg != null ? ` ${rg >= 0 ? "+" : ""}${rg.toFixed(1)}%` : ""}${bd != null ? ` (business-model drag ${bd.toFixed(1)}pp)` : ""}: NOT SCORED — constant-currency bookings are the signal`);
+  }
+
+  // Driver/courier incentive intensity — the near-term margin swing factor.
+  if (isUBER && data.fundamentals?.driver_incentive_pressure) {
+    const ip = String(data.fundamentals.driver_incentive_pressure).toLowerCase();
+    if (ip === "elevated")    { score += 3;  notes.push(`Incentive pressure: ELEVATED — modest headwind; structural only if it persists two quarters`); }
+    else if (ip === "easing") { score += -2; notes.push(`Incentive pressure: easing`); }
+  }
+
+  if (isUBER && data.fundamentals?.guide_vs_consensus) {
+    const g = String(data.fundamentals.guide_vs_consensus).toLowerCase();
+    if (g === "above")      { score += -4; notes.push(`Next-quarter guide: ABOVE consensus`); }
+    else if (g === "below") { score += 4;  notes.push(`Next-quarter guide: BELOW consensus`); }
+  }
+
+  // EPS revisions — +2/−2 bands (between MLM's +1/−2 and RDDT's +2/−4).
+  if (isUBER && data.fundamentals?.eps_revisions_90d_pct != null) {
+    const rev = data.fundamentals.eps_revisions_90d_pct;
+    if (rev > 4)       { score += -6; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): strong upward — positional tailwind`); }
+    else if (rev > 2)  { score += -3; notes.push(`EPS revs +${rev.toFixed(1)}% (90d): upward`); }
+    else if (rev > -2) { score += 0;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): stable`); }
+    else if (rev > -5) { score += 4;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): downward — positional headwind`); }
+    else               { score += 8;  notes.push(`EPS revs ${rev.toFixed(1)}% (90d): sharply downward — caution`); }
+  }
+  if (isUBER && data.fundamentals?.eps_revisions_30d_pct != null) {
+    const r30 = data.fundamentals.eps_revisions_30d_pct;
+    if (r30 > 2)       { score += -2; }
+    else if (r30 < -2) { score += 2;  }
+  }
+
+  // ─── CVX POSITIONAL (V8.6): PRODUCTION VS GUIDE + TCO CANARY + CAPITAL DISCIPLINE ──
+  // ★ ARCHITECTURAL RULE FOR THIS ARCHETYPE: execution and the commodity are
+  //   separate signals. Production, cost-out and capex are Chevron's; realized
+  //   prices, cracks and revisions are the strip's. Only the first set scores
+  //   here, and revisions only when the oil regime is ANCHORED.
+  //   All fundamentals below are null-safe (LLM-sourced — fetch v4.20 emits nulls).
+  if (isCVX) {
+    const regP = resolveCVXRegime(data);
+    const windfallP = regP.key === "dislocated" && regP.direction === "high";
+    const fP = data.fundamentals || {};
+
+    // XLE vs SPY 30d — sector factor (not a tailwind while it IS the windfall trade)
+    if (data.factor_flow?.xle_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.xle_vs_spy_30d_pp;
+      if (x > 2 && !windfallP)  { score += -2; notes.push(`XLE +${x.toFixed(1)}pp vs SPY (30d): energy bid — CVX tailwind`); }
+      else if (x < -2)          { score += 2;  notes.push(`XLE ${x.toFixed(1)}pp vs SPY (30d): energy complex lagging`); }
+    }
+
+    // Production vs the FY26 guide (3,980–4,100 MBOED). ★ Guardrail (c): YoY is
+    // context only — the Hess anniversary collapses it mechanically at Q3'26.
+    if (fP.production_vs_guide) {
+      const pg = String(fP.production_vs_guide).toLowerCase();
+      if (pg === "above")       { score += -5; notes.push(`Production ABOVE the FY26 3,980–4,100 MBOED guide`); }
+      else if (pg === "within") { score += -2; notes.push(`Production within the FY26 guide`); }
+      else if (pg === "below")  { score += 8;  notes.push(`Production BELOW the FY26 guide ex-disruptions — execution miss`); }
+    }
+    if (fP.production_growth_yoy_pct != null) {
+      notes.push(`Production YoY ${fP.production_growth_yoy_pct >= 0 ? "+" : ""}${fP.production_growth_yoy_pct.toFixed(1)}%: CONTEXT ONLY — Hess anniversary, not scored`);
+    }
+
+    // ★★ THE TCO / CPC CANARY — the highest-weighted operational input in this
+    // archetype. TCO is ~$6B of Chevron-share FCF at $70 Brent (roughly a
+    // quarter of normalized FCF) and exits through one pipeline to a terminal
+    // near Novorossiysk. "broken" is a thesis-level penalty.
+    if (fP.tco_canary_status) {
+      const tc = String(fP.tco_canary_status).toLowerCase();
+      if (tc === "intact")        { score += -3; notes.push(`TCO canary INTACT — CPC flowing, Tengiz at/near capacity`); }
+      else if (tc === "degraded") { score += 6;  notes.push(`TCO canary DEGRADED — intermittent CPC suspensions or TCO downtime`); }
+      else if (tc === "broken")   { score += 18; notes.push(`TCO canary BROKEN — CPC suspended >2 weeks or TCO materially curtailed. ~A quarter of normalized FCF at risk. THESIS-LEVEL.`); }
+    }
+    if (fP.cpc_export_status) {
+      notes.push(`CPC exports: ${String(fP.cpc_export_status).toUpperCase()} (folded into the canary — not scored twice)`);
+    }
+    if (fP.guyana_status === "slipping") {
+      score += 4; notes.push(`Guyana FPSO timing SLIPPING — growth leg delayed`);
+    }
+
+    // Capital discipline — capex vs the $18–19B FY26 guide and the $21B ceiling.
+    if (fP.capex_vs_guide) {
+      const cg = String(fP.capex_vs_guide).toLowerCase();
+      if (cg === "low_end")       { score += -2; notes.push(`Capex tracking the LOW END of $18–19B — discipline intact`); }
+      else if (cg === "high_end") { score += 2;  notes.push(`Capex tracking the high end of guide`); }
+      else if (cg === "above")    { score += 8;  notes.push(`Capex ABOVE guide — the capital-discipline claim is slipping`); }
+    }
+
+    // Next-quarter buyback guide — whether the windfall reaches shareholders.
+    if (fP.buyback_guide_trend) {
+      const bt = String(fP.buyback_guide_trend).toLowerCase();
+      const brentHot = regP.brent != null && regP.brent > 80;
+      if (bt === "raised")    { score += -6; notes.push(`Buyback guide RAISED — windfall reaching shareholders, not just the balance sheet`); }
+      else if (bt === "held") { notes.push(`Buyback guide held${brentHot ? " with Brent above $80 — windfall going to the balance sheet (accretive, not a signal)" : ""}`); }
+      else if (bt === "cut")  { score += brentHot ? 8 : 4; notes.push(`Buyback guide CUT${brentHot ? " with Brent above $80 — the capital-return franchise is not converting" : ""}`); }
+    }
+
+    // ★ Guardrail (b) — single-quarter EPS is timing/working-capital contaminated.
+    if (fP.quarterly_eps_signal_status === "null_signal_timing_contaminated") {
+      notes.push(`Quarterly EPS: NULL SIGNAL — timing effects / working capital material this quarter`);
+    }
+    if (fP.crack_environment === "windfall") {
+      notes.push(`Refining cracks: WINDFALL — feeds the strategic normalization, not a positional buy`);
+    }
+
+    // EPS revisions — scored ONLY in an anchored regime; elsewhere they track the strip.
+    const revStatus = fP.revisions_signal_status ?? (regP.key === "anchored" ? "execution" : "commodity_driven");
+    if (fP.eps_revisions_90d_pct != null) {
+      const r90 = fP.eps_revisions_90d_pct;
+      if (revStatus === "execution") {
+        if (r90 > 3)       { score += -3; notes.push(`EPS revisions +${r90.toFixed(1)}% (90d): upward, execution-driven`); }
+        else if (r90 < -3) { score += 3;  notes.push(`EPS revisions ${r90.toFixed(1)}% (90d): downward, execution-driven`); }
+      } else {
+        notes.push(`EPS revisions ${r90 >= 0 ? "+" : ""}${r90.toFixed(1)}% (90d): COMMODITY-DRIVEN [${regP.key}] — not scored`);
+      }
+    }
+
+    if (windfallP) {
+      notes.push(`Oil regime DISLOCATED-HIGH (Brent ${regP.deviationPct >= 0 ? "+" : ""}${regP.deviationPct}% vs the $70 deck): positional reads execution only`);
+    }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -2706,12 +3470,12 @@ export function scoreStrategic(data, macro) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(archetype);
   const isIBIT = archetype === "momentum_store_of_value";
   const isASML = archetype === "secular_growth_monopoly";
-  const isENB = archetype === "dividend_compounder";
+  const isENB = archetype === "dividend_compounder";                        // (RETAINED — dead code since V8.6, historical re-scoring)
   const isAMKBY = archetype === "cyclical_trade_bellwether";
   const isETHA = archetype === "high_beta_crypto";
   const isKOF = archetype === "em_dividend_growth";
   const isGLNCY = archetype === "diversified_commodity_trader";
-  const isPBRA = archetype === "em_state_oil_dividend";
+  const isPBRA = archetype === "em_state_oil_dividend";                     // (RETAINED — dead code since V8.5, historical re-scoring)
   const isLIN = archetype === "oligopoly_quality_compounder";
   const isMSFT = archetype === "ai_infra_quality_compounder";
   const isLHX = archetype === "defense_prime_backlog_compounder";
@@ -2721,6 +3485,8 @@ export function scoreStrategic(data, macro) {
   const isISRG = archetype === "surgical_robotics_moat_compounder";        // ← V8.2
   const isRDDT = archetype === "hypergrowth_platform_monetizer";           // ← V8.3 (RETAINED — dead code, historical re-scoring)
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
+  const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
+  const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -3932,6 +4698,301 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── UBER STRATEGIC (V8.5): OWNER FCF + AV SUPPLY + DELIVERY HERO + VALUE-TRAP GATE ──
+  if (isUBER) {
+    // ★★ GUARDRAIL (a) — GAAP EARNINGS GATE, part 1: the cohort premium.
+    // fetch v4.19 hard-codes premium_pct_reliable = false: both sides of the
+    // trailing comparison are GAAP-contaminated (UBER's tax release and equity
+    // revaluations, LYFT's tax-benefit P/E). Never scored.
+    const cv = data.cohort_valuation;
+    if (cv && cv.premium_pct != null && cv.premium_pct_reliable === false) {
+      notes.push(`UBER P/E ${cv.premium_pct.toFixed(1)}% vs marketplace cohort: GAAP TRAILING ON BOTH SIDES — record only, deliberately scored ZERO`);
+    }
+
+    // ★★ GUARDRAIL (a) part 2 — absolute GAAP trailing P/E is NEVER scored for
+    // this name, by threshold or otherwise. The $4.9B tax release rolls off at
+    // the 2026-11-04 print (trailing P/E roughly doubles with no change in the
+    // business); the ±$1.5B quarterly equity revaluations never roll off.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      const tr = data.fundamentals?.tax_release_in_ttm;
+      notes.push(`GAAP trailing P/E ${pe.toFixed(1)}x: NOT SCORED — ${tr === true ? "TTM carries the $4.9B tax release (rolls off at the 2026-11-04 print — expect a mechanical jump) plus" : tr === false ? "tax release has rolled off, but TTM still carries" : "TTM carries"} quarterly equity-revaluation noise`);
+    }
+
+    // ★ OWNER FCF YIELD — the flagship lens. FCF minus SBC, on market cap. An
+    // absolute anchor, which is why a 45% strategic weight is defensible on a
+    // name whose GAAP-profitable history is short.
+    const ofy = data.fundamentals?.owner_fcf_yield_pct;
+    if (ofy != null) {
+      if (ofy > 7)         { score += -16; notes.push(`Owner FCF yield ${ofy.toFixed(2)}% (after SBC): deep value`); }
+      else if (ofy > 5.5)  { score += -10; notes.push(`Owner FCF yield ${ofy.toFixed(2)}% (after SBC): buy zone`); }
+      else if (ofy >= 4)   { score += 0;   notes.push(`Owner FCF yield ${ofy.toFixed(2)}% (after SBC): fair`); }
+      else if (ofy >= 3.5) { score += 4;   notes.push(`Owner FCF yield ${ofy.toFixed(2)}% (after SBC): lower end of fair`); }
+      else                 { score += 10;  notes.push(`Owner FCF yield ${ofy.toFixed(2)}% (after SBC): rich`); }
+    }
+
+    // Non-GAAP forward P/E — secondary. The SBC treatment is tagged rather than
+    // scored: an SBC-excluded EPS flatters the multiple, which is precisely why
+    // owner FCF, not this, is the flagship.
+    const fpe = data.fundamentals?.forward_pe_non_gaap;
+    if (fpe != null && fpe > 0) {
+      const sbcT = data.fundamentals?.non_gaap_eps_sbc_treatment;
+      const tag = sbcT ? ` [EPS ${sbcT}]` : "";
+      if (fpe < 14)       { score += -12; notes.push(`Forward P/E ${fpe.toFixed(1)}x (non-GAAP): cheap for 20%+ bookings growth${tag}`); }
+      else if (fpe < 18)  { score += -8;  notes.push(`Forward P/E ${fpe.toFixed(1)}x (non-GAAP): buy zone${tag}`); }
+      else if (fpe <= 26) { score += 0;   notes.push(`Forward P/E ${fpe.toFixed(1)}x (non-GAAP): fair${tag}`); }
+      else if (fpe <= 32) { score += 5;   notes.push(`Forward P/E ${fpe.toFixed(1)}x (non-GAAP): elevated${tag}`); }
+      else                { score += 12;  notes.push(`Forward P/E ${fpe.toFixed(1)}x (non-GAAP): stretched${tag}`); }
+    }
+
+    // ★★ GUARDRAIL (b') — BASIS ASSERTION. EV / Adj EBITDA is scored ONLY when
+    // tagged adjusted_sbc_excluded_*. On the same ~$140B EV, GAAP EBITDA gives
+    // ~18.7x, Adj EBITDA ~13.9x and Adj − SBC ~17.3x: five turns of apparent
+    // cheapness come purely from basis. The other two are notes, never scored,
+    // and never compared against a peer's figure on a different basis.
+    const eva = data.fundamentals?.ev_adj_ebitda;
+    const evb = data.fundamentals?.ev_adj_ebitda_basis;
+    if (eva != null) {
+      if (typeof evb === "string" && evb.startsWith("adjusted_sbc_excluded")) {
+        if (eva < 14)       { score += -8; notes.push(`EV / Adj EBITDA ${eva.toFixed(1)}x [${evb}]: buy zone`); }
+        else if (eva <= 20) { score += 0;  notes.push(`EV / Adj EBITDA ${eva.toFixed(1)}x [${evb}]: fair`); }
+        else if (eva <= 24) { score += 4;  notes.push(`EV / Adj EBITDA ${eva.toFixed(1)}x [${evb}]: upper end of fair`); }
+        else                { score += 10; notes.push(`EV / Adj EBITDA ${eva.toFixed(1)}x [${evb}]: rich`); }
+      } else {
+        notes.push(`EV / Adj EBITDA ${eva.toFixed(1)}x: BASIS UNTAGGED — not scored (a mixed-basis multiple is a lie that looks like data)`);
+      }
+    }
+    if (data.fundamentals?.ev_adj_ebitda_less_sbc != null) {
+      notes.push(`EV / (Adj EBITDA − SBC) ${data.fundamentals.ev_adj_ebitda_less_sbc.toFixed(1)}x: context — the SBC-honest version of the multiple above`);
+    }
+    if (data.fundamentals?.ev_gaap_ebitda != null) {
+      notes.push(`EV / GAAP EBITDA ${data.fundamentals.ev_gaap_ebitda.toFixed(1)}x: context only — never compared against an adjusted figure`);
+    }
+
+    // ── AV SUPPLY STATE — the dominant structural binary. ⚠ The current state
+    // (leader exiting, tail aggregating) is the BASE CASE and scores ZERO.
+    const avState = resolveUBERRegime(data).state;
+    if (avState) {
+      const s = String(avState).toLowerCase();
+      if (s === "partners_adding_uber_supply")          { score += -14; notes.push(`AV supply: PARTNERS ADDING UBER SUPPLY — supply decisions confirming the demand-aggregator thesis, the re-rating catalyst`); }
+      else if (s === "leader_exiting_tail_aggregating") { score += 0;   notes.push(`AV supply: LEADER EXITING, TAIL AGGREGATING — CONTESTED, the base case and already in the price. Scored ZERO, not as a downgrade.`); }
+      else if (s === "pending_unknown")                 { score += 2;   notes.push(`AV supply: PENDING / UNKNOWN — mild uncertainty premium`); }
+      else if (s === "second_tier1_exiting")            { score += 16;  notes.push(`AV supply: SECOND TIER-1 OPERATOR EXITING — best supply routing around the network. THESIS-LEVEL.`); }
+      else if (s === "exclusive_pipeline_slipping")     { score += 12;  notes.push(`AV supply: EXCLUSIVE PIPELINE SLIPPING — Uber's own hedge against disintermediation is late. THESIS-LEVEL.`); }
+    }
+
+    // Exclusive pipeline (Rivian, Lucid/Nuro) — LLM-sourced. Not re-penalised
+    // when the config state already reads exclusive_pipeline_slipping.
+    if (data.fundamentals?.exclusive_pipeline_status) {
+      const ep = String(data.fundamentals.exclusive_pipeline_status).toLowerCase();
+      if (ep === "on_track")                                              { score += -3; notes.push(`Exclusive AV pipeline: ON TRACK (Rivian, Lucid/Nuro milestones)`); }
+      else if (ep === "slipping" && avState !== "exclusive_pipeline_slipping") { score += 10; notes.push(`Exclusive AV pipeline: SLIPPING — review UBER_AV_SUPPLY_REGIME_STATE in fetch-market-data`); }
+      else if (ep === "not_yet_measurable")                               { notes.push(`Exclusive AV pipeline: not yet measurable — first deployments 2027-2028`); }
+    }
+
+    // ── DELIVERY HERO — scored STANDALONE until closed (decision 2026-10-27).
+    // ★★ GUARDRAIL (d) — leverage against the stated <2x gross ceiling, never
+    // the level. No synergies credited — none are quantified.
+    if (data.fundamentals?.dh_offer_state) {
+      const dh = String(data.fundamentals.dh_offer_state).toLowerCase();
+      const basis = data.fundamentals?.dh_basis_scored ?? "standalone";
+      if (dh === "lapsed")      { score += -3; notes.push(`Delivery Hero: offer LAPSED — capital returns to the buyback at a ~6% owner yield`); }
+      else if (dh === "closed") { notes.push(`Delivery Hero: CLOSED — scored basis now ${basis}; revisit regime damping once DH EBITDA is disclosed`); }
+      else                      { notes.push(`Delivery Hero: ${dh.replace(/_/g, " ").toUpperCase()} — scored ${basis}, no synergies credited`); }
+    }
+    if (data.fundamentals?.gross_leverage != null) {
+      const gl = data.fundamentals.gross_leverage;
+      if (gl > 2.0)      { score += 10; notes.push(`Gross leverage ${gl.toFixed(2)}x: BREACH of the stated <2x ceiling — the acquisition is not being financed as underwritten`); }
+      else if (gl > 1.8) { score += 2;  notes.push(`Gross leverage ${gl.toFixed(2)}x: at the ceiling`); }
+      else               { score += 0;  notes.push(`Gross leverage ${gl.toFixed(2)}x: inside the <2x ceiling — a non-event`); }
+    }
+
+    // ★★ GUARDRAIL (c) — NET share count, NEGATIVE = buyback. Never gross
+    // dollars: repurchase pace slowed sharply while capital went to the DH
+    // stake, yet the count kept falling. Pace is noted, never overrides.
+    if (data.fundamentals?.share_count_change_yoy_pct != null) {
+      const sc = data.fundamentals.share_count_change_yoy_pct;
+      if (sc <= -2)        { score += -6; notes.push(`Net share count ${sc.toFixed(1)}% YoY: strong buyback — satisfies the portfolio's buyback criterion`); }
+      else if (sc <= -0.5) { score += -3; notes.push(`Net share count ${sc.toFixed(1)}% YoY: genuine buyback — meets the criterion`); }
+      else if (sc <= 0.5)  { score += 0;  notes.push(`Net share count ${sc >= 0 ? "+" : ""}${sc.toFixed(1)}% YoY: flat`); }
+      else if (sc < 3)     { score += 3;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: dilutive`); }
+      else                 { score += 7;  notes.push(`Net share count +${sc.toFixed(1)}% YoY: materially dilutive`); }
+    }
+    if (data.fundamentals?.buyback_pace === "slowing") {
+      notes.push(`Buyback pace: SLOWING — noted honestly; the net-count criterion decides, not the pace`);
+    }
+    if (data.fundamentals?.insider_buying_recent === true) {
+      score += -2; notes.push(`Insider open-market buying in the last 90 days — small positive, never decisive`);
+    }
+
+    // ROIC — flagged, not scored, while the GAAP numerator carries tax and
+    // revaluation items.
+    if (data.fundamentals?.roic_gaap_inflated === true) {
+      const ro = data.fundamentals?.roic_pct;
+      notes.push(`ROIC${ro != null ? ` ${ro.toFixed(1)}%` : ""}: GAAP-INFLATED (tax release + equity revaluations in the numerator) — flagged, not scored`);
+    }
+
+    // ⚠ DIVIDEND YIELD IS A NON-FIELD — Uber pays no dividend. The PBR.A yield
+    // logic this slot used to carry does not transfer.
+
+    // TIPS overlay — real FCF today, but a 20%-growth marketplace is
+    // meaningfully duration-sensitive; between MLM's and RDDT's amplitudes.
+    const tips = macro?.tips10y;
+    if (tips != null) {
+      if (tips > 3)        { score += 6;  notes.push(`TIPS ${tips}%: very restrictive — growth-duration headwind`); }
+      else if (tips > 2.5) { score += 3;  notes.push(`TIPS ${tips}%: restrictive`); }
+      else if (tips < 0)   { score += -6; notes.push(`TIPS ${tips}%: accommodative — growth-duration tailwind`); }
+      else if (tips < 1)   { score += -2; notes.push(`TIPS ${tips}%: low real rates`); }
+    }
+
+    // VIX overlay — amplitudes for beta 1.26.
+    const vixS = macro?.vix;
+    if (vixS != null) {
+      if (vixS > 35)      { score += -5; notes.push(`VIX ${vixS}: panic — marketplace leader on sale`); }
+      else if (vixS > 25) { score += -2; notes.push(`VIX ${vixS}: elevated fear`); }
+      else if (vixS < 12) { score += 2;  notes.push(`VIX ${vixS}: complacency`); }
+    }
+
+    // ★★ GUARDRAIL (e) — VALUE-TRAP GATE. Cheapness is only a margin of safety
+    // if the cash flow being discounted is not the one at risk. Under a
+    // disintermediating regime with the Mobility canary broken (or unknown —
+    // FAILS CLOSED) the strategic score is floored at 0: no strategic BUY.
+    // The flag also drives the same floor on the BLENDED score in blendScores().
+    const gate = isUBERValueTrapGateActive(data);
+    if (gate) {
+      if (score < 0) notes.push(`⛔ VALUE-TRAP GATE: AV supply DISINTERMEDIATING and the Mobility canary is below ${UBER_CANARY_FLOOR}% cc (or unknown) — strategic ${score} floored at 0. The yield is being measured on the cash flow that is leaking.`);
+      else           notes.push(`⛔ VALUE-TRAP GATE active (AV supply disintermediating, canary broken or unknown) — strategic floored at 0`);
+      score = Math.max(score, 0);
+      return { score: clamp(score), notes, value_trap_gate_active: true };
+    }
+
+    return { score: clamp(score), notes };
+  }
+
+  // ─── CVX STRATEGIC (V8.6): NORMALIZED FCF AT THE DECK + IMPLIED BRENT + CYCLE GATE ──
+  if (isCVX) {
+    const reg = resolveCVXRegime(data);
+    const fS = data.fundamentals || {};
+
+    // ★★ GUARDRAIL (a) part 1 — trailing GAAP P/E is NEVER scored, and NOT via
+    // the cyclical inversion. The 2026-10-30 print rolls Q3'25 out of the TTM
+    // (trailing P/E ~22x → ~17x with no change in the business); the HESM exit
+    // later books a $3–4B one-time loss that distorts it the other way.
+    const pe = data.valuation?.trailingPE;
+    if (pe != null && pe > 0) {
+      const q3 = fS.q3_2025_in_ttm;
+      notes.push(`GAAP trailing P/E ${pe.toFixed(1)}x: NOT SCORED — windfall/cycle-contaminated${q3 === true ? "; Q3'25 ($69 Brent) still in the TTM, rolls off after the 2026-10-30 print — expect a mechanical drop" : ""}`);
+    }
+    // Part 2 — the trailing twin premium vs XOM. fetch v4.20 hard-codes
+    // premium_pct_reliable = false (windfall on both legs + CVX's Hess DD&A step-up).
+    const tv = data.twin_valuation;
+    if (tv && tv.premium_pct != null && tv.premium_pct_reliable === false) {
+      notes.push(`CVX P/E ${tv.premium_pct >= 0 ? "+" : ""}${tv.premium_pct.toFixed(1)}% vs XOM [trailing GAAP]: record only, deliberately scored ZERO`);
+    }
+
+    // ★ NORMALIZED ADJUSTED FCF YIELD AT THE $70 / $3.50 DECK — the flagship.
+    const n = computeCVXNormalization(data);
+    if (n.yieldPct != null) {
+      const tag = n.partial ? " [PARTIAL — Henry Hub or downstream missing; a CEILING while cracks are elevated]" : "";
+      if (n.yieldPct > 7)                            { score += -16; notes.push(`Normalized FCF yield ${n.yieldPct.toFixed(2)}% at the deck: deep value${tag}`); }
+      else if (n.yieldPct >= CVX_NORM_YIELD_BUY)     { score += -10; notes.push(`Normalized FCF yield ${n.yieldPct.toFixed(2)}% at the deck: value${tag}`); }
+      else if (n.yieldPct >= 4.5)                    { score += 0;   notes.push(`Normalized FCF yield ${n.yieldPct.toFixed(2)}% at the deck: fair${tag}`); }
+      else if (n.yieldPct >= CVX_NORM_YIELD_TRIM)    { score += 4;   notes.push(`Normalized FCF yield ${n.yieldPct.toFixed(2)}% at the deck: lower end of fair${tag}`); }
+      else                                           { score += 10;  notes.push(`Normalized FCF yield ${n.yieldPct.toFixed(2)}% at the deck: rich${tag}`); }
+    } else {
+      notes.push(`Normalized FCF yield: inputs not in the engine's data (TTM adjusted FCF is LLM-sourced) — the LLM half carries this read`);
+    }
+
+    // Price-implied Brent at a 6% normalized yield — what long-run oil the stock discounts.
+    if (n.impliedBrent != null) {
+      const ib = n.impliedBrent;
+      const spotStr = reg.brent != null ? ` vs spot $${reg.brent}` : "";
+      if (ib < 65)       { score += -8; notes.push(`Price-implied Brent $${ib}${spotStr}: the stock discounts sub-deck oil — buy bias`); }
+      else if (ib <= 80) { score += 0;  notes.push(`Price-implied Brent $${ib}${spotStr}: fair`); }
+      else if (ib <= 85) { score += 3;  notes.push(`Price-implied Brent $${ib}${spotStr}: upper end of fair`); }
+      else               { score += 8;  notes.push(`Price-implied Brent $${ib}${spotStr}: the stock discounts a durable war premium — rich`); }
+    }
+
+    // Forward twin premium vs XOM — SECONDARY (LLM-sourced forward P/Es).
+    const fpe = fS.forward_pe_consensus, xpe = fS.xom_fwd_pe;
+    if (fpe != null && fpe > 0 && xpe != null && xpe > 0) {
+      const prem = +(((fpe / xpe) - 1) * 100).toFixed(1);
+      if (prem < -10)     { score += -4; notes.push(`CVX forward P/E ${prem}% vs XOM: discount to twin (secondary)`); }
+      else if (prem > 10) { score += 4;  notes.push(`CVX forward P/E +${prem}% vs XOM: rich vs twin (secondary)`); }
+      else                { notes.push(`CVX forward P/E ${prem >= 0 ? "+" : ""}${prem}% vs XOM: normal (secondary)`); }
+    }
+
+    // Breakeven vs the $50 ceiling — the franchise claim itself.
+    if (fS.breakeven_status) {
+      const be = String(fS.breakeven_status).toLowerCase();
+      if (be === "drifting")    { score += 6;  notes.push(`Capex + dividend breakeven DRIFTING above $50 — the franchise claim weakening`); }
+      else if (be === "breach") { score += 14; notes.push(`Capex + dividend breakeven BREACHING $50 — the franchise claim is failing. THESIS-LEVEL.`); }
+      else if (be === "inside") { notes.push(`Breakeven inside the <$50 ceiling`); }
+    }
+
+    // ★★ GUARDRAIL (c) — NET period-end share count, scored only on a clean
+    // post-Hess base. Gross dollars never score.
+    if (fS.share_count_change_yoy_pct != null) {
+      const sc = fS.share_count_change_yoy_pct;
+      if (fS.share_count_base_clean === true) {
+        if (sc <= -2)        { score += -5; notes.push(`Net share count ${sc.toFixed(1)}% YoY (clean base): strong buyback — meets the portfolio criterion`); }
+        else if (sc <= -0.5) { score += -3; notes.push(`Net share count ${sc.toFixed(1)}% YoY (clean base): meets the criterion`); }
+        else if (sc <= 0.5)  { score += 0;  notes.push(`Net share count ${sc >= 0 ? "+" : ""}${sc.toFixed(1)}% YoY: flat`); }
+        else                 { score += 4;  notes.push(`Net share count +${sc.toFixed(1)}% YoY on a clean base: dilutive`); }
+      } else {
+        notes.push(`Net share count ${sc >= 0 ? "+" : ""}${sc.toFixed(1)}% YoY: HESS-CONTAMINATED base (crosses 2025-07-18) — reported, not scored`);
+      }
+    }
+    if (fS.buyback_vs_range === "below" && reg.brent != null && reg.brent > 80) {
+      notes.push(`Buybacks below the $10–20B annual range with Brent above $80 — windfall routed to debt paydown`);
+    }
+
+    // ★★ GUARDRAIL (d) — leverage EX-deconsolidation.
+    const ndr = fS.net_debt_ratio_ex_deconsolidation_pct;
+    if (ndr != null) {
+      if (ndr > 35)      { score += 8; notes.push(`Net debt ratio ${ndr.toFixed(1)}% ex-HESM: stretched`); }
+      else if (ndr > 25) { score += 4; notes.push(`Net debt ratio ${ndr.toFixed(1)}% ex-HESM: elevated`); }
+      else if (ndr < 15) { score += -2; notes.push(`Net debt ratio ${ndr.toFixed(1)}% ex-HESM: strong balance sheet`); }
+      else               { notes.push(`Net debt ratio ${ndr.toFixed(1)}% ex-HESM`); }
+    }
+
+    if (fS.insider_net_selling_90d === true) {
+      notes.push(`Insider net selling (90d): reported — not scored without confirming it is not option-related`);
+    }
+    if (fS.roce_spot_inflated === true) {
+      notes.push(`ROCE${fS.roce_pct != null ? ` ${fS.roce_pct}%` : ""}: SPOT-INFLATED on windfall oil — flagged, not scored`);
+    }
+    // ⚠ Dividend yield is REPORTED, NOT SCORED — ENB's spread-vs-10Y logic is
+    // not inherited; the dividend is a coverage question the normalization answers.
+    const dy = data.valuation?.dividendYield;
+    if (dy != null) notes.push(`Dividend yield ${dy}%: context only — not a bond-proxy signal`);
+
+    // VIX overlay — panic is a buy only outside the windfall regime.
+    const vixS = macro?.vix;
+    if (vixS != null && !(reg.key === "dislocated" && reg.direction === "high")) {
+      if (vixS > 35)      { score += -4; notes.push(`VIX ${vixS}: panic — capital-return major on sale`); }
+      else if (vixS > 25) { score += -1; notes.push(`VIX ${vixS}: elevated fear`); }
+    }
+
+    // ★★ GUARDRAIL (e) — CYCLE-POSITION GATE. The flag also drives the same
+    // clamp on the BLENDED score in blendScores().
+    const gate = evaluateCVXCycleGate(data);
+    const regTag = `Brent ${reg.deviationPct != null ? `${reg.deviationPct >= 0 ? "+" : ""}${reg.deviationPct}%` : "?"} vs the $70 deck`;
+    if (gate.active && gate.side === "no_buy") {
+      const why = n.yieldPct == null ? "normalization unavailable" : n.partial ? `normalized yield ${n.yieldPct}% on a PARTIAL normalization` : `normalized yield ${n.yieldPct}% < ${CVX_NORM_YIELD_BUY}%`;
+      notes.push(`⛔ CYCLE-POSITION GATE (DISLOCATED-HIGH, ${regTag}; ${why}) — strategic ${score} floored at 0. The windfall cannot produce a strategic buy.`);
+      score = Math.max(score, 0);
+      return { score: clamp(score), notes, cycle_gate_active: true, cycle_gate_side: "no_buy" };
+    }
+    if (gate.active && gate.side === "no_trim") {
+      notes.push(`⛔ CYCLE-POSITION GATE (DISLOCATED-LOW, ${regTag}; normalized yield ${n.yieldPct ?? "unavailable"} not below ${CVX_NORM_YIELD_TRIM}%) — strategic ${score} capped at 0. The trough cannot produce a strategic trim.`);
+      score = Math.min(score, 0);
+      return { score: clamp(score), notes, cycle_gate_active: true, cycle_gate_side: "no_trim" };
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -4048,6 +5109,12 @@ export function computeDeterministicScores(data, macro) {
   } else if (data._archetype === "reserve_moat_infrastructure_compounder") {
     const r = computeMLMRegimeWeights(data);
     weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "federal_authorization_status";
+  } else if (data._archetype === "marketplace_demand_aggregator") {
+    const r = computeUBERRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "av_supply_regime_state";
+  } else if (data._archetype === "integrated_major_capital_returner") {
+    const r = computeCVXRegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "brent_vs_70_deck_pct";
   }
 
   const composite = Math.round(
@@ -4069,9 +5136,13 @@ export function computeDeterministicScores(data, macro) {
                   // RDDT: bid_active|neutral|bid_absent (V8.3, off a 25/35/40 base).
                   // MLM: funded|neutral|unfunded, each optionally "_damped" post-LNA-close
                   // (V8.4, off a 20/35/45 base — LIN's triple, deliberately reused).
+                  // UBER: aggregating|contested|disintermediating (V8.5, same triple;
+                  // categorical gate — regimeDriver is null, regimeBasis carries it).
+                  // CVX: anchored|transitional_high/_low|dislocated_high/_low (V8.6,
+                  // same triple; numeric — regimeDriver = Brent % vs the $70 deck).
     regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
     regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
-    regimeBasis,  // V8.1/V8.2/V8.4 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp" | "xlc_vs_spy_30d_pp" | "federal_authorization_status"
+    regimeBasis,  // V8.1/V8.2/V8.4 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp" | "xlc_vs_spy_30d_pp" | "federal_authorization_status" | "av_supply_regime_state" | "brent_vs_70_deck_pct"
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
@@ -4110,7 +5181,21 @@ export function blendScores(deterministic, llm, weights, archetype) {
 
   const tactical   = blend(deterministic.tactical.score,   llm.tactical?.score   ?? 0, "tactical");
   const positional = blend(deterministic.positional.score, llm.positional?.score ?? 0, "positional");
-  const strategic  = blend(deterministic.strategic.score,  llm.strategic?.score  ?? 0, "strategic");
+  let strategic    = blend(deterministic.strategic.score,  llm.strategic?.score  ?? 0, "strategic");
+
+  // V8.5: Guardrail (e) — VALUE-TRAP floor on the BLENDED strategic score.
+  // Flag-driven: only the UBER branch sets value_trap_gate_active, so this is a
+  // no-op for every other archetype. The LLM carries 70% of strategic, so a
+  // deterministic-only floor would leak a strategic BUY straight through.
+  const valueTrap = deterministic.strategic?.value_trap_gate_active === true;
+  if (valueTrap) strategic = Math.max(strategic, 0);
+
+  // V8.6: CVX Guardrail (e) — CYCLE-POSITION clamp on the BLENDED strategic
+  // score, same flag-driven pattern: only the CVX branch sets cycle_gate_*.
+  // "no_buy" (windfall) floors at 0; "no_trim" (trough) caps at 0.
+  const cycleSide = deterministic.strategic?.cycle_gate_active === true ? deterministic.strategic.cycle_gate_side : null;
+  if (cycleSide === "no_buy") strategic = Math.max(strategic, 0);
+  else if (cycleSide === "no_trim") strategic = Math.min(strategic, 0);
 
   // Use deterministic.weights if provided (for LIN regime-conditional weights)
   const w = weights || deterministic.weights || { t: 0.25, p: 0.35, s: 0.40 };
@@ -4124,7 +5209,7 @@ export function blendScores(deterministic, llm, weights, archetype) {
   return {
     tactical:   { score: tactical,   signal: toSignal(tactical),   rationale: llm.tactical?.rationale || "",   det_score: deterministic.tactical.score,   llm_score: llm.tactical?.score   ?? 0, det_notes: deterministic.tactical.notes },
     positional: { score: positional, signal: toSignal(positional), rationale: llm.positional?.rationale || "", det_score: deterministic.positional.score, llm_score: llm.positional?.score ?? 0, det_notes: deterministic.positional.notes },
-    strategic:  { score: strategic,  signal: toSignal(strategic),  rationale: llm.strategic?.rationale || "",  det_score: deterministic.strategic.score,  llm_score: llm.strategic?.score  ?? 0, det_notes: deterministic.strategic.notes },
+    strategic:  { score: strategic,  signal: toSignal(strategic),  rationale: llm.strategic?.rationale || "",  det_score: deterministic.strategic.score,  llm_score: llm.strategic?.score  ?? 0, det_notes: deterministic.strategic.notes, ...(valueTrap ? { value_trap_gate_active: true } : {}), ...(cycleSide ? { cycle_gate_active: true, cycle_gate_side: cycleSide } : {}) },
     composite:  { score: composite,  recommendation: toRec(composite), summary: llm.composite?.summary || "", det_score: deterministic.composite.score, llm_score: llm.composite?.score ?? 0, weights: w, regime: deterministic.regime ?? null },
   };
 }
