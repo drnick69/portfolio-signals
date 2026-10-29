@@ -33,6 +33,7 @@ jobs:
         env:
           ALPK: ${{ secrets.ALPK }}
           ALPS: ${{ secrets.ALPS }}
+          TD_KEY: ${{ secrets.TD_KEY }}   # OTC ADR fallback (AMKBY, GLNCY) — same secret fetch-market-data uses
         run: node .github/scripts/attribute-signals.mjs
 
       - name: Commit enriched log
