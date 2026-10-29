@@ -1,5 +1,140 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.18 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.20 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.20 (October 2026): HOLDINGS SWAP — sold ENB (Enbridge / dividend_compounder),
+// bought CVX (Chevron / integrated_major_capital_returner). Still 14 scored
+// holdings. BUILT ON v4.19 (PBR.A → UBER): both swaps live in this file, so
+// v4.20 supersedes v4.19 — deploy this one, not both.
+//   Removals:
+//     - ENB removed from SYMBOLS. That is the whole removal: ENB never had an
+//       aux symbol, an Alpaca stage or an attachment block here. Its yield-
+//       spread-vs-10Y line is computed in generate-signals and retires there.
+//       DGS10 stays — every rate-sensitive branch still reads it.
+//     - WTI (DCOILWTICO) regains a consumer: CVX's oil_regime reports the
+//       Brent–WTI spread as context. BRL/USD stays orphaned, kept for the CSV
+//       width per the v4.19 decision.
+//   Additions for CVX (TWIN pattern, same as MA/V and MLM/VMC):
+//     - XOM aux quote WITH metrics — the twin. The only other US super-major
+//       and Chevron's Stabroek partner.
+//     - SHEL, TTE aux quotes WITH metrics — a STRUCTURAL-DISCOUNT REFERENCE,
+//       not a cohort. European majors carry a persistent multiple gap (~7–8x
+//       forward against ~12x for the US pair); CVX's premium to them is
+//       reported for the record and never scored.
+//     - XLE aux quote (Energy Select Sector SPDR — sector factor proxy).
+//     - twin_valuation (CVX vs XOM trailing P/E) — ★ PERMANENTLY GATED:
+//       premium_pct_reliable is hard FALSE. Both legs are trailing GAAP on
+//       windfall-oil earnings with the same Q3'25 roll-off, and CVX's leg is
+//       further depressed by the Hess purchase-accounting DD&A step-up (DD&A
+//       guided $23–24B against $18–19B organic capex), which biases CVX's
+//       trailing premium UP for reasons unrelated to value. The model scores
+//       the FORWARD twin premium, LLM-sourced downstream, and only as a
+//       secondary read.
+//     - twin_relative (daily CVX − XOM spread) and cohort_relative (30d:
+//       xom_spread_30d_pp, twin_dislocation_active = TRUE if < -4pp — the
+//       signature tactical setup, oil-neutral by construction; SHEL/TTE 30d
+//       carried as reference only)
+//     - factor_flow.xle_vs_spy_30d_pp (energy sector bid: active >+2pp |
+//       neutral ±2pp | absent <-2pp — wider than the ±1pp used for consumer
+//       and materials factors because sector beta to oil swamps 1pp)
+//     - tactical_extras: GEOPOLITICAL AIR-POCKET PRICE SCREEN — largest
+//       single-session move in the last 5 sessions in EITHER direction, XLE on
+//       that same date, the idiosyncratic residual, and a candidate flag at
+//       |move| ≥ 4% off the Q3 print date. Classification (de-escalation /
+//       escalation / Chevron asset) is LLM territory and lands in the strategy
+//       model; in a dislocated-high regime a de-escalation drop is NOT a buy.
+//     - New fetchCVXHistoricalReturns() (6 Alpaca calls: CVX, XOM, SHEL, TTE,
+//       XLE, SPY — same budget as the MLM and UBER functions)
+//   ★ OIL-PRICE REGIME — NUMERIC AND SELF-UPDATING. No human-maintained
+//     constant. New fetchCVXCommodityDeck() pulls FRED Brent (DCOILBRENTEU)
+//     and Henry Hub (DHHNGSP) daily history (2 FRED calls) and emits:
+//       • oil_regime: spot Brent vs Chevron's $70 planning deck → anchored
+//         (|dev| ≤ 20%) / transitional (≤ 40%) / dislocated (> 40%), plus
+//         direction. Identical bands and boundary handling to
+//         cvx-strategy.jsx v1 resolveOilRegime(). Missing Brent → transitional
+//         with driver_missing TRUE (the house "missing driver → base triple"
+//         convention), logged loudly. EIA's daily series lags about a week;
+//         a reading older than 14 days is flagged stale.
+//       • Normalization inputs: TTM average Brent and Henry Hub over the four
+//         most recently REPORTED quarters, aligned to the window Chevron's
+//         reported TTM free cash flow covers. A quarter counts as reported 31
+//         days after it ends, which switches on 2026-10-31 for the 2026-10-30
+//         print (the Finnhub-lags-the-filing convention v4.19 used for UBER).
+//         Equal-weighted quarterly means, each needing 40+ daily observations,
+//         or the TTM is null and the normalization downstream is partial.
+//       • Henry Hub basis: FRED's daily SPOT, a proxy for the bid-week index
+//         Chevron's sensitivity is struck on. Labelled in the output.
+//     The normalization itself (adjusted FCF at the $70 / $3.50 deck) needs
+//     LLM-sourced TTM adjusted FCF and downstream earnings, so it is computed
+//     in score-engine, not here.
+//   ★ STRUCTURAL CATEGORICALS emitted non-null (the MLM / UBER precedent):
+//     gaap_pe_signal_status is always "null_signal_cycle_contaminated";
+//     forward_pe_signal_status, revisions_signal_status and roce_spot_inflated
+//     derive from the regime; q3_2025_in_ttm and share_count_base_clean derive
+//     from the date via the same reported-quarter window — so the Hess
+//     anniversary (shares issued 2025-07-18) and the Q3'25 roll-off clear on
+//     their own, with nothing to maintain.
+//
+// v4.19 (October 2026): HOLDINGS SWAP — sold PBR.A (Petrobras preferred ADR /
+// em_state_oil_dividend), bought UBER (Uber Technologies /
+// marketplace_demand_aggregator). Still 14 scored holdings.
+//   Removals:
+//     - PBR.A removed from SYMBOLS. This also retires the open Alpaca 400: the
+//       Stage 2b/2c fallbacks sent the class-share symbol (Finnhub form
+//       "PBR-A") to Alpaca, which rejected it. UBER is a plain ticker on all
+//       four vendors, so nothing inherits the error.
+//     - ⚠ WTI (DCOILWTICO) and BRL/USD (DEXBZUS) are NOT removed from the FRED
+//       stage, although PBR.A was their only scoring consumer. log-signals
+//       writes both as CSV columns, and under signal-accuracy's exact-width
+//       contract a column that silently empties is a worse outcome than two
+//       extra FRED calls. Decision recorded 2026-10-27. score-engine keeps its
+//       PBR.A branches for historical re-scoring; they stop receiving a row.
+//   Additions for UBER (WEIGHTED cohort pattern, same as MLM):
+//     - DASH, LYFT, GRAB aux quotes WITH metrics (consumer-marketplace cohort).
+//       No true twin exists. DASH carries 50% as the only other scaled,
+//       profitable US marketplace; LYFT (US mobility pure play) and GRAB
+//       (mobility + delivery super-app, the closest business-model analog)
+//       carry 25% each. Renormalized over whichever peers resolved.
+//     - XLY aux quote (Consumer Discretionary SPDR — consumer factor proxy).
+//       GICS puts UBER in Industrials (~2.6% of XLI), but it trades as a
+//       consumer platform; XLI is CAT/GE/RTX-dominated and reads the wrong
+//       factor for this name.
+//     - cohort_valuation (UBER vs DASH/LYFT/GRAB weighted TRAILING P/E) —
+//       ★ PERMANENTLY GATED: premium_pct_reliable is hard FALSE. Unlike MLM's
+//       gate it does not key on the size of the discount, because legs on BOTH
+//       sides are GAAP-contaminated by construction. See the UBER block.
+//     - cohort_relative (peer_rotation_pp = UBER 30d − weighted cohort 30d;
+//       peer_rotation_active = TRUE if < -6pp — between MLM's -5 and RDDT's
+//       -8, matching beta 1.26; dash_spread_30d_pp carried separately)
+//     - factor_flow.xly_vs_spy_30d_pp (consumer factor bid)
+//     - tactical_extras: AV-headline-shock PRICE SCREEN — worst 1-day return in
+//       the last 5 sessions, SPY on that session, and av_shock_candidate_active
+//       (≤ -4%, not on a known Uber print date). Attribution to an AV headline
+//       is LLM territory and lands in fundamentals.av_headline_shock_active.
+//     - New fetchUBERHistoricalReturns() (6 Alpaca calls: UBER, DASH, LYFT,
+//       GRAB, XLY, SPY — same budget as the MLM function)
+//     - fundamentals v1 explicit-null fields matching the uber-strategy.jsx v1
+//       contract: constant-currency bookings, the MOBILITY canary, trips and
+//       MAPCs, Adj EBITDA % GB, segment OI, the owner-FCF block, basis-tagged
+//       EV/EBITDA, AV pipeline, Delivery Hero acceptance, gross leverage, NET
+//       share count.
+//   ★ CONFIG SHIPS POPULATED — the v4.17 → v4.18 lesson applied up front.
+//     UBER's regime driver is a categorical no API publishes: whether AV supply
+//     is listing on Uber or routing around it. It is a human-maintained
+//     constant from day one, logged loudly every run, with a staleness warning
+//     after 90 days unreviewed. Same treatment for the Delivery Hero offer
+//     state, which warns once the acceptance period (ends 2026-11-05) has
+//     passed while the constant still reads "acceptance_period".
+//     dh_basis_scored derives from it: "pro_forma_dh" only once the state is
+//     "closed" (decision recorded 2026-10-27 — score standalone until
+//     settlement; the LNA known-forward-event precedent deliberately NOT
+//     followed, because DH has neither its clearances nor its financing).
+//   ★ STRUCTURAL CATEGORICALS emitted non-null (the MLM reported_asp
+//     precedent): gaap_pe_signal_status, revenue_signal_status and
+//     roic_gaap_inflated are known properties of the current reporting period,
+//     not missing fetches. tax_release_in_ttm is computed from the date: TRUE
+//     through the Q3'26 print day (2026-11-04 — Finnhub's TTM lags the filing,
+//     so the print-day run still carries the $4.9B release), FALSE after, with
+//     no maintenance needed once it flips.
 //
 // v4.18 (August 2026): MLM FUNDING-REGIME CONFIG — closes a gap left by v4.17.
 //   score-engine V8.4's computeMLMRegimeWeights() gates MLM's composite weights
@@ -201,11 +336,11 @@ const SYMBOLS = [
   { symbol: "MSFT",  finnhub: "MSFT",  td: "MSFT" },
   { symbol: "NOW",   finnhub: "NOW",   td: "NOW" },
   { symbol: "TMO",   finnhub: "TMO",   td: "TMO" },
-  { symbol: "ENB",   finnhub: "ENB",   td: "ENB" },
+  { symbol: "CVX",   finnhub: "CVX",   td: "CVX" },
   { symbol: "GLNCY", finnhub: "GLNCY", td: "GLNCY" },
   { symbol: "MLM",   finnhub: "MLM",   td: "MLM" },
   { symbol: "KOF",   finnhub: "KOF",   td: "KOF" },
-  { symbol: "PBR.A", finnhub: "PBR-A", td: "PBR" },
+  { symbol: "UBER",  finnhub: "UBER",  td: "UBER" },
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
   { symbol: "MA",    finnhub: "MA",    td: "MA" },
   { symbol: "ISRG",  finnhub: "ISRG",  td: "ISRG" },
@@ -240,6 +375,14 @@ const AUX_SYMBOLS = [
   { symbol: "CRH",   finnhub: "CRH",   purpose: "mlm_cohort",        needsMetrics: true },  // CRH plc — building materials breadth check (25%)
   { symbol: "EXP",   finnhub: "EXP",   purpose: "mlm_cohort",        needsMetrics: true },  // Eagle Materials — aggregates/cement breadth check (25%)
   { symbol: "XLB",   finnhub: "XLB",   purpose: "mlm_materials_factor" },                   // Materials Select Sector SPDR — materials factor proxy
+  { symbol: "DASH",  finnhub: "DASH",  purpose: "uber_cohort",       needsMetrics: true },  // DoorDash — the only other scaled, profitable US marketplace (50% cohort weight)
+  { symbol: "LYFT",  finnhub: "LYFT",  purpose: "uber_cohort",       needsMetrics: true },  // Lyft — US mobility pure play (25%)
+  { symbol: "GRAB",  finnhub: "GRAB",  purpose: "uber_cohort",       needsMetrics: true },  // Grab — mobility + delivery super-app, closest business-model analog (25%)
+  { symbol: "XLY",   finnhub: "XLY",   purpose: "uber_consumer_factor" },                   // Consumer Discretionary Select Sector SPDR — consumer factor proxy
+  { symbol: "XOM",   finnhub: "XOM",   purpose: "cvx_twin",          needsMetrics: true },  // ExxonMobil — CVX twin (the only other US super-major; Stabroek partner)
+  { symbol: "SHEL",  finnhub: "SHEL",  purpose: "cvx_reference",     needsMetrics: true },  // Shell ADR — structural-discount REFERENCE only, never scored
+  { symbol: "TTE",   finnhub: "TTE",   purpose: "cvx_reference",     needsMetrics: true },  // TotalEnergies ADR — structural-discount REFERENCE only, never scored
+  { symbol: "XLE",   finnhub: "XLE",   purpose: "cvx_energy_factor" },                      // Energy Select Sector SPDR — energy factor proxy
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1308,6 +1451,534 @@ async function fetchMLMHistoricalReturns() {
   return result;
 }
 
+// ─── UBER AV-SUPPLY REGIME + DELIVERY HERO STATE (v4.19) ────────────────────
+// Human-maintained. No API publishes either value; review on announcements.
+//
+// UBER_AV_SUPPLY_REGIME_STATE — one of:
+//   "partners_adding_uber_supply"      -> engine regime "aggregating"       (25/40/35)
+//   "leader_exiting_tail_aggregating"  -> engine regime "contested"         (20/35/45)
+//   "pending_unknown"                  -> engine regime "contested"         (20/35/45)
+//   "second_tier1_exiting"             -> engine regime "disintermediating" (15/30/55)
+//   "exclusive_pipeline_slipping"      -> engine regime "disintermediating" (15/30/55)
+// "Tier-1" = an operator running fully driverless, open-to-public service at
+// scale (today: Waymo; Tesla partially; Zoox in Las Vegas; Baidu / WeRide /
+// Pony.ai outside the US).
+//
+// CALIBRATION: the current state maps to CONTESTED, NOT to disintermediating.
+// Waymo was on Uber in only three of its 15 metros — Phoenix (ended mid-2026),
+// Austin and Atlanta (own app from January 2028; the current fleet stays on
+// Uber through at least May 2028). The leader going direct was already the base
+// case and is in the price, while Zoox, WeRide, Baidu, Nuro/Lucid, Rivian,
+// VW/MOIA, Motional and Avride are adding or contracting Uber supply. What
+// flips the regime is a SECOND tier-1 operator withdrawing or declining Uber
+// supply in a metro where it runs driverless at scale, or Rivian / Lucid-Nuro
+// missing a disclosed autonomy milestone.
+//
+// Review triggers — edit the state AND bump the reviewed date: any tier-1
+// own-app launch or partnership exit; a new tier-1 operator going live on Uber
+// in a major US metro (candidate: Zoox Las Vegas — announced, not live as of
+// 2026-10-25); a Rivian or Lucid/Nuro milestone date; each Uber earnings call
+// (next: 2026-11-04).
+const UBER_AV_SUPPLY_REGIME_STATE  = "leader_exiting_tail_aggregating";
+const UBER_AV_SUPPLY_LAST_REVIEWED = "2026-10-27";
+const UBER_AV_SUPPLY_STALE_DAYS    = 90;
+
+// UBER_DH_OFFER_STATE — one of:
+//   "acceptance_period" | "threshold_met" | "regulatory_review" | "closed" | "lapsed"
+// Scored STANDALONE until "closed" (decision 2026-10-27). Offer: EUR 41.50 cash;
+// acceptance period 2026-08-27 → 2026-11-05 24:00 Frankfurt; minimum 50% + 1
+// share including Uber's ~24.77% held stake; settlement expected H2 2027 after
+// merger-control clearances. Update when the acceptance result is published.
+const UBER_DH_OFFER_STATE    = "acceptance_period";
+const UBER_DH_ACCEPTANCE_END = "2026-11-05";
+
+// The Q3 2026 print removes Q3 2025 — and its $4.9B tax valuation-allowance
+// release — from the trailing window. It is also the one print date the shock
+// screen below excludes. Nothing to maintain after it passes: tax_release_in_ttm
+// goes FALSE for good.
+const UBER_Q3_2026_PRINT_DATE = "2026-11-04";
+
+const UBER_AV_STATE_TO_REGIME = {
+  partners_adding_uber_supply:     "aggregating",
+  leader_exiting_tail_aggregating: "contested",
+  pending_unknown:                 "contested",
+  second_tier1_exiting:            "disintermediating",
+  exclusive_pipeline_slipping:     "disintermediating",
+};
+const UBER_DH_STATES = ["acceptance_period", "threshold_met", "regulatory_review", "closed", "lapsed"];
+
+function uberConfigRegime(now = new Date()) {
+  const todayISO = now.toISOString().split("T")[0];
+  const daysSince = d => Math.round(
+    (new Date(todayISO + "T00:00:00Z") - new Date(d + "T00:00:00Z")) / 86400000
+  );
+
+  // A typo in a human-maintained constant would otherwise map silently to the
+  // engine's CONTESTED fallback and look deliberate. Emit null and say so.
+  let avState = UBER_AV_SUPPLY_REGIME_STATE;
+  if (!Object.prototype.hasOwnProperty.call(UBER_AV_STATE_TO_REGIME, avState)) {
+    console.log(`  [UBER-REGIME] ✗ INVALID CONFIG: UBER_AV_SUPPLY_REGIME_STATE = "${avState}" is not a recognized state — emitting null (engine falls back to CONTESTED). Fix the constant.`);
+    avState = null;
+  }
+  const reviewedDaysAgo = daysSince(UBER_AV_SUPPLY_LAST_REVIEWED);
+  if (reviewedDaysAgo > UBER_AV_SUPPLY_STALE_DAYS) {
+    console.log(`  [UBER-REGIME] STALE CONFIG: AV supply state last reviewed ${UBER_AV_SUPPLY_LAST_REVIEWED} (${reviewedDaysAgo}d ago, limit ${UBER_AV_SUPPLY_STALE_DAYS}d).`);
+    console.log(`  [UBER-REGIME]    UBER is scoring against an AV supply read nobody has checked in a quarter.`);
+    console.log(`  [UBER-REGIME]    Review it and bump UBER_AV_SUPPLY_LAST_REVIEWED.`);
+  }
+
+  let dhState = UBER_DH_OFFER_STATE;
+  if (!UBER_DH_STATES.includes(dhState)) {
+    console.log(`  [UBER-DH] ✗ INVALID CONFIG: UBER_DH_OFFER_STATE = "${dhState}" is not a recognized state — emitting null. Fix the constant.`);
+    dhState = null;
+  }
+  const daysPastAcceptance = daysSince(UBER_DH_ACCEPTANCE_END);
+  if (dhState === "acceptance_period" && daysPastAcceptance > 0) {
+    console.log(`  [UBER-DH] STALE CONFIG: the acceptance period ended ${UBER_DH_ACCEPTANCE_END} (${daysPastAcceptance}d ago) but UBER_DH_OFFER_STATE still reads "acceptance_period".`);
+    console.log(`  [UBER-DH]    The result has been published — set threshold_met / regulatory_review / lapsed.`);
+  }
+
+  return {
+    avState,
+    regime: avState ? UBER_AV_STATE_TO_REGIME[avState] : "contested",
+    reviewedDaysAgo,
+    dhState,
+    dhBasisScored: dhState === "closed" ? "pro_forma_dh" : "standalone",
+    taxReleaseInTtm: todayISO <= UBER_Q3_2026_PRINT_DATE,
+    daysToQ3Print: -daysSince(UBER_Q3_2026_PRINT_DATE),
+  };
+}
+
+// ─── STAGE 3k: UBER MARKETPLACE-COHORT HISTORICAL RETURNS (v4.19) ───────────
+// Pulls daily closes for UBER, DASH, LYFT, GRAB, XLY, SPY and computes:
+//   • peer_rotation_pp   = UBER 30d − WEIGHTED cohort 30d (DASH .50 / LYFT .25
+//     / GRAB .25). <-6pp WITHOUT an Uber operating print behind it = buy setup.
+//   • dash_spread_30d_pp = UBER 30d − DASH 30d, carried SEPARATELY. DASH is the
+//     heaviest-weighted peer, not a twin, so no dislocation flag rides on it.
+//   • xly_vs_spy_30d_pp  = consumer factor bid (active >+1pp | neutral ±1pp |
+//     absent <-1pp)
+//   • AV-headline-shock PRICE SCREEN — worst single-session return in the last
+//     5 sessions, SPY's return on that same session (aligned by DATE, not index),
+//     and a candidate flag (≤ -4%, not on a known Uber print date). The screen
+//     only establishes that the price event happened; whether it was an
+//     AV-supply headline is attributed downstream by the LLM.
+// Threshold note: -6pp sits between MLM's -5 (beta 1.11) and RDDT's -8 (beta
+// 1.94), matching UBER's beta of 1.26.
+// ★ WEIGHTED average, renormalized over available peers — same as MLM.
+const UBER_PEER_WEIGHTS          = { DASH: 0.50, LYFT: 0.25, GRAB: 0.25 };
+const UBER_SHOCK_MOVE_PCT        = -4;
+const UBER_SHOCK_WINDOW_SESSIONS = 5;
+
+function uberWeightedCohort(vals) {
+  const avail = Object.keys(UBER_PEER_WEIGHTS).filter(
+    k => vals[k] != null && Number.isFinite(vals[k])
+  );
+  if (avail.length === 0) return { avg: null, count: 0 };
+  const wsum = avail.reduce((a, k) => a + UBER_PEER_WEIGHTS[k], 0);
+  const acc = avail.reduce((a, k) => a + vals[k] * UBER_PEER_WEIGHTS[k], 0);
+  return { avg: +(acc / wsum).toFixed(3), count: avail.length };
+}
+
+// Worst single-session return over the last `sessions` bars, plus SPY's return
+// on the same calendar date. Pure function — kept separate so it can be tested.
+function uberShockScreen(uberCloses, uberDates, spyCloses, spyDates, sessions = UBER_SHOCK_WINDOW_SESSIONS) {
+  let worst = null, worstDate = null, spySameDay = null;
+  if (uberCloses && uberDates && uberCloses.length > sessions) {
+    for (let i = uberCloses.length - sessions; i < uberCloses.length; i++) {
+      const prev = uberCloses[i - 1], cur = uberCloses[i];
+      if (!prev || !cur) continue;
+      const r = +(((cur - prev) / prev) * 100).toFixed(3);
+      if (worst == null || r < worst) { worst = r; worstDate = uberDates[i] ?? null; }
+    }
+  }
+  if (worstDate && spyCloses && spyDates) {
+    const j = spyDates.indexOf(worstDate);
+    if (j > 0 && spyCloses[j - 1] && spyCloses[j]) {
+      spySameDay = +(((spyCloses[j] - spyCloses[j - 1]) / spyCloses[j - 1]) * 100).toFixed(3);
+    }
+  }
+  const onKnownPrint = worstDate === UBER_Q3_2026_PRINT_DATE;
+  return {
+    worst_1d_return_5s_pct:    worst,
+    worst_1d_date:             worstDate,
+    spy_same_day_return_pct:   spySameDay,
+    worst_1d_on_known_print:   onKnownPrint,
+    av_shock_candidate_active: worst != null ? (worst <= UBER_SHOCK_MOVE_PCT && !onKnownPrint) : null,
+  };
+}
+
+async function fetchUBERHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-UBER] No keys — skipping UBER historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-UBER] Fetching UBER/DASH/LYFT/GRAB/XLY/SPY bars for marketplace-cohort rotation + consumer factor + AV-shock screen...");
+  const symbols = ["UBER", "DASH", "LYFT", "GRAB", "XLY", "SPY"];
+  const closes = {};
+  const dates = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      dates[sym] = bars.map(b => (b.t || "").slice(0, 10));
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const uberRet30 = retNDays(closes.UBER, 30);
+  const dashRet30 = retNDays(closes.DASH, 30);
+  const lyftRet30 = retNDays(closes.LYFT, 30);
+  const grabRet30 = retNDays(closes.GRAB, 30);
+  const xlyRet30  = retNDays(closes.XLY,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const { avg: cohortAvg, count: cohortCount } = uberWeightedCohort({
+    DASH: dashRet30, LYFT: lyftRet30, GRAB: grabRet30,
+  });
+
+  const rotationPp = (uberRet30 != null && cohortAvg != null)
+    ? +(uberRet30 - cohortAvg).toFixed(3)
+    : null;
+
+  const dashSpreadPp = (uberRet30 != null && dashRet30 != null)
+    ? +(uberRet30 - dashRet30).toFixed(3)
+    : null;
+
+  const xlyVsSpyPp = (xlyRet30 != null && spyRet30 != null)
+    ? +(xlyRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const shock = uberShockScreen(closes.UBER, dates.UBER, closes.SPY, dates.SPY);
+
+  const result = {
+    uber_30d_return_pct:       uberRet30,
+    dash_30d_return_pct:       dashRet30,
+    lyft_30d_return_pct:       lyftRet30,
+    grab_30d_return_pct:       grabRet30,
+    cohort_avg_30d_return_pct: cohortAvg,
+    cohort_weighting:          "DASH .50 / LYFT .25 / GRAB .25 (renormalized over available)",
+    peer_rotation_pp:          rotationPp,
+    peer_rotation_active:      rotationPp != null && rotationPp < -6,
+    dash_spread_30d_pp:        dashSpreadPp,
+    cohort_count:              cohortCount,
+    xly_30d_return_pct:        xlyRet30,
+    spy_30d_return_pct:        spyRet30,
+    xly_vs_spy_30d_pp:         xlyVsSpyPp,
+    ...shock,
+  };
+
+  const activeStr = result.peer_rotation_active ? " [ACTIVE — buy setup absent an Uber operating print]" : "";
+  const dashStr = dashSpreadPp == null ? "—" : `${dashSpreadPp >= 0 ? "+" : ""}${dashSpreadPp}pp`;
+  const xlyStr = xlyVsSpyPp == null ? "—"
+    : xlyVsSpyPp > 1 ? `consumer bid active (+${xlyVsSpyPp}pp)`
+    : xlyVsSpyPp < -1 ? `consumer lagging (${xlyVsSpyPp}pp)`
+    : "inline";
+  const shockStr = shock.worst_1d_return_5s_pct == null ? "—"
+    : `worst 5s ${shock.worst_1d_return_5s_pct}% on ${shock.worst_1d_date} (SPY ${shock.spy_same_day_return_pct ?? "—"}%)${shock.av_shock_candidate_active ? " [SHOCK CANDIDATE — LLM to attribute]" : ""}${shock.worst_1d_on_known_print ? " [print day — excluded]" : ""}`;
+  console.log(`  [ALPACA-UBER] ✓ UBER 30d=${uberRet30 != null ? (uberRet30 >= 0 ? "+" : "") + uberRet30 + "%" : "—"} | cohort avg=${cohortAvg != null ? (cohortAvg >= 0 ? "+" : "") + cohortAvg + "%" : "—"} (weighted, ${cohortCount}/3) | rotation Δ=${rotationPp != null ? (rotationPp >= 0 ? "+" : "") + rotationPp + "pp" : "—"}${activeStr} | vs DASH: ${dashStr} | XLY-SPY 30d: ${xlyStr} | ${shockStr}`);
+  return result;
+}
+
+// ─── CVX OIL-PRICE REGIME + DECK NORMALIZATION INPUTS (v4.20) ───────────────
+// Nothing here is human-maintained. The regime driver is FRED Brent; the
+// reported-quarter window is computed from the date.
+//
+// Regime bands — identical to cvx-strategy.jsx v1 resolveOilRegime() and to the
+// score-engine gate. Symmetric around Chevron's own $70 planning deck:
+//   |deviation| ≤ 20%  ($56–$84)            → "anchored"     (25/40/35)
+//   |deviation| ≤ 40%  ($42–$56 / $84–$98)  → "transitional" (20/35/45)
+//   beyond ±40%        (<$42 / >$98)        → "dislocated"   (15/30/55)
+// Missing Brent → "transitional" (the base triple) with driver_missing TRUE.
+const CVX_DECK_BRENT              = 70;     // Chevron's planning price (Investor Day targets struck at $70)
+const CVX_DECK_HENRY_HUB          = 3.50;   // v1 assumption — decision recorded 2026-10-27
+const CVX_REGIME_ANCHORED_MAX     = 20;     // %
+const CVX_REGIME_TRANSITIONAL_MAX = 40;     // %
+const CVX_COMMODITY_STALE_DAYS    = 14;     // EIA daily spot lags ~1 week; >14d = flag
+const CVX_REPORT_LAG_DAYS         = 31;     // a quarter counts as reported this many days after it ends
+const CVX_MIN_OBS_PER_QUARTER     = 40;     // daily obs needed for a usable quarterly mean
+const CVX_Q3_2026_PRINT_DATE      = "2026-10-30";  // excluded from the air-pocket screen
+const CVX_HESS_CLOSE_DATE         = "2025-07-18";  // ~301M CVX shares issued
+
+const cvxAddDaysISO = (iso, d) =>
+  new Date(Date.parse(iso + "T00:00:00Z") + d * 86400000).toISOString().slice(0, 10);
+
+function cvxOilRegime(brentSpot) {
+  if (brentSpot == null || !(brentSpot > 0)) {
+    return { oil_price_regime: "transitional", regime_direction: "none", deck_deviation_pct: null, driver_missing: true };
+  }
+  const dev = (brentSpot / CVX_DECK_BRENT - 1) * 100;
+  const mag = Math.abs(dev);
+  const key = mag <= CVX_REGIME_ANCHORED_MAX ? "anchored"
+    : mag <= CVX_REGIME_TRANSITIONAL_MAX ? "transitional"
+    : "dislocated";
+  return {
+    oil_price_regime:   key,
+    regime_direction:   dev > 0 ? "high" : dev < 0 ? "low" : "none",
+    deck_deviation_pct: +dev.toFixed(1),
+    driver_missing:     false,
+  };
+}
+
+// Calendar quarter-end dates strictly before the quarter containing todayISO,
+// newest first.
+function cvxQuarterEnds(todayISO, count) {
+  const out = [];
+  let y = +todayISO.slice(0, 4);
+  let q = Math.floor((+todayISO.slice(5, 7) - 1) / 3);
+  while (out.length < count) {
+    q -= 1;
+    if (q < 0) { q = 3; y -= 1; }
+    const m = (q + 1) * 3;
+    out.push(`${y}-${String(m).padStart(2, "0")}-${m === 3 || m === 12 ? 31 : 30}`);
+  }
+  return out;
+}
+
+const cvxQuarterStart = (qe) => `${qe.slice(0, 4)}-${String(+qe.slice(5, 7) - 2).padStart(2, "0")}-01`;
+
+// Latest quarter whose results are treated as public: quarter end + 31 days.
+// Chevron prints on the last business days of the following month (2026:
+// Jan 30, May 1, Jul 31, Oct 30), so this switches on or one day after each
+// print — immaterial for a four-quarter average, and it keeps the print-day
+// run on the old window, matching Finnhub's lag behind the filing.
+function cvxLastReportedQuarterEnd(todayISO) {
+  for (const qe of cvxQuarterEnds(todayISO, 3)) {
+    if (todayISO >= cvxAddDaysISO(qe, CVX_REPORT_LAG_DAYS)) return qe;
+  }
+  return null;
+}
+
+// The four reported quarters, oldest first.
+function cvxTtmWindow(todayISO) {
+  const last = cvxLastReportedQuarterEnd(todayISO);
+  if (!last) return [];
+  return cvxQuarterEnds(cvxAddDaysISO(last, 1), 4).reverse();
+}
+
+// Equal-weighted mean of quarterly means over the window. Pure — tested.
+// obs: [{ date: "YYYY-MM-DD", value: number }] in any order.
+function cvxTtmAverage(obs, window) {
+  const quarters = window.map(qe => {
+    const start = cvxQuarterStart(qe);
+    const vals = obs.filter(o => o.date >= start && o.date <= qe).map(o => o.value);
+    const avg = vals.length >= CVX_MIN_OBS_PER_QUARTER
+      ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)
+      : null;
+    return { quarter_end: qe, avg, n: vals.length };
+  });
+  const complete = quarters.length === 4 && quarters.every(q => q.avg != null);
+  const ttm = complete ? +(quarters.reduce((a, q) => a + q.avg, 0) / 4).toFixed(2) : null;
+  return { ttm_avg: ttm, complete, quarters };
+}
+
+// Share-count YoY is clean only when BOTH period ends follow the Hess close
+// (Guardrail C). The current period end is the last reported quarter.
+function cvxShareBaseClean(todayISO) {
+  const last = cvxLastReportedQuarterEnd(todayISO);
+  if (!last) return false;
+  const prior = `${+last.slice(0, 4) - 1}${last.slice(4)}`;
+  return prior > CVX_HESS_CLOSE_DATE && last > CVX_HESS_CLOSE_DATE;
+}
+
+// ─── STAGE 3l: CVX COMMODITY DECK (FRED Brent + Henry Hub history) ──────────
+async function fetchCVXCommodityDeck(now = new Date()) {
+  if (!FRED_KEY) {
+    console.log("  [CVX-DECK] No FRED key — oil regime falls back to TRANSITIONAL (driver missing)");
+    return null;
+  }
+  const todayISO = now.toISOString().split("T")[0];
+  const start = cvxAddDaysISO(todayISO, -480);
+  const window = cvxTtmWindow(todayISO);
+  const out = {};
+
+  for (const [key, seriesId] of [["brent", "DCOILBRENTEU"], ["henry_hub", "DHHNGSP"]]) {
+    const data = await fetchJSON(
+      `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&observation_start=${start}&api_key=${FRED_KEY}&file_type=json`,
+      `FRED ${key} history`
+    );
+    const obs = (data?.observations || [])
+      .filter(o => o.value && o.value !== ".")
+      .map(o => ({ date: o.date, value: +parseFloat(o.value) }))
+      .filter(o => Number.isFinite(o.value))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const last = obs.length ? obs[obs.length - 1] : null;
+    const ageDays = last
+      ? Math.round((Date.parse(todayISO + "T00:00:00Z") - Date.parse(last.date + "T00:00:00Z")) / 86400000)
+      : null;
+    const ttm = cvxTtmAverage(obs, window);
+    out[key] = {
+      series_id: seriesId,
+      spot: last ? +last.value.toFixed(2) : null,
+      spot_date: last ? last.date : null,
+      spot_age_days: ageDays,
+      stale: ageDays != null && ageDays > CVX_COMMODITY_STALE_DAYS,
+      ttm_avg: ttm.ttm_avg,
+      ttm_complete: ttm.complete,
+      ttm_quarters: ttm.quarters,
+    };
+    const qStr = ttm.quarters.map(q => `${q.quarter_end.slice(0, 7)}=${q.avg ?? "—"}(${q.n})`).join(" ");
+    console.log(`  [CVX-DECK] ${key}: spot ${out[key].spot ?? "—"} (${out[key].spot_date ?? "—"}, ${ageDays ?? "—"}d old${out[key].stale ? " — STALE" : ""}) | TTM ${ttm.ttm_avg ?? "—"}${ttm.complete ? "" : " [INCOMPLETE]"} | ${qStr}`);
+    await sleep(200);
+  }
+
+  out.window = window;
+  out.last_reported_quarter_end = window.length ? window[window.length - 1] : null;
+  if (out.brent?.spot == null) {
+    console.log("  [CVX-DECK] ✗ No Brent reading — CVX regime falls back to TRANSITIONAL (base 20/35/45) with driver_missing TRUE");
+  }
+  return out;
+}
+
+// ─── STAGE 3m: CVX TWIN / REFERENCE HISTORICAL RETURNS (v4.20) ──────────────
+// Pulls daily closes for CVX, XOM, SHEL, TTE, XLE, SPY and computes:
+//   • xom_spread_30d_pp = CVX 30d − XOM 30d. XOM is the TWIN: same commodity,
+//     same calendar, same US listing — so the spread is close to oil-neutral.
+//     < -4pp with no Chevron-specific event = the signature tactical setup.
+//   • european_avg_30d_return_pct (SHEL/TTE simple mean) — reference only.
+//   • xle_vs_spy_30d_pp = energy sector factor bid (±2pp bands).
+//   • GEOPOLITICAL AIR-POCKET PRICE SCREEN — largest single-session move in
+//     EITHER direction over the last 5 sessions, XLE's return on that same date
+//     (aligned by DATE, not index), the idiosyncratic residual, and a candidate
+//     flag at |move| ≥ 4% off the known print date. The screen establishes that
+//     a price event happened; its classification is downstream LLM work.
+const CVX_TWIN_DISLOCATION_PP    = -4;
+const CVX_AIR_POCKET_MOVE_PCT    = 4;
+const CVX_AIR_POCKET_SESSIONS    = 5;
+
+// Pure — tested.
+function cvxAirPocketScreen(cvxCloses, cvxDates, xleCloses, xleDates, sessions = CVX_AIR_POCKET_SESSIONS) {
+  let move = null, moveDate = null, xleSameDay = null;
+  if (cvxCloses && cvxDates && cvxCloses.length > sessions) {
+    for (let i = cvxCloses.length - sessions; i < cvxCloses.length; i++) {
+      const prev = cvxCloses[i - 1], cur = cvxCloses[i];
+      if (!prev || !cur) continue;
+      const r = +(((cur - prev) / prev) * 100).toFixed(3);
+      if (move == null || Math.abs(r) > Math.abs(move)) { move = r; moveDate = cvxDates[i] ?? null; }
+    }
+  }
+  if (moveDate && xleCloses && xleDates) {
+    const j = xleDates.indexOf(moveDate);
+    if (j > 0 && xleCloses[j - 1] && xleCloses[j]) {
+      xleSameDay = +(((xleCloses[j] - xleCloses[j - 1]) / xleCloses[j - 1]) * 100).toFixed(3);
+    }
+  }
+  const onKnownPrint = moveDate === CVX_Q3_2026_PRINT_DATE;
+  return {
+    largest_1d_move_5s_pct:     move,
+    largest_1d_date:            moveDate,
+    largest_1d_direction:       move == null ? null : move < 0 ? "down" : "up",
+    xle_same_day_return_pct:    xleSameDay,
+    idiosyncratic_pp:           move != null && xleSameDay != null ? +(move - xleSameDay).toFixed(3) : null,
+    largest_1d_on_known_print:  onKnownPrint,
+    air_pocket_candidate_active: move != null ? (Math.abs(move) >= CVX_AIR_POCKET_MOVE_PCT && !onKnownPrint) : null,
+  };
+}
+
+async function fetchCVXHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-CVX] No keys — skipping CVX historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-CVX] Fetching CVX/XOM/SHEL/TTE/XLE/SPY bars for twin spread + energy factor + air-pocket screen...");
+  const symbols = ["CVX", "XOM", "SHEL", "TTE", "XLE", "SPY"];
+  const closes = {};
+  const dates = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      dates[sym] = bars.map(b => (b.t || "").slice(0, 10));
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const cvxRet30  = retNDays(closes.CVX,  30);
+  const xomRet30  = retNDays(closes.XOM,  30);
+  const shelRet30 = retNDays(closes.SHEL, 30);
+  const tteRet30  = retNDays(closes.TTE,  30);
+  const xleRet30  = retNDays(closes.XLE,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const xomSpreadPp = (cvxRet30 != null && xomRet30 != null)
+    ? +(cvxRet30 - xomRet30).toFixed(3)
+    : null;
+
+  const euVals = [shelRet30, tteRet30].filter(v => v != null);
+  const euAvg = euVals.length ? +(euVals.reduce((a, b) => a + b, 0) / euVals.length).toFixed(3) : null;
+
+  const xleVsSpyPp = (xleRet30 != null && spyRet30 != null)
+    ? +(xleRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const pocket = cvxAirPocketScreen(closes.CVX, dates.CVX, closes.XLE, dates.XLE);
+
+  const result = {
+    cvx_30d_return_pct:          cvxRet30,
+    xom_30d_return_pct:          xomRet30,
+    shel_30d_return_pct:         shelRet30,
+    tte_30d_return_pct:          tteRet30,
+    xom_spread_30d_pp:           xomSpreadPp,
+    twin_dislocation_active:     xomSpreadPp != null && xomSpreadPp < CVX_TWIN_DISLOCATION_PP,
+    european_avg_30d_return_pct: euAvg,
+    european_count:              euVals.length,
+    xle_30d_return_pct:          xleRet30,
+    spy_30d_return_pct:          spyRet30,
+    xle_vs_spy_30d_pp:           xleVsSpyPp,
+    energy_factor_bid:           xleVsSpyPp == null ? null : xleVsSpyPp > 2 ? "active" : xleVsSpyPp < -2 ? "absent" : "neutral",
+    ...pocket,
+  };
+
+  const twinStr = xomSpreadPp == null ? "—"
+    : `${xomSpreadPp >= 0 ? "+" : ""}${xomSpreadPp}pp${result.twin_dislocation_active ? " [TWIN DISLOCATION — buy setup absent a Chevron-specific event]" : ""}`;
+  const xleStr = xleVsSpyPp == null ? "—" : `${xleVsSpyPp >= 0 ? "+" : ""}${xleVsSpyPp}pp (${result.energy_factor_bid})`;
+  const pocketStr = pocket.largest_1d_move_5s_pct == null ? "—"
+    : `largest 5s ${pocket.largest_1d_move_5s_pct}% on ${pocket.largest_1d_date} (XLE ${pocket.xle_same_day_return_pct ?? "—"}%)${pocket.air_pocket_candidate_active ? " [AIR-POCKET CANDIDATE — LLM to classify]" : ""}${pocket.largest_1d_on_known_print ? " [print day — excluded]" : ""}`;
+  console.log(`  [ALPACA-CVX] ✓ CVX 30d=${cvxRet30 != null ? (cvxRet30 >= 0 ? "+" : "") + cvxRet30 + "%" : "—"} | vs XOM: ${twinStr} | Europe ref avg=${euAvg != null ? (euAvg >= 0 ? "+" : "") + euAvg + "%" : "—"} (${euVals.length}/2) | XLE-SPY 30d: ${xleStr} | ${pocketStr}`);
+  return result;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -1484,6 +2155,18 @@ async function main() {
   // Stage 3j: MLM aggregates-cohort historical returns (Alpaca — peer rotation + VMC twin + XLB factor)
   console.log("\n─── STAGE 3j: MLM AGGREGATES-COHORT HISTORICAL RETURNS (Alpaca) ───");
   const mlmHistReturns = await fetchMLMHistoricalReturns();
+
+  // Stage 3k: UBER marketplace-cohort historical returns (Alpaca — peer rotation + DASH spread + XLY factor + AV-shock screen)
+  console.log("\n─── STAGE 3k: UBER MARKETPLACE-COHORT HISTORICAL RETURNS (Alpaca) ───");
+  const uberHistReturns = await fetchUBERHistoricalReturns();
+
+  // Stage 3l: CVX commodity deck (FRED — Brent + Henry Hub history: oil regime + TTM normalization inputs)
+  console.log("\n─── STAGE 3l: CVX COMMODITY DECK (FRED Brent + Henry Hub) ───");
+  const cvxDeck = await fetchCVXCommodityDeck();
+
+  // Stage 3m: CVX twin/reference historical returns (Alpaca — XOM twin spread + XLE factor + air-pocket screen)
+  console.log("\n─── STAGE 3m: CVX TWIN / REFERENCE HISTORICAL RETURNS (Alpaca) ───");
+  const cvxHistReturns = await fetchCVXHistoricalReturns();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -2527,6 +3210,443 @@ async function main() {
     console.log(`  MLM ⚠ reported ASP is MIX-CONTAMINATED during integration — score mix-adjusted organic pricing only`);
   }
 
+  // ─── UBER (v4.19) — marketplace-cohort valuation + rotation + consumer factor ──
+  // Cohort is CONSUMER MARKETPLACES (DASH, LYFT, GRAB). NOT Waymo or Tesla —
+  // those are AV-supply counterparties in this model, not peers — and NOT the
+  // industrials UBER shares XLI with.
+  // ★ WEIGHTED cohort: DASH .50 / LYFT .25 / GRAB .25, renormalized over
+  //   whichever peers resolved. Non-positive P/Es are excluded before weighting.
+  //
+  // ★★ CRITICAL — TRAILING COHORT P/E IS PERMANENTLY GATED ★★
+  //   Every leg is a GAAP trailing multiple, and legs on both sides are
+  //   contaminated by construction:
+  //     • UBER: TTM GAAP net income (~$9.58B) carries a $4.9B tax valuation-
+  //       allowance release (rolls off at the 2026-11-04 print) AND equity-stake
+  //       revaluation swings of roughly ±$1.5B every quarter (+1.5, -1.6, -1.5,
+  //       +1.6 across the last four). The revaluations never roll off — they
+  //       are permanent noise in GAAP EPS.
+  //     • LYFT: trailing P/E ~2.3x on a tax-benefit artifact (net income far
+  //       above negative operating income) — the same species.
+  //   MLM's gate keys on the SIZE of the discount. This one cannot: the
+  //   contamination runs in both directions, so no threshold separates signal
+  //   from noise. premium_pct is emitted for the record only and
+  //   premium_pct_reliable is hard FALSE. The forward-basis peer read is
+  //   LLM-sourced downstream and is SECONDARY even there — it can confirm a
+  //   strategic score, never carry one.
+  if (output.UBER) {
+    const uberPE = output.UBER.valuation?.trailingPE;
+    const dashPE = auxQuotes.DASH?.pe;
+    const lyftPE = auxQuotes.LYFT?.pe;
+    const grabPE = auxQuotes.GRAB?.pe;
+    const pos = v => (v != null && v > 0 ? v : null);
+    const { avg: cohortAvgPE, count: peCount } = uberWeightedCohort({
+      DASH: pos(dashPE), LYFT: pos(lyftPE), GRAB: pos(grabPE),
+    });
+
+    if (uberPE && uberPE > 0 && cohortAvgPE) {
+      const premiumPct = +(((uberPE - cohortAvgPE) / cohortAvgPE) * 100).toFixed(2);
+      const dashPremiumPct = pos(dashPE)
+        ? +(((uberPE - dashPE) / dashPE) * 100).toFixed(2)
+        : null;
+
+      output.UBER.cohort_valuation = {
+        uber_pe: uberPE,
+        dash_pe: dashPE ?? null,
+        lyft_pe: lyftPE ?? null,
+        grab_pe: grabPE ?? null,
+        cohort_avg_pe: cohortAvgPE,
+        cohort_weighting: "DASH .50 / LYFT .25 / GRAB .25 (renormalized over available)",
+        premium_pct: premiumPct,
+        uber_vs_dash_pct: dashPremiumPct,
+        cohort_count: peCount,
+        basis: "trailing_gaap",
+        // ↓ The gate. Hard FALSE: nothing downstream may read premium_pct as a
+        //   valuation signal for this name — the number is the record only.
+        premium_pct_reliable: false,
+        unreliable_reason: "gaap_trailing_contaminated_both_legs",
+      };
+
+      console.log(`  UBER cohort-valuation: UBER ${uberPE}x | DASH ${dashPE ?? "—"}x | LYFT ${lyftPE ?? "—"}x | GRAB ${grabPE ?? "—"}x | weighted cohort ${cohortAvgPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (GATED — record only, GAAP trailing on both sides) [trailing basis]`);
+    } else {
+      const reason = !(uberPE && uberPE > 0) ? "no usable UBER P/E" : "no cohort P/E (DASH/LYFT/GRAB unavailable)";
+      console.log(`  UBER cohort-valuation: skipped (${reason})`);
+    }
+
+    // ── UBER cohort-relative (marketplace rotation: 30d return spread) ──────
+    if (uberHistReturns) {
+      output.UBER.cohort_relative = {
+        uber_30d_return_pct:       uberHistReturns.uber_30d_return_pct,
+        dash_30d_return_pct:       uberHistReturns.dash_30d_return_pct,
+        lyft_30d_return_pct:       uberHistReturns.lyft_30d_return_pct,
+        grab_30d_return_pct:       uberHistReturns.grab_30d_return_pct,
+        cohort_avg_30d_return_pct: uberHistReturns.cohort_avg_30d_return_pct,
+        cohort_weighting:          uberHistReturns.cohort_weighting,
+        peer_rotation_pp:          uberHistReturns.peer_rotation_pp,
+        peer_rotation_active:      uberHistReturns.peer_rotation_active,
+        dash_spread_30d_pp:        uberHistReturns.dash_spread_30d_pp,
+        cohort_count:              uberHistReturns.cohort_count,
+      };
+
+      const rp = uberHistReturns.peer_rotation_pp;
+      const rpStr = rp == null ? "—"
+        : uberHistReturns.peer_rotation_active ? `UBER lagging marketplace cohort by ${(-rp).toFixed(1)}pp/30d (ROTATION ACTIVE — buy setup if no Uber operating print confirms it)`
+        : rp < 0 ? `UBER lagging marketplace cohort by ${(-rp).toFixed(1)}pp/30d (mild)`
+        : `UBER leading marketplace cohort by ${rp.toFixed(1)}pp/30d`;
+      console.log(`  UBER cohort-relative: ${rpStr}`);
+
+      // factor_flow: XLY vs SPY 30d (consumer factor bid)
+      output.UBER.factor_flow = {
+        xly_vs_spy_30d_pp:  uberHistReturns.xly_vs_spy_30d_pp,
+        xly_30d_return_pct: uberHistReturns.xly_30d_return_pct,
+        spy_30d_return_pct: uberHistReturns.spy_30d_return_pct,
+      };
+
+      // tactical_extras: the AV-headline-shock PRICE screen (attribution is LLM)
+      output.UBER.tactical_extras = {
+        worst_1d_return_5s_pct:    uberHistReturns.worst_1d_return_5s_pct,
+        worst_1d_date:             uberHistReturns.worst_1d_date,
+        spy_same_day_return_pct:   uberHistReturns.spy_same_day_return_pct,
+        worst_1d_on_known_print:   uberHistReturns.worst_1d_on_known_print,
+        av_shock_candidate_active: uberHistReturns.av_shock_candidate_active,
+      };
+      if (uberHistReturns.av_shock_candidate_active) {
+        console.log(`  UBER AV-shock screen: ${uberHistReturns.worst_1d_return_5s_pct}% on ${uberHistReturns.worst_1d_date} (SPY ${uberHistReturns.spy_same_day_return_pct ?? "—"}%) — CANDIDATE; downstream must attribute it before it counts as the signature setup`);
+      }
+    } else {
+      console.log(`  UBER cohort-relative: skipped (no historical returns)`);
+      output.UBER.factor_flow = { xly_vs_spy_30d_pp: null, xly_30d_return_pct: null, spy_30d_return_pct: null };
+      output.UBER.tactical_extras = {
+        worst_1d_return_5s_pct: null, worst_1d_date: null, spy_same_day_return_pct: null,
+        worst_1d_on_known_print: null, av_shock_candidate_active: null,
+      };
+    }
+
+    // UBER fundamentals — explicit nulls for fields needing earnings disclosure
+    // or consensus data. LLM web-search prompt sources these as fallback fetch
+    // targets. Key names match the uber-strategy.jsx v1 JSON contract exactly.
+    const uberCfg = uberConfigRegime();
+
+    // ── DEMAND ENGINE — constant currency is the operating truth ─────────────
+    output.UBER.fundamentals.gross_bookings_growth_cc_pct       = null;  // earnings release (Q2'26: +22%)
+    output.UBER.fundamentals.gross_bookings_growth_reported_pct = null;  // earnings release — context (Q2'26: +24%)
+    // ⚠ THE CANARY. Mobility GB cc growth below 12% while Delivery holds is the
+    // AV-disintermediation signature and the cleanest falsifier in this model.
+    output.UBER.fundamentals.mobility_gb_growth_cc_pct          = null;  // earnings release (Q2'26: +20%)
+    output.UBER.fundamentals.delivery_gb_growth_cc_pct          = null;  // earnings release (Q2'26: +25%)
+    output.UBER.fundamentals.trips_growth_pct                   = null;  // earnings release (Q2'26: +18%)
+    output.UBER.fundamentals.mapcs_millions                     = null;  // earnings release (Q2'26: 208)
+    output.UBER.fundamentals.mapcs_growth_pct                   = null;  // earnings release (Q2'26: +16%)
+
+    // ── MARGIN — Adj EBITDA on BOOKINGS, not on revenue ──────────────────────
+    output.UBER.fundamentals.adj_ebitda_musd                    = null;  // earnings release (Q2'26: 2,819)
+    output.UBER.fundamentals.adj_ebitda_pct_gb                  = null;  // earnings release (Q2'26: 4.9 vs 4.5)
+    output.UBER.fundamentals.mobility_segment_oi_growth_pct     = null;  // earnings release (Q2'26: +28%)
+    output.UBER.fundamentals.delivery_segment_oi_growth_pct     = null;  // earnings release (Q2'26: +38%)
+    output.UBER.fundamentals.driver_incentive_pressure          = null;  // categorical: elevated/normal/easing (LLM)
+
+    // ── REVENUE — CONTEXT ONLY ───────────────────────────────────────────────
+    output.UBER.fundamentals.reported_revenue_growth_pct        = null;  // earnings release — NOT scored
+    output.UBER.fundamentals.business_model_drag_pp             = null;  // earnings release (Q2'26: 8pp)
+    // ⚠ REPORTED REVENUE IS A NULL SIGNAL while business-model changes are
+    // disclosed: Q2'26 revenue growth lost 8pp to them, and Mobility revenue
+    // rose 1% on Mobility bookings up 22%. Emitted as a categorical, not null —
+    // a known property of the period (the MLM reported_asp precedent).
+    output.UBER.fundamentals.revenue_signal_status              = "null_signal_business_model_contaminated";
+
+    output.UBER.fundamentals.eps_revisions_30d_pct              = null;  // FactSet/Refinitiv consensus EPS delta 30d
+    output.UBER.fundamentals.eps_revisions_90d_pct              = null;  // FactSet/Refinitiv consensus EPS delta 90d
+    output.UBER.fundamentals.guide_vs_consensus                 = null;  // categorical: above/inline/below
+
+    // ── VALUATION (LLM-sourced; forward and adjusted bases are not available
+    // from Finnhub, whose aux metrics are GAAP trailing only) ─────────────────
+    // ⚠ GAAP trailing P/E is NEVER scored for this name (Guardrail A) — tax
+    // release plus permanent equity-revaluation noise. Structural, non-null.
+    output.UBER.fundamentals.gaap_pe_signal_status              = "null_signal_gaap_contaminated";
+    output.UBER.fundamentals.tax_release_in_ttm                 = uberCfg.taxReleaseInTtm;  // computed from the date (see config)
+    output.UBER.fundamentals.forward_pe_non_gaap                = null;  // LLM-sourced
+    output.UBER.fundamentals.non_gaap_eps_sbc_treatment         = null;  // categorical: sbc_deducted/sbc_excluded/unknown
+    output.UBER.fundamentals.ev_adj_ebitda                      = null;  // LLM-sourced — Adj EBITDA EXCLUDES SBC
+    output.UBER.fundamentals.ev_adj_ebitda_basis                = null;  // categorical: adjusted_sbc_excluded_trailing/_forward
+    output.UBER.fundamentals.ev_adj_ebitda_less_sbc             = null;  // LLM-sourced — same EV over (Adj EBITDA − SBC)
+    output.UBER.fundamentals.ev_gaap_ebitda                     = null;  // LLM-sourced — NEVER compared against an adjusted figure
+    // ⚠ OWNER FCF — the flagship strategic lens. Headline FCF excludes SBC
+    // (~$1.94B TTM); owner FCF = FCF − SBC, yield on market cap.
+    output.UBER.fundamentals.fcf_ttm_busd                       = null;  // $B
+    output.UBER.fundamentals.sbc_ttm_busd                       = null;  // $B
+    output.UBER.fundamentals.owner_fcf_yield_pct                = null;  // %
+
+    // ── AV SUPPLY REGIME — the structural driver. v4.19: POPULATED from the
+    // human-maintained config above, not null. ──────────────────────────────────
+    output.UBER.fundamentals.av_supply_regime_state             = uberCfg.avState;
+    output.UBER.fundamentals.tier1_operators_direct_only        = null;  // LLM — count
+    output.UBER.fundamentals.tier1_operators_on_uber            = null;  // LLM — count
+    output.UBER.fundamentals.exclusive_pipeline_status          = null;  // categorical: on_track/slipping/not_yet_measurable (Rivian, Lucid/Nuro)
+    output.UBER.fundamentals.av_headline_shock_active           = null;  // LLM attribution of tactical_extras.av_shock_candidate_active
+
+    // ── DELIVERY HERO — PENDING, scored STANDALONE until closed ──────────────
+    // ⚠ Leverage is scored against the stated <2x gross ceiling, not the level.
+    // ⚠ No synergies credited — none are quantified in the offer materials.
+    output.UBER.fundamentals.dh_offer_state                     = uberCfg.dhState;
+    output.UBER.fundamentals.dh_basis_scored                    = uberCfg.dhBasisScored;
+    output.UBER.fundamentals.dh_acceptance_pct                  = null;  // published acceptance level
+    output.UBER.fundamentals.gross_leverage                     = null;  // x — gross debt / Adj EBITDA
+
+    // ⚠ NET share count change, NEGATIVE = buyback. Scored on the count, never
+    // on gross dollars — repurchase pace slowed sharply as capital went to the
+    // Delivery Hero stake while the count kept falling.
+    output.UBER.fundamentals.share_count_change_yoy_pct         = null;  // NEGATIVE = buyback (2026-10: -2.28%)
+    output.UBER.fundamentals.buyback_pace                       = null;  // categorical: accelerating/steady/slowing
+    output.UBER.fundamentals.insider_buying_recent              = null;  // boolean — open-market buys, last 90 days
+    output.UBER.fundamentals.roic_pct                           = null;
+    // ⚠ ROIC (~19% GAAP) inherits Guardrail A's contamination in the numerator.
+    // Emitted TRUE (not null): the revaluation noise is structural, not a gap.
+    output.UBER.fundamentals.roic_gaap_inflated                 = true;
+
+    console.log(`  UBER AV supply regime: ${uberCfg.avState ?? "INVALID"} → engine regime "${uberCfg.regime}" | last reviewed ${UBER_AV_SUPPLY_LAST_REVIEWED} (${uberCfg.reviewedDaysAgo}d ago) (HUMAN-MAINTAINED CONSTANT — review on AV announcements and each print)`);
+    console.log(`  UBER Delivery Hero: ${uberCfg.dhState ?? "INVALID"} → scored ${uberCfg.dhBasisScored} | acceptance period ends ${UBER_DH_ACCEPTANCE_END} (HUMAN-MAINTAINED CONSTANT)`);
+
+    const uberCoverage = [
+      output.UBER.cohort_valuation ? "cohort-PE(trailing, GATED)" : null,
+      output.UBER.cohort_relative?.peer_rotation_pp != null ? "rotation" : null,
+      output.UBER.cohort_relative?.dash_spread_30d_pp != null ? "DASH-spread" : null,
+      output.UBER.factor_flow?.xly_vs_spy_30d_pp != null ? "XLY" : null,
+      output.UBER.tactical_extras?.worst_1d_return_5s_pct != null ? "AV-shock-screen" : null,
+    ].filter(Boolean);
+    console.log(`  UBER v1 sourced: ${uberCoverage.length > 0 ? uberCoverage.join(", ") : "(none)"} | pending external data: constant-currency bookings + Mobility canary, trips/MAPCs, Adj EBITDA % GB, segment OI, incentive pressure, forward PE + EV/Adj EBITDA (+ basis tags), owner FCF, AV pipeline + shock attribution, DH acceptance, gross leverage, NET share count`);
+    console.log(`  UBER ⚠ GAAP trailing P/E is TAX-RELEASE + REVALUATION CONTAMINATED — never scored; downstream routes to owner FCF / non-GAAP forward PE / EV/Adj EBITDA`);
+    if (uberCfg.taxReleaseInTtm) {
+      console.log(`  UBER ⚠ CALENDAR TRAP: the $4.9B tax release leaves the TTM at the ${UBER_Q3_2026_PRINT_DATE} print (${uberCfg.daysToQ3Print}d) — trailing P/E will roughly double with no change in the business`);
+    }
+    console.log(`  UBER ⚠ reported revenue is BUSINESS-MODEL CONTAMINATED — score constant-currency bookings only`);
+  }
+
+  // ─── CVX (v4.20) — oil regime + twin valuation + twin/energy relative ─────
+  // TWIN is XOM. SHEL/TTE are a structural-discount REFERENCE, never a cohort
+  // average CVX is scored against. XLE is the sector factor.
+  //
+  // ★★ CRITICAL — TRAILING TWIN P/E IS PERMANENTLY GATED ★★
+  //   Both legs are trailing GAAP on windfall-oil earnings with the same Q3'25
+  //   roll-off on the same date, and CVX's leg is further depressed by the Hess
+  //   purchase-accounting DD&A step-up, which biases its trailing premium UP
+  //   for reasons unrelated to value. premium_pct is emitted for the record and
+  //   premium_pct_reliable is hard FALSE. The model's twin read is FORWARD P/E,
+  //   LLM-sourced, and secondary even there.
+  if (output.CVX) {
+    const todayISO = new Date().toISOString().split("T")[0];
+
+    // ── Oil-price regime (the composite-weight driver) ──────────────────────
+    const brentSpot = cvxDeck?.brent?.spot ?? null;
+    const regime = cvxOilRegime(brentSpot);
+    const wti = macro.wti ?? null;
+    output.CVX.oil_regime = {
+      brent_spot:          brentSpot,
+      brent_spot_date:     cvxDeck?.brent?.spot_date ?? null,
+      brent_spot_stale:    cvxDeck?.brent?.stale ?? null,
+      brent_source:        "FRED DCOILBRENTEU (EIA daily spot, ~1 week lag)",
+      deck_brent:          CVX_DECK_BRENT,
+      deck_deviation_pct:  regime.deck_deviation_pct,
+      oil_price_regime:    regime.oil_price_regime,
+      regime_direction:    regime.regime_direction,
+      driver_missing:      regime.driver_missing,
+      wti_spot:            wti,
+      brent_wti_spread:    brentSpot != null && wti != null ? +(brentSpot - wti).toFixed(2) : null,
+      henry_hub_spot:      cvxDeck?.henry_hub?.spot ?? null,
+      henry_hub_spot_date: cvxDeck?.henry_hub?.spot_date ?? null,
+    };
+    if (regime.driver_missing) {
+      console.log(`  CVX oil regime: ✗ NO BRENT — TRANSITIONAL fallback (base 20/35/45), driver_missing TRUE`);
+    } else {
+      console.log(`  CVX oil regime: Brent $${brentSpot} (${output.CVX.oil_regime.brent_spot_date}${output.CVX.oil_regime.brent_spot_stale ? ", STALE" : ""}) vs $${CVX_DECK_BRENT} deck = ${regime.deck_deviation_pct >= 0 ? "+" : ""}${regime.deck_deviation_pct}% → ${regime.oil_price_regime.toUpperCase()}${regime.oil_price_regime !== "anchored" ? `-${regime.regime_direction.toUpperCase()}` : ""} | Brent–WTI ${output.CVX.oil_regime.brent_wti_spread ?? "—"}`);
+    }
+
+    // ── Twin valuation (trailing — GATED, record only) ──────────────────────
+    const cvxPE = output.CVX.valuation?.trailingPE;
+    const xomPE = auxQuotes.XOM?.pe;
+    const shelPE = auxQuotes.SHEL?.pe;
+    const ttePE = auxQuotes.TTE?.pe;
+    const pos = v => (v != null && v > 0 ? v : null);
+    if (pos(cvxPE) && pos(xomPE)) {
+      const premiumPct = +(((cvxPE - xomPE) / xomPE) * 100).toFixed(2);
+      const euVals = [pos(shelPE), pos(ttePE)].filter(v => v != null);
+      const euAvg = euVals.length ? +(euVals.reduce((a, b) => a + b, 0) / euVals.length).toFixed(2) : null;
+      output.CVX.twin_valuation = {
+        cvx_pe: cvxPE,
+        xom_pe: xomPE,
+        premium_pct: premiumPct,
+        basis: "trailing_gaap",
+        // ↓ The gate. Hard FALSE: nothing downstream may read premium_pct as a
+        //   valuation signal for this name — the number is the record only.
+        premium_pct_reliable: false,
+        unreliable_reason: "trailing_gaap_windfall_and_hess_dda_step_up",
+        reference_shel_pe: shelPE ?? null,
+        reference_tte_pe: ttePE ?? null,
+        reference_european_avg_pe: euAvg,
+        reference_note: "structural-discount reference only — never scored",
+      };
+      console.log(`  CVX twin-valuation: CVX ${cvxPE}x | XOM ${xomPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (GATED — record only, trailing GAAP) | Europe ref ${euAvg ?? "—"}x [trailing basis]`);
+    } else {
+      const reason = !pos(cvxPE) ? "no usable CVX P/E" : "no usable XOM P/E";
+      console.log(`  CVX twin-valuation: skipped (${reason})`);
+    }
+
+    // ── Twin relative (daily CVX − XOM spread) ──────────────────────────────
+    const cvxChange = output.CVX.price?.change_pct;
+    const xomChange = auxQuotes.XOM?.change_pct;
+    if (cvxChange != null && xomChange != null) {
+      const spread = +(cvxChange - xomChange).toFixed(3);
+      output.CVX.twin_relative = {
+        cvx_change_pct: cvxChange,
+        xom_change_pct: xomChange,
+        xom_price: auxQuotes.XOM?.price ?? null,
+        relative_spread_pp: spread,
+      };
+      const twinStr = spread > 0.5 ? `CVX outperforming XOM by ${spread}pp`
+        : spread < -0.5 ? `XOM outperforming CVX by ${(-spread).toFixed(2)}pp (twin-divergence watch)`
+        : "inline";
+      console.log(`  CVX twin-relative: ${twinStr}`);
+    } else {
+      console.log(`  CVX twin-relative: skipped (no XOM daily change)`);
+    }
+
+    // ── 30d twin spread, European reference, energy factor, air-pocket screen ──
+    if (cvxHistReturns) {
+      output.CVX.cohort_relative = {
+        cvx_30d_return_pct:          cvxHistReturns.cvx_30d_return_pct,
+        xom_30d_return_pct:          cvxHistReturns.xom_30d_return_pct,
+        shel_30d_return_pct:         cvxHistReturns.shel_30d_return_pct,
+        tte_30d_return_pct:          cvxHistReturns.tte_30d_return_pct,
+        xom_spread_30d_pp:           cvxHistReturns.xom_spread_30d_pp,
+        twin_dislocation_active:     cvxHistReturns.twin_dislocation_active,
+        european_avg_30d_return_pct: cvxHistReturns.european_avg_30d_return_pct,
+        european_count:              cvxHistReturns.european_count,
+      };
+      output.CVX.factor_flow = {
+        xle_vs_spy_30d_pp:  cvxHistReturns.xle_vs_spy_30d_pp,
+        xle_30d_return_pct: cvxHistReturns.xle_30d_return_pct,
+        spy_30d_return_pct: cvxHistReturns.spy_30d_return_pct,
+        energy_factor_bid:  cvxHistReturns.energy_factor_bid,
+      };
+      output.CVX.tactical_extras = {
+        largest_1d_move_5s_pct:      cvxHistReturns.largest_1d_move_5s_pct,
+        largest_1d_date:             cvxHistReturns.largest_1d_date,
+        largest_1d_direction:        cvxHistReturns.largest_1d_direction,
+        xle_same_day_return_pct:     cvxHistReturns.xle_same_day_return_pct,
+        idiosyncratic_pp:            cvxHistReturns.idiosyncratic_pp,
+        largest_1d_on_known_print:   cvxHistReturns.largest_1d_on_known_print,
+        air_pocket_candidate_active: cvxHistReturns.air_pocket_candidate_active,
+      };
+
+      const ts = cvxHistReturns.xom_spread_30d_pp;
+      const tsStr = ts == null ? "—"
+        : cvxHistReturns.twin_dislocation_active ? `CVX lagging XOM by ${(-ts).toFixed(1)}pp/30d (TWIN DISLOCATION ACTIVE — buy setup if no Chevron-specific event)`
+        : ts < 0 ? `CVX lagging XOM by ${(-ts).toFixed(1)}pp/30d (mild)`
+        : `CVX leading XOM by ${ts.toFixed(1)}pp/30d`;
+      console.log(`  CVX twin 30d: ${tsStr}`);
+      if (cvxHistReturns.air_pocket_candidate_active) {
+        console.log(`  CVX air-pocket screen: ${cvxHistReturns.largest_1d_move_5s_pct}% on ${cvxHistReturns.largest_1d_date} (XLE ${cvxHistReturns.xle_same_day_return_pct ?? "—"}%) — CANDIDATE; downstream must classify it, and a de-escalation drop in a dislocated-high regime is NOT a buy`);
+      }
+    } else {
+      console.log(`  CVX twin 30d: skipped (no historical returns)`);
+      output.CVX.cohort_relative = {
+        cvx_30d_return_pct: null, xom_30d_return_pct: null, shel_30d_return_pct: null, tte_30d_return_pct: null,
+        xom_spread_30d_pp: null, twin_dislocation_active: false, european_avg_30d_return_pct: null, european_count: 0,
+      };
+      output.CVX.factor_flow = { xle_vs_spy_30d_pp: null, xle_30d_return_pct: null, spy_30d_return_pct: null, energy_factor_bid: null };
+      output.CVX.tactical_extras = {
+        largest_1d_move_5s_pct: null, largest_1d_date: null, largest_1d_direction: null, xle_same_day_return_pct: null,
+        idiosyncratic_pp: null, largest_1d_on_known_print: null, air_pocket_candidate_active: null,
+      };
+    }
+
+    // CVX fundamentals — explicit nulls for fields needing earnings disclosure
+    // or consensus data. LLM web-search prompt sources these as fallback fetch
+    // targets. Key names match the cvx-strategy.jsx v1 JSON contract exactly.
+    const ttmWindow = cvxDeck?.window ?? cvxTtmWindow(todayISO);
+    const anchored = regime.oil_price_regime === "anchored";
+    const mcapM = output.CVX.valuation?.marketCap;
+
+    // ── OIL REGIME + NORMALIZATION INPUTS (computed, non-null when FRED answers) ──
+    output.CVX.fundamentals.brent_spot                    = brentSpot;
+    output.CVX.fundamentals.deck_deviation_pct            = regime.deck_deviation_pct;
+    output.CVX.fundamentals.oil_price_regime              = regime.oil_price_regime;
+    output.CVX.fundamentals.regime_direction              = regime.regime_direction;
+    output.CVX.fundamentals.brent_ttm_avg                 = cvxDeck?.brent?.ttm_avg ?? null;
+    output.CVX.fundamentals.henry_hub_ttm_avg             = cvxDeck?.henry_hub?.ttm_avg ?? null;
+    output.CVX.fundamentals.henry_hub_basis               = "fred_daily_spot_proxy_for_bid_week";
+    output.CVX.fundamentals.ttm_window                    = ttmWindow;
+    output.CVX.fundamentals.market_cap_busd               = mcapM != null ? +(mcapM / 1000).toFixed(1) : null;  // Finnhub reports $M
+    // ⚠ The deck normalization (adjusted FCF at $70 Brent / $3.50 Henry Hub,
+    // downstream vs mid-cycle) needs the two LLM-sourced inputs below and is
+    // computed in score-engine, not here.
+    output.CVX.fundamentals.adj_fcf_ttm_busd              = null;  // earnings releases — TTM adjusted FCF (Q2'26 TTM ≈ 30.7)
+    output.CVX.fundamentals.downstream_earnings_ttm_busd  = null;  // earnings releases — TTM downstream earnings
+
+    // ── POSITIONAL — production vs guide, TCO canary, cash, capital discipline ──
+    output.CVX.fundamentals.production_mboed              = null;  // earnings release (Q2'26: 4,070)
+    output.CVX.fundamentals.production_vs_guide           = null;  // categorical: above/within/below FY26 3,980–4,100
+    output.CVX.fundamentals.production_growth_yoy_pct     = null;  // CONTEXT ONLY — Hess anniversary
+    // ⚠ THE CANARY. TCO is ~$6B of Chevron-share FCF at $70 and exits via CPC.
+    output.CVX.fundamentals.tco_canary_status             = null;  // categorical: intact/degraded/broken (LLM)
+    output.CVX.fundamentals.cpc_export_status             = null;  // categorical: flowing/intermittent/suspended (LLM)
+    output.CVX.fundamentals.guyana_status                 = null;  // categorical: on_track/slipping
+    output.CVX.fundamentals.cffo_ex_wc_ttm_busd           = null;  // earnings releases (Q2'26 TTM ≈ 45.8)
+    output.CVX.fundamentals.capex_ttm_busd                = null;  // earnings releases (Q2'26 TTM ≈ 18.3)
+    output.CVX.fundamentals.capex_vs_guide                = null;  // categorical: low_end/mid/high_end/above ($18–19B)
+    output.CVX.fundamentals.timing_effects_last_q_busd    = null;  // earnings release / interim 8-K
+    output.CVX.fundamentals.working_capital_last_q_busd   = null;  // earnings release
+    output.CVX.fundamentals.quarterly_eps_signal_status   = null;  // categorical — LLM, per quarter (material timing/WC → null signal)
+    output.CVX.fundamentals.crack_environment             = null;  // categorical: windfall/normal/weak
+    output.CVX.fundamentals.next_q_buyback_guide_low_busd = null;  // earnings call (prior guide 2.5)
+    output.CVX.fundamentals.next_q_buyback_guide_high_busd = null; // earnings call (prior guide 3.0)
+    output.CVX.fundamentals.buyback_guide_trend           = null;  // categorical: raised/held/cut
+    output.CVX.fundamentals.eps_revisions_30d_pct         = null;
+    output.CVX.fundamentals.eps_revisions_90d_pct         = null;
+    // ⚠ Revisions track the strip in a commodity name. Structural, regime-derived.
+    output.CVX.fundamentals.revisions_signal_status       = anchored ? "execution" : "commodity_driven";
+
+    // ── STRATEGIC — spot multiples gated; structural categoricals non-null ──
+    // ⚠ GAAP trailing P/E is NEVER scored (Guardrail A). Structural, non-null.
+    output.CVX.fundamentals.gaap_pe_signal_status         = "null_signal_cycle_contaminated";
+    output.CVX.fundamentals.q3_2025_in_ttm                = ttmWindow.includes("2025-09-30");  // computed from the date
+    output.CVX.fundamentals.forward_pe_consensus          = null;  // LLM-sourced
+    output.CVX.fundamentals.forward_pe_signal_status      = anchored ? "clean" : "spot_contaminated";
+    output.CVX.fundamentals.xom_fwd_pe                    = null;  // LLM-sourced — the forward twin read
+    output.CVX.fundamentals.breakeven_status              = null;  // categorical: inside/drifting/breach vs <$50
+    output.CVX.fundamentals.net_debt_ratio_pct            = null;  // earnings release (Q2'26: 13.1)
+    output.CVX.fundamentals.hesm_deconsolidation_state    = null;  // categorical: pending/closed/closed_in_ttm
+    output.CVX.fundamentals.net_debt_ratio_ex_deconsolidation_pct = null;
+    // ⚠ NET period-end share count, NEGATIVE = buyback (Guardrail C). Clean
+    // only when both period ends follow the 2025-07-18 Hess close.
+    output.CVX.fundamentals.share_count_change_yoy_pct    = null;  // LLM — period-end counts only
+    output.CVX.fundamentals.share_count_base_clean        = cvxShareBaseClean(todayISO);  // computed from the date
+    output.CVX.fundamentals.buyback_ttm_busd              = null;  // (Q2'26 TTM ≈ 11.2)
+    output.CVX.fundamentals.buyback_vs_range              = null;  // categorical: below/within/above $10–20B
+    output.CVX.fundamentals.insider_net_selling_90d       = null;  // boolean
+    // ⚠ ROCE (Finnhub ROI proxy above, and Chevron's own 21.4% Q2'26) is
+    // spot-inflated while Brent sits far above the deck. Structural.
+    output.CVX.fundamentals.roce_spot_inflated            = !anchored && regime.regime_direction === "high";
+
+    const q3In = output.CVX.fundamentals.q3_2025_in_ttm;
+    console.log(`  CVX deck inputs: TTM window ${ttmWindow.length ? `${ttmWindow[0]} → ${ttmWindow[ttmWindow.length - 1]}` : "—"} | Brent TTM ${output.CVX.fundamentals.brent_ttm_avg ?? "—"} | Henry Hub TTM ${output.CVX.fundamentals.henry_hub_ttm_avg ?? "—"} (spot proxy) | mcap $${output.CVX.fundamentals.market_cap_busd ?? "—"}B`);
+    const cvxCoverage = [
+      !regime.driver_missing ? "oil-regime" : null,
+      output.CVX.fundamentals.brent_ttm_avg != null ? "Brent-TTM" : null,
+      output.CVX.fundamentals.henry_hub_ttm_avg != null ? "HH-TTM" : null,
+      output.CVX.twin_valuation ? "twin-PE(trailing, GATED)" : null,
+      output.CVX.cohort_relative?.xom_spread_30d_pp != null ? "XOM-spread" : null,
+      output.CVX.factor_flow?.xle_vs_spy_30d_pp != null ? "XLE" : null,
+      output.CVX.tactical_extras?.largest_1d_move_5s_pct != null ? "air-pocket-screen" : null,
+    ].filter(Boolean);
+    console.log(`  CVX v1 sourced: ${cvxCoverage.length > 0 ? cvxCoverage.join(", ") : "(none)"} | pending external data: TTM adjusted FCF + downstream earnings (normalization), production vs guide, TCO/CPC canary, CFFO ex-WC, capex vs guide, timing + working capital, buyback guide, forward twin PE, breakeven, net debt ex-HESM, period-end share count`);
+    console.log(`  CVX ⚠ GAAP trailing P/E and consensus forward P/E are WINDFALL-CONTAMINATED — never scored; downstream routes to normalized FCF at the $${CVX_DECK_BRENT} / $${CVX_DECK_HENRY_HUB.toFixed(2)} deck`);
+    if (q3In) {
+      console.log(`  CVX ⚠ CALENDAR TRAP: Q3'25 ($1.82 GAAP on $69 Brent) leaves the TTM after the ${CVX_Q3_2026_PRINT_DATE} print — trailing P/E falls from ~22x toward ~17x with no change in the business`);
+    }
+    if (!output.CVX.fundamentals.share_count_base_clean) {
+      console.log(`  CVX ⚠ HESS ANNIVERSARY: latest period-end share count YoY crosses the ${CVX_HESS_CLOSE_DATE} close (~301M shares issued) — base NOT clean; report, do not score`);
+    }
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -2573,6 +3693,18 @@ async function main() {
   console.log(`  MLM rotation:   ${output.MLM?.cohort_relative ? `MLM 30d=${output.MLM.cohort_relative.mlm_30d_return_pct}%, cohort=${output.MLM.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.MLM.cohort_relative.peer_rotation_pp}pp${output.MLM.cohort_relative.peer_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
   console.log(`  MLM vs VMC:     ${output.MLM?.cohort_relative?.vmc_spread_30d_pp != null ? `${output.MLM.cohort_relative.vmc_spread_30d_pp >= 0 ? "+" : ""}${output.MLM.cohort_relative.vmc_spread_30d_pp}pp/30d${output.MLM.cohort_relative.vmc_dislocation_active ? " [TWIN DISLOCATION]" : ""}` : "unavailable"}`);
   console.log(`  MLM XLB-SPY:    ${output.MLM?.factor_flow?.xlb_vs_spy_30d_pp != null ? `${output.MLM.factor_flow.xlb_vs_spy_30d_pp >= 0 ? "+" : ""}${output.MLM.factor_flow.xlb_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  UBER cohort PE: ${output.UBER?.cohort_valuation ? `UBER ${output.UBER.cohort_valuation.uber_pe}x vs ${output.UBER.cohort_valuation.cohort_count}-name weighted marketplace cohort avg ${output.UBER.cohort_valuation.cohort_avg_pe}x = ${output.UBER.cohort_valuation.premium_pct}% premium [trailing GAAP] ⚠ GATED — record only` : "unavailable"}`);
+  console.log(`  UBER rotation:  ${output.UBER?.cohort_relative ? `UBER 30d=${output.UBER.cohort_relative.uber_30d_return_pct}%, cohort=${output.UBER.cohort_relative.cohort_avg_30d_return_pct}%, Δ=${output.UBER.cohort_relative.peer_rotation_pp}pp${output.UBER.cohort_relative.peer_rotation_active ? " [ACTIVE]" : ""}` : "unavailable"}`);
+  console.log(`  UBER vs DASH:   ${output.UBER?.cohort_relative?.dash_spread_30d_pp != null ? `${output.UBER.cohort_relative.dash_spread_30d_pp >= 0 ? "+" : ""}${output.UBER.cohort_relative.dash_spread_30d_pp}pp/30d` : "unavailable"}`);
+  console.log(`  UBER XLY-SPY:   ${output.UBER?.factor_flow?.xly_vs_spy_30d_pp != null ? `${output.UBER.factor_flow.xly_vs_spy_30d_pp >= 0 ? "+" : ""}${output.UBER.factor_flow.xly_vs_spy_30d_pp}pp` : "unavailable"}`);
+  console.log(`  UBER AV shock:  ${output.UBER?.tactical_extras?.worst_1d_return_5s_pct != null ? `worst 5s ${output.UBER.tactical_extras.worst_1d_return_5s_pct}% on ${output.UBER.tactical_extras.worst_1d_date}${output.UBER.tactical_extras.av_shock_candidate_active ? " [CANDIDATE]" : ""}` : "unavailable"}`);
+  console.log(`  UBER config:    AV ${output.UBER?.fundamentals?.av_supply_regime_state ?? "—"} → ${UBER_AV_STATE_TO_REGIME[output.UBER?.fundamentals?.av_supply_regime_state] ?? "contested"} | DH ${output.UBER?.fundamentals?.dh_offer_state ?? "—"} (scored ${output.UBER?.fundamentals?.dh_basis_scored ?? "—"}) | tax release in TTM: ${output.UBER?.fundamentals?.tax_release_in_ttm ?? "—"}`);
+  console.log(`  CVX oil regime: ${output.CVX?.oil_regime ? (output.CVX.oil_regime.driver_missing ? "NO BRENT — transitional fallback" : `Brent $${output.CVX.oil_regime.brent_spot} vs $${output.CVX.oil_regime.deck_brent} deck = ${output.CVX.oil_regime.deck_deviation_pct >= 0 ? "+" : ""}${output.CVX.oil_regime.deck_deviation_pct}% → ${output.CVX.oil_regime.oil_price_regime}${output.CVX.oil_regime.oil_price_regime !== "anchored" ? `-${output.CVX.oil_regime.regime_direction}` : ""}${output.CVX.oil_regime.brent_spot_stale ? " (STALE)" : ""}`) : "unavailable"}`);
+  console.log(`  CVX deck TTM:   ${output.CVX?.fundamentals ? `Brent ${output.CVX.fundamentals.brent_ttm_avg ?? "—"} | HH ${output.CVX.fundamentals.henry_hub_ttm_avg ?? "—"} | window ends ${(output.CVX.fundamentals.ttm_window || []).slice(-1)[0] ?? "—"} | Q3'25 in TTM: ${output.CVX.fundamentals.q3_2025_in_ttm} | share base clean: ${output.CVX.fundamentals.share_count_base_clean}` : "unavailable"}`);
+  console.log(`  CVX twin PE:    ${output.CVX?.twin_valuation ? `CVX ${output.CVX.twin_valuation.cvx_pe}x vs XOM ${output.CVX.twin_valuation.xom_pe}x = ${output.CVX.twin_valuation.premium_pct}% premium [trailing GAAP] ⚠ GATED — record only` : "unavailable"}`);
+  console.log(`  CVX vs XOM:     ${output.CVX?.cohort_relative?.xom_spread_30d_pp != null ? `${output.CVX.cohort_relative.xom_spread_30d_pp >= 0 ? "+" : ""}${output.CVX.cohort_relative.xom_spread_30d_pp}pp/30d${output.CVX.cohort_relative.twin_dislocation_active ? " [TWIN DISLOCATION]" : ""}` : "unavailable"}`);
+  console.log(`  CVX XLE-SPY:    ${output.CVX?.factor_flow?.xle_vs_spy_30d_pp != null ? `${output.CVX.factor_flow.xle_vs_spy_30d_pp >= 0 ? "+" : ""}${output.CVX.factor_flow.xle_vs_spy_30d_pp}pp (${output.CVX.factor_flow.energy_factor_bid})` : "unavailable"}`);
+  console.log(`  CVX air pocket: ${output.CVX?.tactical_extras?.largest_1d_move_5s_pct != null ? `largest 5s ${output.CVX.tactical_extras.largest_1d_move_5s_pct}% on ${output.CVX.tactical_extras.largest_1d_date}${output.CVX.tactical_extras.air_pocket_candidate_active ? " [CANDIDATE]" : ""}` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
