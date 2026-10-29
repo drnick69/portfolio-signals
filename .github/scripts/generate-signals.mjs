@@ -1,7 +1,112 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.5.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.7.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
+// v8.7.0: HOLDINGS SWAP — sold ENB (Enbridge, dividend_compounder, 10/45/45),
+//       bought CVX (Chevron, integrated_major_capital_returner, 20/35/45).
+//       14 holdings preserved. BUILT ON v8.6.0 (PBR.A → UBER): both swaps live
+//       in this file, so v8.7.0 supersedes v8.6.0 — deploy this one, not both.
+//       Syncs to score-engine V8.6 + fetch-market-data v4.20.
+//       CVX: an integrated oil and gas major — a CAPITAL-RETURN FRANCHISE
+//       (capex + dividend breakeven < $50 Brent through 2030, $10–20B/yr of
+//       buybacks at $60–80, a 39-year dividend streak) bolted to a commodity
+//       that sets the level of every reported number (~$0.60B per $1 Brent,
+//       ~$0.70B per $1 Henry Hub). Scored at CHEVRON'S OWN $70 BRENT PLANNING
+//       DECK, never at spot.
+//       (a) Per-holding prompt blocks: CVX (regime-aware drawdown line, GAAP-P/E
+//         warning with the 2026-10-30 roll-off, oil regime vs the $70 deck with
+//         the TTM deck adjustments pre-computed, XOM twin valuation GATED,
+//         twin/cohort rotation at −4pp with SHEL/TTE as context, XLE factor
+//         flow, the geopolitical AIR-POCKET screen from fetch v4.20, the live
+//         cycle-gate state from the deterministic result, signal-status flags,
+//         execution fundamentals and EPS revisions when sourced) in BOTH tracks.
+//       (b) FIVE CALIBRATION GUARDRAILS carried into the prompt, all mirroring
+//         score-engine V8.6 so the LLM cannot reintroduce on the qualitative
+//         side what the engine deliberately gated:
+//         - WINDFALL NORMALIZATION + CALENDAR TRAP: spot and consensus multiples
+//           are never scored, and NOT via the cyclical inversion (CVX is
+//           deliberately NOT added to CYCLICAL_ARCHETYPES). Q3'25 rolls out of
+//           the TTM at the 2026-10-30 print — trailing P/E ~22x → ~17x
+//           overnight with no change in the business.
+//         - TIMING + WORKING CAPITAL: single-quarter EPS and headline CFFO are
+//           null signals; TTM ex-WC and adjusted FCF only.
+//         - HESS ANNIVERSARY: period-end share count scored only on a clean
+//           post-2025-07-18 base; production vs the FY26 guide, never YoY.
+//         - BALANCE-SHEET OPTICS: the HESM exit removes ~$3.7B of debt with no
+//           cash generated — leverage read ex-deconsolidation.
+//         - CYCLE-POSITION GATE: dislocated-high (Brent > $98) floors the
+//           BLENDED strategic score at 0 in blendScores() (dislocated-low caps
+//           it at 0). The prompt states the live gate state from the
+//           deterministic result — and that the engine's normalization inputs
+//           are LLM-sourced, so the engine-side gate fails closed every day
+//           Brent sits above $98.
+//       (c) Geopolitical headlines are classified, not reflexively scored: does
+//         the news change the DURATION of the supply disruption (structural for
+//         the windfall) or hit a CHEVRON ASSET (PZ, Leviathan, CPC/TCO,
+//         Venezuela)? In a dislocated-high regime a de-escalation sell-off is the
+//         windfall premium unwinding — information, not an oversold buy.
+//       (d) EARNINGS WINDOW: Q3 prints 2026-10-30 before the open — CVX enters
+//         the book inside the window, so tactical conviction is halved from day
+//         one.
+//       (e) TICKER_NEGATIVE_CONSTRAINTS: CVX gets a MINIMAL entry under the same
+//         exception logic as MLM/UBER — see the note at the map.
+//       Removals: isENB flag (both tracks), enbGuidance (full + search), the
+//       ENB yield-spread-vs-10Y data line. "dividend_compounder" was never in
+//       CYCLICAL_ARCHETYPES — nothing to remove there. score-engine retains its
+//       ENB branches for historical re-scoring — different contract; this file
+//       only runs forward.
+// v8.6.0: HOLDINGS SWAP — sold PBR.A (Petrobras, em_state_oil_dividend,
+//       20/35/45), bought UBER (Uber Technologies, marketplace_demand_aggregator,
+//       20/35/45). 14 holdings preserved. Syncs to score-engine V8.5 +
+//       fetch-market-data v4.19.
+//       UBER: the largest global ride-hailing network and the second-largest US
+//       food-delivery platform — a DEMAND AGGREGATOR. ~208M monthly active
+//       platform consumers create trip density that supply plugs into; the moat
+//       is two-sided liquidity and it is strongest where supply is FRAGMENTED.
+//       The single open question is whether autonomous-vehicle supply stays
+//       fragmented (lists on Uber) or concentrates and goes direct.
+//       (a) Per-holding prompt blocks: UBER (drawdown ladder to 50%, GAAP-P/E
+//         warning with the 2026-11-04 roll-off, marketplace-cohort valuation
+//         GATED, rotation vs DASH/LYFT/GRAB weighted at −6pp, DASH spread as
+//         context, XLY factor flow, the AV-headline-shock PRICE screen from
+//         fetch v4.19, AV supply / Delivery Hero config line with the live
+//         value-trap gate state, bookings/canary/margin fundamentals and EPS
+//         revisions when sourced) in BOTH tracks.
+//       (b) FIVE CALIBRATION GUARDRAILS carried into the prompt, all mirroring
+//         score-engine V8.5 so the LLM cannot reintroduce on the qualitative
+//         side what the engine deliberately gated:
+//         - GAAP EARNINGS GATE + CALENDAR TRAP: TTM GAAP net income carries a
+//           $4.9B tax valuation-allowance release (rolls off at the 2026-11-04
+//           print — trailing P/E roughly doubles overnight) and ±$1.5B quarterly
+//           equity revaluations that never roll off. Never scored, either way.
+//         - REVENUE NULL SIGNAL + BASIS ASSERTION: business-model changes cut
+//           Q2'26 revenue growth by 8pp; GAAP / Adj / Adj-less-SBC EBITDA span
+//           ~5 turns on the same EV.
+//         - OWNER FCF: yield after SBC (~6.1%, not the ~7.5% headline); NET
+//           share count, never gross buyback dollars.
+//         - DELIVERY HERO: PENDING, scored STANDALONE until closed (decision
+//           2026-10-27 — the LNA known-forward-event precedent deliberately NOT
+//           followed); leverage vs the stated <2x gross ceiling.
+//         - VALUE-TRAP GATE: disintermediating AV regime + broken or unknown
+//           Mobility canary floors the BLENDED strategic score at 0 in
+//           blendScores(). The prompt tells the model so, and states the live
+//           gate state from the deterministic result.
+//       (c) AV headlines are classified, not reflexively scored: does the news
+//         change WHERE AV supply lists (structural) or only WHEN a fleet
+//         launches (timing)? Waymo going direct in Austin/Atlanta is the BASE
+//         CASE (contested regime, scores zero), not a downgrade.
+//       (d) EARNINGS WINDOW: Q3 prints 2026-11-04 before the open and the
+//         Delivery Hero acceptance period ends 2026-11-05 — UBER enters the book
+//         inside the window, so tactical conviction is halved from day one.
+//       (e) TICKER_NEGATIVE_CONSTRAINTS: UBER gets a MINIMAL entry under the
+//         same exception logic as MLM — see the note at the map.
+//       Removals: isPBRA flag (both tracks), pbraGuidance (full + search), the
+//       PBR.A-only WTI and BRL/USD data lines. "em_state_oil_dividend" removed
+//       from CYCLICAL_ARCHETYPES (no longer in book). score-engine retains its
+//       PBR.A branches for historical re-scoring — different contract; this
+//       file only runs forward. WTI/BRL remain in the FRED feed (fetch v4.19
+//       decision) for the log-signals columns; they simply no longer reach a
+//       prompt.
 // v8.5.0: HOLDINGS SWAP — sold RDDT (hypergrowth_platform_monetizer, 25/35/40),
 //       bought MLM (Martin Marietta Materials, reserve_moat_infrastructure_compounder,
 //       20/35/45). 14 holdings preserved. Syncs to score-engine V8.4 +
@@ -281,6 +386,37 @@ const TICKER_NEGATIVE_CONSTRAINTS = {
   // it costs nothing when the model gets it right.
   "MLM":   ["multi-level marketing", "multilevel marketing", "network marketing",
             "downline", "pyramid scheme"],                      // MLM is Martin Marietta Materials (aggregates), never multi-level marketing
+  // "UBER" — DOES get an entry (v8.6.0), MINIMAL by design, under the same
+  // exception logic as MLM rather than the documented-failures-only rule:
+  //   • The collision is structural: "uber" is an ordinary German word and an
+  //     English slang prefix, so a wrong-subject generation has a distinctive,
+  //     checkable fingerprint.
+  //   • Only terms with ZERO legitimate use in an Uber analysis are listed.
+  // NOT banned, deliberately: "waymo", "lyft", "tesla", "doordash" (named
+  // AV-supply counterparties and peers — correct outputs name them constantly);
+  // "german"/"germany"/"berlin" (Delivery Hero is Berlin-based and
+  // Frankfurt-listed — a correct DH sentence contains them); and the "uber-"
+  // prefix itself (it appears in quoted headlines). Those risks are handled in
+  // the prompt guidance instead, where they cost nothing when the model is right.
+  "UBER":  ["übermensch", "ubermensch", "nietzsche"],           // UBER is Uber Technologies (marketplace), never the German word or Nietzsche
+  // "CVX" — DOES get an entry (v8.7.0), MINIMAL by design, under the same
+  // exception logic as MLM/UBER rather than the documented-failures-only rule:
+  //   • The collision is structural: "Chevron" is also the name of the
+  //     best-known administrative-law doctrine in US case law (Chevron U.S.A. v.
+  //     NRDC, 1984), so a wrong-subject generation has a distinctive, checkable
+  //     fingerprint.
+  //   • Only terms with ZERO legitimate use in a Chevron equity analysis are
+  //     listed.
+  // NOT banned, deliberately: "loper bright" (post-Loper Bright challenges to
+  // EPA methane and emissions rules are a legitimate regulatory-risk topic for
+  // an oil major); "exxon"/"xom" (the twin benchmark and Stabroek partner —
+  // correct outputs name it constantly); "hess" (now part of Chevron; HESM is
+  // the midstream exit); "caspian"/"cpc"/"chevron phillips" (the TCO export
+  // route and the chemicals JV — the prompt demands they be NAMED); "texaco"/
+  // "caltex" (Chevron brands); "enbridge" (the replaced holding — a correct
+  // output may say so). Those risks are handled in the prompt guidance instead,
+  // where they cost nothing when the model is right.
+  "CVX":   ["chevron deference", "chevron doctrine", "chevron v. nrdc"],   // CVX is Chevron Corporation (oil major), never the administrative-law doctrine
 };
 
 // Semantic + integrity checks on an accepted record_scores payload. Returns an
@@ -348,11 +484,11 @@ const HOLDINGS = [
   { symbol: "MSFT",  name: "Microsoft",       sector: "AI Infrastructure",  archetype: "ai_infra_quality_compounder",      weights: { t:.20, p:.35, s:.45 } },
   { symbol: "TMO",   name: "Thermo Fisher",   sector: "Life Sciences Tools",archetype: "life_sciences_quality_compounder", weights: { t:.20, p:.35, s:.45 } },
   { symbol: "NOW",   name: "ServiceNow",      sector: "AI Workflow SaaS",   archetype: "ai_workflow_quality_compounder",   weights: { t:.20, p:.35, s:.45 } },
-  { symbol: "ENB",   name: "Enbridge",        sector: "Midstream Energy",   archetype: "dividend_compounder",              weights: { t:.10, p:.45, s:.45 } },
+  { symbol: "CVX",   name: "Chevron",         sector: "Integrated Oil & Gas", archetype: "integrated_major_capital_returner", weights: { t:.20, p:.35, s:.45 } }, // ← v8.7.0
   { symbol: "GLNCY", name: "Glencore",        sector: "Diversified Mining", archetype: "diversified_commodity_trader",     weights: { t:.20, p:.35, s:.45 } },
   { symbol: "MLM",   name: "Martin Marietta Materials", sector: "Construction Aggregates", archetype: "reserve_moat_infrastructure_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.5.0
   { symbol: "KOF",   name: "Coca-Cola FEMSA", sector: "LatAm Consumer",     archetype: "em_dividend_growth",               weights: { t:.15, p:.35, s:.50 } },
-  { symbol: "PBR.A", name: "Petrobras",       sector: "EM Energy",          archetype: "em_state_oil_dividend",            weights: { t:.20, p:.35, s:.45 } },
+  { symbol: "UBER",  name: "Uber Technologies", sector: "Mobility & Delivery Marketplace", archetype: "marketplace_demand_aggregator", weights: { t:.20, p:.35, s:.45 } }, // ← v8.6.0
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",    archetype: "cyclical_trade_bellwether",        weights: { t:.25, p:.35, s:.40 } },
   { symbol: "MA",    name: "Mastercard",      sector: "Payment Networks",   archetype: "payments_network_quality_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
   { symbol: "ISRG",  name: "Intuitive Surgical", sector: "Surgical Robotics", archetype: "surgical_robotics_moat_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
@@ -360,10 +496,11 @@ const HOLDINGS = [
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
+// PBR.A removed in v8.6.0 (em_state_oil_dividend no longer in book).
+// CVX (v8.7.0) deliberately NOT added — explicit $70-deck normalization supersedes the inverted-P/E rule.
 const CYCLICAL_ARCHETYPES = new Set([
   "diversified_commodity_trader",
   "cyclical_trade_bellwether",
-  "em_state_oil_dividend",
 ]);
 
 // ─── LLM PROMPT ──────────────────────────────────────────────────────────────
@@ -482,11 +619,9 @@ function buildPrompt(h, detScores) {
   const macro = MARKET_DATA._macro || {};
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isASML = h.archetype === "secular_growth_monopoly";
-  const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
-  const isPBRA = h.archetype === "em_state_oil_dividend";
   const isLIN = h.archetype === "oligopoly_quality_compounder";
   const isMSFT = h.archetype === "ai_infra_quality_compounder";
   const isLHX = h.archetype === "defense_prime_backlog_compounder";
@@ -495,6 +630,8 @@ function buildPrompt(h, detScores) {
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
   const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
+  const isUBER = h.archetype === "marketplace_demand_aggregator";          // ← v8.6.0
+  const isCVX = h.archetype === "integrated_major_capital_returner";       // ← v8.7.0
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -502,14 +639,6 @@ function buildPrompt(h, detScores) {
   const realRate = (macro.fed_funds != null && macro.tips10y != null)
     ? +(macro.fed_funds - macro.tips10y).toFixed(2)
     : null;
-
-  // ENB yield spread line
-  let enbYieldSpreadLine = null;
-  if (isENB && md.valuation?.dividendYield && macro.us10y) {
-    const spread = md.valuation.dividendYield - macro.us10y;
-    const spreadBps = Math.round(spread * 100);
-    enbYieldSpreadLine = `ENB yield spread vs 10Y: ${spreadBps}bps (ENB ${md.valuation.dividendYield}% − 10Y ${macro.us10y}%)${spreadBps > 300 ? " — ATTRACTIVE" : spreadBps < 150 ? " — RICH" : ""}`;
-  }
 
   // AMKBY GSCPI line
   let amkbyGscpiLine = null;
@@ -1079,6 +1208,261 @@ function buildPrompt(h, detScores) {
     mlmEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
   }
 
+  // ── UBER-specific data lines (v8.6.0) ──────────────────────────────────
+  let uberDrawdownLine = null;
+  if (isUBER && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 40 ? "EXTREME (max tactical conviction IF the Mobility canary holds)" : ddMag > 30 ? "DEEP (high-conviction setup)" : ddMag > 25 ? "MEANINGFUL" : ddMag > 18 ? "SETUP territory" : ddMag > 10 ? "MILD" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
+    uberDrawdownLine = `UBER drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) — primary tactical signal; ladder scaled to 50% (beta 1.26), between MLM's 35% and RDDT's 60%`;
+  }
+  // ★ GAAP trailing P/E is printed above in the generic block — this line says
+  // why it must not be read. tax_release_in_ttm comes from fetch v4.19's date
+  // logic (TRUE through the 2026-11-04 print day).
+  let uberGaapPeLine = null;
+  if (isUBER && md.valuation?.trailingPE) {
+    const tr = md.fundamentals?.tax_release_in_ttm;
+    uberGaapPeLine = `UBER GAAP trailing P/E ${md.valuation.trailingPE}x: ⚠⚠ NOT A SIGNAL — ${tr === true ? "TTM carries the $4.9B Q3'25 tax valuation-allowance release (rolls off at the 2026-11-04 print: expect trailing P/E to roughly DOUBLE with no change in the business) plus" : tr === false ? "the tax release has rolled off, but TTM still carries" : "TTM carries"} ±$1.5B quarterly equity-stake revaluations. Engine never scores it; neither should you. Route to owner FCF yield, non-GAAP forward P/E, EV/Adj EBITDA.`;
+  }
+  // ★ Cohort valuation is PERMANENTLY GATED by fetch v4.19 (premium_pct_reliable
+  // hard false — GAAP trailing on both sides, incl. LYFT's tax-benefit P/E).
+  let uberCohortValuationLine = null;
+  if (isUBER && md.cohort_valuation) {
+    const cv = md.cohort_valuation;
+    const prem = cv.premium_pct;
+    uberCohortValuationLine = `UBER P/E: ${cv.uber_pe ?? "—"}x | DASH: ${cv.dash_pe ?? "—"}x | LYFT: ${cv.lyft_pe ?? "—"}x | GRAB: ${cv.grab_pe ?? "—"}x | Weighted marketplace cohort avg: ${cv.cohort_avg_pe ?? "—"}x (DASH .50 / LYFT .25 / GRAB .25) | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"} — ⚠⚠ GATED, RECORD ONLY: GAAP trailing on BOTH sides (UBER tax release + revaluations; LYFT's ~2x P/E is a tax-benefit artifact). Engine scores this ZERO. Your forward-basis peer read is SECONDARY — it can confirm a strategic score, never carry one.`;
+  }
+  let uberCohortRelativeLine = null;
+  if (isUBER && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const rp = cr.peer_rotation_pp;
+    const status = cr.peer_rotation_active
+      ? (rp != null && rp < -14 ? "MARKETPLACE ROTATION ACTIVE/STRONG (buy setup UNLESS an Uber operating print confirms the weakness)" : "MARKETPLACE ROTATION ACTIVE (buy setup)")
+      : (rp != null && rp > 8 ? "UBER LEADING MARKETPLACE COHORT" : "INLINE");
+    uberCohortRelativeLine = `UBER 30d: ${cr.uber_30d_return_pct != null ? (cr.uber_30d_return_pct >= 0 ? "+" : "") + cr.uber_30d_return_pct + "%" : "—"} | Weighted cohort avg 30d: ${cr.cohort_avg_30d_return_pct != null ? (cr.cohort_avg_30d_return_pct >= 0 ? "+" : "") + cr.cohort_avg_30d_return_pct + "%" : "—"} | Rotation: ${rp != null ? (rp >= 0 ? "+" : "") + rp.toFixed(1) + "pp" : "—"} (${status}; threshold −6pp, between MLM's −5 and RDDT's −8 for beta 1.26)${cr.dash_spread_30d_pp != null ? ` | vs DASH ${cr.dash_spread_30d_pp >= 0 ? "+" : ""}${cr.dash_spread_30d_pp.toFixed(1)}pp (context only — DASH is already 50% of the cohort, not a twin; engine does not score it)` : ""}`;
+  }
+  let uberFactorFlowLine = null;
+  if (isUBER && md.factor_flow?.xly_vs_spy_30d_pp != null) {
+    const x = md.factor_flow.xly_vs_spy_30d_pp;
+    const dir = x > 1 ? "CONSUMER BID ACTIVE (UBER benefits)" : x < -1 ? "CONSUMER COMPLEX UNDER PRESSURE" : "INLINE";
+    uberFactorFlowLine = `XLY vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir}) — GICS says Industrials (~2.6% of XLI); the tape trades UBER as a consumer platform`;
+  }
+  // ★ AV-HEADLINE-SHOCK PRICE SCREEN (fetch v4.19). The price event is
+  // established upstream; ATTRIBUTION is the model's job and lands in its
+  // tactical score — the engine scores an unattributed candidate lightly (−6).
+  let uberShockLine = null;
+  if (isUBER && md.tactical_extras?.worst_1d_return_5s_pct != null) {
+    const tx = md.tactical_extras;
+    const spy = tx.spy_same_day_return_pct != null ? `, SPY ${tx.spy_same_day_return_pct}% that session` : "";
+    const st = tx.av_shock_candidate_active
+      ? "SHOCK CANDIDATE — YOU attribute it: a competitor's or partner's AV-supply headline with no Uber operating print = the signature buy setup; an operating print, a broad-tape day or non-AV news = not the setup"
+      : tx.worst_1d_on_known_print ? "an Uber print day — operating information, excluded from the screen" : "below the −4% screen threshold";
+    uberShockLine = `AV-shock screen: worst session in the last 5 = ${tx.worst_1d_return_5s_pct}% on ${tx.worst_1d_date ?? "—"}${spy} (${st})`;
+  }
+  // ★ Config + gate state. AV supply and Delivery Hero states are HUMAN-
+  // MAINTAINED constants in fetch v4.19; the value-trap gate state comes from
+  // the deterministic result so the model sees exactly what blendScores() will do.
+  let uberConfigLine = null;
+  if (isUBER && md.fundamentals && (md.fundamentals.av_supply_regime_state != null || md.fundamentals.dh_offer_state != null)) {
+    const f = md.fundamentals;
+    const regimeOf = { partners_adding_uber_supply: "aggregating", leader_exiting_tail_aggregating: "contested", pending_unknown: "contested", second_tier1_exiting: "disintermediating", exclusive_pipeline_slipping: "disintermediating" };
+    const reg = regimeOf[f.av_supply_regime_state] ?? "contested";
+    const gate = detScores?.strategic?.value_trap_gate_active === true;
+    const av = f.av_supply_regime_state ? `AV supply state: ${f.av_supply_regime_state} → regime ${reg.toUpperCase()}${reg === "contested" ? " (the BASE CASE — scores ZERO, not a downgrade)" : ""}` : null;
+    const dh = f.dh_offer_state ? `Delivery Hero: ${f.dh_offer_state} — scored ${f.dh_basis_scored ?? "standalone"}, no synergies credited` : null;
+    const vt = gate
+      ? "⛔ VALUE-TRAP GATE ACTIVE — your strategic score will be FLOORED AT 0 after blending; do not score a strategic BUY"
+      : "value-trap gate clear";
+    uberConfigLine = `UBER config: ${[av, dh, vt].filter(Boolean).join(" | ")}`;
+  }
+  let uberFundamentalsLine = null;
+  if (isUBER && md.fundamentals && (md.fundamentals.gross_bookings_growth_cc_pct != null || md.fundamentals.mobility_gb_growth_cc_pct != null || md.fundamentals.adj_ebitda_pct_gb != null || md.fundamentals.owner_fcf_yield_pct != null || md.fundamentals.share_count_change_yoy_pct != null)) {
+    const f = md.fundamentals;
+    const pct = v => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+    const gb = f.gross_bookings_growth_cc_pct != null ? `Gross bookings cc: ${pct(f.gross_bookings_growth_cc_pct)}` : null;
+    const mob = f.mobility_gb_growth_cc_pct != null ? `Mobility GB cc: ${pct(f.mobility_gb_growth_cc_pct)} ★ THE CANARY — below 12% while Delivery holds is the AV-disintermediation signature` : null;
+    const del = f.delivery_gb_growth_cc_pct != null ? `Delivery GB cc: ${pct(f.delivery_gb_growth_cc_pct)}` : null;
+    const tr = f.trips_growth_pct != null ? `Trips: ${pct(f.trips_growth_pct)}` : null;
+    const mg = f.adj_ebitda_pct_gb != null ? `Adj EBITDA ${f.adj_ebitda_pct_gb.toFixed(1)}% of GB` : null;
+    const rev = f.revenue_signal_status === "null_signal_business_model_contaminated" && f.reported_revenue_growth_pct != null ? `Reported revenue ${pct(f.reported_revenue_growth_pct)}: ⚠ NULL SIGNAL — business-model contaminated` : null;
+    const ofy = f.owner_fcf_yield_pct != null ? `Owner FCF yield (after SBC): ${f.owner_fcf_yield_pct.toFixed(2)}%` : null;
+    const sc = f.share_count_change_yoy_pct != null ? `NET share count YoY: ${pct(f.share_count_change_yoy_pct)} (NEGATIVE = BUYBACK)` : null;
+    const parts = [gb, mob, del, tr, mg, rev, ofy, sc].filter(Boolean);
+    if (parts.length > 0) uberFundamentalsLine = `UBER fundamentals: ${parts.join(" | ")}`;
+  }
+  let uberEpsRevLine = null;
+  if (isUBER && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 2 ? " (UPWARD)" : r90 < -2 ? " (DOWNWARD)" : " (STABLE)";
+    uberEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}`;
+  }
+
+  // ── CVX-specific data lines (v8.7.0) ───────────────────────────────────
+  // Oil regime recomputed from the number — bands IDENTICAL to score-engine
+  // V8.6 resolveCVXRegime(), fetch v4.20 cvxOilRegime() and cvx-strategy.jsx v1
+  // (|dev| ≤ 20% anchored · ≤ 40% transitional · beyond dislocated; missing
+  // Brent → transitional). Keep all four in sync.
+  const cvxBrent = isCVX ? (md.oil_regime?.brent_spot ?? md.fundamentals?.brent_spot ?? null) : null;
+  const cvxDevRaw = cvxBrent != null && cvxBrent > 0 ? (cvxBrent / 70 - 1) * 100 : null;
+  const cvxDev = cvxDevRaw != null ? +cvxDevRaw.toFixed(1) : null;
+  const cvxRegKey = cvxDevRaw == null ? "transitional" : Math.abs(cvxDevRaw) <= 20 ? "anchored" : Math.abs(cvxDevRaw) <= 40 ? "transitional" : "dislocated";
+  const cvxDir = cvxDevRaw == null ? "none" : cvxDevRaw > 0 ? "high" : cvxDevRaw < 0 ? "low" : "none";
+  const cvxWindfall = cvxRegKey === "dislocated" && cvxDir === "high";
+  const cvxRegTag = cvxRegKey === "anchored" || cvxDir === "none" ? cvxRegKey.toUpperCase() : `${cvxRegKey.toUpperCase()}-${cvxDir.toUpperCase()}`;
+
+  let cvxOilRegimeLine = null;
+  if (isCVX) {
+    const o = md.oil_regime || {};
+    const w = { anchored: "25/40/35", transitional: "20/35/45", dislocated: "15/30/55" }[cvxRegKey];
+    if (cvxBrent == null) {
+      cvxOilRegimeLine = `CVX oil regime: Brent UNAVAILABLE (driver missing) → TRANSITIONAL by default, composite weights 20/35/45 (engine V8.6) — source Brent spot yourself and say which regime it implies`;
+    } else {
+      const extras = [
+        o.wti_spot != null ? `WTI $${o.wti_spot}${o.brent_wti_spread != null ? ` (Brent–WTI $${o.brent_wti_spread})` : ""}` : null,
+        o.henry_hub_spot != null ? `Henry Hub $${o.henry_hub_spot}` : null,
+      ].filter(Boolean).join(" | ");
+      cvxOilRegimeLine = `CVX oil regime: Brent $${cvxBrent}${o.brent_spot_date ? ` (${o.brent_spot_date}${o.brent_spot_stale ? " — ⚠ STALE >14d" : ""}; FRED/EIA daily spot, ~1-week lag)` : ""} = ${cvxDev >= 0 ? "+" : ""}${cvxDev}% vs Chevron's $70 planning deck → ${cvxRegTag} | composite weights ${w} (engine V8.6, regime-conditional)${extras ? ` | ${extras}` : ""}`;
+    }
+  }
+  // ★ Deck normalization — the TTM commodity adjustments are pre-computed from
+  // fetch v4.20's FRED averages; TTM adjusted FCF and TTM downstream earnings
+  // are LLM-sourced (null in the engine's data), so the model completes the sum.
+  let cvxNormLine = null;
+  if (isCVX && md.fundamentals?.brent_ttm_avg != null) {
+    const f = md.fundamentals;
+    const eff = v => `${v <= 0 ? "+" : "−"}$${Math.abs(v).toFixed(2)}B`;   // effect on normalized FCF (an adjustment is SUBTRACTED)
+    const bAdj = +((f.brent_ttm_avg - 70) * 0.60).toFixed(2);
+    const hAdj = f.henry_hub_ttm_avg != null ? +((f.henry_hub_ttm_avg - 3.50) * 0.70).toFixed(2) : null;
+    const win = Array.isArray(f.ttm_window) && f.ttm_window.length ? ` (quarters ending ${f.ttm_window[0]} → ${f.ttm_window[f.ttm_window.length - 1]})` : "";
+    const mc = f.market_cap_busd;
+    const hhStr = hAdj != null
+      ? `TTM Henry Hub $${f.henry_hub_ttm_avg}${f.henry_hub_basis ? " (daily spot, proxy for bid week)" : ""} → ${eff(hAdj)}`
+      : `TTM Henry Hub UNAVAILABLE — source it or the normalization is PARTIAL`;
+    const formula = `normalized FCF = TTM adj FCF ${eff(bAdj)}${hAdj != null ? ` ${eff(hAdj)}` : " − (TTM HH − 3.50) × 0.70"} − (TTM downstream − 3.0)`;
+    const tail = mc != null && mc > 0 ? `; yield = normalized FCF / $${mc}B; price-implied Brent = 70 + (0.06 × ${mc} − normalized FCF) / 0.60` : "";
+    cvxNormLine = `CVX deck normalization${win}: TTM Brent $${f.brent_ttm_avg} → ${eff(bAdj)} | ${hhStr}${mc != null ? ` | market cap $${mc}B` : ""}. YOU source TTM adjusted FCF and TTM downstream earnings: ${formula}${tail}. Missing Henry Hub or downstream = normalization_partial — a CEILING while cracks are elevated.`;
+  }
+  // ★ Cycle-gate state comes from the deterministic result so the model sees
+  // exactly what blendScores() will do.
+  let cvxGateLine = null;
+  if (isCVX) {
+    const side = detScores?.strategic?.cycle_gate_active === true ? detScores.strategic.cycle_gate_side : null;
+    const normAvail = md.fundamentals?.adj_fcf_ttm_busd != null && md.fundamentals?.brent_ttm_avg != null;
+    const st = side === "no_buy"
+      ? `⛔ CYCLE-POSITION GATE ACTIVE (no_buy) — your strategic score will be FLOORED AT 0 after blending; do not score a strategic BUY. ${normAvail ? "The engine's normalized yield is below 6% or rests on a PARTIAL normalization (see its strategic notes)" : "The engine's normalization inputs are LLM-sourced and null in its data, so the engine-side gate fails CLOSED while Brent sits above $98 — the floor applies this run whatever normalized yield you establish. Report the normalization honestly anyway; it is the record"}`
+      : side === "no_trim"
+      ? `⛔ CYCLE-POSITION GATE ACTIVE (no_trim) — Brent more than 40% BELOW the deck: your strategic score will be CAPPED AT 0 after blending; do not score a strategic TRIM. Trough entries are the framework's buy signal${normAvail ? "" : " (the engine's normalization is unavailable, so the cap holds this run regardless)"}`
+      : cvxWindfall ? "cycle gate clear — the engine established a normalized yield ≥6% on a full normalization"
+      : `cycle gate inactive [${cvxRegTag}] — it binds only beyond ±40% of the deck`;
+    cvxGateLine = `CVX cycle gate: ${st}`;
+  }
+  let cvxDrawdownLine = null;
+  if (isCVX && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    if (cvxWindfall) {
+      cvxDrawdownLine = `CVX drawdown from 52w high: ${dd.toFixed(1)}% [${cvxRegTag}] — ${ddMag < 3 ? "AT/NEAR HIGHS on windfall oil (mild trim lean)" : "the windfall premium UNWINDING, not oversold — engine scores it ZERO (precedent: buying the 2026-04-01 de-escalation air pocket bought the top of a −21.5% unwind)"}`;
+    } else {
+      const zone = ddMag > 30 ? "EXTREME (max tactical conviction IF the TCO canary holds)" : ddMag > 20 ? "DEEP (high-conviction setup)" : ddMag > 15 ? "MEANINGFUL" : ddMag > 12 ? "SETUP territory" : ddMag > 6 ? "MILD" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
+      cvxDrawdownLine = `CVX drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) [${cvxRegTag}] — primary tactical signal; ladder scaled to 35% (setup >12%, strong >20%)`;
+    }
+  }
+  // ★ GAAP trailing P/E is printed above in the generic block — this line says
+  // why it must not be read. q3_2025_in_ttm comes from fetch v4.20's date logic.
+  let cvxGaapPeLine = null;
+  if (isCVX && md.valuation?.trailingPE) {
+    const q3 = md.fundamentals?.q3_2025_in_ttm;
+    cvxGaapPeLine = `CVX GAAP trailing P/E ${md.valuation.trailingPE}x: ⚠⚠ NOT A SIGNAL — windfall- and cycle-contaminated${q3 === true ? "; Q3'25 ($1.82 GAAP EPS on $69 Brent) is still in the TTM and rolls OUT at the 2026-10-30 print — expect trailing P/E to fall from ~22x toward ~17x with NO change in the business" : q3 === false ? "; Q3'25 has rolled off — the TTM is now dominated by war-premium quarters" : ""}; the HESM exit later books a one-time $3–4B loss that distorts it the other way. NOT inverted either (CVX is deliberately not in the cyclical set). Engine never scores it; neither should you — route to normalized FCF at the $70 deck.`;
+  }
+  // ★ Twin valuation is PERMANENTLY GATED by fetch v4.20 (premium_pct_reliable
+  // hard false — windfall on both legs plus CVX's Hess DD&A step-up).
+  let cvxTwinValuationLine = null;
+  if (isCVX && md.twin_valuation) {
+    const tv = md.twin_valuation;
+    const prem = tv.premium_pct;
+    cvxTwinValuationLine = `CVX P/E: ${tv.cvx_pe ?? "—"}x | XOM (twin): ${tv.xom_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"} [${tv.basis ?? "trailing_gaap"}] — ⚠⚠ GATED, RECORD ONLY: windfall earnings on BOTH legs plus CVX's Hess DD&A step-up. Engine scores this ZERO; your forward-basis twin read (±10%) is SECONDARY${tv.reference_european_avg_pe != null ? ` | SHEL ${tv.reference_shel_pe ?? "—"}x / TTE ${tv.reference_tte_pe ?? "—"}x (avg ${tv.reference_european_avg_pe}x): STRUCTURAL-DISCOUNT reference only — never score CVX's premium to the European majors` : ""}`;
+  }
+  let cvxCohortRelativeLine = null;
+  if (isCVX && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const ts = cr.xom_spread_30d_pp;
+    const p = v => v != null ? `${v >= 0 ? "+" : ""}${(+v).toFixed(1)}%` : "—";
+    const status = cr.twin_dislocation_active
+      ? (ts != null && ts < -10 ? "XOM TWIN DISLOCATION ACTIVE/STRONG (buy setup UNLESS a Chevron-specific event explains it — Partitioned Zone, Leviathan, CPC/TCO, Venezuela)" : "XOM TWIN DISLOCATION ACTIVE (buy setup absent a Chevron-specific event)")
+      : (ts != null && ts > 6 ? "CVX OUTRUNNING XOM (twin stretched the other way)" : "INLINE");
+    const tr = md.twin_relative;
+    const today = tr?.relative_spread_pp != null ? ` | Today: CVX ${p(tr.cvx_change_pct)} vs XOM ${p(tr.xom_change_pct)}` : "";
+    cvxCohortRelativeLine = `CVX 30d: ${p(cr.cvx_30d_return_pct)} | XOM 30d: ${p(cr.xom_30d_return_pct)} | Twin spread: ${ts != null ? (ts >= 0 ? "+" : "") + ts.toFixed(1) + "pp" : "—"} (${status}; threshold −4pp — same commodity, same calendar, close to oil-neutral, live in every regime)${today}${cr.european_avg_30d_return_pct != null ? ` | SHEL ${p(cr.shel_30d_return_pct)} / TTE ${p(cr.tte_30d_return_pct)} (European avg ${p(cr.european_avg_30d_return_pct)} — context only, engine does not score it)` : ""}`;
+  }
+  let cvxFactorFlowLine = null;
+  if (isCVX && md.factor_flow?.xle_vs_spy_30d_pp != null) {
+    const x = md.factor_flow.xle_vs_spy_30d_pp;
+    const dir = x > 2
+      ? (cvxWindfall ? "ENERGY BID — but in a DISLOCATED-HIGH regime this IS the windfall trade, not a tailwind" : "ENERGY BID ACTIVE (CVX tailwind)")
+      : x < -2 ? "ENERGY COMPLEX LAGGING (sector pressure)" : "INLINE";
+    cvxFactorFlowLine = `XLE vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir}; ±2pp threshold) — XLE is the sector factor`;
+  }
+  // ★ GEOPOLITICAL AIR-POCKET SCREEN (fetch v4.20). The price event is
+  // established upstream; CLASSIFICATION of the headline is the model's job —
+  // the engine scores only the cases price alone can classify.
+  let cvxAirPocketLine = null;
+  if (isCVX && md.tactical_extras?.largest_1d_move_5s_pct != null) {
+    const tx = md.tactical_extras;
+    const mv = tx.largest_1d_move_5s_pct;
+    const idio = tx.idiosyncratic_pp;
+    const xle = tx.xle_same_day_return_pct != null ? `, XLE ${tx.xle_same_day_return_pct}% that session` : "";
+    let st;
+    if (tx.air_pocket_candidate_active) {
+      if (mv < 0 && idio != null && idio <= -3) st = "CANDIDATE — CHEVRON-SPECIFIC (≥3pp worse than XLE): possible asset event (Partitioned Zone, Leviathan, CPC/TCO, Venezuela) — NOT bought blind; YOU identify it";
+      else if (mv < 0 && cvxWindfall) st = `CANDIDATE — sector-wide down session [${cvxRegTag}]: the windfall premium unwinding — information, not oversold (engine scores ZERO)`;
+      else if (mv < 0) st = "CANDIDATE — YOU classify it: a sector-wide oil/macro air pocket with no Chevron operating print is a light sympathy buy; a Chevron asset event is not";
+      else if (cvxWindfall) st = `CANDIDATE — up spike [${cvxRegTag}]: an escalation spike extends the windfall — mild trim lean`;
+      else st = "CANDIDATE — up spike: noted (engine does not score it outside a windfall regime)";
+      st += ". Classify the headline: DURATION of the supply disruption (Hormuz, Gulf infrastructure, blockade terms) vs a hit to a CHEVRON ASSET";
+    } else {
+      st = tx.largest_1d_on_known_print ? "the Q3 print day — operating information, excluded from the screen" : "below the ±4% screen threshold";
+    }
+    cvxAirPocketLine = `Air-pocket screen: largest session in the last 5 = ${mv >= 0 ? "+" : ""}${mv}% on ${tx.largest_1d_date ?? "—"}${xle}${idio != null ? ` (${idio >= 0 ? "+" : ""}${idio}pp vs XLE)` : ""} — ${st}`;
+  }
+  let cvxStatusLine = null;
+  if (isCVX && md.fundamentals) {
+    const f = md.fundamentals;
+    const parts = [
+      f.forward_pe_signal_status ? `forward P/E: ${f.forward_pe_signal_status}${f.forward_pe_signal_status === "spot_contaminated" ? " (report, never score)" : ""}` : null,
+      f.revisions_signal_status ? `EPS revisions: ${f.revisions_signal_status}${f.revisions_signal_status === "commodity_driven" ? " (track the strip — not execution, not scored)" : ""}` : null,
+      f.roce_spot_inflated === true ? `ROCE${f.roce_pct != null ? ` ${f.roce_pct}%` : ""}: SPOT-INFLATED (flagged, not scored)` : null,
+      f.share_count_base_clean != null ? `share-count base: ${f.share_count_base_clean ? "CLEAN (both period ends after the 2025-07-18 Hess close — the NET change scores)" : "HESS-CONTAMINATED (YoY crosses the 2025-07-18 close — reported, not scored; first clean base 2,013.5M at 2025-09-30)"}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) cvxStatusLine = `CVX signal status (fetch v4.20): ${parts.join(" | ")}`;
+  }
+  let cvxFundamentalsLine = null;
+  if (isCVX && md.fundamentals) {
+    const f = md.fundamentals;
+    const parts = [
+      f.production_mboed != null ? `Production ${f.production_mboed} MBOED${f.production_vs_guide ? ` (${String(f.production_vs_guide).toUpperCase()} the FY26 3,980–4,100 guide)` : ""}`
+        : f.production_vs_guide ? `Production ${String(f.production_vs_guide).toUpperCase()} the FY26 3,980–4,100 guide` : null,
+      f.tco_canary_status ? `TCO canary: ${String(f.tco_canary_status).toUpperCase()}${f.cpc_export_status ? ` (CPC exports ${f.cpc_export_status})` : ""}` : null,
+      f.guyana_status ? `Guyana: ${f.guyana_status}` : null,
+      f.adj_fcf_ttm_busd != null ? `TTM adj FCF $${f.adj_fcf_ttm_busd}B` : null,
+      f.downstream_earnings_ttm_busd != null ? `TTM downstream $${f.downstream_earnings_ttm_busd}B (mid-cycle $3.0B)` : null,
+      f.capex_vs_guide ? `Capex: ${f.capex_vs_guide} of the $18–19B guide` : null,
+      f.buyback_guide_trend ? `Buyback guide: ${String(f.buyback_guide_trend).toUpperCase()}${f.next_q_buyback_guide_low_busd != null ? ` ($${f.next_q_buyback_guide_low_busd}–${f.next_q_buyback_guide_high_busd ?? "?"}B next quarter)` : ""}` : null,
+      f.share_count_change_yoy_pct != null ? `NET share count YoY: ${f.share_count_change_yoy_pct >= 0 ? "+" : ""}${f.share_count_change_yoy_pct.toFixed(1)}%${f.share_count_base_clean === true ? " (NEGATIVE = BUYBACK)" : " (Hess-contaminated — not scored)"}` : null,
+      f.net_debt_ratio_ex_deconsolidation_pct != null ? `Net debt ratio ex-HESM: ${f.net_debt_ratio_ex_deconsolidation_pct}%` : null,
+      f.breakeven_status ? `Breakeven vs $50: ${f.breakeven_status}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) cvxFundamentalsLine = `CVX fundamentals: ${parts.join(" | ")}`;
+  }
+  let cvxEpsRevLine = null;
+  if (isCVX && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 2 ? " (UPWARD)" : r90 < -2 ? " (DOWNWARD)" : " (STABLE)";
+    const exec = md.fundamentals.revisions_signal_status === "execution";
+    cvxEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}${exec ? " — ANCHORED regime: execution-driven, scored" : " — COMMODITY-DRIVEN: tracks the strip, not scored"}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -1088,7 +1472,7 @@ function buildPrompt(h, detScores) {
     md.valuation?.trailingPE ? `P/E (trailing): ${md.valuation.trailingPE}` : null,
     md.valuation?.priceToBook ? `P/B: ${md.valuation.priceToBook}` : null,
     md.valuation?.dividendYield ? `Yield: ${md.valuation.dividendYield}%` : null,
-    enbYieldSpreadLine, amkbyGscpiLine, kofMxnLine, glncyCopxLine,
+    amkbyGscpiLine, kofMxnLine, glncyCopxLine,
     linPeerValuationLine, linBacklogLine, linFundamentalsLine, linPeerRelativeLine, linDxyLine, linPmiLine,
     linBbbOasLine, linOpsLine, linEpsRevLine, linPeerAipaLine, linPremiumDeltaLine, linH2Line, linTacticalExtrasLine, linRegimeLine,
     msftDrawdownLine, msftCohortValuationLine, msftCohortRelativeLine, msftFactorFlowLine, msftDxyLine, msftFundamentalsLine, msftEpsRevLine,
@@ -1098,8 +1482,8 @@ function buildPrompt(h, detScores) {
     maDrawdownLine, maTwinValuationLine, maTwinRelativeLine, maDuopolyRelativeLine, maFactorFlowLine, maDxyLine, maFundamentalsLine, maEpsRevLine,        // ← v8.3.0
     isrgDrawdownLine, isrgCohortValuationLine, isrgCohortRelativeLine, isrgFactorFlowLine, isrgFundamentalsLine, isrgEpsRevLine,                          // ← v8.3.0
     mlmDrawdownLine, mlmCohortValuationLine, mlmCohortRelativeLine, mlmTwinLine, mlmFactorFlowLine, mlmFundamentalsLine, mlmEpsRevLine,                   // ← v8.5.0
-    (isPBRA && macro.wti != null) ? `WTI crude: $${macro.wti} — PBR.A primary commodity driver` : null,
-    (isPBRA && macro.brl_usd != null) ? `BRL/USD: ${macro.brl_usd} (${macro.brl_usd < 5 ? "STRONG REAL" : macro.brl_usd < 5.5 ? "NORMAL" : macro.brl_usd < 6.5 ? "WEAKENING" : "WEAK REAL"})` : null,
+    uberDrawdownLine, uberGaapPeLine, uberCohortValuationLine, uberCohortRelativeLine, uberFactorFlowLine, uberShockLine, uberConfigLine, uberFundamentalsLine, uberEpsRevLine,  // ← v8.6.0
+    cvxOilRegimeLine, cvxNormLine, cvxGateLine, cvxDrawdownLine, cvxGaapPeLine, cvxTwinValuationLine, cvxCohortRelativeLine, cvxFactorFlowLine, cvxAirPocketLine, cvxStatusLine, cvxFundamentalsLine, cvxEpsRevLine,  // ← v8.7.0
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -1124,23 +1508,6 @@ BUY BIAS (rare but powerful): Drawdown >15% from highs, forward P/E <25x, TSMC r
 STRUCTURAL: ~3-5% annual buybacks ("sneaky buyback monster"), High-NA EUV ramp ($350M+/tool), 2-3yr backlog visibility.
 YOUR VALUE-ADD: Forward P/E (#1 contribution), TSMC/Samsung/Intel capex commentary, China export controls, WFE cycle position.
 MOST DAYS = NEUTRAL (±10). Scores beyond ±15 only on genuine drawdowns or valuation extremes.
-` : "";
-
-  const enbGuidance = isENB ? `
-CRITICAL — ENB-SPECIFIC SCORING GUIDANCE:
-Enbridge is a DIVIDEND COMPOUNDER — midstream pipeline infrastructure that trades like a toll road, NOT like an oil producer. Revenue is largely contracted and fee-based. ENB is a hold-forever income name.
-
-WHAT DRIVES ENB:
-1. YIELD SPREAD VS BONDS (#1 measurable signal — engine scores this). >300bps = cheap, <150bps = rich.
-2. GAS VOLUMES + LNG BUILDOUT (your value-add). ~25% of EBITDA. LNG Canada Phase 2, Gulf Coast expansion, Henry Hub levels affect drilling/volumes.
-3. CRUDE THROUGHPUT (Mainline economics). ~55% of EBITDA. WCS-WTI spread, Canadian production, Trans Mountain dynamics.
-
-DO NOT PENALIZE: 52w proximity, RSI 55-70, P/E 18-24x, "boring" — that IS the thesis.
-TRIM BIAS (rare): Yield spread <100bps, dividend cut risk, structural pipeline obsolescence. Mainly opportunity cost.
-BUY BIAS: Yield spread >300bps, 10Y spike causing sympathetic drop, ENB yield in top quartile of 5yr range, rate cuts starting, LNG export expansion.
-
-YOUR VALUE-ADD: Henry Hub gas volume outlook, LNG Canada Phase 2 progress, WCS-WTI spread, pipeline permitting, Fed/BoC rate commentary, dividend growth sustainability, CAD/USD impact.
-MOST DAYS NEUTRAL: ±5 roughly 85% of trading days. Meaningful scores on rate overreaction or yield extremes.
 ` : "";
 
   const amkbyGuidance = isAMKBY ? `
@@ -1179,21 +1546,6 @@ COPX RATIO: COPX leading = pure copper leading, GLNCY may catch up. GLNCY leadin
 SCORES: ±10-20 during active commodity markets.
 ` : "";
 
-  const pbraGuidance = isPBRA ? `
-CRITICAL — PBR.A-SPECIFIC SCORING GUIDANCE:
-PBR.A is Petrobras — Brazil's state-controlled oil giant. THREE forces simultaneously: oil price, BRL/USD, political risk. Can conflict.
-
-DRIVERS (in order):
-1. OIL PRICE (engine scores WTI). High beta. Assess OPEC+ dynamics, demand outlook, inventories.
-2. POLITICAL RISK (#1 YOUR VALUE-ADD). Lula government interference dominant idiosyncratic risk. CEO changes, fuel pricing violations, forced refining capex, dividend pressure. Single headline = 5-10% move.
-3. BRL/USD. Engine scores level. Banxico/BCB policy, fiscal trajectory, carry trade.
-
-CYCLICAL P/E: INVERTED. PE 3-5x peak = trim. PE 8-15x mid. PE 25-50x trough = buy. Pre-salt breakeven ~$35/bbl.
-DIVIDEND YIELD: 10-15% is NORMAL — IS the thesis. Engine has enhanced bands (8-18%+). Assess sustainability.
-
-YOUR VALUE-ADD: Government interference risk, dividend policy sustainability, pre-salt production trajectory, Brent-WTI spread, Brazilian fiscal situation, IOC peer comparison, refining margins / fuel pricing compliance.
-SCORES: ±15-25 during active oil/political markets. Political crisis + oil crash = potential STRONG_BUY (-40+).
-` : "";
 
   const linGuidance = isLIN ? `
 CRITICAL — LIN-SPECIFIC SCORING GUIDANCE (V3):
@@ -1551,6 +1903,105 @@ YOUR VALUE-ADD: Forward PE + EV/EBITDA + pro-forma EV/EBITDA WITH explicit basis
 MOST DAYS NEUTRAL: ±6 roughly 80% of days — a TIGHTER neutral band than the high-beta names because beta is 1.11 and a quarry business rarely produces weekly information. Meaningful scores on drawdown setups (engine flags), VMC twin dislocations (engine flags), pricing and volume prints (you flag), authorization-status changes (you flag), LNA glidepath updates (you flag), earnings-window resets (you flag).
 ` : "";
 
+  const uberGuidance = isUBER ? `
+CRITICAL — UBER-SPECIFIC SCORING GUIDANCE (V1):
+
+IDENTITY — READ THIS FIRST. UBER is UBER TECHNOLOGIES, INC. (NYSE: UBER, CIK 1543151, San Francisco) — the mobility and delivery marketplace; Uber Eats, Postmates and Uber Freight are segments or brands of the SAME company. It is NOT the German word "über" or the English slang prefix "uber-", and it has nothing to do with Nietzsche. It is NOT Lyft — LYFT is a peer benchmark here. It is NOT Waymo — Waymo is an Alphabet subsidiary and an AV-supply COUNTERPARTY (partner in a few cities, direct competitor in most); Waymo's rides, fleet and economics are not Uber's. It is NOT Delivery Hero — the Berlin-based, Frankfurt-listed acquisition target, whose figures belong here only on an explicitly pro-forma basis. This slot previously held Petrobras: nothing about oil, Brent, BRL/USD, Brazilian politics or dividend yield belongs in this analysis.
+
+UBER is a DEMAND AGGREGATOR — the largest global ride-hailing network and the second-largest US food-delivery platform, across Mobility, Delivery and Freight in roughly 70 countries. Three structural attributes at once: (1) a TWO-SIDED LIQUIDITY moat — about 208 million monthly active platform consumers create trip density that lowers wait times, which attracts supply, which deepens density; the moat is strongest when supply is FRAGMENTED; (2) an AV SUPPLY QUESTION — a human driver multi-homes because no single driver can generate demand, but a 20,000-car robotaxi fleet can, so the defining long-run variable is whether the best autonomous fleets list on Uber or go direct; (3) a CASH-YIELD valuation — roughly a 6% owner FCF yield after stock comp while bookings grow above 20%, which is a margin of safety ONLY if the Mobility cash flow being discounted is not the cash flow at risk.
+
+THE ARCHITECTURAL RULE FOR THIS NAME — INTERNALIZE IT BEFORE SCORING:
+OPERATING MOMENTUM and AV SUPPLY STRUCTURE are SEPARATE signals on separate clocks and must never be conflated. Bookings, trips and margin print quarterly and are currently strong. AV supply structure changes on announcements — partnership exits, own-app launches, exclusivity deals — that may not touch reported numbers for years. A strong bookings print does not answer the AV question, and an AV headline about 2028 does not change 2026 cash flow. The one place the two clocks meet is the MOBILITY CANARY: Mobility bookings decelerating while Delivery holds is the specific fingerprint of supply routing around the network.
+
+V8.5 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 35/70 (beta 1.26 — between MLM's 38/70 and RDDT's 32/72), daily-move noise floor ±2.5%
+• Drawdown-from-52w-high primary tactical, ladder scaled to 50% (>18% setup, >30% strong, >40% extreme)
+• AV-headline-shock PRICE screen (≤ −4% session in the last 5, not an Uber print day): scored −6 as an UNATTRIBUTED candidate, −3 on a broad-tape day. Attribution is YOURS — express it in your tactical score
+• Marketplace-cohort rotation vs DASH/LYFT/GRAB weighted .50/.25/.25 at a −6pp threshold; the DASH spread is context only (DASH is half the cohort and not a twin)
+• XLY (Consumer Discretionary) factor flow vs SPY
+• DAMPENED trend scoring — MA map at RDDT amplitude and a −35 floor on the 52w ladder: below-both on this name may be the market pricing a live structural falsifier, not a fear cycle
+• Bookings, the Mobility canary, trips, Adj EBITDA % of GB, Mobility segment OI, incentive pressure, guide vs consensus, EPS revisions, owner FCF yield, forward P/E, EV/Adj EBITDA, NET share count — when sourced (they arrive null — YOU source them)
+• AV supply state (human-maintained in fetch v4.19): partners_adding_uber_supply −14 · leader_exiting_tail_aggregating 0 (the BASE CASE) · pending_unknown +2 · second_tier1_exiting +16 · exclusive_pipeline_slipping +12. Delivery Hero lapsed −3; gross leverage above the 2x ceiling +10
+• ⛔ VALUE-TRAP GATE: AV regime disintermediating AND the Mobility canary below 12% cc (or unknown) → the BLENDED strategic score is floored at 0 in blendScores(). Your strategic number cannot buy through it; the MARKET DATA config line states the live gate state
+• Composite weights regime-conditional on the AV SUPPLY regime, engine V8.5: aggregating 25/40/35 · contested 20/35/45 · disintermediating 15/30/55 (LIN/MLM's triple, deliberately reused)
+
+FIVE CALIBRATION TRAPS — ALL LOAD-BEARING. GET THESE WRONG AND THE SIGNAL IS NOISE:
+1. THE GAAP TRAILING P/E IS NOT A SIGNAL, IN EITHER DIRECTION. TTM GAAP net income of about $9.58B contains a $4.9B tax valuation-allowance release from Q3 2025 plus equity-stake revaluation swings of roughly +$1.5B, −$1.6B, −$1.5B and +$1.6B across the last four quarters. A trailing P/E near 14.4x BELOW a forward P/E near 16.4x on a business with ~30%+ consensus EPS growth is arithmetically impossible from operations. The engine never scores it and the cohort P/E premium is permanently gated upstream. ★ CALENDAR TRAP: when Q3 2026 is reported on November 4, 2026, Q3 2025 and its tax release roll OUT of the trailing window and the trailing P/E should roughly DOUBLE toward the high-20s overnight with NO change in the business. Do NOT read that jump as a re-rating to rich, and do NOT read it as a cyclical trough signal (the PBR.A inversion this slot used to carry does not apply). The revaluations never roll off — GAAP EPS stays noisy permanently.
+2. REPORTED REVENUE IS A NULL SIGNAL. Business-model changes cut Q2 2026 revenue growth by 8 percentage points; Mobility revenue rose 1% on Mobility gross bookings up 22%. Score constant-currency gross bookings, trips, MAPCs, Adj EBITDA as a % of gross bookings and segment operating income. ★ BASIS CONSISTENCY: every multiple must carry numerator and denominator on the SAME basis — GAAP with GAAP, adjusted with adjusted, SBC excluded with SBC excluded, standalone with standalone; if you cannot establish it, treat it as missing. On the same ~$140B EV, GAAP EBITDA (~$7.47B TTM) gives ~18.7x, Adjusted EBITDA (~$10.04B, SBC EXCLUDED) gives ~13.9x, and Adjusted EBITDA less SBC (~$8.10B) gives ~17.3x — five turns of apparent cheapness from basis alone. DoorDash's EV/EBITDA near 49x is GAAP; never compare it against Uber's adjusted figure.
+3. OWNER FCF, NOT HEADLINE FCF. TTM free cash flow of about $10.12B excludes about $1.94B of stock-based compensation. Owner FCF is about $8.18B — roughly a 6.1% yield on a market cap near $135B, NOT the ~7.5% headline. Shareholder return is scored on NET share count (down about 2.28% YoY — the portfolio's buyback criterion IS met), never on gross repurchase dollars. Repurchase PACE slowed sharply ($518M in Q2 2026 vs $1,363M a year earlier) as capital went to the Delivery Hero stake; say so honestly, but the net count decides the criterion.
+4. DELIVERY HERO IS PENDING — SCORE STANDALONE. €41.50 per share in cash (~108% premium to the unaffected May 8 close), about $14.8B for 100% of the equity or $13.7B net of prior stake purchases; Uber held ~24.77% of voting capital plus ~11.74% via derivatives, Prosus irrevocably committed ~17%. Acceptance period runs to November 5, 2026 (the day after the Q3 print); merger-control clearances outstanding; settlement expected H2 2027; committed bridge ~€14B; Uber targets gross leverage below 2x and an investment-grade rating; expected accretive to non-GAAP EPS on close, high-single-digit by year three. No synergies are quantified — credit ZERO. Score leverage against the stated <2x gross ceiling, not the level. Unlike MLM's Lhoist deal (approvals and financing done before pro-forma scoring began), DH has neither — do NOT reason pro-forma.
+5. AV HEADLINES ARE CLASSIFIED, NOT REFLEXIVELY SCORED. For every AV headline ask: does it change WHERE AV supply lists (structural) or only WHEN a fleet launches (timing)? Waymo choosing its own app is structural; a partner's launch slipping a quarter is timing. ★ CALIBRATION: Waymo going direct is the BASE CASE and is already in the price — it was on Uber in only three of its ~15 metros (Phoenix ended mid-2026; Austin and Atlanta move to Waymo's own app in January 2028, with the current fleet on Uber through at least May 2028). That state maps to CONTESTED and scores ZERO. What flips the regime is a SECOND tier-1 operator (fully driverless, open-to-public, at scale) withdrawing or declining Uber supply where it runs at scale, or Uber's own exclusive pipeline (Rivian, Lucid/Nuro) missing a disclosed milestone.
+
+WHAT DRIVES UBER:
+1. THE MOBILITY CANARY (THE structural metric). Mobility gross bookings growth in constant currency: above 18% = intact, no visible AV leakage (Q2 2026 printed +20%); 12-18% = softening, watch; below 12% while Delivery holds = BROKEN — the AV-disintermediation signature and the cleanest falsifier in this model, thesis-level regardless of total bookings. Both segments below 12% is a broad demand slowdown — a cycle read, not the AV signature.
+2. THE DEMAND ENGINE. Q2 2026 (reported August 5): gross bookings $58.02B, +24% reported / +22% cc; Mobility $28.99B (+20% cc), Delivery $27.46B (+25% cc), Freight $1.57B; trips 3.867B (+18%); MAPCs 208M (+16%); Adj EBITDA $2.82B (+33%) at 4.9% of GB vs 4.5%; segment OI Mobility $2.22B (+28%), Delivery $1.06B (+38%); non-GAAP EPS $0.81 (+35%); FCF $2.79B; SBC $550M. Q3 2026 guide: GB $58.25-60.25B (18-22% cc), non-GAAP EPS $0.84-0.88, Adj EBITDA $2.86-2.96B — the guide landed below consensus when issued.
+3. MARGIN ON BOOKINGS, NOT REVENUE. Adj EBITDA as a % of gross bookings is the operating-leverage read: above 5.0% compounding; below 4.3% a reversal (incentives, AV economics or mix). Driver and courier incentive intensity into the holiday quarter is the near-term swing factor — elevated is a modest headwind, structural only if it persists two quarters.
+4. AV SUPPLY — the long-run binary. Against Waymo (~4,000 vehicles, >500,000 paid rides a week, overwhelmingly on its own app) and Tesla (own Robotaxi app only, 7 metros, partially unsupervised): Uber committed more than $10B to AVs (April 30, 2026 — >$2.5B equity stakes, >$7.5B earmarked for fleet purchases, with Hertz's Oro Mobility, institutional investors and private credit expected to finance deployment). Rivian (March 19, 2026): 10,000 R2 robotaxis committed, an option to negotiate up to 40,000 more from 2030, EXCLUSIVE to Uber, up to $1.25B of investment through 2031 tied to autonomy milestones, San Francisco and Miami in 2028, 25 cities by 2031. Lucid/Nuro: at least 35,000 vehicles, Uber stake above 11% of Lucid, SF first and Houston in 2027. Zoox planned on Uber in Las Vegas (not yet live as of late October) and Los Angeles (2027); WeRide live in Abu Dhabi; also Baidu, Pony.ai, Momenta, Wayve, VW/MOIA, Nvidia (28 cities by 2028), Stellantis, Motional, Avride. Fleet ownership turns asset-light into capex-heavy at the margin; the edge is utilization from demand density. A tail of partners is not the same as a second leader — weigh accordingly.
+5. VALUATION. Owner FCF yield is the FLAGSHIP lens (>7% deep value / 5.5-7% value / 4-5.5% fair / <3.5% rich) — an absolute anchor, which matters because Uber's GAAP-profitable history is short and own-history multiples cannot bear much weight. Non-GAAP forward P/E (<18x buy, 18-26x fair, >32x stretched; establish whether the non-GAAP EPS deducts SBC) and EV / Adj EBITDA (<14x buy, 14-20x fair, >24x rich; SBC-excluded trailing, tagged) are secondary. As of October 26: price $66.13, ~35% below the 52-week high near $101.99 and within a dollar of the low; market cap ~$135B, EV ~$140B; forward P/E ~16.4.
+6. PEERS — SECONDARY. No true twin exists. DASH (~25x forward, fell 6.1% on October 26 on reports of Instacart talks), LYFT (~8.7x forward; its ~2.3x trailing is a tax-benefit artifact), GRAB (~15.6x forward). Cohort forward P/E ≈ 18.5x weighted; UBER ≈ −12% vs cohort and ≈ −34% vs DASH. A peer read can confirm a strategic score, never carry one.
+7. SHAREHOLDER RETURN AND INSIDERS. Net share count −2.28% YoY (−1.02% QoQ). CEO Dara Khosrowshahi bought 141,000 shares at ~$70.96 (~$10M) on September 10, 2026 — his first open-market purchase since May 2022; COO Andrew Macdonald bought 70,000 at ~$75.83 (~$5.3M) in early September. Small positive, never decisive.
+8. EARNINGS WINDOW DISCIPLINE: Q3 2026 is reported WEDNESDAY NOVEMBER 4, 2026 before the open, and the Delivery Hero acceptance period closes November 5. UBER enters the book INSIDE the window. Within ±10 days of a report, HALVE the size of any tactical conviction and say so. Post-print, score the print — the Mobility canary first, then the Q4 guide, then any AV-partner commentary.
+
+DO NOT PENALIZE: RSI 38-62 (normal for beta 1.26), daily moves under 2.5%, drawdowns under 18%, the GAAP trailing P/E in either direction or its mechanical jump after November 4 (trap 1), reported revenue growth below bookings growth (trap 2), the slowed buyback PACE while the net count falls (trap 3), Delivery Hero leverage inside the 2x ceiling (trap 4), Waymo's Austin/Atlanta own-app launch (trap 5 — the base case), the absence of a dividend (there is none; yield is a non-field), or a GAAP-inflated ROIC (flagged, not scored).
+
+BUY BIAS (in addition to engine signals): owner FCF yield above 5.5% with the Mobility canary intact; non-GAAP forward P/E below 18x; EV / Adj EBITDA below 14x on a tagged basis; drawdown beyond 18% from highs with bookings intact; an AV-headline shock you can attribute to a competitor's or partner's AV news with no Uber operating print behind it; a new tier-1 operator going live on Uber in a major US metro; Rivian or Lucid/Nuro hitting a disclosed milestone early; net share count falling faster than 2% a year.
+
+TRIM BIAS: Mobility GB cc growth below 12% while Delivery holds (the cleanest falsifier); a SECOND tier-1 operator withdrawing or declining Uber supply where it runs driverless at scale; Uber's exclusive pipeline missing a disclosed milestone; Adj EBITDA below 4.3% of GB; owner FCF yield below 3.5%; gross leverage breaching the stated 2x ceiling; net share count rising year over year.
+
+YOUR VALUE-ADD: the Mobility canary and the cc bookings split (engine null — earnings disclosure), Adj EBITDA % of GB, segment OI, incentive pressure, owner FCF yield after SBC, non-GAAP forward P/E with its SBC treatment, EV / Adj EBITDA with an explicit basis tag, ATTRIBUTION of any AV-shock candidate in the MARKET DATA, AV-headline classification (structural vs timing), tier-1 operator status, Rivian and Lucid/Nuro milestone status, the Delivery Hero acceptance result, earnings-window discipline, EPS revisions.
+
+MOST DAYS NEUTRAL: ±8 roughly 80% of days — between MLM's ±6 and the high-beta names; most AV headlines are timing, not structure. Meaningful scores on drawdown setups (engine flags), attributed AV-headline shocks (you attribute), Mobility-canary prints (you flag), tier-1 supply decisions (you flag), Delivery Hero milestones (you flag), earnings-window resets (you flag).
+` : "";
+
+  const cvxGuidance = isCVX ? `
+CRITICAL — CVX-SPECIFIC SCORING GUIDANCE (V1):
+
+IDENTITY — READ THIS FIRST. CVX is CHEVRON CORPORATION (NYSE: CVX, CIK 93410, Houston) — the integrated oil and gas major; Texaco and Caltex are Chevron brands, and Hess Corporation is now part of Chevron (closed July 18, 2025). It is NOT "Chevron deference" — the administrative-law doctrine from Chevron v. NRDC (1984), overruled by Loper Bright in 2024; an analysis about agency interpretation or administrative law has the wrong subject entirely. It is NOT ExxonMobil — XOM is the twin benchmark and Chevron's Stabroek partner. It is NOT Hess Midstream (HESM, separately listed, being exited) and NOT Tengizchevroil (TCO, a 50%-owned affiliate that reaches Chevron's results only through equity income and distributions). "CPC" is ambiguous here: the Caspian Pipeline Consortium (TCO's export route) is NOT Chevron Phillips Chemical (the 50% chemicals joint venture) — name which one every time. This slot previously held Enbridge: nothing about Mainline tolls, Canadian pipeline tariffs or dividend yield spread versus the 10-year belongs in this analysis.
+
+CVX is an INTEGRATED MAJOR — upstream (Permian above 1 million boe/d, TCO in Kazakhstan, 30% of Guyana's Stabroek block via Hess, Australian LNG, Eastern Mediterranean gas, Venezuela joint ventures), downstream refining and marketing, and chemicals. Three structural attributes at once: (1) a CAPITAL-RETURN FRANCHISE — capex plus dividend breakeven below $50 Brent through 2030, $10–20B a year of buybacks across a $60–80 deck, a 39-year dividend growth streak; (2) a COMMODITY that sets the level of every reported number — about $0.60B of after-tax earnings and cash flow per $1 Brent and about $0.70B per $1 Henry Hub; (3) a TWO-SIDED GEOPOLITICAL EXPOSURE — price-long the Iran war, disruption-short through the Partitioned Zone, Israeli gas, and Tengiz barrels that exit via the CPC pipeline to a Black Sea terminal near Novorossiysk.
+
+THE ARCHITECTURAL RULE FOR THIS NAME — INTERNALIZE IT BEFORE SCORING:
+Chevron is valued at ITS OWN $70 BRENT PLANNING DECK, never at spot. EXECUTION and the COMMODITY are separate signals: production vs guide, cost-out, capex discipline and the buyback guide are Chevron's; realized prices, refining cracks, consensus revisions and every spot multiple are the strip's. With Brent near $115 on a war that began February 28, 2026, every spot multiple — trailing P/E, forward P/E on consensus, headline FCF yield — is computed on windfall earnings and looks cheaper than the business is. The honest strategic anchor is normalized adjusted FCF at the deck. The one place the two clocks meet is the TCO CANARY: roughly a quarter of normalized FCF exits through one pipeline.
+
+V8.6 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 35/70, daily-move noise floor ±2%
+• Drawdown-from-52w-high primary tactical, ladder scaled to 35% (>12% setup, >20% strong, >30% extreme). ★ REGIME-AWARE: in a DISLOCATED-HIGH regime drawdowns, down days and down air pockets are the windfall premium unwinding and score ZERO; RSI above 70 with price more than 10% over SMA50 on windfall oil is a trim lean
+• XOM TWIN DISLOCATION (CVX lagging XOM by more than 4pp over 30 days) — the signature tactical setup, close to oil-neutral, live in every regime. SHEL/TTE are context only
+• Geopolitical AIR-POCKET screen (|move| ≥ 4% in the last 5 sessions, not the print day), scored only where price alone classifies it: a Chevron-specific drop (≥3pp worse than XLE) is NOT bought blind; a sector-wide down session is zero in a windfall regime and a light sympathy buy elsewhere. CLASSIFICATION of the headline is YOURS — express it in your tactical score
+• XLE (Energy Select) factor flow vs SPY at ±2pp — in a windfall regime an energy bid IS the windfall trade, not a tailwind
+• DAMPENED trend scoring — MA map and a −30 floor on the 52w ladder: a trend break in an oil major usually IS the commodity, which the normalization owns
+• Production vs the FY26 guide, the TCO/CPC canary (intact −3 · degraded +6 · broken +18), Guyana timing, capex vs guide, the next-quarter buyback guide, EPS revisions (ANCHORED regime only), normalized FCF yield, price-implied Brent, the forward twin premium vs XOM, breakeven vs $50, NET share count on a clean base, net debt ex-HESM — when sourced (they arrive null — YOU source them)
+• ⛔ CYCLE-POSITION GATE: Brent more than 40% above the deck (above $98) → the BLENDED strategic score is floored at 0 in blendScores() unless normalized FCF yield is at least 6% on a FULL normalization; more than 40% below (below $42) → capped at 0 unless that yield is below 4%. The engine's normalization inputs are LLM-sourced and null in its data, so the engine-side gate fails CLOSED whenever Brent is above $98 — your strategic number cannot buy through it. The MARKET DATA gate line states the live state
+• Composite weights regime-conditional on the OIL PRICE regime — spot Brent vs the $70 deck, engine V8.6: anchored (≤20%) 25/40/35 · transitional (≤40%) 20/35/45 · dislocated 15/30/55 (the LIN/MLM/UBER triple, deliberately reused)
+
+FIVE CALIBRATION GUARDRAILS — ALL LOAD-BEARING. GET THESE WRONG AND THE SIGNAL IS NOISE:
+1. WINDFALL NORMALIZATION. Score NORMALIZED adjusted FCF at the deck: normalized FCF = TTM adjusted FCF − (TTM average Brent − $70) × $0.60B − (TTM average Henry Hub − $3.50) × $0.70B − (TTM downstream earnings − $3.0B mid-cycle). A TTM below the deck ADDS back. The commodity adjustments are pre-computed in the MARKET DATA; you source TTM adjusted FCF and TTM downstream earnings and report every input. If Henry Hub or downstream cannot be established the normalization is PARTIAL — a crude-only figure OVERSTATES normalized FCF while cracks are elevated. NEVER score the GAAP trailing P/E or the consensus forward P/E, in EITHER direction — and do NOT invert them the way the cyclical names are read (CVX is deliberately not in the cyclical set). ★ CALENDAR TRAP: when Q3 2026 is reported on October 30, 2026, Q3 2025 (GAAP EPS $1.82 on $69 Brent) rolls OUT of the trailing window and a quarter consensus puts near $4.86 rolls IN; the trailing P/E falls from about 22x toward about 17x overnight with NO change in the business. Then the Hess Midstream exit books a one-time $3–4B after-tax loss that distorts GAAP the other way. The TTM averages roll too — recompute the normalization, never carry it.
+2. TIMING AND WORKING CAPITAL. Single-quarter EPS and headline operating cash flow are NULL SIGNALS: Q1 2026 carried about $2.9B of unfavorable timing effects (derivative marks and LIFO) and a $4.6B working-capital outflow — operating cash flow $2.5B against $7.1B excluding working capital; Q2 2026 released $2.9B of working capital and timing reversed. Score TTM CFFO ex-WC and adjusted FCF only. ★ EARNINGS UNDERSTATE CASH: DD&A is guided at $23–24B against organic capex of $18–19B (the Hess purchase-accounting step-up), so any normalized P/E is secondary and inflated; the normalized FCF yield is the anchor.
+3. HESS ANNIVERSARY. Hess closed July 18, 2025 with about 301 million shares issued: any YoY share count crossing that date shows about +14% mechanical "dilution". Use PERIOD-END counts; the first clean base is 2,013.5M at September 30, 2025 (1,975.8M at June 30, 2026 — −1.9% in nine months). Weighted-average diluted Q3 2026 vs Q3 2025 is STILL contaminated (Hess shares for about 74 of 92 days). Production: Q3 2026 is measured against a post-Hess Q3 2025 (4,086 MBOED), so YoY growth collapses to low single digits mechanically after Q2's +20% — score against the FY26 guide of 3,980–4,100 MBOED, never YoY.
+4. BALANCE-SHEET OPTICS. The Hess Midstream exit (announced October 6, 2026; close expected by year-end) deconsolidates about $3.7B of HESM debt with no cash generated — that is not deleveraging. TCO loan repayments ($1B in Q1 2026, $1B guided for Q3) flatter adjusted FCF. Read leverage ex-deconsolidation.
+5. CYCLE-POSITION GATE. Beyond ±40% of the deck the strategic layer may not sit on the side the spot price flatters: DISLOCATED-HIGH (Brent above $98) — no strategic BUY unless normalized FCF yield is at least 6% on a FULL normalization; DISLOCATED-LOW (Brent below $42) — no strategic TRIM unless that yield is below 4%, the framework's trough-entry rule made mechanical. It fails closed on a null or partial normalization. Score your strategic number honestly inside it — do not compensate by leaning tactical or positional toward a buy.
+
+WHAT DRIVES CVX:
+1. NORMALIZED FCF AT THE DECK (THE strategic anchor). Bands on the NORMALIZED yield: above 7% deep value / 6-7% value / 4.5-6% fair / 4-4.5% lower end of fair / below 4% rich. PRICE-IMPLIED BRENT at a 6% yield = 70 + (0.06 × market cap − normalized FCF) / 0.60: below $65 the stock discounts sub-deck oil (buy bias); $65-80 fair; above $85 it discounts a durable war premium (rich). As of the Q2 print (crude-only, a CEILING): TTM adjusted FCF about $30.7B − ($79.5 − $70) × $0.60B ≈ $25.0B ≈ 5.5% on a market cap near $455B, price-implied Brent about $74. Downstream ran far above mid-cycle in Q2 and Henry Hub averaged $4.66 in Q1, so the FULL normalization is LOWER.
+2. THE TCO / CPC CANARY (THE operational metric). TCO is about $6B of Chevron-share FCF at $70 Brent — roughly a quarter of normalized FCF — and it exits through one pipeline. Intact = CPC flowing and TCO at or near capacity; degraded = intermittent CPC suspensions or TCO downtime; broken = CPC suspended more than two weeks or TCO output materially curtailed — THESIS-LEVEL. Status: third-generation plant nameplate raised from 260,000 to 320,000 bpd; total processing slightly above 1 million bpd; two of three single-point moorings in service, the third expected back from refurbishment in Q3 per the Q2 call — confirm. CPC loadings were suspended repeatedly in 2026 after drone strikes on tankers near the terminal; CPC throughput about 1.59 million bpd in September. Wirth on the Q2 call: a prolonged shutdown is not a highly likely scenario.
+3. WHETHER THE WINDFALL REACHES SHAREHOLDERS. The next-quarter buyback guide is the read: the prior guide was $2.5-3.0B a quarter; above $3.0B means the windfall has started reaching shareholders rather than the balance sheet; a cut below $2.5B with Brent above $80 means the franchise is not converting. Q2 2026: buybacks $3.1B, dividends $3.5B, total debt cut a record $8.4B to $37.1B, net debt ratio 13.1%. Score the NET period-end share count on a clean base, never gross buyback dollars (option exercises returned about $1B in Q1 2026 and largely offset that quarter's buybacks).
+4. EXECUTION. Q2 2026 (reported July 31): adjusted EPS $6.06 on Brent averaging $104 vs $68 a year earlier; production 4,070 MBOED, second-highest ever; CFFO ex-WC $19.7B; capex $4.5B; adjusted FCF $15.4B; downstream earnings $4.87B vs $737M a year earlier — cracks, not just crude; structural cost savings at a $3B run-rate (target $3-4B by year-end, reached early); Hess synergies $1.5B. FY26 guide: production 3,980-4,100 MBOED, organic capex $18-19B (tracking the low end) against the $21B Investor Day ceiling. Four Guyana FPSOs producing, a fifth expected before year-end 2026; Permian above 1 million boe/d for five quarters.
+5. THE OIL TAPE — CONTEXT, CLASSIFIED, NOT REFLEXIVELY SCORED. Brent peaked near $126, fell to $71.57 on July 1 after an April ceasefire, averaged about $91 in August and about $114 in September, and settled at $115.81 on October 26 — about 64% above the deck: DISLOCATED-HIGH, weights 15/30/55, the gate live on the buy side. Hormuz transits a small fraction of pre-war levels; US blockade of Iranian ports; the US SPR at its lowest since 1982. EIA's October STEO has Q4 2026 Brent at $105 and 2027 at $84 — the strip itself expects normalization. For every headline ask: does it change the DURATION of the supply disruption (Hormuz access, Gulf infrastructure, blockade terms — structural for the windfall), or does it hit a CHEVRON ASSET (Partitioned Zone, Leviathan, CPC/TCO, Venezuela — asset-specific)? ★ CALIBRATION: in a DISLOCATED-HIGH regime a de-escalation sell-off is the windfall premium unwinding — information, not an oversold buy. Precedent: April 1, 2026, CVX fell 4.6% on reports Iran's president was prepared to end the conflict — the worst day of a 21.5% drawdown from March 27 to July 1 as Brent fell from about $118 to about $72. Buying that air pocket bought the top of the unwind. An escalation spike extends the windfall — a mild trim lean, never a re-rating.
+6. VALUATION — SECONDARY LENSES. Forward P/E about 12.2 on consensus (SPOT — reported only); trailing GAAP about 22.3 (ARTIFACT). XOM is the twin (forward about 12.4; CVX about 2% below — normal); a forward-basis gap beyond ±10% is a secondary read that can confirm a strategic score, never carry one. SHEL (about 8.4x forward) and TTE (about 7.2x) are a structural-discount reference only. Dividend $1.78 quarterly, yield about 3.1%, 39 consecutive annual increases — judged on coverage by normalized FCF, never as a yield spread. As of October 26: price $232.01, about 1% below the 52-week high of $234.08, about 10.5% above the 50-day and 19.5% above the 200-day, up about 55% year to date (XLE about +58%); market cap about $455B; five-year beta 0.52.
+7. INSIDERS. All sales and no open-market buying in the last 90 days: CEO Mike Wirth about $63.6M (August 14), director John B. Hess about $137.9M (August 3), a Rule 10b5-1 sale on October 20. Establish whether sales were option-related before reading intent into them; never decisive.
+8. EARNINGS WINDOW DISCIPLINE: Q3 2026 is reported FRIDAY OCTOBER 30, 2026 before the open (consensus EPS about $4.86). CVX enters the book INSIDE the window. Within ±10 days of a report, HALVE the size of any tactical conviction and say so. Post-print, score the print — the Q4 buyback guide first, then production vs guide and the TCO commentary, then recompute the normalization on the rolled TTM.
+
+DO NOT PENALIZE OR REWARD: RSI 38-62, daily moves under 2%, a DISLOCATED-HIGH drawdown as if it were oversold (the premium unwinding scores zero), the GAAP trailing P/E in either direction or its mechanical drop after October 30 (guardrail 1), a single quarter's EPS or headline CFFO (guardrail 2), the ~+14% "dilution" or the YoY production collapse across the Hess anniversary (guardrail 3), the HESM debt removal as deleveraging (guardrail 4), a spot-inflated ROCE (flagged, not scored), CVX's premium to SHEL/TTE (structural), or the dividend yield against the 10-year (not a bond proxy — this is not Enbridge).
+
+BUY BIAS (in addition to engine signals): normalized FCF yield above 6% at the deck on a full normalization; price-implied Brent below $65; CVX lagging XOM by more than 4pp over 30 days with no Chevron-specific event; a drawdown beyond 12% from the 52-week high with the TCO canary intact and Brent at or below the anchored band; a sector-wide oil air pocket outside the windfall regime; the next-quarter buyback guide raised above $3.0B; capex tracking the low end of guide while production meets guide; net period-end share count falling faster than 2% a year on a clean base; a trough regime (Brent below $42) with the balance sheet intact.
+
+TRIM BIAS: normalized FCF yield below 4%; price-implied Brent above $85 (the stock discounting a durable war premium); the TCO canary broken; production tracking below 3,980 MBOED ex-disruptions; capex above the $21B ceiling; capex-plus-dividend breakeven drifting above $50 Brent; the buyback guide cut below $2.5B a quarter with Brent above $80; net share count rising on a clean base; a Hormuz settlement that resets Brent toward the anchored band while the stock holds a price-implied Brent above $85; RSI above 70 with price more than 10% over SMA50 on windfall oil.
+
+YOUR VALUE-ADD: TTM adjusted FCF and TTM downstream earnings to complete the normalization (the engine cannot), the normalized yield and price-implied Brent with every input reported, CLASSIFICATION of any air-pocket candidate in the MARKET DATA (disruption duration vs Chevron asset), TCO/CPC status, the next-quarter buyback guide, production vs guide, capex vs guide, Guyana fifth-FPSO timing, HESM deconsolidation state and net debt ex-deconsolidation, period-end share count on a clean base, the XOM forward P/E, earnings-window discipline.
+
+MOST DAYS NEUTRAL: most days the stock is doing nothing remarkable and most signals should sit near zero — scores beyond ±20 on a normal day mean something is miscalibrated (five-year beta 0.52; 2026 realized volatility is the oil war, not the business). Meaningful scores on XOM twin dislocations (engine flags), classified air pockets (you classify), TCO canary changes (you flag), buyback-guide changes (you flag), normalization prints (you compute), earnings-window resets (you flag).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
@@ -1563,7 +2014,7 @@ MOST DAYS NEUTRAL: ±6 roughly 80% of days — a TIGHTER neutral band than the h
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}`;
+${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}`;
 
   const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
@@ -1588,11 +2039,9 @@ Apply the HOSTILE REVIEW PROTOCOL to each layer, then call record_scores exactly
 function buildSearchPrompt(h) {
   const isCyclical = CYCLICAL_ARCHETYPES.has(h.archetype);
   const isASML = h.archetype === "secular_growth_monopoly";
-  const isENB = h.archetype === "dividend_compounder";
   const isAMKBY = h.archetype === "cyclical_trade_bellwether";
   const isKOF = h.archetype === "em_dividend_growth";
   const isGLNCY = h.archetype === "diversified_commodity_trader";
-  const isPBRA = h.archetype === "em_state_oil_dividend";
   const isLIN = h.archetype === "oligopoly_quality_compounder";
   const isMSFT = h.archetype === "ai_infra_quality_compounder";
   const isLHX = h.archetype === "defense_prime_backlog_compounder";
@@ -1601,21 +2050,19 @@ function buildSearchPrompt(h) {
   const isMA = h.archetype === "payments_network_quality_compounder";   // ← v8.3.0
   const isISRG = h.archetype === "surgical_robotics_moat_compounder";   // ← v8.3.0
   const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
+  const isUBER = h.archetype === "marketplace_demand_aggregator";          // ← v8.6.0
+  const isCVX = h.archetype === "integrated_major_capital_returner";       // ← v8.7.0
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
 
   const asmlGuidance = isASML ? `\nCRITICAL — ASML SCORING: Secular growth monopoly (sole EUV supplier). Do NOT penalize 52w proximity or RSI 65-75. Trailing P/E 30-42x is NORMAL. Buy signals: drawdowns >15%. Trim signals: forward P/E >45x, book-to-bill <1.0. Buybacks ~3-5% annual. Most days = NEUTRAL.\n` : "";
 
-  const enbGuidance = isENB ? `\nCRITICAL — ENB SCORING: Dividend compounder / toll-road infrastructure — NOT an oil producer. Do NOT penalize 52w proximity or RSI 55-70 (normal for yield stock). P/E 18-24x is NORMAL. The #1 signal is yield spread vs US 10Y (>300bps = buy, <150bps = rich). ENB is a hold-forever income name — trim is rare and mainly opportunity cost. Search for: ENB dividend yield vs 10Y spread, rate outlook, LNG Canada buildout, WCS-WTI spread, pipeline permitting, dividend growth guidance. Gas volumes and LNG export buildout are real earnings drivers (not just "noise").\n` : "";
-
   const amkbyGuidance = isAMKBY ? `\nCRITICAL — AMKBY SCORING: Cyclical trade bellwether (world's largest container shipping). INVERTED P/E applies — high PE = trough = BUY, low PE = peak = TRIM. Shipping cycles are more extreme than commodities: PE 2-5x = peak, PE 50+ = trough. P/B matters (asset-heavy fleet): P/B <0.7 = below replacement cost = strong buy. Search for: WCI/SCFI container freight rates (THE primary signal), BDI, global trade volumes, Red Sea/Suez disruptions, Maersk logistics vs DSV/Kuehne+Nagel valuation gap, tariff/trade war impacts. Scores can be ±15 to ±25 during active freight markets.\n` : "";
 
   const kofGuidance = isKOF ? `\nCRITICAL — KOF SCORING: Coca-Cola FEMSA, largest Coke bottler in LatAm. Consumer staples compounder. Do NOT penalize 52w proximity or RSI 50-65 (normal for staples). P/E 15-22x is NORMAL. The #1 non-fundamental driver is MXN/USD — KOF earns ~60% in MXN. Strong peso = ADR tailwind, weak peso = headwind. Search for: MXN/USD direction, Banxico rate decisions, Mexican consumer spending, retail sales, nearshoring impact on peso, sugar/PET resin costs, volume growth by geography, dividend growth trajectory. Most days = NEUTRAL.\n` : "";
 
   const glncyGuidance = isGLNCY ? `\nCRITICAL — GLNCY SCORING: Diversified commodity trader (mining: copper 30%, coal 25%, zinc/nickel/cobalt + trading/marketing arm). INVERTED P/E applies but with higher floor than pure cyclicals (trading arm generates $2-4B EBITDA even in troughs). P/B matters (mining assets = replacement cost): P/B <0.8 = strong buy. Search for: LME copper price and trend (THE lead indicator), copper inventories, Chinese PMI/property, zinc/nickel/cobalt prices, coal price + ESG pressure, DXY direction, Glencore trading arm valuation (market often prices at zero). Scores ±10-20 during active commodity markets.\n` : "";
-
-  const pbraGuidance = isPBRA ? `\nCRITICAL — PBR.A SCORING: Petrobras, Brazil state-controlled oil. INVERTED P/E (oil producer cyclical). Three forces: oil price (WTI/Brent), BRL/USD, and POLITICAL RISK (the #1 idiosyncratic factor). Yield 10-15% is NORMAL — the thesis IS the massive yield as compensation for state risk. Search for: WTI/Brent price and OPEC outlook, Lula government interference (CEO changes, fuel pricing, dividend pressure), BRL/USD direction, pre-salt production, dividend sustainability, refining margins. Political crisis + oil crash = potential STRONG_BUY. Scores ±15-25 during active oil/political markets.\n` : "";
 
   const linGuidance = isLIN ? `\nCRITICAL — LIN SCORING (V3): Linde plc, world's #1 industrial gas company in 3-player oligopoly (LIN/APD/AI.PA). Quality compounder, 30+ year Dividend Aristocrat, ROCE >25%, op margin >30%. Do NOT penalize 52w proximity, RSI 60-70, P/E 26-32x, or peer premium 5-15% — all normal for low-vol best-in-class compounder. Composite weights are regime-conditional on geo-weighted PMI (>55: 25/40/35 expansion · 48-55: 20/35/45 neutral · <48: 15/30/55 contraction). Cleanest valuation signal is P/E premium vs APD+AI.PA peer avg with 6M direction (compressing = buy bias even if level is normal). Search for: LIN P/E vs APD and Air Liquide (current + 6mo ago), ASU capacity utilization disclosed in earnings, like-for-like price/mix ex-FX from segment reporting, BBB OAS credit spread (FRED BAMLC0A4CBBB), EPS revisions from FactSet/Refinitiv, hydrogen project pipeline (LIN is global H2 leader, IRA 45V tax credits, EU H2 Bank auctions, contracts $ trailing 90d), green/grey LCOE gap (current + 6mo ago), semi fab capex (TSMC Arizona, Samsung Texas, Intel Ohio, Micron NY drive on-site contracts), decarbonization/CCUS deployments, backlog growth (sale-of-gas + on-site, leading indicator), DXY direction (~70% non-US revenue), QUAL ETF performance vs SPY (30d). Most days = NEUTRAL. Meaningful scores: peer premium dislocations, growth-scare drag-downs, mega-project wins, regulatory pivots.\n` : "";
 
@@ -1634,6 +2081,10 @@ function buildSearchPrompt(h) {
 
   const mlmGuidance = isMLM ? `\nCRITICAL — MLM SCORING (V1): MLM is MARTIN MARIETTA MATERIALS, INC. (NYSE: MLM, CIK 916076) — construction aggregates: crushed stone, sand and gravel. NOT multi-level/network marketing or any downline structure (that acronym expansion is WRONG here). NOT Lockheed Martin — the original Martin Marietta Corporation merged with Lockheed in 1995 and MATERIALS was separated with no defense business; this portfolio holds LHX separately, do not cross-contaminate. NOT Vulcan Materials — VMC is the PEER BENCHMARK, not the subject. A LOCAL MONOPOLY by haul radius: crushed stone is worth less than the cost of moving it beyond ~25-50 miles, so each quarry owns its circle and there is NO exchange price for aggregates. The moat is PERMITTED RESERVES. ★ ARCHITECTURAL RULE: pricing and volume are SEPARATE signals — pricing is structural and near-unconditional (it RISES in recessions), volume is cyclical and policy-driven. Weak volume + intact pricing = a CYCLE datapoint. Intact volume + broken pricing = a THESIS datapoint. Q2 2026 (printed Jul 30): revenue $1.95B +21% (record), adjusted EPS $5.00 +3.3%, aggregates revenue $1.53B +16%, shipments 61.6M tons +17% of which +2.3% ORGANIC (fourth consecutive positive quarter), reported ASP $22.74 -2% BUT organic mix-adjusted pricing +3.7%, organic COGS/ton +2.1% ex pass-through freight, a $52M non-cash inventory step-up charge, FY revenue guide RAISED to ~$7.3B midpoint while FY adj EBITDA guidance was REAFFIRMED not raised (conservative energy assumptions). The stock FELL from ~$569.66 to ~$539.93 on the print, on operating margin compression from energy and acquisition mix. Beta 1.11, short interest ~4.0% — LIN-CLASS bands, NOT high-beta. Do NOT penalize RSI 40-68, daily moves under 2%, drawdowns under 15%, the LOW trailing P/E, reported ASP declines during integration, weather-driven volume misses, 3.7x pro-forma leverage while the glidepath holds, a short-term IIJA extension, the 0.64% dividend yield, or a temporarily depressed ROIC. Do NOT apply the cyclical PE inversion (GLNCY/PBR.A/AMKBY only) — aggregates have no commodity price to trough against. THREE CALIBRATION TRAPS, ALL LOAD-BEARING: (1) THE TRAILING P/E IS AN ACCOUNTING ARTIFACT — ~12.9x trailing against ~26.8x forward, because TTM profit margin (36.7%) EXCEEDS gross margin (28.2%), impossible from operations: the window carries a large non-operating gain from the Quikrete asset exchange. Engine scores trailing as ZERO when trailing < 0.6x forward and honours the fetch layer's premium_pct_reliable flag on the cohort premium (which otherwise reads near -50% and looks like a screaming discount). Do NOT reintroduce either qualitatively; say plainly the trailing multiple is uninformative and lean on forward PE / EV/EBITDA. (2) REPORTED ASP IS A NULL SIGNAL during integration — -2% reported vs +3.7% organic mix-adjusted is pure acquisition/geographic mix; engine never scores it, key every pricing judgement on mix-adjusted organic pricing. (3) WEATHER IS NOISE — heavy Texas/Southeast rain suppressed Q2 volumes into July; when a negative organic-volume print carries a material weather headwind the engine REMOVES the penalty entirely, so do not read rain as demand destruction. ★ BASIS CONSISTENCY: every multiple must carry numerator and denominator on the SAME basis (both standalone or both pro-forma, both trailing or both forward) — if you cannot establish it, return null. Spot EV/EBITDA ~17.8x uses TRAILING EBITDA; comparing it to a pro-forma ~15.6x (2026 EBITDA) fakes a two-turn re-rating. Like-for-like FORWARD it is ~15.8x standalone vs ~15.6x pro-forma — modestly accretive, roughly neutral. Composite weights regime-conditional on the PUBLIC CONSTRUCTION FUNDING regime, engine V8.4: funded 25/40/35 · neutral 20/35/45 · unfunded 15/30/55. EARNINGS WINDOW: Q2 printed Jul 30 2026, so Q3 lands late October 2026 — SEARCH for the confirmed date; within ±10 days HALVE tactical conviction and say so; post-print, score the print. PRIMARY SIGNALS: mix-adjusted ORGANIC pricing (THE moat metric — above 4% intact, 2.5-4% normal structural, BELOW 1% is a PRICING POWER BREAK and the cleanest falsifier in this model, thesis-level regardless of volume), organic volume growth (the cycle read, weather-gated), aggregates cash gross profit per ton and the PRICE-MINUS-COST SPREAD (any positive spread expands margin — Q2'26's 1.6pp spread still produced +15% adjusted cash gross profit; always use COGS EX pass-through freight), federal_authorization_status (IIJA expires SEPTEMBER 30 2026; without reauthorization formula programs revert to pre-IIJA baseline in FY2027, ~$28B/yr cut; H.R. 8870 was ordered reported by House T&I in May 2026 and management flagged a short-term extension as likely — ★ CALIBRATION: twelve extensions followed TEA-21 and ten followed SAFETEA-LU, so patches are the historical RULE and "short_term_extension" is the BASE CASE scoring ZERO, not a downgrade; only a multiyear bill materially BELOW IIJA levels or an outright lapse is a real negative), state_dot_budget_trend (historically elevated in MLM's markets — a partial buffer), LNA/Lhoist (TREAT AS A KNOWN FORWARD EVENT and reason PRO-FORMA: ~$13.5B EV, $7.0B cash + $6.5B stock, LNA did $1.8B gross sales and $786M adj EBITDA for TTM ended Dec 31 2025 at roughly 15x incl. synergies — BELOW MLM's own multiple, which is why it is accretive; ~$85M run-rate synergies credited at ZERO until realized; >2 billion tons of limestone reserves with 200+ years of life; ALL approvals received Aug 5 2026 and the $6.5B notes priced Aug 12 2026 so it is approved AND financed; ★ LEVERAGE IS SCORED ON THE GLIDEPATH NOT THE LEVEL — ~3.7x at close targeting sub-2.5x within 24 months, so 3.7x is the plan working as announced and only a missed schedule is a signal; if the deal TERMINATES the pro-forma frame is void), end markets scored separately (infrastructure and heavy nonres — data centers/power gen/warehouses — are the strong legs, residential the weak and smallest so weight it lightly; LNA's lime serves steel/environmental/agricultural end markets OUTSIDE the highway-funding channel, insulating ~a quarter of pro-forma EBITDA), NET share count change (★ NEGATIVE = BUYBACK, the INVERSE sign convention of a dilutive name: shares are down ~1.11% YoY with a 1.11% buyback yield and ten straight years of dividend growth, so MLM genuinely SATISFIES the portfolio's buyback criterion — but book the pro-forma dilution from $6.5B of LNA stock consideration against a ~$31.6B market cap now), VMC twin dislocation (the signature setup — MLM and VMC are the two dominant US aggregates franchises and rarely diverge for non-operating reasons; scored SEPARATELY from the 3-name cohort, which uses a WEIGHTED average VMC .50 / CRH .25 / EXP .25 at a −5pp rotation threshold, TIGHTER than RDDT's −8pp because beta is 1.11). Engine has TRAILING P/E only and for this name it is contaminated; your forward PE (<24x buy / 26-32x fair / >36x stretched) and EV/EBITDA (<15x buy / 16-19x fair / >21x rich — the CLEANER read because you control both legs) are critical. Search for: MLM forward P/E and whether consensus is standalone or LNA pro-forma basis, EV/EBITDA and pro-forma EV/EBITDA, latest mix-adjusted organic aggregates pricing and organic shipment growth, aggregates cash gross profit per ton, organic COGS per ton ex-freight, energy cost commentary, adjusted EBITDA margin and any inventory step-up charges, infrastructure/heavy nonres/residential demand commentary, weather impact on the quarter, surface transportation reauthorization status and days to expiry, state DOT budget trend, LNA closing status and pro-forma net leverage and delever progress, NET share count change YoY, permitted reserve tons and reserve life, ROIC and WACC, VMC/CRH/EXP forward PE, EPS revisions 30d/90d, confirmed next earnings date. Most days = NEUTRAL (±6 — a TIGHTER band than the high-beta names; a quarry business rarely produces weekly information). Meaningful scores: drawdown setups, VMC twin dislocations, pricing and volume prints, authorization-status changes, LNA glidepath updates, earnings-window resets.\n` : "";
 
+  const uberGuidance = isUBER ? `\nCRITICAL — UBER SCORING (V1): UBER is UBER TECHNOLOGIES, INC. (NYSE: UBER, CIK 1543151) — the mobility and delivery marketplace (Uber Eats, Postmates, Uber Freight are the same company). NOT the German word "über" or the "uber-" prefix; NOT Lyft (peer benchmark); NOT Waymo (an Alphabet subsidiary and AV-supply counterparty — its rides and fleet are not Uber's); NOT Delivery Hero (the pending acquisition target — pro-forma basis only). This slot previously held Petrobras: no oil, BRL or dividend logic belongs here. A DEMAND AGGREGATOR: ~208M monthly active platform consumers create trip density that supply plugs into; the moat is two-sided liquidity, strongest where supply is FRAGMENTED, and the single open question is whether autonomous-vehicle supply lists on Uber or goes direct. ★ ARCHITECTURAL RULE: operating momentum (bookings, trips, margin — quarterly) and AV supply structure (announcements — years) are SEPARATE signals; they meet only at the MOBILITY CANARY. Q2 2026 (reported Aug 5): gross bookings $58.02B +22% cc (Mobility +20% cc, Delivery +25% cc), trips +18%, MAPCs 208M, Adj EBITDA $2.82B at 4.9% of GB (vs 4.5%), segment OI Mobility +28% / Delivery +38%, FCF $2.79B; Q3 guide GB $58.25-60.25B (18-22% cc), Adj EBITDA $2.86-2.96B, below consensus when issued. Beta 1.26: RSI 35/70, daily noise ±2.5%, drawdown ladder to 50% (>18% setup, >30% strong) — price ~35% below the 52w high on Oct 26. FIVE CALIBRATION TRAPS, ALL LOAD-BEARING: (1) GAAP TRAILING P/E IS NOT A SIGNAL in either direction — TTM GAAP net income (~$9.58B) carries a $4.9B tax valuation-allowance release plus ±$1.5B quarterly equity revaluations; trailing ~14.4x below forward ~16.4x on ~30% EPS growth is impossible from operations. ★ CALENDAR TRAP: at the Nov 4 2026 print the tax release rolls out and trailing P/E roughly DOUBLES with no change in the business — not a re-rating, not a cyclical trough. (2) REPORTED REVENUE IS A NULL SIGNAL — business-model changes cut Q2 growth by 8pp (Mobility revenue +1% on bookings +22%); score cc bookings. ★ BASIS: GAAP EBITDA ~18.7x, Adj EBITDA (SBC excluded) ~13.9x, Adj less SBC ~17.3x on the same ~$140B EV — never mix; DASH's ~49x EV/EBITDA is GAAP. (3) OWNER FCF — TTM FCF ~$10.12B less ~$1.94B SBC = ~$8.18B, ~6.1% on ~$135B, NOT the ~7.5% headline; score NET share count (−2.28% YoY — criterion met), never gross buyback dollars (pace slowed to $518M in Q2 as capital went to the DH stake). (4) DELIVERY HERO IS PENDING — €41.50 cash, ~$14.8B equity ($13.7B net of prior stake), acceptance period to Nov 5 2026, merger-control clearances outstanding, settlement H2 2027, ~€14B bridge, gross leverage target <2x; score STANDALONE, no synergies credited, leverage vs the 2x ceiling not the level. (5) AV HEADLINES ARE CLASSIFIED — does the news change WHERE supply lists (structural) or only WHEN a fleet launches (timing)? Waymo going direct (Phoenix ended mid-2026; Austin/Atlanta own app Jan 2028, fleet on Uber through at least May 2028) is the BASE CASE — CONTESTED regime, scores ZERO. Only a SECOND tier-1 exit or Uber's exclusive pipeline (Rivian 10,000 R2s exclusive, SF/Miami 2028; Lucid/Nuro 35,000+) missing a milestone flips the regime. ⛔ VALUE-TRAP GATE: disintermediating regime + Mobility GB cc below 12% (or unknown) → the BLENDED strategic score is floored at 0 — no strategic buy. Composite weights regime-conditional on the AV SUPPLY regime, engine V8.5: aggregating 25/40/35 · contested 20/35/45 · disintermediating 15/30/55. EARNINGS WINDOW: Q3 prints WEDNESDAY NOV 4 2026 before the open — within ±10 days HALVE tactical conviction and say so; post-print, score the canary first. PRIMARY SIGNALS: Mobility GB cc growth (THE canary — >18% intact, 12-18% softening, <12% while Delivery holds = BROKEN, thesis-level), cc gross bookings, Adj EBITDA % of GB (>5.0% compounding, <4.3% reversal), owner FCF yield (>7% deep value / 5.5-7% value / 4-5.5% fair / <3.5% rich), non-GAAP forward P/E (<18x buy / 18-26x fair / >32x stretched), EV/Adj EBITDA tagged (<14x buy / >24x rich), AV supply state, marketplace rotation vs DASH/LYFT/GRAB (weighted .50/.25/.25, −6pp threshold; peer read is SECONDARY — no true twin; LYFT's ~2x trailing P/E is a tax artifact). Insiders: CEO bought ~$10M at ~$70.96 on Sep 10 2026 (first since May 2022), COO ~$5.3M — small positive, never decisive. No dividend — yield is a non-field. Search for: latest Mobility and Delivery gross bookings growth in constant currency, trips and MAPCs, Adj EBITDA as % of gross bookings, segment operating income, driver incentive commentary, Q4 guide vs consensus, TTM FCF and SBC, non-GAAP forward P/E and whether non-GAAP EPS deducts SBC, EV/Adj EBITDA, NET share count YoY, Delivery Hero acceptance level and regulatory status, gross leverage, Waymo/Tesla/Zoox own-app vs Uber listing news, Rivian and Lucid/Nuro milestone status, any AV headline behind a ≥4% Uber down day, DASH/LYFT/GRAB forward P/E, EPS revisions 30d/90d, confirmed earnings date. Most days = NEUTRAL (±8). Meaningful scores: drawdown setups, attributed AV-headline shocks, Mobility-canary prints, tier-1 supply decisions, Delivery Hero milestones, earnings-window resets.\n` : "";
+
+  const cvxGuidance = isCVX ? `\nCRITICAL — CVX SCORING (V1): CVX is CHEVRON CORPORATION (NYSE: CVX, CIK 93410, Houston) — the integrated oil and gas major (Texaco and Caltex are Chevron brands; Hess Corporation is part of Chevron since July 18, 2025). NOT "Chevron deference" (the administrative-law doctrine from Chevron v. NRDC, overruled by Loper Bright in 2024 — an analysis about agency interpretation has the wrong subject); NOT ExxonMobil (XOM is the twin benchmark and Stabroek partner); NOT Hess Midstream (HESM, being exited); NOT Tengizchevroil (TCO, a 50% affiliate). "CPC" is ambiguous — the Caspian Pipeline Consortium (TCO's export route) is NOT Chevron Phillips Chemical (the chemicals JV); name which one every time. This slot previously held Enbridge: no toll-road, Canadian tariff or yield-spread-vs-10Y logic belongs here. A CAPITAL-RETURN FRANCHISE (capex + dividend breakeven < $50 Brent through 2030, $10-20B/yr buybacks at $60-80, 39-year dividend streak) bolted to a commodity that sets every reported number (~$0.60B per $1 Brent, ~$0.70B per $1 Henry Hub). ★ ARCHITECTURAL RULE: value CVX at ITS OWN $70 BRENT DECK, never at spot — execution (production vs guide, cost-out, capex, the buyback guide) and the commodity (realized prices, cracks, revisions, every spot multiple) are SEPARATE signals; they meet at the TCO CANARY. Brent ~$115.81 on Oct 26 is ~64% above the deck → DISLOCATED-HIGH. FIVE CALIBRATION GUARDRAILS, ALL LOAD-BEARING: (1) WINDFALL NORMALIZATION — normalized FCF = TTM adj FCF − (TTM Brent − 70) × 0.60 − (TTM Henry Hub − 3.50) × 0.70 − (TTM downstream − 3.0), in $B; a TTM below the deck adds back; missing HH or downstream = PARTIAL (a ceiling while cracks are elevated). As of the Q2 print, crude-only: ~$30.7B − ~$5.7B ≈ $25.0B ≈ 5.5% on ~$455B, price-implied Brent ~$74; the full normalization is LOWER. NEVER score GAAP trailing P/E (~22.3) or consensus forward P/E (~12.2) in either direction, and do NOT invert them (CVX is not in the cyclical set). ★ CALENDAR TRAP: at the Oct 30 2026 print Q3'25 ($1.82 GAAP on $69 Brent) rolls out and trailing P/E falls ~22x → ~17x with no change in the business; the HESM exit later books a one-time $3-4B loss. (2) TIMING + WORKING CAPITAL — single-quarter EPS and headline CFFO are null signals (Q1'26 CFFO $2.5B vs $7.1B ex-WC); DD&A $23-24B above capex $18-19B means earnings understate cash. (3) HESS ANNIVERSARY — YoY share count across Jul 18 2025 shows ~+14% mechanical dilution: use period-end counts on a clean base (2,013.5M at Sep 30 2025; 1,975.8M at Jun 30 2026); production vs the FY26 3,980-4,100 MBOED guide, never YoY. (4) BALANCE-SHEET OPTICS — the HESM exit removes ~$3.7B of debt with no cash generated; TCO loan repayments flatter adj FCF; read leverage ex-deconsolidation. (5) ⛔ CYCLE-POSITION GATE — Brent above $98: the BLENDED strategic score is floored at 0 unless normalized FCF yield ≥6% on a FULL normalization; below $42: capped at 0 unless yield <4%. Fails closed on a null or partial normalization. Composite weights regime-conditional on spot Brent vs the $70 deck, engine V8.6: anchored (≤20%) 25/40/35 · transitional (≤40%) 20/35/45 · dislocated 15/30/55. ★ GEOPOLITICAL HEADLINES ARE CLASSIFIED: does the news change the DURATION of the supply disruption (Hormuz, Gulf infrastructure, blockade terms) or hit a CHEVRON ASSET (Partitioned Zone, Leviathan, CPC/TCO, Venezuela)? In a dislocated-high regime a de-escalation sell-off is the windfall premium unwinding — not an oversold buy (Apr 1 2026: −4.6%, the worst day of a −21.5% unwind as Brent fell ~$118 → ~$72). EARNINGS WINDOW: Q3 prints FRIDAY OCT 30 2026 before the open (consensus EPS ~$4.86) — within ±10 days HALVE tactical conviction and say so; post-print, the Q4 buyback guide first (prior $2.5-3.0B/quarter; above $3.0B = the windfall reaching shareholders). PRIMARY SIGNALS: normalized FCF yield (>7% deep value / 6-7% value / 4.5-6% fair / <4% rich), price-implied Brent (<$65 buy / $65-80 fair / >$85 rich), the TCO/CPC canary (intact / degraded / broken = CPC suspended >2 weeks or TCO materially curtailed — THESIS-LEVEL; TCO ≈ $6B Chevron-share FCF at $70), production vs guide, capex vs the $18-19B guide and the $21B ceiling, the next-quarter buyback guide, XOM twin dislocation (CVX lagging XOM >4pp/30d with no Chevron-specific event — oil-neutral, live in every regime), breakeven vs $50, net share count on a clean base. RSI 35/70, daily noise ±2%, drawdown ladder to 35% (setup >12%) — in a dislocated-high regime drawdowns score ZERO. SHEL/TTE are a structural-discount reference only. EPS revisions are commodity-driven unless the regime is anchored. Dividend ($1.78/quarter, ~3.1%) judged on coverage by normalized FCF, never as a yield spread. Insiders: all sales in 90 days (CEO Wirth ~$63.6M Aug 14; director John B. Hess ~$137.9M Aug 3) — establish whether option-related; never decisive. Search for: Brent spot and its 5-day change, TTM average Brent and Henry Hub, TTM adjusted FCF, TTM CFFO ex-WC, TTM capex, TTM downstream earnings and the crack environment, last quarter's timing effects and working capital, production vs the FY26 guide, CPC export status and TCO output (any loadings suspensions in the last 30 days), Guyana fifth-FPSO timing, the next-quarter buyback guide, period-end share count, net debt and HESM deconsolidation state, XOM/SHEL/TTE forward P/E, XLE vs SPY 30d, any Iran/Hormuz/CPC/Partitioned Zone/Leviathan headline behind a ≥4% CVX session, EPS revisions 30d/90d, confirmed earnings date. Most days = NEUTRAL — scores beyond ±20 on a normal day mean something is miscalibrated. Meaningful scores: XOM twin dislocations, classified air pockets, TCO canary changes, buyback-guide changes, normalization prints, earnings-window resets.\n` : "";
+
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
@@ -1641,7 +2092,7 @@ function buildSearchPrompt(h) {
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${enbGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${pbraGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}`;
+${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}`;
 
   const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
