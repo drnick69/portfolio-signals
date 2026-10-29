@@ -1,481 +1,390 @@
-// ─── claire-summary.mjs ────────────────────────────────────────────────────────
-// Generates plain-English one-line summaries of each holding for the "Claire"
-// tab on the hub. Reads the latest entry from docs/history/daily-log.jsonl,
-// batches all 12 holdings into one Claude call, writes docs/history/claire.json.
+// ─── rebuild-signals-csv.mjs v2.1 ────────────────────────────────────────────
+// Rebuilds docs/history/signals.csv from docs/history/daily-log.jsonl under the
+// CURRENT log-signals header. The repair tool for the CSV: run it (Actions →
+// "Rebuild signals.csv") whenever log-signals reports a header mismatch that is
+// NOT a pure append, or signal-accuracy reports skipped rows.
 //
-// Voice: conversational but grounded, descriptive not prescriptive, assumes
-// intelligence but zero market vocabulary. One sentence each. No jargon, no
-// numbers unless they genuinely aid understanding.
+// v2.0 (October 2026): RESTORED AND MADE SELF-SYNCING.
+//   • RESTORED. On 2026-07-07 (commit a80251d) this file's contents were
+//     replaced by a copy of claire-summary.mjs — a paste into the wrong file.
+//     From then until this version, the "Rebuild signals.csv" workflow that
+//     log-signals' mismatch warning and signal-accuracy's skip warning both
+//     point to would have run a Claire summary instead of a rebuild. The last
+//     genuine version (ceb56a4, July 2026) is the base here.
+//   • THE HEADER IS NO LONGER A COPY. v1 kept its own column list under a
+//     "KEEP IN SYNC with log-signals" comment, and it had already fallen
+//     behind — it stopped at the V8.2 telemetry, ~115 columns, while
+//     log-signals moved on to 234 (V8.5.0) and 287 (V8.6.0). A rebuild with
+//     that list would have silently thrown away every column added since.
+//     v2.0 reads CSV_HEADERS out of .github/scripts/log-signals.mjs at run
+//     time (the array literal is parsed as text, never evaluated), so the
+//     rebuilt file always carries exactly the header log-signals will write
+//     next, and migrateCsvHeader() sees a match.
+//   • EXTRACTORS ARE KEYED BY COLUMN NAME. Most JSONL fields carry the same
+//     name as their CSV column (true of every flat field added since V8.3), so
+//     the default is the same-named key on the logged holding. EXTRACTORS
+//     below lists only the columns where the JSONL path differs — nested
+//     cohort/twin/duopoly blocks, the layer score objects, macro, renamed keys.
+//     A future column that follows the flat-key convention needs no edit here.
+//   • NOT RECOVERABLE (blank in rebuilt rows; never written to the JSONL):
+//     z_tactical, z_positional, z_strategic, confidence_level,
+//     confidence_score, confidence_missing. Same as v1.
+//   • RECONCILIATION REPORT. Before overwriting, the old CSV is parsed (rows
+//     whose width matches its own header) and compared with the rebuild cell by
+//     cell on (date, symbol). Columns where they disagree are printed, so a
+//     rebuild that loses data is visible in the Actions log instead of silent.
+//     Rows the old file could not parse are exactly what this tool repairs, so
+//     they are counted, not compared.
+//   • BACKUPS. signals.csv.pre-rebuild.bak keeps the very first backup (June
+//     2026) and is never overwritten, as in v1. NEW: every run also writes
+//     signals.csv.last-rebuild.bak — the file as it stood just before THIS
+//     rebuild — so the most recent pre-repair state is always recoverable.
 //
-// v2.0 (June 2026): ENSEMBLE VOTING + VERIFICATION GATE.
-//   - Model claude-sonnet-4-20250514 → claude-opus-4-8.
-//   - Ensemble: N independent candidate sets (CLAIRE_ENSEMBLE_N, default 3),
-//     generated sequentially so calls 2..N read the cached prompt. Per ticker,
-//     the winning sentence is the consensus medoid — the candidate most similar
-//     (token Jaccard) to the other candidates — so a single hallucinated outlier
-//     gets outvoted instead of shipped.
-//   - Verification gate, run on every candidate before voting:
-//       HARD (disqualifies candidate): per-ticker identity violations (the
-//       documented AMKBY/LIN/GLNCY confusions), and direction contradictions —
-//       sentence says the stock moved one way while price_change_pct moved the
-//       other way beyond ±2pp (idiom-guarded: "wind down" etc. don't trip it).
-//       SOFT (selection penalty): jargon blacklist from the prompt rules,
-//       prescriptive phrasing ("you should buy"), and numeric claims that don't
-//       match price_change_pct within 2pp — numbers are the verbatim "quotes" of
-//       this layer and must match the data or stay out.
-//     All candidates hard-fail → "No update today." + console warning (never
-//     ship an unverified sentence to Claire's tab).
-//   - Prompt caching: cache_control on system + user blocks; identical across
-//     the N calls within a run, so candidates 2..N are nearly all cache reads.
-//   - One retry per candidate call; ensemble proceeds with whatever succeeded.
-//   - Output additive: per-ticker gate ("pass" | "soft" | "fallback"), top-level
-//     ensemble { samples_requested, samples_ok }. Existing fields unchanged.
+// v2.1 (October 2026): log-signals V8.7.0 (ENB → CVX) sync — extractors for the
+//   CVX columns whose JSONL path differs from the column name: the twin leg
+//   (twin_valuation.xom_pe / reference_european_avg_pe), the XOM twin rotation
+//   (cohort_relative.*, incl. the deliberate rename xom_dislocation_active ←
+//   twin_dislocation_active), the oil_regime block (brent_spot,
+//   brent_spot_stale, henry_hub_spot), and the engine's cycle gate
+//   (strategic.cycle_gate_active / cycle_gate_side, as for value_trap_gate_
+//   active). premium_pct_reliable and premium_unreliable_reason read the
+//   cohort block first and fall back to twin_valuation — the same either-key
+//   fold log-signals V8.7.0 applies, so CVX rows rebuild with their gate. Every
+//   other CVX column is a same-named flat key and needs nothing here.
 //
-// v2.1 (July 2026): DATA_QUALITY RENDERING — the follow-up flagged in
-//   generate-signals v8.1.1. The daily-log entry now carries the run's
-//   completeness audit (log-signals v8.1.1); Claire's tab was the last surface
-//   that could still make a partial run look healthy. When complete === false:
-//   - top-level run_note: one deterministic plain-English sentence naming the
-//     holdings that weren't scored (built from TICKER_IDENTITY — NOT LLM-
-//     generated, so an incomplete-run notice can never itself hallucinate);
-//   - each missing holding's summary is an honest deterministic sentence with
-//     gate "missing" (the LLM never sees or invents content for a holding that
-//     wasn't scored — its data rows aren't in the input anyway);
-//   - data_quality passes through to claire.json for the dashboard.
-//   Complete runs are unchanged (no run_note key). Additive only.
+// Formatting matches log-signals exactly where the JSONL allows: z_composite to
+// 3 decimals, regime_pmi to 2, booleans as "true"/"false", div_flagged joined
+// with ";", every value through the same esc() quoting. Rows are emitted in
+// daily-log order, one per (date, holding); the JSONL replaces same-date
+// re-runs, so the rebuild also drops the duplicate rows the CSV's append-only
+// writes accumulate when a day is re-run.
 // ────────────────────────────────────────────────────────────────────────────────
 
-import fs from "fs/promises";
-import path from "path";
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from "fs";
 
-const HISTORY_DIR  = process.env.HISTORY_DIR  || "docs/history";
-const LOG_FILE     = process.env.LOG_FILE     || path.join(HISTORY_DIR, "daily-log.jsonl");
-const OUTPUT_FILE  = process.env.OUTPUT_FILE  || path.join(HISTORY_DIR, "claire.json");
+const HISTORY_DIR   = process.env.HISTORY_DIR || "docs/history";
+const LOG_SIGNALS   = process.env.LOG_SIGNALS_PATH || ".github/scripts/log-signals.mjs";
+const JSONL_PATH    = `${HISTORY_DIR}/daily-log.jsonl`;
+const CSV_PATH      = `${HISTORY_DIR}/signals.csv`;
+const BAK_FIRST     = `${HISTORY_DIR}/signals.csv.pre-rebuild.bak`;
+const BAK_LAST      = `${HISTORY_DIR}/signals.csv.last-rebuild.bak`;
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-
-const MODEL_ID = "claude-opus-4-8";
-const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
-
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "IBIT", "KOF", "PBR.A", "AMKBY"];
-
-// ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
-// Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
-// LLMs to confuse with similar-sounding tickers. Keep this authoritative.
-const TICKER_IDENTITY = {
-  "LHX":   { name: "L3Harris Technologies", business: "American defense prime contractor — makes communications systems, electronic warfare gear, ISR/spy systems, and rocket motors for the US military. Smallest of the five big defense primes (Lockheed, Northrop, Raytheon, General Dynamics, L3Harris) and historically trades at a discount to the larger four" },
-  "ASML":  { name: "ASML Holding",         business: "Dutch company that makes the lithography machines used to print advanced computer chips — the sole supplier of EUV machines worldwide" },
-  "LIN":   { name: "Linde plc",            business: "world's largest industrial gas company — supplies oxygen, nitrogen, hydrogen, helium, and argon to hospitals, factories, and electronics manufacturers under long-term contracts" },
-  "MSFT":  { name: "Microsoft",            business: "the software giant behind Windows, Office, and Xbox — but its biggest growth engine now is the Azure cloud service, which rents out the computing power that AI companies need, plus a major partnership with OpenAI (the maker of ChatGPT)" },
-  "TMO":   { name: "Thermo Fisher Scientific", business: "the world's largest supplier of laboratory equipment and bioprocessing tools — sells to biotech companies, pharma, hospitals, and research labs. Often called the 'picks-and-shovels' supplier for the entire life sciences industry" },
-  "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
-  "NOW":   { name: "ServiceNow",           business: "enterprise software company that helps large organizations automate their internal workflows — IT operations, HR requests, customer service ticketing — and is now a leading provider of 'agentic AI' tools that let companies deploy AI assistants for routine business tasks. Used heavily by Fortune 500 companies and the US federal government" },
-  "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
-  "IBIT":  { name: "iShares Bitcoin ETF",  business: "spot Bitcoin exposure" },
-  "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
-  "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
-  "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
+// ─── helpers ─────────────────────────────────────────────────────────────────
+const esc = (v) => {
+  if (v == null || v === "") return "";
+  const str = String(v);
+  return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
 };
 
-// ─── PROMPT ───────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are translating quantitative portfolio analysis into plain English for Claire, an intelligent nursing leader at a children's hospital who has zero background in equities or markets. She's smart and curious — treat her like an adult, not a child. She just doesn't speak the vocabulary.
-
-Your job: rewrite each holding's analyst summary into ONE sentence she can understand over dinner.
-
-TICKER GLOSSARY — use these exact company identities, do not substitute or infer:
-- LHX     = L3Harris Technologies (American defense prime — comms systems, electronic warfare, ISR, rocket motors)
-- ASML    = ASML Holding (Dutch maker of EUV chipmaking machines)
-- LIN     = Linde plc (world's largest industrial gas supplier — oxygen, nitrogen, hydrogen, etc.)
-- MSFT    = Microsoft (Windows/Office/Xbox plus Azure cloud powering AI plus OpenAI partnership)
-- TMO     = Thermo Fisher Scientific (world's largest life sciences lab equipment and bioprocessing supplier)
-- ENB     = Enbridge (Canadian oil & gas pipeline operator)
-- NOW     = ServiceNow (enterprise software that automates IT/HR/customer service workflows, increasingly via AI agents; heavy Fortune 500 and US federal government customer base)
-- GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
-- IBIT    = iShares Bitcoin ETF (spot Bitcoin exposure)
-- KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
-- PBR.A   = Petrobras preferred shares (Brazilian state oil major)
-- AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
-
-CRITICAL DISAMBIGUATION:
-- AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
-- GLNCY is Glencore, not Glencoe or anything else.
-- PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
-- LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
-- NOW is the ticker for ServiceNow, the enterprise workflow-automation software company. It is NEVER a generic adverb and NEVER any retail or consumer brand. ServiceNow's product helps big companies and government agencies automate the boring, repetitive parts of running an organization — IT tickets, HR forms, employee onboarding — and they're now leaders in deploying AI agents to do this work autonomously.
-
-RULES:
-- One sentence per holding. Natural, conversational, not breezy.
-- No jargon: avoid "P/E", "RSI", "yield spread", "forward multiple", "oversold", "basis points", "beta", "composite score", "EBITDA", etc.
-- Describe what's happening, don't tell her what to do. "Looks cheap here" not "buy more." "Holding steady" not "hold."
-- No numbers unless a specific number aids understanding. "Down about 8%" is fine; "trading at 32.4x forward earnings" is not.
-- Vary the sentence structure across the 12 holdings — don't start every line with "X is..."
-- If nothing interesting is happening, say that honestly. Boring is fine. "Microsoft is quiet — the AI infrastructure story keeps grinding along without any drama" is a good output.
-- Ground the sentence in what's actually driving the ticker (the business, the commodity, the macro factor) rather than the score itself. She cares about why, not the number.
-- Any number you state must come directly from the data rows provided — never from memory. If you can't point to it in the row, leave the number out.
-
-EXAMPLES of the voice:
-- "L3Harris is down a bit, but defense spending is on a steady tailwind, so nothing has really changed about the business."
-- "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
-- "Linde is having a quiet week — industrial gas demand is steady and they keep raising prices a little each quarter, which is the whole story with this one."
-- "Bitcoin has been quiet, which after a big run-up is actually what you want to see."
-- "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
-- "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
-- "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
-
-OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
-{
-  "LHX": "L3Harris is down a bit...",
-  "ASML": "ASML keeps climbing...",
-  ...
-}
-
-Return ONLY the JSON object. No preamble, no markdown fences, no commentary.`;
-
-// ─── DATA LOADING ─────────────────────────────────────────────────────────────
-async function loadLatestDailyEntry() {
-  const text = await fs.readFile(LOG_FILE, "utf8");
-  const lines = text.split("\n").filter(l => l.trim());
-  if (lines.length === 0) return null;
-  // Latest entry is the last valid line
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try { return JSON.parse(lines[i]); } catch { /* skip malformed */ }
+function splitCSVLine(line) {
+  const out = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { out.push(cur); cur = ""; }
+    else cur += c;
   }
-  return null;
+  out.push(cur);
+  return out;
 }
 
-function buildInputForClaude(dailyEntry) {
-  // daily-log.jsonl schema: { date, timestamp, assignments, macro, holdings: [...] }
-  const byHolding = {};
-  for (const h of (dailyEntry.holdings || [])) byHolding[h.symbol] = h;
-
-  const rows = [];
-  for (const symbol of PORTFOLIO) {
-    const identity = TICKER_IDENTITY[symbol] || { name: symbol, business: "" };
-    const h = byHolding[symbol];
-    if (!h) {
-      rows.push({
-        symbol,
-        company_name: identity.name,
-        what_it_is:   identity.business,
-        note:         "no data for this holding today",
-      });
-      continue;
-    }
-    rows.push({
-      symbol,
-      company_name:      identity.name,
-      what_it_is:        identity.business,
-      recommendation:    h.composite?.recommendation ?? "HOLD",
-      composite_score:   h.composite?.blended ?? null,
-      tactical_signal:   h.tactical?.signal ?? null,
-      positional_signal: h.positional?.signal ?? null,
-      strategic_signal:  h.strategic?.signal ?? null,
-      price_change_pct:  h.change_pct ?? null,
-      role:              h.role ?? null,
-      key_metric:        h.key_metric ?? null,
-    });
-  }
-  return rows;
+// The header, read from log-signals.mjs and PARSED, never evaluated: the array
+// body may contain only double-quoted column names, commas, whitespace and
+// // comments. Anything else is a hard failure — this tool never guesses a
+// schema, and never runs code from another file to find one.
+function loadHeader() {
+  const src = readFileSync(LOG_SIGNALS, "utf-8");
+  const start = src.indexOf("const CSV_HEADERS = [");
+  const end = src.indexOf('].join(",");', start);
+  if (start === -1 || end === -1) throw new Error(`CSV_HEADERS not found in ${LOG_SIGNALS}`);
+  const body = src.slice(start + "const CSV_HEADERS = [".length, end)
+    .split("\n").map(l => l.replace(/\/\/.*$/, "")).join("\n");   // drop line comments
+  const cols = [...body.matchAll(/"([a-z0-9_]+)"/g)].map(m => m[1]);
+  const residue = body.replace(/"[a-z0-9_]+"/g, "").replace(/[\s,]/g, "");
+  if (residue !== "") throw new Error(`CSV_HEADERS in ${LOG_SIGNALS} contains something other than column names: ${residue.slice(0, 60)}`);
+  if (cols.length === 0) throw new Error(`CSV_HEADERS in ${LOG_SIGNALS} is empty`);
+  if (new Set(cols).size !== cols.length) throw new Error(`CSV_HEADERS in ${LOG_SIGNALS} has duplicate names`);
+  return cols;
 }
 
-// ─── VERIFICATION GATE (v2.0) ─────────────────────────────────────────────────
-// Verifies each candidate sentence against the authoritative input row before it
-// is allowed to compete in the ensemble vote. Numbers and direction words are
-// this layer's verbatim "quotes" — they must match the data or the sentence
-// doesn't ship. HARD violations disqualify a candidate; SOFT violations only
-// penalize selection.
+// Tolerant getters — daily-log shapes evolved; mirror attribute-signals' defenses.
+const num     = (v) => (typeof v === "number" ? v : null);
+const price   = (h) => num(h.price) ?? h.price?.current ?? null;
+const layer   = (h, l) => h[l] || {};
+const blended = (h, l) => layer(h, l).blended ?? layer(h, l).score ?? null;
+const fixed   = (v, d) => (typeof v === "number" ? v.toFixed(d) : v);
+const kmName  = (h) => typeof h.key_metric === "string" ? h.key_metric.split(": ")[0] : (h.key_metric?.name ?? null);
+const kmValue = (h) => typeof h.key_metric === "string"
+  ? (h.key_metric.includes(": ") ? h.key_metric.slice(h.key_metric.indexOf(": ") + 2) : null)
+  : (h.key_metric?.value ?? null);
+const cv = (h, k) => h.cohort_valuation?.[k];
+const cr = (h, k) => h.cohort_relative?.[k];
+const dr = (h, k) => h.duopoly_relative?.[k];
 
-// Per-ticker identity poison words (from CRITICAL DISAMBIGUATION). Hard.
-const HARD_BANNED_BY_TICKER = {
-  "AMKBY": [/\bbeer\b/i, /\bbrewer\w*\b/i, /\bbrewing\b/i, /\bambev\b/i, /\babev\b/i, /\bbeverage\w*\b/i],
-  "LIN":   [/\blinkedin\b/i],
-  "GLNCY": [/\bglencoe\b/i],
+const NOT_IN_JSONL = new Set([
+  "z_tactical", "z_positional", "z_strategic",
+  "confidence_level", "confidence_score", "confidence_missing",
+]);
+
+const MACRO_COLS = new Set([
+  "vix", "us10y", "us2y", "tips10y", "spread_2s10s", "hy_oas", "fed_funds",
+  "wti", "mxn_usd", "brl_usd", "gscpi", "dxy", "us_ism", "eu_pmi", "china_pmi",
+  "bbb_oas_bps", "bbb_oas_1m_change_bps",
+]);
+
+// Columns whose JSONL path differs from their name. Everything else defaults to
+// the same-named flat key on the logged holding.
+const EXTRACTORS = {
+  // Identity + price
+  date:   (h, e) => e.date,
+  price:  (h) => price(h),
+  // Layer scores
+  det_tactical:   (h) => layer(h, "tactical").det,
+  det_positional: (h) => layer(h, "positional").det,
+  det_strategic:  (h) => layer(h, "strategic").det,
+  det_composite:  (h) => layer(h, "composite").det,
+  llm_tactical:   (h) => layer(h, "tactical").llm,
+  llm_positional: (h) => layer(h, "positional").llm,
+  llm_strategic:  (h) => layer(h, "strategic").llm,
+  llm_composite:  (h) => layer(h, "composite").llm,
+  tactical_score:   (h) => blended(h, "tactical"),
+  positional_score: (h) => blended(h, "positional"),
+  strategic_score:  (h) => blended(h, "strategic"),
+  composite_score:  (h) => blended(h, "composite"),
+  tactical_signal:   (h) => layer(h, "tactical").signal,
+  positional_signal: (h) => layer(h, "positional").signal,
+  strategic_signal:  (h) => layer(h, "strategic").signal,
+  recommendation:    (h) => layer(h, "composite").recommendation,
+  z_composite:       (h) => fixed(h.z_composite, 3),
+  // Key metric (JSONL stores "name: value" as one string)
+  key_metric_name:  (h) => kmName(h),
+  key_metric_value: (h) => kmValue(h),
+  // Regime context
+  regime_pmi: (h) => fixed(h.regime_pmi, 2),
+  weight_t:   (h) => h.weights?.t,
+  weight_p:   (h) => h.weights?.p,
+  weight_s:   (h) => h.weights?.s,
+  // V8.0 / V8.2 telemetry
+  div_tactical:   (h) => h.divergence?.tactical,
+  div_positional: (h) => h.divergence?.positional,
+  div_strategic:  (h) => h.divergence?.strategic,
+  div_flagged:    (h) => (h.divergence?.flagged || []).join(";"),
+  tz_tactical:    (h) => h.tz?.tactical,
+  tz_positional:  (h) => h.tz?.positional,
+  tz_strategic:   (h) => h.tz?.strategic,
+  tz_composite:   (h) => h.tz?.composite,
+  verify_passed:  (h) => h.verification ? (h.verification.passed ? "true" : "false") : null,
+  verify_turns:   (h) => h.verification?.corrective_turns,
+  // Cohort valuation (NOW / MSFT / LHX / ISRG / RDDT / MLM / UBER)
+  now_pe: (h) => cv(h, "now_pe"), crm_pe: (h) => cv(h, "crm_pe"),
+  wday_pe: (h) => cv(h, "wday_pe"), adbe_pe: (h) => cv(h, "adbe_pe"),
+  cohort_avg_pe:      (h) => cv(h, "cohort_avg_pe"),
+  cohort_premium_pct: (h) => cv(h, "premium_pct"),
+  mdt_pe: (h) => cv(h, "mdt_pe"), syk_pe: (h) => cv(h, "syk_pe"), bsx_pe: (h) => cv(h, "bsx_pe"),
+  meta_pe: (h) => cv(h, "meta_pe"), pins_pe: (h) => cv(h, "pins_pe"), app_pe: (h) => cv(h, "app_pe"),
+  vmc_pe: (h) => cv(h, "vmc_pe"), crh_pe: (h) => cv(h, "crh_pe"), exp_pe: (h) => cv(h, "exp_pe"),
+  mlm_vs_vmc_pct: (h) => cv(h, "mlm_vs_vmc_pct"),
+  // v2.1: either key, exactly as log-signals V8.7.0 folds it (CVX carries the
+  // pair in its twin block, not a cohort block).
+  premium_pct_reliable:                 (h) => cv(h, "premium_pct_reliable") ?? h.twin_valuation?.premium_pct_reliable,
+  trailing_discount_artifact_suspected: (h) => cv(h, "trailing_discount_artifact_suspected"),
+  dash_pe: (h) => cv(h, "dash_pe"), lyft_pe: (h) => cv(h, "lyft_pe"), grab_pe: (h) => cv(h, "grab_pe"),
+  uber_vs_dash_pct:          (h) => cv(h, "uber_vs_dash_pct"),
+  premium_unreliable_reason: (h) => cv(h, "unreliable_reason") ?? h.twin_valuation?.unreliable_reason,
+  // Cohort relative
+  now_30d_return_pct:        (h) => cr(h, "now_30d_return_pct"),
+  cohort_avg_30d_return_pct: (h) => cr(h, "cohort_avg_30d_return_pct"),
+  rotation_pressure_pp:      (h) => cr(h, "rotation_pressure_pp"),
+  rotation_pressure_active:  (h) => cr(h, "rotation_pressure_active"),
+  isrg_30d_return_pct:       (h) => cr(h, "isrg_30d_return_pct"),
+  // Either key, exactly as log-signals V8.5.0+ folds it.
+  cohort_rotation_pp:        (h) => cr(h, "cohort_rotation_pp") ?? cr(h, "peer_rotation_pp"),
+  cohort_rotation_active:    (h) => cr(h, "cohort_rotation_active") ?? cr(h, "peer_rotation_active"),
+  rddt_30d_return_pct:       (h) => cr(h, "rddt_30d_return_pct"),
+  mlm_30d_return_pct:        (h) => cr(h, "mlm_30d_return_pct"),
+  vmc_spread_30d_pp:         (h) => cr(h, "vmc_spread_30d_pp"),
+  vmc_dislocation_active:    (h) => cr(h, "vmc_dislocation_active"),
+  uber_30d_return_pct:       (h) => cr(h, "uber_30d_return_pct"),
+  dash_spread_30d_pp:        (h) => cr(h, "dash_spread_30d_pp"),
+  // MA twin / duopoly blocks
+  v_pe:                    (h) => h.twin_valuation?.v_pe,
+  twin_premium_pct:        (h) => h.twin_valuation?.premium_pct,
+  twin_daily_spread_pp:    (h) => h.twin_relative?.relative_spread_pp,
+  ma_30d_return_pct:       (h) => dr(h, "ma_30d_return_pct"),
+  v_30d_return_pct:        (h) => dr(h, "v_30d_return_pct"),
+  twin_spread_30d_pp:      (h) => dr(h, "twin_spread_pp"),
+  twin_dislocation_active: (h) => dr(h, "twin_dislocation_active"),
+  duopoly_vs_spy_pp:       (h) => dr(h, "duopoly_vs_spy_pp"),
+  disruption_fear_regime:  (h) => dr(h, "disruption_fear_regime"),
+  // Renamed vs payload key (see log-signals V8.5.0)
+  lna_integration_state: (h) => h.ma_integration_state,
+  // Engine output stored beside the blended score it clips (log-signals V8.6.0)
+  value_trap_gate_active: (h) => layer(h, "strategic").value_trap_gate_active,
+  // v2.1 — CVX (log-signals V8.7.0). Twin leg + structural-discount reference.
+  xom_pe:              (h) => h.twin_valuation?.xom_pe,
+  european_ref_avg_pe: (h) => h.twin_valuation?.reference_european_avg_pe,
+  // XOM twin rotation. ⚠ Column renamed vs its payload key (see log-signals V8.7.0).
+  cvx_30d_return_pct:          (h) => cr(h, "cvx_30d_return_pct"),
+  xom_30d_return_pct:          (h) => cr(h, "xom_30d_return_pct"),
+  xom_spread_30d_pp:           (h) => cr(h, "xom_spread_30d_pp"),
+  xom_dislocation_active:      (h) => cr(h, "twin_dislocation_active"),
+  european_avg_30d_return_pct: (h) => cr(h, "european_avg_30d_return_pct"),
+  // Oil regime vs the $70 deck (the deviation itself is regime_driver).
+  brent_spot:       (h) => h.oil_regime?.brent_spot,
+  brent_spot_stale: (h) => h.oil_regime?.brent_spot_stale,
+  henry_hub_spot:   (h) => h.oil_regime?.henry_hub_spot,
+  // Engine output stored beside the blended score it bounds (log-signals V8.7.0)
+  cycle_gate_active: (h) => layer(h, "strategic").cycle_gate_active,
+  cycle_gate_side:   (h) => layer(h, "strategic").cycle_gate_side,
 };
 
-// Jargon blacklist (from prompt RULES). Soft.
-const JARGON_RES = [
-  /\bP\/E\b/i, /\bRSI\b/, /\byield spread\b/i, /\bforward multiple\b/i,
-  /\boversold\b/i, /\boverbought\b/i, /\bbasis points?\b/i, /\bbeta\b/i,
-  /\bcomposite score\b/i, /\bEBITDA\b/i,
-];
-
-// Prescriptive phrasing (descriptive-not-prescriptive rule). Soft.
-const PRESCRIPTIVE_RES = [/\byou should\b/i, /\bbuy more\b/i, /\btime to (?:buy|sell|trim)\b/i];
-
-// Direction word lists for contradiction checks. Idioms that contain direction
-// words but don't describe price movement are neutralized before scanning.
-const IDIOM_GUARDS = [/wind(?:ing|s)? down/gi, /slow(?:ing|s)? down/gi, /calm(?:ing|s)? down/gi, /cool(?:ing|s)? down/gi, /settl(?:e|es|ing) down/gi, /down the road/gi, /up to\b/gi, /sign(?:ing|s|ed)? up\b/gi, /hold(?:ing|s)? up\b/gi, /set(?:ting)? up\b/gi, /make(?:s)? up\b/gi, /up and running/gi];
-const DOWN_RE = /\b(?:down|dropp?ed|dropping|fell|falling|declined?|declining|slipp?ed|slipping|slid|sliding|pull(?:ed|ing)? back|sold off|sell-?off|tumbl(?:ed|ing))\b/i;
-const UP_RE   = /\b(?:up|climb(?:ed|ing|s)?|rose|rising|rall(?:ied|ying)|jump(?:ed|ing)?|gain(?:ed|ing|s)?|surg(?:ed|ing)|popp?ed)\b/i;
-const DIRECTION_TOLERANCE_PP = 2.0;   // contradiction only counts beyond ±2pp
-const NUMERIC_TOLERANCE_PP   = 2.0;   // % claims must land within 2pp of actual
-
-function verifySentence(symbol, sentence, row) {
-  const hard = [];
-  const soft = [];
-  if (typeof sentence !== "string" || !sentence.trim()) {
-    return { hard: ["empty"], soft: [] };
-  }
-
-  // Identity gate (hard)
-  for (const re of (HARD_BANNED_BY_TICKER[symbol] || [])) {
-    if (re.test(sentence)) hard.push(`identity:${re.source}`);
-  }
-
-  // Direction gate (hard, idiom-guarded, only when the move is unambiguous)
-  const chg = row?.price_change_pct;
-  if (typeof chg === "number") {
-    let scan = sentence;
-    for (const g of IDIOM_GUARDS) scan = scan.replace(g, " ");
-    if (chg >= DIRECTION_TOLERANCE_PP && DOWN_RE.test(scan) && !UP_RE.test(scan)) {
-      hard.push(`direction:says_down_actual_+${chg}`);
-    }
-    if (chg <= -DIRECTION_TOLERANCE_PP && UP_RE.test(scan) && !DOWN_RE.test(scan)) {
-      hard.push(`direction:says_up_actual_${chg}`);
-    }
-  }
-
-  // Numeric gate (soft): any % stated must match |price_change_pct| within 2pp.
-  const pctMatches = [...sentence.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map(m => parseFloat(m[1]));
-  for (const n of pctMatches) {
-    if (typeof chg === "number" && Math.abs(n - Math.abs(chg)) <= NUMERIC_TOLERANCE_PP) continue;
-    soft.push(`number:unverified_${n}%`);
-  }
-
-  // Jargon gate (soft)
-  for (const re of JARGON_RES) if (re.test(sentence)) soft.push(`jargon:${re.source}`);
-
-  // Prescriptive gate (soft)
-  for (const re of PRESCRIPTIVE_RES) if (re.test(sentence)) soft.push(`prescriptive:${re.source}`);
-
-  return { hard, soft };
+function extract(col, h, entry) {
+  if (NOT_IN_JSONL.has(col)) return null;
+  if (MACRO_COLS.has(col)) return (entry.macro || {})[col];
+  if (EXTRACTORS[col]) return EXTRACTORS[col](h, entry);
+  const v = h[col];
+  // Arrays stringify exactly as log-signals' esc() did ("a,b", quoted); a plain
+  // object never belonged in a cell, so it is left blank rather than written
+  // as "[object Object]".
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? null : v;
 }
 
-// ─── ENSEMBLE VOTE (v2.0) ─────────────────────────────────────────────────────
-// Per ticker: gate every candidate; among hard-passing candidates pick the
-// consensus medoid (highest summed token-Jaccard similarity to the other
-// candidates), with soft violations as a penalty. A lone hallucination diverges
-// from the consensus and loses; if everything hard-fails, ship the fallback.
-
-function tokenize(s) {
-  return new Set(String(s).toLowerCase().replace(/[^a-z0-9\s%]/g, " ").split(/\s+/).filter(Boolean));
+// Parse a CSV against its own header; rows of the wrong width are counted, not read.
+function parseOwn(text) {
+  const lines = text.trim().split("\n").map(l => l.replace(/\r$/, ""));
+  const header = splitCSVLine(lines[0]);
+  const rows = new Map();
+  let unparsed = 0;
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue;
+    const vals = splitCSVLine(line);
+    if (vals.length !== header.length) { unparsed++; continue; }
+    const r = {};
+    header.forEach((c, i) => { r[c] = vals[i]; });
+    rows.set(`${r.date}|${r.symbol}`, r);   // last write wins, as in the JSONL
+  }
+  return { header, rows, unparsed, total: lines.length - 1 };
 }
 
-function jaccard(aSet, bSet) {
-  if (aSet.size === 0 && bSet.size === 0) return 0;
-  let inter = 0;
-  for (const t of aSet) if (bSet.has(t)) inter++;
-  return inter / (aSet.size + bSet.size - inter);
-}
+// ─── main ────────────────────────────────────────────────────────────────────
+function main() {
+  if (!existsSync(JSONL_PATH)) {
+    console.error(`ERROR: ${JSONL_PATH} not found — nothing to rebuild from.`);
+    process.exit(1);
+  }
+  const COLS = loadHeader();
+  console.log(`Header: ${COLS.length} columns, read from ${LOG_SIGNALS}`);
 
-const SOFT_PENALTY = 10;
-
-function voteOnSentences(symbol, candidates, row) {
-  const gated = candidates.map((sentence, i) => ({ i, sentence, ...verifySentence(symbol, sentence, row) }));
-  const eligible = gated.filter(c => c.hard.length === 0);
-  const rejected = gated.filter(c => c.hard.length > 0);
-
-  if (eligible.length === 0) {
-    return { sentence: null, gate: "fallback", rejected, picked: null };
+  // 1. Backups
+  let oldText = null;
+  if (existsSync(CSV_PATH)) {
+    oldText = readFileSync(CSV_PATH, "utf-8");
+    if (!existsSync(BAK_FIRST)) {
+      copyFileSync(CSV_PATH, BAK_FIRST);
+      console.log(`✓ First-ever backup → ${BAK_FIRST}`);
+    } else {
+      console.log(`  ${BAK_FIRST} exists — kept (the original pre-rebuild state is never overwritten)`);
+    }
+    copyFileSync(CSV_PATH, BAK_LAST);
+    console.log(`✓ Pre-rebuild copy → ${BAK_LAST}`);
   }
 
-  const tokens = eligible.map(c => tokenize(c.sentence));
-  let best = null;
-  for (let k = 0; k < eligible.length; k++) {
-    let consensus = 0;
-    for (let j = 0; j < eligible.length; j++) {
-      if (j !== k) consensus += jaccard(tokens[k], tokens[j]);
-    }
-    const score = consensus - SOFT_PENALTY * eligible[k].soft.length;
-    if (
-      best === null ||
-      score > best.score ||
-      (score === best.score && eligible[k].soft.length < best.cand.soft.length)
-    ) {
-      best = { score, cand: eligible[k] };
-    }
-  }
+  // 2. Load daily-log entries
+  const entries = readFileSync(JSONL_PATH, "utf-8")
+    .split("\n").filter(l => l.trim())
+    .map(l => { try { return JSON.parse(l); } catch { return null; } })
+    .filter(e => e && e.date && Array.isArray(e.holdings));
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+  console.log(`Loaded ${entries.length} daily-log entries (${entries[0]?.date} → ${entries[entries.length - 1]?.date})`);
 
-  return {
-    sentence: best.cand.sentence.trim(),
-    gate: best.cand.soft.length > 0 ? "soft" : "pass",
-    rejected,
-    picked: best.cand.i,
-  };
-}
-
-// ─── CLAUDE CALL ──────────────────────────────────────────────────────────────
-// One call = one full candidate set (all 12 tickers). System + user blocks carry
-// cache_control and are identical across the run, so candidates 2..N are nearly
-// all cache reads. One retry per candidate; ensemble proceeds with successes.
-async function callClaudeOnce(userMessage) {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type":      "application/json",
-          "x-api-key":         ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL_ID,
-          max_tokens: 2000,
-          system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-          messages: [{ role: "user", content: [{ type: "text", text: userMessage, cache_control: { type: "ephemeral" } }] }],
-        }),
+  // 3. Emit rows under the current header
+  const out = [COLS.join(",")];
+  const perSymbol = {};
+  const filled = Object.fromEntries(COLS.map(c => [c, 0]));
+  for (const entry of entries) {
+    for (const h of entry.holdings) {
+      if (!h?.symbol) continue;
+      const cells = COLS.map(c => {
+        const v = extract(c, h, entry);
+        if (v != null && v !== "") filled[c]++;
+        return esc(v ?? "");
       });
-
-      if (!resp.ok) {
-        throw new Error(`Anthropic API ${resp.status}: ${(await resp.text()).slice(0, 150)}`);
-      }
-
-      const data = await resp.json();
-      const text = (data.content || [])
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("\n")
-        .trim();
-
-      const cleaned = text.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("Could not extract JSON from Claude response: " + text.slice(0, 200));
-      const parsed = JSON.parse(match[0]);
-      const cacheRead = data.usage?.cache_read_input_tokens || 0;
-      return { parsed, cacheRead };
-    } catch (e) {
-      if (attempt === 2) throw e;
-      console.log(`  [claire-summary] candidate call failed (${e.message.slice(0, 80)}) — retrying...`);
-      await new Promise(r => setTimeout(r, 1500));
+      out.push(cells.join(","));
+      perSymbol[h.symbol] = (perSymbol[h.symbol] || 0) + 1;
     }
   }
-}
+  const newText = out.join("\n") + "\n";
 
-async function gatherCandidates(inputRows) {
-  const userMessage = `Here are today's analyst summaries for Claire's portfolio. Each row includes the ticker, the exact company name, and what the business actually does — use those as the source of truth for identifying each holding. Translate each into one plain-English sentence per the rules.
-
-${JSON.stringify(inputRows, null, 2)}`;
-
-  const candidateSets = [];
-  for (let n = 1; n <= ENSEMBLE_N; n++) {
-    try {
-      const { parsed, cacheRead } = await callClaudeOnce(userMessage);
-      candidateSets.push(parsed);
-      console.log(`  [claire-summary] candidate set ${n}/${ENSEMBLE_N} ok (cache r${cacheRead})`);
-    } catch (e) {
-      console.log(`  [claire-summary] candidate set ${n}/${ENSEMBLE_N} FAILED: ${e.message.slice(0, 100)}`);
-    }
-  }
-  return candidateSets;
-}
-
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
-async function main() {
-  if (!ANTHROPIC_KEY) {
-    console.error("ERROR: ANTHROPIC_API_KEY not set");
+  // 4. Self-validation BEFORE anything is overwritten
+  const widths = new Set(out.map(l => splitCSVLine(l).length));
+  if (widths.size !== 1 || !widths.has(COLS.length)) {
+    console.error(`✗ VALIDATION FAILED: widths seen = ${[...widths].join(", ")} (expected uniform ${COLS.length}). signals.csv NOT written.`);
     process.exit(1);
   }
+  writeFileSync(CSV_PATH, newText);
+  console.log(`✓ Wrote ${out.length - 1} rows × ${COLS.length} columns → ${CSV_PATH} (uniform width verified)`);
 
-  console.log("[claire-summary] loading latest daily entry...");
-  const daily = await loadLatestDailyEntry();
-  if (!daily) {
-    console.error(`[claire-summary] no entries in ${LOG_FILE}`);
-    process.exit(1);
-  }
-  console.log(`  latest entry: ${daily.date} with ${daily.holdings?.length ?? 0} holdings`);
-
-  const input = buildInputForClaude(daily);
-  const rowsBySymbol = {};
-  for (const r of input) rowsBySymbol[r.symbol] = r;
-
-  console.log(`[claire-summary] gathering ${ENSEMBLE_N} candidate set(s) [${MODEL_ID}]...`);
-  const candidateSets = await gatherCandidates(input);
-  if (candidateSets.length === 0) {
-    console.error("[claire-summary] all candidate calls failed — falling back per ticker");
-  }
-
-  // Build final output
-  const byHolding = {};
-  for (const h of (daily.holdings || [])) byHolding[h.symbol] = h;
-
-  const summaries = {};
-  for (const symbol of PORTFOLIO) {
-    const h = byHolding[symbol];
-    const candidates = candidateSets
-      .map(set => set?.[symbol])
-      .filter(s => typeof s === "string" && s.trim());
-
-    let sentence = "No update today.";
-    let gate = "fallback";
-    // v2.1: a holding absent from today's entry wasn't scored this run — say so
-    // honestly and deterministically instead of shipping a generic fallback.
-    if (!h) {
-      const who = TICKER_IDENTITY[symbol]?.name || symbol;
-      summaries[symbol] = {
-        sentence: `${who} didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.`,
-        recommendation: null,
-        composite_score: null,
-        signal_date: daily.date ?? null,
-        gate: "missing",
-      };
-      continue;
-    }
-    if (candidates.length > 0) {
-      const vote = voteOnSentences(symbol, candidates, rowsBySymbol[symbol]);
-      for (const rej of vote.rejected) {
-        console.log(`  ⚠ ${symbol}: candidate ${rej.i + 1} rejected [${rej.hard.join("; ")}] — "${String(rej.sentence).slice(0, 70)}..."`);
-      }
-      if (vote.sentence) {
-        sentence = vote.sentence;
-        gate = vote.gate;
-        if (gate === "soft") {
-          console.log(`  ~ ${symbol}: winner carries soft flags (picked candidate ${vote.picked + 1})`);
-        }
-      } else {
-        console.log(`  ⚠ ${symbol}: ALL candidates hard-failed — shipping fallback`);
-      }
-    }
-
-    summaries[symbol] = {
-      sentence,
-      recommendation:  h?.composite?.recommendation ?? null,
-      composite_score: h?.composite?.blended ?? null,
-      signal_date:     daily.date ?? null,
-      gate,            // v2.0: "pass" | "soft" | "fallback"
+  // 5. Reconciliation against the file being replaced
+  if (oldText) {
+    const old = parseOwn(oldText);
+    const neu = parseOwn(newText);
+    const shared = COLS.filter(c => old.header.includes(c) && !NOT_IN_JSONL.has(c));
+    // Two numbers that agree to the precision of the shorter one are the same
+    // value written at different precision (e.g. v1 rebuilt rows kept full
+    // z_composite precision; log-signals writes 3 dp). Counted, not flagged.
+    const decimals = (t) => (t.split(".")[1] || "").length;
+    const sameNumber = (a, b) => {
+      if (a === "" || b === "" || isNaN(a) || isNaN(b)) return false;
+      const d = Math.min(decimals(a), decimals(b));
+      return Math.abs(Number(a) - Number(b)) <= 0.5 * 10 ** -d + 1e-12;
     };
+    const disagree = {}, precisionOnly = {};
+    let compared = 0;
+    const droppedKeys = [];
+    for (const [key, o] of old.rows) {
+      const n = neu.rows.get(key);
+      if (!n) { droppedKeys.push(key); continue; }
+      compared++;
+      for (const c of shared) {
+        const a = o[c] ?? "", b = n[c] ?? "";
+        if (a === b) continue;
+        if (sameNumber(a, b)) precisionOnly[c] = (precisionOnly[c] || 0) + 1;
+        else disagree[c] = (disagree[c] || 0) + 1;
+      }
+    }
+    console.log(`\nReconciliation: old CSV ${old.total} rows (${old.rows.size} unique date|symbol parsed at its own ${old.header.length}-column width, ${old.unparsed} unparseable) → rebuilt ${neu.rows.size} rows.`);
+    console.log(`  Compared ${compared} shared (date, symbol) rows across ${shared.length} shared columns.`);
+    const bad = Object.entries(disagree).sort((a, b) => b[1] - a[1]);
+    if (bad.length === 0) console.log("  ✓ Every shared cell matches in value.");
+    else {
+      console.log(`  ⚠ ${bad.length} column(s) differ in VALUE — check before trusting the rebuild:`);
+      for (const [c, k] of bad.slice(0, 25)) console.log(`    ${c.padEnd(40)} ${k} row(s)`);
+    }
+    for (const [c, k] of Object.entries(precisionOnly)) console.log(`  · ${c}: ${k} row(s) differ only in decimal places written (same value).`);
+    if (droppedKeys.length) console.log(`  ⚠ ${droppedKeys.length} (date, symbol) row(s) in the old CSV have no daily-log source and are not carried over: ${droppedKeys.slice(0, 10).join(", ")}${droppedKeys.length > 10 ? " …" : ""}`);
+    const onlyOld = old.header.filter(c => !COLS.includes(c));
+    if (onlyOld.length) console.log(`  ⚠ Columns in the old file but not in the current header (dropped): ${onlyOld.join(", ")}`);
   }
 
-  // v2.1: deterministic plain-English incomplete-run notice (never LLM-generated).
-  const dq = daily.data_quality ?? null;
-  let runNote = null;
-  if (dq && dq.complete === false) {
-    const names = (dq.missing || []).map(sym => TICKER_IDENTITY[sym]?.name || sym);
-    const list = names.length <= 1 ? names.join("")
-      : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
-    runNote = `Heads up: today's update only covers ${dq.scored} of the usual ${dq.expected} holdings. ${list} ${names.length === 1 ? "wasn't" : "weren't"} scored because of a technical problem on our side — nothing to do with the ${names.length === 1 ? "company" : "companies"} themselves.`;
-    console.log(`  ⚠ incomplete run — adding run_note for: ${(dq.missing || []).join(", ")}`);
-  }
-
-  const output = {
-    generated_at: new Date().toISOString(),
-    signal_date:  daily.date,
-    portfolio:    PORTFOLIO,
-    ensemble:     { samples_requested: ENSEMBLE_N, samples_ok: candidateSets.length },  // v2.0
-    ...(runNote ? { run_note: runNote } : {}),          // v2.1: only present when the run was short
-    ...(dq ? { data_quality: dq } : {}),                // v2.1: pass-through for the dashboard
-    summaries,
-  };
-
-  await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
-  await fs.writeFile(OUTPUT_FILE, JSON.stringify(output, null, 2) + "\n");
-
-  console.log(`[claire-summary] wrote ${OUTPUT_FILE}`);
-  for (const sym of PORTFOLIO) {
-    console.log(`  ${sym.padEnd(8)} [${summaries[sym].gate.padEnd(8)}] ${summaries[sym].sentence}`);
-  }
+  // 6. Coverage
+  console.log("\nPer-symbol row counts:");
+  for (const [sym, n] of Object.entries(perSymbol).sort()) console.log(`  ${sym.padEnd(8)} ${n}`);
+  const never = COLS.filter(c => filled[c] === 0 && !NOT_IN_JSONL.has(c));
+  console.log(`\nBlank by design (never written to the JSONL): ${[...NOT_IN_JSONL].join(", ")}`);
+  if (never.length) console.log(`Blank in every rebuilt row (no data logged yet, or no JSONL source): ${never.join(", ")}`);
+  console.log("\nDONE.");
 }
 
-main().catch(e => {
-  console.error("[claire-summary] FATAL:", e);
+try {
+  main();
+} catch (e) {
+  console.error(`✗ ${e.message}`);
+  console.error("signals.csv was NOT modified.");
   process.exit(1);
-});
+}
