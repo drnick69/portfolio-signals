@@ -1,5 +1,115 @@
 #!/usr/bin/env node
-// risk-language-diff.mjs v1.3 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+// risk-language-diff.mjs v1.6 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+//
+// v1.6 (October 2026): HOLDINGS SWAP — ENB out, CVX in (Chevron Corporation,
+// CIK 93410), generate-signals v8.7.0 sync; still 14. BUILT ON v1.5 (v1.4's
+// PBR.A → UBER and 1000-row lookback, v1.5's declared User-Agent and loud
+// failure): everything below lives in this file, so v1.6 supersedes v1.5 —
+// deploy this one, not both. CVX is a plain US filer (10-K/10-Q Item 1A — the MSFT/NOW/MA/
+// ISRG/MLM/UBER class), so no form handling changes. CIK verified against the
+// EDGAR submissions API at build time: CHEVRON CORP, CIK 0000093410, NYSE: CVX,
+// Delaware, SIC 2911 (Petroleum Refining), EIN 94-0890210, fiscal year end
+// 1231. ENB's fallback CIK (895728) is REMOVED, as PBR's, RDDT's and IBIT's
+// were: this script is stateless and only processes the current HOLDINGS list.
+// Decades of Item 1A history (the v1.3 MLM case), and the v1.4 1000-row
+// lookback covers the prior same-form comparator whatever the Form 4 volume.
+//
+// ⚠ EXPECTED CHURN IN CVX'S NEXT FILINGS — read the substance, not the
+// magnitude, the v1.3/v1.4 rule:
+//   (a) THE HESS MIDSTREAM EXIT (announced 2026-10-06; close expected by
+//       year-end): deconsolidation of ~$3.7B of HESM debt, a one-time $3–4B
+//       after-tax loss and the Bakken contract reset will likely rewrite the
+//       Hess-related risk language. That is the company describing its own
+//       transaction.
+//   (b) THE IRAN CONFLICT AND THE KAZAKHSTAN EXPORT ROUTE. Chevron revises its
+//       geopolitical and operational risk factors as Gulf shipping, the
+//       Partitioned Zone, Israeli gas and the Caspian Pipeline Consortium
+//       (TCO's export route — not Chevron Phillips Chemical) change. A
+//       revision is near-certain; only its DIRECTION — a disruption described
+//       as easing vs prolonged — carries information.
+//   Until the Q3 2026 10-Q lands after the 2026-10-30 earnings release, the
+//   CVX comparison is the Q2 10-Q against the Q1 10-Q.
+// The v1.5 User-Agent fix below covers CVX like every other SEC filer; it needs
+// the RLD_USER_AGENT repository secret to be set.
+//
+// v1.5 (October 2026): DECLARED USER-AGENT + LOUD FAILURE. The fix for the
+// "never produced a diff" status recorded at v1.4 below.
+//   • The User-Agent now comes from the RLD_USER_AGENT repository secret,
+//     passed in by risk-language.yml. SEC fair-access policy asks automated
+//     tools to declare themselves as "Company Name admin@domain.com"; the
+//     built-in default (kept below as the last resort) carries no address —
+//     SEC's documented trigger for a 403, and the most likely cause of the
+//     403 on every request since July (not verifiable from outside SEC; the
+//     first run with the secret set settles it).
+//     A secret, not a literal in this file or the workflow, because the
+//     repository is public and anything committed here is readable by anyone.
+//   • A startup warning names the problem if the agent string in use has no
+//     "@" — the condition that produced sixteen silent weeks.
+//   • When EVERY SEC filer in the book errors (as happened on all sixteen
+//     runs), the script still writes risk-language.json but exits non-zero,
+//     so the workflow run fails and GitHub notifies instead of committing a
+//     file of errors. A single filer erroring (one bad document, one timeout)
+//     does NOT fail the run — that is ordinary and is recorded per holding.
+//   If a run still fails with 403 after the secret is set, the block is at
+//   SEC's network edge rather than the declared agent (GitHub-hosted runners
+//   share IP ranges), and the remedy is a different runner — not a code
+//   change here.
+//
+// v1.4 (October 2026): HOLDINGS SWAP — PBR.A out, UBER in (Uber Technologies,
+// Inc., CIK 1543151), generate-signals v8.6.0 sync; still 14. UBER is a plain
+// US filer (10-K/10-Q Item 1A — the MSFT/NOW/MA/ISRG/MLM class), so no form
+// handling changes. CIK verified against the EDGAR submissions API at build
+// time: Uber Technologies, Inc, CIK 0001543151, NYSE: UBER, Delaware, SIC 7389
+// (Services-Business Services, NEC), fiscal year end 1231.
+// PBR's fallback CIK (1119639) is REMOVED, as IBIT's and RDDT's were: this
+// script is stateless and only processes the current HOLDINGS list. PBR.A was
+// a 20-F filer; the foreign-private-issuer path stays in use for ASML and KOF.
+//
+// ★★ LOOKBACK 40 → 1000 — the one logic change, and UBER does not work without
+// it. Uber's Section 16 volume is heavy: monthly RSU-vest Form 4 batches (five
+// or six filings around the 16th–20th of each month) plus filer-agent
+// submissions put ~32 rows between one 10-Q and the next. Checked against EDGAR
+// at build time: the latest 10-Q (0001543151-26-000032, filed 2026-08-05,
+// period 2026-06-30, uber-20260630.htm) sits at row 21; the prior 10-Q
+// (0001543151-26-000022, filed 2026-05-06, period 2026-03-31) at row 53. Both
+// must sit inside the window, so under v1.3 UBER finds its comparator only in
+// the first two or three weeks after each 10-Q, before new Form 4s push the
+// prior one past row 40 — for most of every quarter, including today, it
+// reports "no_prior_same_form". And a 10-K against the prior year's 10-K
+// (~130 rows apart) could never be compared at all. 1000 matches what EDGAR
+// guarantees for filings.recent (the latest 1,000 filings or a full year,
+// whichever is more), so the scan covers the whole block for every holding here.
+// Effect on the other holdings: rows.find() still returns the NEAREST prior
+// same-form filing, so any holding whose comparator was already inside 40
+// rows gets the identical pair. The only possible change is
+// "no_prior_same_form" → a real diff where the comparator sat deeper — e.g. a
+// 10-K against the prior year's 10-K, or a 20-F filer whose 6-Ks (not in
+// FORMS) crowd the window.
+//
+// ⚠ EXPECTED CHURN IN UBER'S NEXT FILINGS — read the substance, not the
+// magnitude, exactly as for MLM's Lhoist deal at v1.3:
+//   (a) THE DELIVERY HERO OFFER. A cash tender for a large German food-delivery
+//       company, financed with a bridge facility and subject to merger control
+//       in several jurisdictions, will almost certainly add acquisition,
+//       financing, leverage and integration risk factors that did not exist in
+//       the prior filing. That is the company describing its own deal.
+//   (b) AUTONOMOUS-VEHICLE LANGUAGE. Uber revises its AV risk factors as
+//       partnerships are signed or lapse. A revision is near-certain; only
+//       its DIRECTION — partners listing on the platform vs operators going
+//       direct — carries information.
+//
+// ⚠⚠ STATUS AT v1.4 — THIS SCRIPT HAS NEVER PRODUCED A DIFF. Every weekly run
+// in the output history (2026-07-12 → 2026-10-25, 16 runs) recorded "EDGAR 403"
+// on data.sec.gov/submissions for all twelve SEC filers; only GLNCY/AMKBY's
+// by-design "no_sec_filings" rows were ever written. The most likely cause is
+// the User-Agent: SEC fair-access policy asks for a declared agent of the form
+// "Company Name admin@domain.com", the default below carries no contact
+// address, and risk-language.yml does not set RLD_USER_AGENT. NOT changed here:
+// the fix needs a real contact address and a repository secret, not a code
+// edit. Until it lands, UBER (like every other filer) will record "error".
+// Separately: because no run has succeeded, extractRiskSection() has only ever
+// run against the --selftest fixture, never a real filing. The first live
+// output should be read by eye before anything is built on it.
 //
 // v1.3 (August 2026): HOLDINGS SWAP — RDDT out, MLM in (Martin Marietta
 // Materials, Inc., CIK 916076), generate-signals v8.5.0 sync; still 14. MLM is
@@ -103,9 +213,9 @@
 // nothing. If no prior same-form filing exists in the lookback, the holding
 // reports status "no_prior_same_form" rather than shipping a misleading diff.
 //
-// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, ENB, MA, ISRG, RDDT) via
-// 10-K/10-Q Item 1A; foreign private issuers (ASML, PBR.A/PBR,
-// KOF) via 20-F Item 3.D / Risk Factors. GLNCY (Glencore — LSE, OTC ADR) and
+// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, CVX, MLM, UBER, MA, ISRG) via
+// 10-K/10-Q Item 1A; foreign private issuers (ASML, KOF) via 20-F Item 3.D /
+// Risk Factors. GLNCY (Glencore — LSE, OTC ADR) and
 // AMKBY (Maersk — Copenhagen, OTC ADR) are not SEC reporting companies: they
 // are recorded with status "no_sec_filings", permanently, by design — not an
 // error, and NOT a reason to bolt on a manual data file (no holding may
@@ -119,8 +229,8 @@
 //
 // CIK RESOLUTION: runtime lookup from https://www.sec.gov/files/company_tickers.json
 // (authoritative, survives ticker changes), with a hardcoded fallback map in
-// case the lookup file is unreachable. PBR.A resolves via PBR (same registrant;
-// preferred vs common is a share-class distinction, not a filer distinction).
+// case the lookup file is unreachable. Where a holding's symbol is not its EDGAR
+// ticker, edgarTicker carries the mapping (PBR.A → PBR did, until v1.4).
 //
 // SELF-TEST: `node risk-language-diff.mjs --selftest` runs the extraction and
 // diff logic against embedded fixtures with zero network access (CI-safe).
@@ -129,10 +239,14 @@ import { readFileSync, writeFileSync, mkdirSync } from "fs";
 
 const HISTORY_DIR = "docs/history";
 const OUTPUT_PATH = `${HISTORY_DIR}/risk-language.json`;
+// v1.5: set RLD_USER_AGENT (repository secret, wired in risk-language.yml) to
+// "Name email@domain". The default below has no contact address and is
+// refused by SEC — it remains only so --selftest and local runs work.
 const USER_AGENT = process.env.RLD_USER_AGENT || "drnick69-portfolio-signals research bot (https://github.com/drnick69/portfolio-signals)";
+const UA_HAS_CONTACT = /\S+@\S+\.\S+/.test(USER_AGENT);
 const FETCH_DELAY_MS = parseInt(process.env.RLD_FETCH_DELAY_MS || "500", 10);
 const FORMS = new Set(["10-K", "10-Q", "20-F", "40-F"]);
-const LOOKBACK_FILINGS = 40;   // how deep into the recent-filings arrays we look
+const LOOKBACK_FILINGS = 1000; // v1.4: was 40 — too shallow for heavy Section 16 filers (UBER); see header
 const MAX_SNIPPETS = 8;        // top added/removed sentences carried in the output
 const SNIPPET_CHARS = 240;
 const MIN_SECTION_CHARS = 500; // below this, extraction is considered failed
@@ -145,8 +259,8 @@ const HOLDINGS = [
   { symbol: "TMO",   edgarTicker: "TMO" },
   { symbol: "NOW",   edgarTicker: "NOW" },
   { symbol: "LHX",   edgarTicker: "LHX" },
-  { symbol: "ENB",   edgarTicker: "ENB" },
-  { symbol: "PBR.A", edgarTicker: "PBR" },   // same registrant as the preferreds
+  { symbol: "CVX",   edgarTicker: "CVX" },   // Chevron — 10-K/10-Q Item 1A (v1.6)
+  { symbol: "UBER",  edgarTicker: "UBER" },  // Uber Technologies — 10-K/10-Q Item 1A (v1.4); needs the v1.4 lookback
   { symbol: "KOF",   edgarTicker: "KOF" },
   { symbol: "MLM",   edgarTicker: "MLM" },   // Martin Marietta Materials — 10-K/10-Q Item 1A (v1.3); ~2 decades of Item 1A history
   { symbol: "MA",    edgarTicker: "MA" },    // Mastercard — 10-K/10-Q Item 1A (v1.1)
@@ -159,11 +273,15 @@ const HOLDINGS = [
 // against EDGAR at build time; the runtime lookup remains authoritative.
 const FALLBACK_CIK = {
   MSFT: 789019, ASML: 937966, LIN: 1707925, TMO: 97745, NOW: 1373715,
-  LHX: 202058, ENB: 895728, PBR: 1119639, KOF: 910631,
+  LHX: 202058, KOF: 910631,
   MA: 1141391, ISRG: 1035267,   // v1.1 — verified against EDGAR filing indexes
   MLM: 916076,                  // v1.3 — Martin Marietta Materials, Inc.; verified against EDGAR
                                 //        (NC incorporation, SIC 1400 Mining & Quarrying of
                                 //        Nonmetallic Minerals, file no. 1-12744, EIN 56-1848578)
+  UBER: 1543151,                // v1.4 — Uber Technologies, Inc; verified against the EDGAR
+                                //        submissions API (Delaware, SIC 7389, NYSE: UBER, FYE 1231)
+  CVX: 93410,                   // v1.6 — Chevron Corp; verified against the EDGAR submissions
+                                //        API (Delaware, SIC 2911, NYSE: CVX, FYE 1231, EIN 94-0890210)
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -372,7 +490,13 @@ function selftest() {
 async function main() {
   if (process.argv.includes("--selftest")) { selftest(); return; }
 
-  console.log("risk-language-diff v1.0 — SEC risk-factor temporal diff (data producer only; nothing consumes this yet)");
+  console.log("risk-language-diff v1.6 — SEC risk-factor temporal diff (data producer only; nothing consumes this yet)");
+  if (!UA_HAS_CONTACT) {
+    console.warn("⚠ User-Agent has no contact email. SEC asks automated tools to declare \"Name email@domain\" and refuses");
+    console.warn("⚠ undeclared ones with HTTP 403. Set the RLD_USER_AGENT repository secret (see risk-language.yml).");
+  } else {
+    console.log("  User-Agent: declared with a contact address (from RLD_USER_AGENT).");
+  }
   mkdirSync(HISTORY_DIR, { recursive: true });
 
   const ciks = await resolveCiks();
@@ -404,6 +528,19 @@ async function main() {
   };
   writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2));
   console.log(`\n✓ Wrote ${OUTPUT_PATH}`);
+
+  // v1.5: fail the run when EVERY SEC filer errored — sixteen weeks of silent
+  // all-error commits is the failure this exists to prevent.
+  const secFilers = HOLDINGS.filter(h => ciks[h.symbol] != null).map(h => h.symbol);
+  const errored = secFilers.filter(s => holdings[s]?.status === "error");
+  if (secFilers.length > 0 && errored.length === secFilers.length) {
+    const all403 = errored.every(s => /\b403\b/.test(holdings[s].note || ""));
+    console.error(`\n✗ ALL ${secFilers.length} SEC filers errored${all403 ? " with HTTP 403" : ""} — no diff was produced.`);
+    if (all403) console.error(UA_HAS_CONTACT
+      ? "✗ The User-Agent declares a contact, so the refusal is likely at SEC's network edge (shared runner IPs), not the agent string."
+      : "✗ Cause: undeclared User-Agent. Set the RLD_USER_AGENT repository secret to \"Name email@domain\".");
+    process.exitCode = 1;
+  }
 }
 
 main().catch(e => { console.error("Fatal:", e); process.exit(1); });
