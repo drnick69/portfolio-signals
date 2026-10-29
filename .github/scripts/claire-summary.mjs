@@ -117,6 +117,135 @@
 //   NOT banned, deliberately: "vulcan". Vulcan Materials is MLM's one genuine
 //   competitor and the two are constantly compared, exactly as Visa is to
 //   Mastercard. Mirrors the MA/Visa precedent at v2.1.
+//
+// v2.4 (October 2026): HOLDINGS SWAP — PBR.A out, UBER in (generate-signals
+//   v8.6.0 sync; still 14). PORTFOLIO (same slot), TICKER_IDENTITY, the prompt
+//   glossary, the disambiguation block, and one voice example swap over. The
+//   Petrobras voice example is REPLACED rather than dropped so the example
+//   count and the variety of sentence shapes are preserved.
+//
+//   UBER is the RDDT problem again, sharper. Claire certainly KNOWS Uber — she
+//   has probably used it — and knows nothing about it as a business. Two
+//   fluent-but-empty failure modes follow:
+//     • the CUSTOMER'S-EYE sentence ("rides got pricier", "the app is
+//       everywhere") — true, readable, and tells her nothing about the company;
+//     • the ROBOTAXI sentence that describes Waymo's cars as if they were
+//       Uber's. Uber builds no cars; robotaxi companies decide whether to list
+//       on its app. Confusing the counterparty for the company is the single
+//       most likely drift on this ticker, and the words involved (Waymo,
+//       robotaxi, self-driving) are ones a CORRECT sentence uses constantly.
+//   Both are QUALITY failures that banned substrings cannot catch, so — as for
+//   RDDT at v2.2 — the disambiguation block carries them, including what an
+//   UBER sentence SHOULD be about and four traps (the MLM v2.3 pattern):
+//   (a) don't call it cheap on reported earnings (a one-time tax gain inflates
+//   them), and don't call it "suddenly expensive" when that gain rolls out at
+//   the early-November report; (b) reported revenue understates the business
+//   right now — talk about bookings; (c) one robotaxi company going its own way
+//   is expected, not a collapse; (d) the Delivery Hero purchase is not done.
+//
+//   HARD identity gate: UBER gets a MINIMAL entry, under the v2.3 MLM test —
+//   an exact, certain collision whose banned strings have ZERO legitimate use
+//   in a correct Claire sentence. "über" is an ordinary German word, so the
+//   collision is structural (same class as MLM → multi-level marketing).
+//   Banned: "über" (with the umlaut — Uber the company never writes it), the
+//   ASCII "ubermensch"/"uebermensch", and "nietzsche".
+//   ⚠ DIVERGENCE FROM generate-signals v8.6.0, deliberate, same register
+//   reasoning as MLM/"lockheed" at v2.3: that file bans only übermensch /
+//   ubermensch / nietzsche, because analytical prose may QUOTE German press on
+//   Delivery Hero (Berlin-based, Frankfurt-listed), and German headlines are
+//   full of "über" ("Uber übernimmt…"). A Claire sentence is one plain English
+//   line that never quotes German, so any "über" in it means the model has
+//   left the company.
+//   NOT banned, deliberately: "waymo", "tesla", "robotaxi", "self-driving",
+//   "lyft", "doordash", "alphabet"/"google" — the counterparties and peers a
+//   correct sentence names; "german"/"germany"/"delivery hero" — the pending
+//   acquisition; and the ASCII slang prefix "uber-" ("uber-popular") — a bad
+//   pun, not an identity failure. PBR.A never had an entry; nothing removed.
+//
+//   ⚠ KNOWN GAP, NOT ADDRESSED HERE: the "v2.1 DATA_QUALITY RENDERING" build
+//   (deterministic run_note for partial runs; honest "missing" rows instead of
+//   letting the model write about a holding that wasn't scored) never reached
+//   this file. It was committed into rebuild-signals-csv.mjs on 2026-07-07
+//   (a80251d), overwriting that script. This file's own v2.1 is the MA/ISRG
+//   add. Partial runs therefore still reach Claire as a "no data for this
+//   holding today" row that the model is free to write a sentence about.
+//
+// v2.5 (October 2026): DATA_QUALITY RENDERING, RECOVERED. The July build of
+//   this feature (written against v2.0 as "v2.1 DATA_QUALITY RENDERING") was
+//   committed into rebuild-signals-csv.mjs on 2026-07-07 (a80251d) instead of
+//   this file, so it never ran; the v2.4 note above records the gap. Ported
+//   here unchanged in intent, onto the current v2.4 code:
+//   - top-level run_note when the daily-log entry's data_quality.complete is
+//     false: one deterministic plain-English sentence naming the holdings that
+//     weren't scored, built from TICKER_IDENTITY — never LLM-generated, so an
+//     incomplete-run notice cannot itself hallucinate. The dashboard has
+//     rendered run_note since July; until now it was never present.
+//   - a holding absent from today's entry gets a deterministic sentence and
+//     gate "missing" INSTEAD of whatever the model wrote from its "no data"
+//     row. Two cases, worded differently so neither misleads: listed in
+//     data_quality.missing (or completeness unknown) → it failed scoring today,
+//     a problem on our side; not expected by the run at all (complete run,
+//     holding absent — e.g. this file deployed ahead of a holdings swap) → it
+//     simply isn't in the update yet.
+//   - data_quality passes through to claire.json whenever the entry carries it.
+//   Complete runs are otherwise unchanged: no run_note key, same sentences.
+//
+// v2.6 (October 2026): HOLDINGS SWAP — ENB out, CVX in (generate-signals
+//   v8.7.0 sync; still 14). BUILT ON v2.5 (v2.4's PBR.A → UBER plus v2.5's
+//   recovered data-quality notice): everything above lives in this file, so
+//   v2.6 supersedes v2.5 — deploy this one, not both. On a complete run that
+//   does not yet carry CVX (this file landing ahead of the pipeline swap),
+//   the v2.5 path gives Chevron its "isn't in today's update yet" sentence.
+//   PORTFOLIO (same slot), TICKER_IDENTITY, the prompt glossary and the
+//   disambiguation block swap over. ENB had no voice example and no
+//   disambiguation line, so nothing is replaced there; the example count stays
+//   at 9.
+//
+//   CVX is a name Claire KNOWS (the gas station) attached to a business whose
+//   reported numbers are, right now, mostly the oil price. Two fluent-but-false
+//   failure modes follow, and both use ordinary words a correct sentence also
+//   uses, so — as for RDDT at v2.2 and UBER at v2.4 — the prompt carries them:
+//     • the WINDFALL sentence: "Chevron is doing great — profits are soaring."
+//       True of the reported numbers, false about the company. Brent near $115
+//       on the Iran conflict is ~64% above the $70 Chevron plans around; the
+//       swollen profit is the commodity, not anything Chevron did.
+//     • the WAR-NEWS sentence that reads a de-escalation sell-off as trouble at
+//       Chevron (or an escalation spike as Chevron improving). In this regime
+//       that move is the war premium leaving the oil price.
+//   The disambiguation block also carries four traps (the MLM v2.3 pattern):
+//   (a) high oil prices are not the business improving; (b) don't call it
+//   cheap on war-inflated profits — and don't call it "suddenly cheaper" when
+//   the 2026-10-30 report rolls a low-oil quarter out of the trailing numbers;
+//   (c) year-over-year comparisons mostly show the July 2025 Hess purchase;
+//   (d) a short pause on the Kazakhstan export pipeline is routine — only a
+//   long shutdown matters.
+//   ★ "CPC" IS AMBIGUOUS in the data Claire's model reads (generate-signals
+//   key metrics name it): the Caspian Pipeline Consortium (the TCO export
+//   route) is NOT Chevron Phillips Chemical (the 50% chemicals JV). The prompt
+//   tells the model which one it is and to write "its Kazakhstan export
+//   pipeline" rather than the acronym. NOT a hard ban: a sentence naming the
+//   chemicals JV is improbable but not wrong-company, and the acronym is
+//   already a jargon problem the prompt rules cover.
+//
+//   HARD identity gate: CVX gets a MINIMAL entry under the v2.3 MLM test — an
+//   exact, certain collision whose banned strings have ZERO legitimate use in a
+//   correct Claire sentence. "Chevron" is also the best-known administrative-
+//   law doctrine in US case law (Chevron U.S.A. v. NRDC, 1984; overruled by
+//   Loper Bright, 2024), so a wrong-subject generation has a distinctive,
+//   checkable fingerprint. Banned: "chevron deference", "chevron doctrine",
+//   "loper bright", "administrative law".
+//   ⚠ DIVERGENCE FROM generate-signals v8.7.0, deliberate, same register
+//   reasoning as MLM/"lockheed" (v2.3) and UBER/"über" (v2.4): that file does
+//   NOT ban "loper bright", because analytical prose may legitimately discuss
+//   post-Loper Bright challenges to EPA methane and emissions rules. A Claire
+//   sentence is one plain line that never cites case law, so any of these
+//   words in it means the model has left the company.
+//   NOT banned, deliberately: "exxon"/"exxonmobil" (the closest rival — the
+//   Visa/Vulcan precedent), "hess" (now part of Chevron), "texaco"/"caltex"
+//   (Chevron brands), "kazakhstan"/"caspian"/"pipeline", "iran"/"war", "supreme
+//   court" (Chevron is a party to real litigation a correct sentence could
+//   mention), and "enbridge" (the replaced holding). ENB never had an entry;
+//   nothing removed.
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -131,7 +260,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL_ID = "claude-opus-4-8";
 const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
 
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "ENB", "NOW", "GLNCY", "MLM", "KOF", "PBR.A", "AMKBY", "MA", "ISRG"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "CVX", "NOW", "GLNCY", "MLM", "KOF", "UBER", "AMKBY", "MA", "ISRG"];
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -142,12 +271,12 @@ const TICKER_IDENTITY = {
   "LIN":   { name: "Linde plc",            business: "world's largest industrial gas company — supplies oxygen, nitrogen, hydrogen, helium, and argon to hospitals, factories, and electronics manufacturers under long-term contracts" },
   "MSFT":  { name: "Microsoft",            business: "the software giant behind Windows, Office, and Xbox — but its biggest growth engine now is the Azure cloud service, which rents out the computing power that AI companies need, plus a major partnership with OpenAI (the maker of ChatGPT)" },
   "TMO":   { name: "Thermo Fisher Scientific", business: "the world's largest supplier of laboratory equipment and bioprocessing tools — sells to biotech companies, pharma, hospitals, and research labs. Often called the 'picks-and-shovels' supplier for the entire life sciences industry" },
-  "ENB":   { name: "Enbridge",             business: "Canadian pipeline operator — moves oil and natural gas across North America, acts like a toll road" },
+  "CVX":   { name: "Chevron",              business: "one of the two big American oil companies (ExxonMobil is the other) — it pumps oil and natural gas around the world (West Texas, Kazakhstan, Australia, the Gulf of Mexico, and offshore Guyana through its 2025 purchase of Hess), refines it into gasoline and diesel, and pays a large share of its cash back to shareholders through dividends and buybacks. Its profits rise and fall with the oil price. Right now oil is far above normal because fighting involving Iran has disrupted shipments out of the Persian Gulf, so its profits are unusually high — the company plans its business around a much lower, ordinary oil price. A big piece of its cash comes from a giant oil field in Kazakhstan whose oil reaches the world through a single pipeline to the Black Sea. Note: CVX here is Chevron, the oil company. It is NOT the \"Chevron deference\" legal doctrine about government agencies, and ExxonMobil is a separate company" },
   "NOW":   { name: "ServiceNow",           business: "enterprise software company that helps large organizations automate their internal workflows — IT operations, HR requests, customer service ticketing — and is now a leading provider of 'agentic AI' tools that let companies deploy AI assistants for routine business tasks. Used heavily by Fortune 500 companies and the US federal government" },
   "GLNCY": { name: "Glencore plc",         business: "diversified miner AND the world's largest commodity trading house — mines copper, cobalt, nickel, and profits from commodity market volatility" },
   "MLM":   { name: "Martin Marietta Materials", business: "American company that digs crushed stone, sand, and gravel out of quarries and sells it to road builders and construction crews. The quirk that makes the business work: rock is heavy and cheap, so trucking it any real distance costs more than the rock is worth — which means each quarry effectively owns its own patch of the map that nobody else can economically serve. Prices therefore tend to drift upward year after year regardless of the economy. Roughly a third of what they sell goes into roads and bridges paid for with government money, so federal highway funding matters a lot to how much they ship. They are also in the middle of buying a large lime business. Note: MLM here is Martin Marietta MATERIALS, the quarry company. It is NOT multi-level marketing, and it is NOT Lockheed Martin — those two companies split apart in the 1990s and this one has no defense work at all" },
   "KOF":   { name: "Coca-Cola FEMSA",      business: "largest Coca-Cola bottler in Latin America, based in Mexico" },
-  "PBR.A": { name: "Petrobras (preferred shares)", business: "Brazilian state-controlled oil major — one of the world's biggest dividend payers when oil is high" },
+  "UBER":  { name: "Uber Technologies",    business: "the ride-hailing and food-delivery app (Uber rides, Uber Eats) used in roughly 70 countries. Uber owns no cars and employs no drivers: it matches riders and diners with independent drivers and couriers and keeps a cut of every trip, and the more people use it, the shorter the waits, which attracts more drivers, which shortens the waits again. The big open question is self-driving cars. Robotaxi companies such as Waymo decide whether to put their cars on Uber's app or run their own; Waymo works with Uber in a few cities and competes with it in most. Uber is also in the middle of buying Delivery Hero, a large German food-delivery company — the purchase is not finished. Note: UBER here is Uber Technologies, the app company. It is NOT the German word \"über\", and Waymo and Lyft are separate companies" },
   "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
   "MA":    { name: "Mastercard",           business: "one of the two big payment networks (Visa is the other) — every time someone taps or swipes a Mastercard, they collect a tiny toll, in every country, millions of times a day. Note: the ticker MA means Mastercard here, never Massachusetts or anything else" },
   "ISRG":  { name: "Intuitive Surgical",   business: "maker of the da Vinci surgical robot — the machines surgeons use for minimally invasive operations, in over eleven thousand hospitals worldwide. Most of their money comes from the instruments and supplies each surgery uses, not the robots themselves. Note: ISRG is Intuitive SURGICAL, the medical robot company; it is NOT Intuit (the TurboTax/QuickBooks software company, ticker INTU)" },
@@ -164,12 +293,12 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - LIN     = Linde plc (world's largest industrial gas supplier — oxygen, nitrogen, hydrogen, etc.)
 - MSFT    = Microsoft (Windows/Office/Xbox plus Azure cloud powering AI plus OpenAI partnership)
 - TMO     = Thermo Fisher Scientific (world's largest life sciences lab equipment and bioprocessing supplier)
-- ENB     = Enbridge (Canadian oil & gas pipeline operator)
+- CVX     = Chevron Corporation (American oil and gas major — pumps, refines and pays out a large share of its cash; profits swing with the oil price; NOT the "Chevron deference" legal doctrine)
 - NOW     = ServiceNow (enterprise software that automates IT/HR/customer service workflows, increasingly via AI agents; heavy Fortune 500 and US federal government customer base)
 - GLNCY   = Glencore plc (diversified miner + world's largest commodity trading house)
 - MLM     = Martin Marietta Materials (owns quarries; sells crushed stone, sand and gravel to road builders and construction crews — NOT multi-level marketing, NOT Lockheed Martin)
 - KOF     = Coca-Cola FEMSA (Mexican Coca-Cola bottler for Latin America)
-- PBR.A   = Petrobras preferred shares (Brazilian state oil major)
+- UBER    = Uber Technologies (ride-hailing and food-delivery app — Uber rides, Uber Eats; matches riders with independent drivers and keeps a cut; owns no cars; NOT the German word "über")
 - AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
 - MA      = Mastercard (global payments network — one half of the Visa/Mastercard duopoly)
 - ISRG    = Intuitive Surgical (maker of the da Vinci surgical robot; revenue mostly from per-surgery instruments and supplies)
@@ -177,7 +306,10 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 CRITICAL DISAMBIGUATION:
 - AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
 - GLNCY is Glencore, not Glencoe or anything else.
-- PBR.A is Petrobras preferred stock — a Brazilian oil company, not a consumer brand.
+- UBER is Uber Technologies, the ride-hailing and food-delivery app company (Uber rides, Uber Eats). Claire has almost certainly used it, which is exactly the trap: a sentence about what riding in an Uber is like ("fares went up", "the app is everywhere") is easy to write and tells her nothing about the company. Write about the business. Two identity notes. FIRST: "über" is a German word and Nietzsche's "Übermensch" is philosophy — neither has anything to do with this company. SECOND, and far more likely to go wrong: robotaxi companies are NOT Uber. Waymo (owned by Google's parent company, Alphabet), Tesla and Zoox build self-driving cars; Uber builds none. Each robotaxi company decides whether to put its cars on Uber's app or run its own, so a sentence describing Waymo's cars or rides as if they were Uber's would be fluent and false. Mentioning Waymo, Lyft or DoorDash is fine and often useful — they are the partner-or-rival and the two closest competitors — but the sentence must be ABOUT Uber.
+  What an UBER sentence SHOULD be about: whether people keep booking more rides and food orders, whether Uber keeps more of each booking as profit, and whether the robotaxi companies are choosing to put their cars on Uber's app or go it alone. Four traps to avoid. (a) DO NOT CALL IT CHEAP. Its reported earnings currently look artificially large because of a one-time tax accounting gain, which makes the stock screen as though it is on a bargain price. And when that gain drops out of the numbers after the early-November report, the stock will suddenly LOOK twice as expensive with nothing about the business having changed — do not call it "suddenly expensive" either. (b) REVENUE IS MISLEADING right now. Changes in how some trips are booked make reported revenue grow much more slowly than the business really is; talk about how much people are booking, not "revenue". (c) ONE ROBOTAXI HEADLINE IS NOT A COLLAPSE. Waymo choosing to run its own app in a few cities was expected; what would actually matter is several robotaxi companies going it alone at once, or the ones Uber has signed up falling behind schedule. (d) THE DELIVERY HERO PURCHASE IS NOT FINISHED. Uber has offered to buy it; do not describe the deal as done.
+- CVX is Chevron Corporation, the American oil and gas company (its gas stations are Chevron and Texaco). Two identity notes. FIRST: "Chevron" is also the name of a famous Supreme Court legal doctrine ("Chevron deference") about how much courts defer to government agencies — it has nothing whatsoever to do with this company. If you are about to write about courts, agencies, "Chevron deference", "Loper Bright" or administrative law, STOP — you are writing about the wrong subject entirely. SECOND: in the data, "CPC" means the Caspian Pipeline Consortium — the single pipeline that carries oil from Chevron's giant Tengiz field in Kazakhstan to a port on the Black Sea. It is NOT Chevron Phillips Chemical, Chevron's chemicals joint venture, which shares the initials. Do not write the acronym; say "its Kazakhstan export pipeline". Mentioning ExxonMobil is fine and often useful — it is Chevron's closest rival and the two are constantly compared — but the sentence must be ABOUT Chevron. This slot used to hold Enbridge, a pipeline company; Chevron is not a toll-road business.
+  What a CVX sentence SHOULD be about: whether Chevron is producing as much oil and gas as it promised, whether the extra cash from today's high oil prices is reaching shareholders (bigger buybacks) or just paying down debt, and whether its Kazakhstan export pipeline keeps flowing. Four traps to avoid. (a) HIGH OIL PRICES ARE NOT THE BUSINESS GETTING BETTER. Oil is far above normal because fighting involving Iran has disrupted shipments out of the Persian Gulf, so Chevron's profits are swollen by the oil price, not by anything the company did. The stock falling when peace talks make progress is that extra oil price draining out — not a sign Chevron is in trouble — and a jump on bad war news is not Chevron improving. (b) DO NOT CALL IT CHEAP. Profits inflated by war-time oil prices make the stock screen as a bargain; at the ordinary oil price Chevron plans around, it is not. And after the October 30 report the stock will LOOK cheaper still, with nothing about the business having changed — do not call it "suddenly cheaper" either. (c) COMPARISONS WITH LAST YEAR MOSTLY SHOW THE HESS PURCHASE. Chevron bought Hess in July 2025, so year-over-year jumps in how much it produces or how many shares it has are the purchase, not growth and not dilution. (d) A SHORT PAUSE ON THE KAZAKHSTAN PIPELINE IS NOT A CRISIS. Shipments there have been interrupted several times this year; only a long shutdown would put a big piece of Chevron's cash at risk.
 - LIN is Linde, the industrial gas company. It is NOT LinkedIn and NOT a Chinese company.
 - NOW is the ticker for ServiceNow, the enterprise workflow-automation software company. It is NEVER a generic adverb and NEVER any retail or consumer brand. ServiceNow's product helps big companies and government agencies automate the boring, repetitive parts of running an organization — IT tickets, HR forms, employee onboarding — and they're now leaders in deploying AI agents to do this work autonomously.
 - MA is the ticker for Mastercard, the payments network. It is NEVER Massachusetts, never "moving average," and never any other company. Mentioning Visa in a Mastercard sentence is fine — they're the two halves of the same duopoly and are often compared — but the sentence must be ABOUT Mastercard.
@@ -200,7 +332,7 @@ EXAMPLES of the voice:
 - "ASML keeps climbing, which is normal for them — they're the only company in the world that makes a certain kind of chipmaking machine, and demand keeps growing."
 - "Linde is having a quiet week — industrial gas demand is steady and they keep raising prices a little each quarter, which is the whole story with this one."
 - "Martin Marietta slipped after its last update, but the shortfall was mostly rain in Texas stopping crews from working — the price it gets for a ton of crushed stone is still creeping up, which is the part that actually matters."
-- "Petrobras is getting a dividend boost this quarter and oil prices are cooperating, so it's a good stretch for it."
+- "Uber dipped after a robotaxi company said it would run its own app in a couple of cities — but people keep booking more rides and food orders through Uber than ever, so for now it's a worry about the future, not a problem with the business."
 - "Maersk is having a steady week — global shipping rates haven't moved much, and that tends to mean the world economy is humming along."
 - "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
 - "Mastercard slipped again on worries that new payment technology could someday cut out the card networks — but people keep tapping their cards more than ever, so for now it's a fear story, not a business story."
@@ -309,6 +441,38 @@ const HARD_BANNED_BY_TICKER = {
   // its root without that risk.
   "MLM":   [/\bmulti-?level marketing\b/i, /\bnetwork marketing\b/i, /\bdownline\b/i,
             /\bpyramid scheme\b/i, /\blockheed\b/i],
+  // v2.4: UBER gets a MINIMAL entry under the v2.3 MLM test — an exact,
+  // certain collision ("über" is an ordinary German word) whose banned strings
+  // have ZERO legitimate use in a correct Claire sentence. /über/ carries no
+  // \b: without the u flag, \b treats "ü" as a non-word character, so a
+  // boundary before it would never match. Plain English never contains the
+  // sequence, and Uber the company never writes the umlaut.
+  // ⚠ Bans MORE than generate-signals v8.6.0 (übermensch / ubermensch /
+  // nietzsche only). Same register reasoning as "lockheed" for MLM above:
+  // analytical prose may quote German press on Delivery Hero, whose headlines
+  // are full of "über"; a Claire sentence never quotes German.
+  // NOT banned, deliberately: /waymo/, /tesla/, /robotaxi/, /self-driving/,
+  // /lyft/, /doordash/, /alphabet/, /google/ (counterparties and peers a
+  // correct sentence names), /german/ and /delivery hero/ (the pending
+  // acquisition), and the ASCII slang prefix "uber-" (a bad pun, not drift).
+  // The likely failure — Waymo's cars described as Uber's — is a QUALITY
+  // problem in ordinary words; the prompt carries it, as for RDDT at v2.2.
+  "UBER":  [/über/i, /\bu(?:e)?bermensch\b/i, /\bnietzsche\b/i],
+  // v2.6: CVX gets a MINIMAL entry under the v2.3 MLM test — an exact,
+  // certain collision ("Chevron" is also the best-known administrative-law
+  // doctrine in US case law) whose banned strings have ZERO legitimate use in a
+  // correct Claire sentence.
+  // ⚠ Bans MORE than generate-signals v8.7.0 (chevron deference / chevron
+  // doctrine / chevron v. nrdc). Same register reasoning as "lockheed" for MLM
+  // and "über" for UBER above: analytical prose may discuss post-Loper Bright
+  // challenges to EPA rules; a Claire sentence never cites case law.
+  // NOT banned, deliberately: /exxon/ (the closest rival — Visa/Vulcan
+  // precedent), /hess/, /texaco/, /caltex/, /kazakhstan/, /caspian/,
+  // /pipeline/, /iran/, /supreme court/ (Chevron is a party to real
+  // litigation), /enbridge/. The likely failures — the windfall sentence and
+  // the war-news sentence — are QUALITY problems in ordinary words; the prompt
+  // carries them, as for RDDT at v2.2 and UBER at v2.4.
+  "CVX":   [/\bchevron deference\b/i, /\bchevron doctrine\b/i, /\bloper bright\b/i, /\badministrative law\b/i],
 };
 
 // Jargon blacklist (from prompt RULES). Soft.
@@ -518,8 +682,26 @@ async function main() {
   for (const h of (daily.holdings || [])) byHolding[h.symbol] = h;
 
   const summaries = {};
+  const dq = daily.data_quality ?? null;
   for (const symbol of PORTFOLIO) {
     const h = byHolding[symbol];
+
+    // v2.5: a holding absent from today's entry gets an honest deterministic
+    // sentence instead of whatever the model wrote from its "no data" row.
+    if (!h) {
+      const who = TICKER_IDENTITY[symbol]?.name || symbol;
+      const notExpected = dq?.complete === true && !(dq.missing || []).includes(symbol);
+      summaries[symbol] = {
+        sentence: notExpected
+          ? `${who} isn't in today's update yet — it will appear once the daily run starts covering it.`
+          : `${who} didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.`,
+        recommendation:  null,
+        composite_score: null,
+        signal_date:     daily.date ?? null,
+        gate:            "missing",   // v2.5
+      };
+      continue;
+    }
     const candidates = candidateSets
       .map(set => set?.[symbol])
       .filter(s => typeof s === "string" && s.trim());
@@ -551,11 +733,23 @@ async function main() {
     };
   }
 
+  // v2.5: deterministic plain-English incomplete-run notice (never LLM-generated).
+  let runNote = null;
+  if (dq && dq.complete === false) {
+    const names = (dq.missing || []).map(sym => TICKER_IDENTITY[sym]?.name || sym);
+    const list = names.length <= 1 ? names.join("")
+      : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+    runNote = `Heads up: today's update only covers ${dq.scored} of the usual ${dq.expected} holdings. ${list} ${names.length === 1 ? "wasn't" : "weren't"} scored because of a technical problem on our side — nothing to do with the ${names.length === 1 ? "company itself" : "companies themselves"}.`;
+    console.log(`  ⚠ incomplete run — adding run_note for: ${(dq.missing || []).join(", ")}`);
+  }
+
   const output = {
     generated_at: new Date().toISOString(),
     signal_date:  daily.date,
     portfolio:    PORTFOLIO,
     ensemble:     { samples_requested: ENSEMBLE_N, samples_ok: candidateSets.length },  // v2.0
+    ...(runNote ? { run_note: runNote } : {}),   // v2.5: only present when the run was short
+    ...(dq ? { data_quality: dq } : {}),         // v2.5: pass-through for the dashboard
     summaries,
   };
 
