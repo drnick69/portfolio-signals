@@ -1,38 +1,38 @@
 {
-  "generated": "2026-10-30T18:08:09.563Z",
+  "generated": "2026-11-02T21:55:43.787Z",
   "version": "1.4",
   "membership_convention": "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0, RDDT→MLM swap at v8.5.0, PBR.A→UBER swap at v8.6.0 and ENB→CVX swap at v8.7.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
-  "days": 161,
+  "days": 162,
   "date_range": {
     "first": "2026-03-08",
-    "last": "2026-10-30"
+    "last": "2026-11-02"
   },
   "grade": "SEASONED",
   "final": {
-    "deposited": 2610000,
-    "signal": 2963108.01,
-    "ew": 2797209.66,
-    "spy": 1639535.87
+    "deposited": 2620000,
+    "signal": 2988719.85,
+    "ew": 2793054,
+    "spy": 1645908.96
   },
   "since_inception": {
-    "signal_twr_pct": 16.515,
-    "ew_twr_pct": 11.119,
+    "signal_twr_pct": 17.127,
+    "ew_twr_pct": 10.559,
     "spy_twr_pct": null
   },
   "excess": {
-    "signal_vs_ew_pp": 5.396,
+    "signal_vs_ew_pp": 6.568,
     "signal_vs_spy_pp": null
   },
   "trailing": {
     "d30": {
-      "signal": 3.631,
-      "ew": 1.632,
-      "spy": -1.036
+      "signal": 3.863,
+      "ew": 0.98,
+      "spy": -2.76
     },
     "d90": {
-      "signal": 57.402,
-      "ew": 9.503,
-      "spy": 2.739
+      "signal": 19.283,
+      "ew": 9.509,
+      "spy": 2.513
     }
   },
   "membership_events": [
@@ -320,14 +320,35 @@
       ],
       "removed": [],
       "members_after": 16
+    },
+    {
+      "date": "2026-11-02",
+      "added": [],
+      "removed": [
+        "ENB",
+        "PBR.A"
+      ],
+      "members_after": 14,
+      "liquidated": [
+        {
+          "symbol": "ENB",
+          "proceeds": 291921.86,
+          "absent_days": 3
+        },
+        {
+          "symbol": "PBR.A",
+          "proceeds": 367192.48,
+          "absent_days": 3
+        }
+      ]
     }
   ],
   "data_quality": {
-    "dates": 161,
+    "dates": 162,
     "dates_missing_log": 0,
     "dates_missing_spy": 1,
     "members_skipped_no_price": 1,
-    "absences_debounced": 44
+    "absences_debounced": 46
   },
   "notes": [
     "Price-return only on all three legs (no dividend reinvestment anywhere) — income names and SPY are understated symmetrically.",
@@ -1782,8 +1803,17 @@
       "flow": 10000,
       "signal": 2963108.01,
       "ew": 2797209.66,
-      "spy": 1639535.87,
+      "spy": 1643914.05,
       "members": 16
+    },
+    {
+      "date": "2026-11-02",
+      "deposited": 2620000,
+      "flow": 10000,
+      "signal": 2988719.85,
+      "ew": 2793054,
+      "spy": 1645908.96,
+      "members": 14
     }
   ]
 }
