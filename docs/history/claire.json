@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-30T18:09:39.612Z",
-  "signal_date": "2026-10-30",
+  "generated_at": "2026-11-02T21:57:30.966Z",
+  "signal_date": "2026-11-02",
   "portfolio": [
     "LHX",
     "ASML",
@@ -21,111 +21,118 @@
     "samples_requested": 3,
     "samples_ok": 3
   },
+  "run_note": "Heads up: today's update only covers 12 of the usual 14 holdings. L3Harris Technologies and Microsoft weren't scored because of a technical problem on our side — nothing to do with the companies themselves.",
   "data_quality": {
     "expected": 14,
-    "scored": 14,
-    "missing": [],
-    "failures": {},
-    "complete": true
+    "scored": 12,
+    "missing": [
+      "LHX",
+      "MSFT"
+    ],
+    "failures": {
+      "LHX": "Invalid structure",
+      "MSFT": "Invalid structure"
+    },
+    "complete": false
   },
   "summaries": {
     "LHX": {
-      "sentence": "L3Harris has fallen more than a quarter from its high, which is unusually steep for a steady defense contractor, but nothing has really changed — military spending keeps flowing their way.",
-      "recommendation": "HOLD",
-      "composite_score": -6,
-      "signal_date": "2026-10-30",
-      "gate": "pass"
+      "sentence": "L3Harris Technologies didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.",
+      "recommendation": null,
+      "composite_score": null,
+      "signal_date": "2026-11-02",
+      "gate": "missing"
     },
     "ASML": {
-      "sentence": "ASML dropped about 7% in a single day, which looks dramatic, but they're still the only company on earth that makes the machines needed to print the most advanced chips — so this is a wobble in the stock, not a crack in the business.",
+      "sentence": "ASML drifted down again and is now about 12% off its high, which is just a cooling-off spell — they're still the only company on earth that makes the machines needed to print the most advanced chips.",
       "recommendation": "HOLD",
-      "composite_score": -5,
-      "signal_date": "2026-10-30",
-      "gate": "pass"
+      "composite_score": -4,
+      "signal_date": "2026-11-02",
+      "gate": "soft"
     },
     "LIN": {
-      "sentence": "Linde had a quiet, slightly up week — they supply oxygen, nitrogen and other industrial gases on long contracts and nudge prices up a little each quarter, which is the whole story with this one.",
+      "sentence": "Linde had a quiet, slightly-up week — they supply oxygen, nitrogen and other gases on long contracts and nudge prices up a little each quarter, which really is the whole story with this one.",
       "recommendation": "HOLD",
-      "composite_score": 6,
-      "signal_date": "2026-10-30",
+      "composite_score": 8,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "MSFT": {
-      "sentence": "Microsoft slipped slightly today but has quietly outpaced its peers over the past month — the Azure-cloud-and-AI story just keeps grinding along without much drama.",
-      "recommendation": "HOLD",
-      "composite_score": 1,
-      "signal_date": "2026-10-30",
-      "gate": "pass"
+      "sentence": "Microsoft didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.",
+      "recommendation": null,
+      "composite_score": null,
+      "signal_date": "2026-11-02",
+      "gate": "missing"
     },
     "TMO": {
-      "sentence": "Thermo Fisher drifted down a touch as lab and biotech spending sits near a low point in its cycle — demand is soft for now, but they're still the go-to supplier of the equipment every research lab needs.",
+      "sentence": "Thermo Fisher slipped a bit, and the thing to watch is their lab-supplies business, which is still near the bottom of its cycle — the hope is that demand picks back up over the coming year.",
       "recommendation": "HOLD",
-      "composite_score": -8,
-      "signal_date": "2026-10-30",
+      "composite_score": -10,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "CVX": {
-      "sentence": "Chevron ticked up with oil prices, which are running high because fighting involving Iran has disrupted Persian Gulf shipments — so these fat profits are coming from the oil price, not from anything Chevron itself did.",
+      "sentence": "Chevron fell a few percent as oil eased, but remember today's profits are puffed up by Middle East fighting pushing oil prices well above normal — so moves up and down are mostly the oil price swinging, not the company itself changing.",
       "recommendation": "HOLD",
-      "composite_score": 5,
-      "signal_date": "2026-10-30",
+      "composite_score": 1,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "NOW": {
-      "sentence": "ServiceNow has fallen sharply — down nearly half from its high — which is a big move for such a steady software company, even as corporations keep signing on for its workflow-automation and AI tools.",
+      "sentence": "ServiceNow has fallen a long way from its high even though its business of automating corporate and government paperwork — increasingly with AI assistants — is still healthy, which is why it looks unusually beaten-down for such a steady performer.",
       "recommendation": "BUY",
-      "composite_score": -32,
-      "signal_date": "2026-10-30",
+      "composite_score": -27,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "GLNCY": {
-      "sentence": "Glencore held up better than copper prices this week because its giant commodity-trading arm cushions the blow when any one metal weakens.",
+      "sentence": "Glencore dropped even as copper prices climbed, an odd gap for a miner that digs copper and cobalt — history suggests the share price eventually catches up to where the metal is trading.",
       "recommendation": "HOLD",
-      "composite_score": -13,
-      "signal_date": "2026-10-30",
+      "composite_score": -16,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "MLM": {
-      "sentence": "Martin Marietta is flat, and while its reported selling price looks like it dipped, that's just a mix of what sold — the actual price it gets per ton of crushed stone is still creeping up, which is what matters for this quarry business.",
+      "sentence": "Martin Marietta rose after a good update — the price it gets per ton of crushed stone is still climbing nicely, which matters more than the headline figures, since each quarry effectively owns its own patch of the map.",
       "recommendation": "BUY",
-      "composite_score": -34,
-      "signal_date": "2026-10-30",
+      "composite_score": -27,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "KOF": {
-      "sentence": "Coca-Cola FEMSA was quiet, though a weaker Mexican peso is the main thing tugging on its value since most of its sales are in pesos.",
+      "sentence": "Coca-Cola FEMSA edged up, though a weakening Mexican peso works against it since most of its earnings come in pesos that convert into fewer dollars.",
       "recommendation": "HOLD",
       "composite_score": 4,
-      "signal_date": "2026-10-30",
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "UBER": {
-      "sentence": "Uber slipped a touch, but people keep booking a lot more rides and food orders than before, and the real question hanging over it is whether self-driving car companies choose to run on its app or go it alone.",
+      "sentence": "Uber climbed again and people keep booking a lot more rides and food orders than a year ago — the big open question is still whether self-driving-car companies put their cars on Uber's app or run their own.",
       "recommendation": "BUY",
-      "composite_score": -30,
-      "signal_date": "2026-10-30",
+      "composite_score": -29,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "AMKBY": {
-      "sentence": "Maersk, the Danish container-shipping giant, is quiet, and it's trading for less than the value of its own fleet of ships — a sign the market isn't expecting much from global trade right now.",
+      "sentence": "Maersk, the Danish container-shipping giant, slipped a touch, and its shares are priced well below the value of its own fleet of ships — a quiet reflection of a sluggish stretch for global trade.",
       "recommendation": "HOLD",
-      "composite_score": -9,
-      "signal_date": "2026-10-30",
+      "composite_score": -8,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "MA": {
-      "sentence": "Mastercard is basically flat, and people keep tapping their cards more than ever, so there's no real news here beyond the usual steady toll-collecting business.",
+      "sentence": "Mastercard jumped over 3% and is priced almost in line with Visa right now; people keep tapping their cards more than ever, so there's no crack in the business, just normal day-to-day movement.",
       "recommendation": "HOLD",
-      "composite_score": -1,
-      "signal_date": "2026-10-30",
+      "composite_score": 1,
+      "signal_date": "2026-11-02",
       "gate": "pass"
     },
     "ISRG": {
-      "sentence": "The da Vinci surgical-robot maker fell nearly 3% and is well off its high, yet hospitals keep doing more procedures on its machines and it's still outrunning its medical-device peers — a case of fear outrunning the facts.",
+      "sentence": "The surgical-robot maker edged up, and there's a real gap here — hospitals are expected to keep doing well over 10% more operations with its machines, yet the stock still sits far below its high.",
       "recommendation": "HOLD",
       "composite_score": -16,
-      "signal_date": "2026-10-30",
-      "gate": "pass"
+      "signal_date": "2026-11-02",
+      "gate": "soft"
     }
   }
 }
