@@ -370,6 +370,118 @@
 //   defaults). ENB's dividend_compounder branches are RETAINED as dead code
 //   for historical re-scoring, exactly as PBR.A's were after V8.5.
 
+// V8.7 (October 2026): HOLDINGS ADD — NVDA (ai_compute_platform_cycle_leader).
+// 14 → 15 scored holdings. An ADD, not a swap (the V8.2 MA/ISRG precedent):
+// nothing retires, no slot's logic transfers, no branch becomes dead code.
+// BUILT ON V8.6 (ENB → CVX): every prior swap lives in this file, so V8.7
+// supersedes V8.6 — deploy this one, not both. One new archetype branch per
+// layer + a NUMERIC cycle regime gate whose driver is a per-print config
+// constant (fetch v4.21) rather than an API series.
+//   - AI_COMPUTE_PLATFORM_CYCLE_LEADER (NVDA) — V1. A platform franchise
+//     (CUDA / NVLink / the full-stack rack, 80–85% accelerator share, 75%
+//     gross margins, ~$235B of buyback capacity) that is nonetheless a
+//     CYCLICAL DRESSED AS A COMPOUNDER: every reported number sits on a capex
+//     cycle funded by four customers' cash flows — and, since the October 2026
+//     prints, by their debt. Scored against THE CUSTOMERS' CAPACITY TO FUND
+//     THE CYCLE, never against its own peak-cycle earnings.
+//     Tactical: RSI 35/70, ±2.5% daily noise floor (beta ~2.1 — bands sit
+//     between UBER's and RDDT's), drawdown ladder scaled to 40% (setup >15%,
+//     strong >25%; routine pullbacks run 15–20%, April 2025 reached −37%).
+//     The signature setup is the AI-TRADE DISLOCATION (NVDA lagging SMH by
+//     >5pp/30d — MUST match fetch v4.21's ai_trade_dislocation_active
+//     boundary): rotation within the trade, not a thesis change. ★ COVERAGE-
+//     AWARE: while the big-four coverage ratio is below 1.0 or unknown, a
+//     drawdown is funding anxiety being priced — the mechanism that produces
+//     digestion — and scores at HALF amplitude (not zero, as CVX's windfall
+//     unwind does: nine of twelve ≥20% NVDA dips since 2010 were higher a year
+//     on). Near highs in that state is a mild trim lean. The air-pocket screen
+//     (|move| ≥ 4%, SMH-aligned) scores only where price alone classifies it:
+//     a sector-wide drop is a light buy with coverage ≥ 1.0 and information
+//     without it; an NVDA-specific drop (≥3pp worse than SMH) is never bought
+//     blind.
+//     Positional: dampened MA map and 52w ladder (RDDT/UBER-style, −35 floor —
+//     a trend break here may be the market pricing digestion, a live
+//     structural falsifier); the two CANARIES — gross margin vs the 74% guide
+//     (≥73 intact · 70–73 degraded · <70 broken = thesis-level, pricing power
+//     failing) and the aggregate hyperscaler capex-guide TRAJECTORY (one cut =
+//     trim, two = thesis-level); beat magnitude vs NVIDIA's own guide midpoint
+//     (14 straight; <3% or a miss = inflection flag); SHARE CAPTURE (Data
+//     Center YoY growth minus big-four capex YoY growth — two quarters
+//     negative = share loss to custom silicon / AMD); the receivables canary;
+//     Rubin ramp status; and EPS revisions scored ONLY in a MODERATION regime
+//     (elsewhere they are the cycle talking).
+//     Strategic: the CAPEX COVERAGE RATIO — big-four TTM operating cash flow
+//     over TTM capex, computed from SEC filings by fetch v4.21 (≥1.2
+//     self-funded · 1.0–1.2 stretched · <1.0 debt-funded) — as the flagship;
+//     forward PEG on FY2 consensus read THROUGH the cycle gate; CLEAN trailing
+//     P/E (GAAP EPS ex equity-securities gains) as context; the forward twin
+//     premium vs AVGO (secondary); financed-demand share; diluted share count;
+//     Taiwan headline classification; accelerator share.
+//     Regime gate: CAPEX CYCLE — guided_sequential_growth_pct (next-quarter
+//     revenue guide midpoint / last reported quarter − 1): > +10% expansion
+//     15/30/55 · 0–10% moderation 25/40/35 · < 0% digestion 15/30/55; missing
+//     or STALE driver → base 20/35/45 (regime "base" / "base_stale"). Identical
+//     bands to nvda-strategy.jsx v1 and fetch v4.21. ★ Note the shape: BOTH
+//     extremes upweight strategic (unlike every prior three-state gate, which
+//     is monotonic). In expansion the prints carry no information (14 straight
+//     beats) and the honest question is cycle DURATION; in digestion reported
+//     numbers collapse and the honest question is what the stock discounts
+//     through the trough. Moderation is where the inflection is decided IN
+//     the prints, so near-term layers carry it. regimeDriver is the numeric
+//     growth (%); the driver is a per-print constant, so fetch's driver_stale
+//     flag is honoured here: a stale guide never scores EXPANSION for weeks
+//     after a guide-down.
+//   SEVEN CALIBRATION GUARDRAILS ARE LOAD-BEARING HERE:
+//     (a) PEAK-MULTIPLE TRAP + GAAP CONTAMINATION. Trailing GAAP P/E is NEVER
+//         scored — GAAP EPS carries gains on equity securities (the marks on
+//         NVIDIA's own customer stakes: $15.9B Q1 FY27, ~$5.7B Q2 FY27, ~11%
+//         of GAAP net income) — and the trailing twin premium vs AVGO honours
+//         premium_pct_reliable (hard FALSE from fetch v4.21). A CLEAN trailing
+//         P/E (ex-gains) is computed when the LLM supplies the inputs and
+//         scored lightly as context (~30x today, not 26.8x). The 13–14x FY2
+//         forward P/E is a PEAK-CYCLE number and is never scored on its own:
+//         forward PEG is read only through the cycle gate. Non-GAAP has
+//         included SBC since Q1 FY27 — nothing is added back twice.
+//     (b) CASH-CONVERSION NULL. Single-quarter FCF is a null signal during a
+//         product ramp (Q2 FY27 OCF $24.1B on $59.7B of net income; inventory
+//         $32B ahead of Vera Rubin; DSO 60). TTM FCF and the DSO TREND score;
+//         two quarters of receivables outgrowing revenue is a canary and DOES
+//         score.
+//     (c) VENDOR-FINANCED DEMAND. Revenue from customers NVIDIA has invested
+//         in or financed carries a quality discount (financed_demand_share_pct
+//         above 15% is a strategic headwind); the equity marks are never a
+//         positive; the $100B OpenAI LOI — never signed — is never credited.
+//     (d) CHINA IS AN OPTION. Zero in every guide since Q1 FY27. Revenue that
+//         appears is a small positional positive; enforcement/legal headlines
+//         are notes.
+//     (e) CYCLE-POSITION GATE. EXPANSION: strategic may not sit on the BUY side
+//         unless the coverage ratio is ≥ 1.0 on a FULL four-company read AND
+//         forward PEG ≤ 1.0 AND gross margin ≥ 70% — FAILS CLOSED on null or
+//         partial coverage (a three-company ratio that drops Amazon, TTM FCF
+//         −$42.4B, OVERSTATES coverage). DIGESTION: strategic may not sit on
+//         the TRIM side unless the franchise is impaired (gross margin < 60% or
+//         forward PEG > 2.5) — the framework's trough-entry rule made
+//         mechanical; a trailing-P/E spike on collapsing earnings is not a
+//         sell. Enforced twice, as CVX's gate is: on the deterministic score
+//         here and on the BLENDED score in blendScores(), via the same
+//         cycle_gate_active / cycle_gate_side flags (the blendScores() clamp
+//         is already archetype-agnostic — no change there beyond the comment).
+//         ⚠ Forward PEG is LLM-sourced and null in the engine's fetch-only
+//         data today, so while the regime reads EXPANSION the gate holds
+//         strategic at or above zero every day. Designed fail-closed
+//         behaviour, as with CVX's normalization.
+//     (f) CONCENTRATION + CUSTOM SILICON. Share capture is the competitive
+//         read; accelerator share below 75% (the 80–85% band breached) is a
+//         strategic headwind. Hyperscale is 55% of Data Center revenue.
+//     (g) TAIWAN / SUPPLY. Cross-strait headlines are scored by CLASS
+//         (duration_changing = strategic headwind and said so; nvda_asset =
+//         assessed; noise = zero), never on sight. Shared tail with ASML —
+//         sized upstream, not here.
+//   Dividend yield (~0.5%) is a NON-SIGNAL. NOT added to CYCLICAL_ARCHETYPES —
+//   the GLNCY/AMKBY inversion does not apply in expansion, and in digestion the
+//   cycle gate handles the trough explicitly. Blend weights untouched
+//   (archetype uses defaults). regimeBasis "guided_sequential_growth_pct".
+
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
 const CYCLICAL_ARCHETYPES = new Set([
@@ -722,6 +834,175 @@ function evaluateCVXCycleGate(data) {
   return { active: false, side: null };
 }
 
+// ─── NVDA REGIME-CONDITIONAL WEIGHTS + CAPEX COVERAGE + CYCLE GATE (V8.7) ───
+// Gated on the AI CAPEX CYCLE — the sequential revenue growth NVIDIA itself
+// guides to (next-quarter guide midpoint / last reported quarter − 1). The
+// driver is a per-print constant in fetch-market-data v4.21 (no API publishes
+// a guide), emitted with driver_missing / driver_stale flags that this engine
+// honours. Bands are IDENTICAL to nvda-strategy.jsx v1 resolveCycleRegime()
+// and fetch v4.21 nvdaCycleRegime() — keep all three in sync.
+//
+// Swing direction — NON-MONOTONIC, unlike every prior gate: both extremes
+// upweight strategic. In EXPANSION every quarter beats and the prints carry
+// little information, so the honest question is strategic (what the price
+// discounts about cycle DURATION — answered by the customers' cash flow). In
+// DIGESTION reported numbers collapse and trailing multiples spike, and the
+// honest question is again strategic (what the stock discounts through the
+// trough). MODERATION is where the inflection is being decided IN the prints
+// (beat magnitude, gross margin, the capex-guide trajectory, DSO), so near-term
+// layers carry it. Guardrail (e) is what makes upweighting strategic at either
+// extreme safe: strategic itself may not read the spot multiple.
+const NVDA_REGIME_EXPANSION_MIN_PCT = 10;     // guided sequential growth, %
+const NVDA_REGIME_DIGESTION_MAX_PCT = 0;
+const NVDA_COVERAGE_SELF_FUNDED     = 1.2;    // big-4 TTM OCF / TTM capex
+const NVDA_COVERAGE_STRETCHED       = 1.0;    // below = debt-funded — the digestion precondition
+const NVDA_PEG_BUY                  = 1.0;    // forward PEG on FY2 consensus — necessary, not sufficient, for a buy
+const NVDA_PEG_FAIR                 = 1.5;
+const NVDA_PEG_TRIM                 = 2.5;    // also the franchise-impairment threshold in the digestion gate
+const NVDA_GM_INTACT_PCT            = 73.0;   // canary bands — identical to fetch v4.21
+const NVDA_GM_BROKEN_PCT            = 70.0;
+const NVDA_FRANCHISE_GM_FLOOR_PCT   = 60.0;   // digestion gate: trim allowed only below this (or PEG > 2.5)
+const NVDA_EQUITY_GAINS_NULL_PCT    = 5;      // equity-securities gains > this % of GAAP NI → GAAP P/E is a null signal
+const NVDA_BIG4_KEYS                = ["msft", "googl", "amzn", "meta"];
+
+const NVDA_REGIME_TRIPLES = {
+  expansion:  { t: 0.15, p: 0.30, s: 0.55 },
+  moderation: { t: 0.25, p: 0.40, s: 0.35 },
+  digestion:  { t: 0.15, p: 0.30, s: 0.55 },
+  base:       { t: 0.20, p: 0.35, s: 0.45 },   // driver missing or stale
+};
+
+// Reads fetch v4.21's cycle_regime block first (an OBJECT on the market-data
+// path — on the LLM payload path strategic.cycle_regime is a string label and
+// is ignored here), then fundamentals, strategic, positional. Recomputes the
+// band from the number rather than trusting an upstream label. A stale or
+// missing driver → base, flagged.
+function resolveNVDARegime(data) {
+  const blk = data?.cycle_regime && typeof data.cycle_regime === "object" ? data.cycle_regime : null;
+  if (blk && blk.driver_missing === true) {
+    return { key: "base", direction: "none", growthPct: null, stale: blk.driver_stale === true };
+  }
+  const g = blk?.guided_sequential_growth_pct
+    ?? data?.fundamentals?.guided_sequential_growth_pct
+    ?? data?.strategic?.guided_sequential_growth_pct
+    ?? data?.positional?.guided_sequential_growth_pct
+    ?? null;
+  if (g == null || !Number.isFinite(g)) return { key: "base", direction: "none", growthPct: null, stale: false };
+  const key = g > NVDA_REGIME_EXPANSION_MIN_PCT ? "expansion"
+    : g < NVDA_REGIME_DIGESTION_MAX_PCT ? "digestion"
+    : "moderation";
+  return { key, direction: key === "expansion" ? "high" : key === "digestion" ? "low" : "none", growthPct: +g.toFixed(1), stale: false };
+}
+
+function computeNVDARegimeWeights(data) {
+  const r = resolveNVDARegime(data);
+  const regime = r.key === "base" && r.stale ? "base_stale" : r.key;
+  return { weights: NVDA_REGIME_TRIPLES[r.key] ?? NVDA_REGIME_TRIPLES.base, regime, driver: r.growthPct };
+}
+
+// The flagship strategic lens — identical arithmetic to nvda-strategy.jsx v1
+// computeCapexCoverage(). Reads fetch v4.21's capex_coverage.companies block
+// first, then the eight flat fundamentals keys, then a strategic block (re-score
+// from a logged/LLM payload). partial = TRUE when ANY of the four is missing —
+// a three-company ratio that drops a cash burner OVERSTATES coverage, so partial
+// results fail the cycle gate closed. Falls back to a reported ratio only when
+// the inputs are absent, and marks that read partial.
+function computeNVDACoverage(data) {
+  const co = data?.capex_coverage?.companies || {};
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  let ocf = 0, capex = 0, partial = false;
+  const negatives = [];
+  for (const k of NVDA_BIG4_KEYS) {
+    const o = co[k]?.ocf_ttm_busd   ?? f[`${k}_ocf_ttm_busd`]   ?? st[`${k}_ocf_ttm_busd`]   ?? null;
+    const c = co[k]?.capex_ttm_busd ?? f[`${k}_capex_ttm_busd`] ?? st[`${k}_capex_ttm_busd`] ?? null;
+    if (o == null || c == null || !(c > 0)) { partial = true; continue; }
+    ocf += o; capex += c;
+    if (o - c < 0) negatives.push(k.toUpperCase());
+  }
+  let ratio = capex > 0 ? +(ocf / capex).toFixed(2) : null;
+  if (ratio == null) {
+    const reported = data?.capex_coverage?.capex_coverage_ratio ?? f.capex_coverage_ratio ?? st.capex_coverage_ratio ?? null;
+    if (reported != null) { ratio = reported; partial = true; }
+  }
+  const zone = ratio == null ? null
+    : ratio >= NVDA_COVERAGE_SELF_FUNDED ? "self_funded"
+    : ratio >= NVDA_COVERAGE_STRETCHED ? "stretched"
+    : "debt_funded";
+  return { ratio, partial, zone, ocfBusd: capex > 0 ? +ocf.toFixed(1) : null, capexBusd: capex > 0 ? +capex.toFixed(1) : null, negatives };
+}
+
+// Forward PEG on FY2 consensus — reported directly when present, else computed
+// from price and the two consensus EPS figures (all LLM-sourced).
+function computeNVDAForwardPeg(data) {
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const pick = k => f[k] ?? st[k] ?? null;
+  const reported = pick("forward_peg");
+  if (reported != null && Number.isFinite(reported)) return { peg: +reported.toFixed(2), fwdPe2: pick("forward_pe_fy2"), growthPct: pick("fy2_eps_growth_pct"), source: "reported" };
+  const px = data?.price?.current, fy1 = pick("fy1_eps_consensus"), fy2 = pick("fy2_eps_consensus");
+  if (px == null || !(fy1 > 0) || !(fy2 > 0)) return { peg: null, fwdPe2: null, growthPct: null, source: null };
+  const growthPct = +((fy2 / fy1 - 1) * 100).toFixed(1);
+  if (!(growthPct > 0)) return { peg: null, fwdPe2: +(px / fy2).toFixed(1), growthPct, source: "computed" };
+  const fwdPe2 = +(px / fy2).toFixed(1);
+  return { peg: +(fwdPe2 / growthPct).toFixed(2), fwdPe2, growthPct, source: "computed" };
+}
+
+// Guardrail (a) — clean trailing P/E: GAAP EPS less TTM equity-securities gains
+// per diluted share. Identical to nvda-strategy.jsx v1 computeCleanTrailingPe().
+function computeNVDACleanTrailingPe(data) {
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const pick = k => f[k] ?? st[k] ?? null;
+  const px = data?.price?.current, eps = pick("gaap_eps_ttm"), gains = pick("equity_gains_ttm_busd"), sharesM = pick("diluted_shares_m");
+  if (px == null || eps == null || gains == null || sharesM == null || !(sharesM > 0)) return null;
+  const clean = eps - gains / (sharesM / 1000);
+  return clean > 0 ? +(px / clean).toFixed(1) : null;
+}
+
+function nvdaGaapPeContaminated(data) {
+  const f = data?.fundamentals || {};
+  const st = data?.strategic || {};
+  const gains = f.equity_gains_ttm_busd ?? st.equity_gains_ttm_busd ?? null;
+  const ni = f.gaap_net_income_ttm_busd ?? st.gaap_net_income_ttm_busd ?? null;
+  if (gains == null || ni == null || !(ni > 0)) return true;         // unknown → contaminated
+  return (gains / ni) * 100 > NVDA_EQUITY_GAINS_NULL_PCT;
+}
+
+function nvdaMarginCanary(gmPct) {
+  if (gmPct == null || !Number.isFinite(gmPct)) return null;
+  if (gmPct >= NVDA_GM_INTACT_PCT) return "intact";
+  if (gmPct >= NVDA_GM_BROKEN_PCT) return "degraded";
+  return "broken";
+}
+
+function nvdaGrossMargin(data) {
+  return data?.fundamentals?.gross_margin_pct ?? data?.positional?.gross_margin_pct ?? null;
+}
+
+// Guardrail (e) predicate — identical to evaluateCycleGate() in
+// nvda-strategy.jsx v1; keep the two in sync if either moves.
+// Returns { active, side } with side "no_buy" (floor at 0) or "no_trim" (cap at 0).
+function evaluateNVDACycleGate(data) {
+  const r = resolveNVDARegime(data);
+  if (r.key === "expansion") {
+    const cov = computeNVDACoverage(data);
+    const { peg } = computeNVDAForwardPeg(data);
+    const gm = nvdaGrossMargin(data);
+    const earnedBuy = cov.ratio != null && !cov.partial && cov.ratio >= NVDA_COVERAGE_STRETCHED
+      && peg != null && peg <= NVDA_PEG_BUY
+      && gm != null && gm >= NVDA_GM_BROKEN_PCT;
+    return { active: !earnedBuy, side: "no_buy" };
+  }
+  if (r.key === "digestion") {
+    const { peg } = computeNVDAForwardPeg(data);
+    const gm = nvdaGrossMargin(data);
+    const franchiseImpaired = (gm != null && gm < NVDA_FRANCHISE_GM_FLOOR_PCT) || (peg != null && peg > NVDA_PEG_TRIM);
+    return { active: !franchiseImpaired, side: "no_trim" };
+  }
+  return { active: false, side: null };
+}
+
 // ─── DRAWDOWN-FROM-HIGH HELPER (MSFT/LHX/TMO/NOW compounder primary signal) ──
 // Compounder drawdowns are buys, not warnings.
 function computeDrawdownFromHigh(data) {
@@ -755,6 +1036,7 @@ export function scoreTactical(data, macro) {
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
   const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
   const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
+  const isNVDA = archetype === "ai_compute_platform_cycle_leader";          // ← V8.7
   const rsi = data.technicals?.rsi14;
   const vix = macro?.vix;
 
@@ -1818,6 +2100,147 @@ export function scoreTactical(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── NVDA TACTICAL (V8.7): COVERAGE-AWARE BANDS + SMH FACTOR DISLOCATION + AIR-POCKET SCREEN ──
+  if (isNVDA) {
+    const reg = resolveNVDARegime(data);
+    const cov = computeNVDACoverage(data);
+    // "Funding anxiety" state: the regime says expansion but the customers'
+    // coverage is below 1.0 or cannot be established. Drawdowns and down days
+    // in this state are the digestion mechanism being priced — scored at half
+    // amplitude, not zero (unlike CVX's windfall unwind, nine of twelve ≥20%
+    // NVDA dips since 2010 were higher a year on).
+    const covOk = cov.ratio != null && !cov.partial && cov.ratio >= NVDA_COVERAGE_STRETCHED;
+    const anxiety = reg.key === "expansion" && !covOk;
+    const covTag = cov.ratio == null ? "coverage ?" : `coverage ${cov.ratio}x${cov.partial ? " (partial)" : ""}`;
+    const regTag = `${reg.key.toUpperCase()}${reg.growthPct != null ? ` ${reg.growthPct >= 0 ? "+" : ""}${reg.growthPct}%` : ""}, ${covTag}`;
+    const damp = v => Math.round(v / 2);
+
+    // RSI 35/70. Beta ~2.1 — bands between UBER's (1.26) and RDDT's (1.94),
+    // amplitudes with the compounders.
+    if (rsi != null) {
+      if (rsi < 20)       { score += -50; notes.push(`RSI ${rsi}: NVDA extreme oversold — rare washout`); }
+      else if (rsi < 25)  { score += -40; notes.push(`RSI ${rsi}: NVDA deeply oversold`); }
+      else if (rsi < 30)  { score += -28; notes.push(`RSI ${rsi}: NVDA oversold`); }
+      else if (rsi < 35)  { score += -14; notes.push(`RSI ${rsi}: NVDA approaching oversold`); }
+      else if (rsi <= 60) { score += 0;   notes.push(`RSI ${rsi}: NVDA normal range`); }
+      else if (rsi < 70)  { score += 4;   notes.push(`RSI ${rsi}: NVDA healthy momentum`); }
+      else if (rsi < 75)  { score += 12;  notes.push(`RSI ${rsi}: NVDA overbought`); }
+      else if (rsi < 80)  { score += 22;  notes.push(`RSI ${rsi}: NVDA extended`); }
+      else                { score += 35;  notes.push(`RSI ${rsi}: NVDA extreme — trim bias`); }
+    }
+
+    // Drawdown ladder (0–40% scale; setup >15%, strong >25%). ★ Half amplitude
+    // in the funding-anxiety state; near highs in that state is a mild trim lean.
+    const dd = computeDrawdownFromHigh(data);
+    if (dd != null) {
+      const ddMag = Math.abs(dd);
+      let v = 0, label = "";
+      if (ddMag > 35)      { v = -26; label = "extreme — max tactical conviction IF both canaries hold"; }
+      else if (ddMag > 25) { v = -20; label = "deep — high-conviction setup"; }
+      else if (ddMag > 20) { v = -14; label = "meaningful"; }
+      else if (ddMag > 15) { v = -9;  label = "setup territory"; }
+      else if (ddMag > 8)  { v = -3;  label = "mild"; }
+      if (v !== 0) {
+        if (anxiety) { score += damp(v); notes.push(`NVDA drawdown ${dd.toFixed(1)}% [${regTag}]: ${label} — funding anxiety being priced, scored at HALF amplitude (${damp(v)})`); }
+        else         { score += v;       notes.push(`NVDA drawdown ${dd.toFixed(1)}%: ${label}`); }
+      } else if (ddMag < 3) {
+        if (anxiety) { score += 4; notes.push(`NVDA at/near 52w highs (${dd.toFixed(1)}%) with the customers' coverage below 1.0 or unknown [${regTag}] — mild trim lean`); }
+        else         { score += 2; notes.push(`NVDA at/near 52w highs`); }
+      }
+    }
+
+    // Daily move — noise floor ±2.5%. Down days in the anxiety state are half-scored.
+    const chg = data.price?.change_pct;
+    if (chg != null) {
+      let v = 0, label = "";
+      if (chg < -8)        { v = -12; label = "severe drop — check for an NVDA-specific event (DOJ, export enforcement, a lost socket) before buying it"; }
+      else if (chg < -5)   { v = -7;  label = "sharp drop"; }
+      else if (chg < -2.5) { v = -3;  label = "notable decline"; }
+      else if (chg > 8)    { v = 9;   label = "sharp spike"; }
+      else if (chg > 5)    { v = 5;   label = "strong rally"; }
+      else if (chg > 2.5)  { v = 2;   label = "notable rally"; }
+      if (v < 0 && anxiety) { score += damp(v); notes.push(`NVDA daily ${chg}% [${regTag}]: ${label} — half amplitude (${damp(v)})`); }
+      else if (v !== 0)     { score += v; notes.push(`NVDA daily ${chg >= 0 ? "+" : ""}${chg}%: ${label}`); }
+      else                  { notes.push(`NVDA daily ${chg}%: inside the ±2.5% noise band`); }
+    }
+
+    // ★ AI-TRADE DISLOCATION — the signature NVDA tactical setup. SMH is the
+    // factor (NVDA is its largest weight), so the 30d spread is "NVDA vs the rest
+    // of the AI trade" and stays live in every regime. Threshold −5pp MUST match
+    // fetch v4.21's ai_trade_dislocation_active boundary.
+    if (data.cohort_relative?.smh_spread_30d_pp != null) {
+      const fs = data.cohort_relative.smh_spread_30d_pp;
+      const active = data.cohort_relative.ai_trade_dislocation_active === true;
+      if (active && fs < -12)     { score += -10; notes.push(`AI-TRADE DISLOCATION: NVDA lagging SMH by ${(-fs).toFixed(1)}pp/30d — strong buy setup absent an NVDA-specific event`); }
+      else if (active && fs < -8) { score += -7;  notes.push(`AI-TRADE DISLOCATION: NVDA lagging SMH by ${(-fs).toFixed(1)}pp/30d — buy setup`); }
+      else if (active)            { score += -5;  notes.push(`AI-TRADE DISLOCATION: NVDA lagging SMH by ${(-fs).toFixed(1)}pp/30d`); }
+      else if (fs < -2)           { score += -2;  notes.push(`NVDA mildly lagging SMH (${fs.toFixed(1)}pp/30d)`); }
+      else if (fs > 8)            { score += 3;   notes.push(`NVDA outrunning SMH by ${fs.toFixed(1)}pp/30d — leading its own factor, stretched`); }
+    }
+
+    // AI-CAPEX AIR-POCKET SCREEN (fetch v4.21). Price alone cannot classify a
+    // headline (guide_cut / funding_anxiety / nvda_specific / macro_rates), so
+    // only the unambiguous cases score: a sector-wide down session (NVDA within
+    // 2pp of SMH) is a light buy when coverage is ≥ 1.0 and INFORMATION when it
+    // is not — a drop on the hyperscalers' negative FCF with coverage below 1.0
+    // is the digestion mechanism, not oversold. An NVDA-specific drop (≥3pp
+    // worse than SMH) is NOT bought blind. An up spike in the anxiety state is
+    // a mild trim lean.
+    const tx = data.tactical_extras;
+    if (tx?.air_pocket_candidate_active === true) {
+      const mv = tx.largest_1d_move_5s_pct, d = tx.largest_1d_date, idio = tx.idiosyncratic_pp;
+      const smhStr = tx.smh_same_day_return_pct != null ? `, SMH ${tx.smh_same_day_return_pct}%` : "";
+      if (mv < 0) {
+        if (idio != null && idio <= -3)              { notes.push(`Air pocket ${mv}% on ${d}${smhStr}: NVDA-SPECIFIC (${idio}pp vs SMH) — possible DOJ / export / socket event; not bought blind`); }
+        else if (anxiety)                            { notes.push(`Air pocket ${mv}% on ${d}${smhStr}: sector-wide [${regTag}] — funding anxiety priced across the trade; information, scored ZERO`); }
+        else if (idio != null && Math.abs(idio) < 2) { score += -4; notes.push(`Air pocket ${mv}% on ${d}${smhStr}: sector-wide sympathy with coverage intact — light buy`); }
+        else                                         { score += -2; notes.push(`Air pocket ${mv}% on ${d}${smhStr}: unclassified — scored lightly`); }
+      } else {
+        if (anxiety) { score += 2; notes.push(`Spike +${mv}% on ${d}${smhStr} [${regTag}]: rally on debt-funded capex — mild trim lean`); }
+        else         { notes.push(`Spike +${mv}% on ${d}${smhStr}: noted`); }
+      }
+    } else if (tx?.largest_1d_on_known_print === true) {
+      notes.push(`Largest session in the last 5 (${tx.largest_1d_move_5s_pct}% on ${tx.largest_1d_date}) was the post-print reaction day — operating information, excluded from the air-pocket screen`);
+    }
+
+    // Overextension in expansion — the JSX rule: RSI >70 AND >12% over SMA50.
+    const sma50 = data.technicals?.sma50, px = data.price?.current;
+    if (reg.key === "expansion" && rsi != null && rsi > 70 && sma50 && px) {
+      const ext = ((px - sma50) / sma50) * 100;
+      if (ext > 12) { score += 6; notes.push(`NVDA ${ext.toFixed(1)}% over SMA50 with RSI ${rsi} in expansion — overextension trim lean`); }
+    }
+
+    // SMH vs SPY 30d — the AI/semis factor. In expansion a strong bid IS the
+    // AI trade itself, not a tailwind; its absence is rotation out of the trade.
+    if (data.factor_flow?.smh_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.smh_vs_spy_30d_pp;
+      if (x > 3 && reg.key === "expansion") { notes.push(`SMH +${x.toFixed(1)}pp vs SPY (30d) [${reg.key.toUpperCase()}]: the AI trade itself — not scored as a tailwind`); }
+      else if (x > 3)                       { score += -2; notes.push(`SMH +${x.toFixed(1)}pp vs SPY (30d): AI bid active`); }
+      else if (x < -3)                      { score += 2;  notes.push(`SMH ${x.toFixed(1)}pp vs SPY (30d): rotation out of the AI trade — factor pressure`); }
+    }
+
+    // VIX overlay — broad fear is collateral damage only when the customers can
+    // still fund the cycle; otherwise the fear may be about exactly that.
+    if (vix != null && chg != null) {
+      if (covOk) {
+        if (vix > 35 && chg < -3)      { score += -6; notes.push(`VIX ${vix} + NVDA ${chg}% with coverage ≥ 1.0: broad fear — collateral damage, not information`); }
+        else if (vix > 25 && chg < -2) { score += -3; notes.push(`VIX ${vix} + NVDA ${chg}%: elevated fear pressure`); }
+      } else if (vix > 25 && chg < -2) {
+        notes.push(`VIX ${vix} + NVDA ${chg}% [${covTag}]: fear may be about the capex cycle itself — not bought on VIX alone`);
+      }
+    }
+
+    // Earnings window — the LLM half halves tactical conviction inside ±10 days
+    // (every holding's convention); the engine notes it. NVDA also gaps on its
+    // customers' prints, which the LLM tracks as a secondary window.
+    const er = data.cycle_regime && typeof data.cycle_regime === "object" ? data.cycle_regime : null;
+    if (er?.earnings_window_active === true) {
+      notes.push(`EARNINGS WINDOW ACTIVE (${er.next_print_date ?? "next print"} in ${er.days_to_earnings ?? "?"}d, after the close) — binary event; LLM half-sizes tactical conviction`);
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC TACTICAL (fallback — currently no consumers as all archetypes have dedicated paths) ──
   if (rsi != null) {
     if (rsi < 20)      { score += -60; notes.push(`RSI ${rsi}: severely oversold`); }
@@ -1869,6 +2292,7 @@ export function scorePositional(data, macro) {
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
   const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
   const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
+  const isNVDA = archetype === "ai_compute_platform_cycle_leader";          // ← V8.7
 
   const ma = data.technicals?.ma_signal;
   if (ma) {
@@ -1945,6 +2369,13 @@ export function scorePositional(data, macro) {
       // amplitude; the TCO canary and the normalization decide conviction.
       const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -6, "above_200_below_50": -3, "below_both": -15, "below_both_death": -22 };
       if (m[ma] != null) { score += m[ma]; notes.push(`CVX MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
+    } else if (isNVDA) {
+      // RDDT/UBER's dampened map, not the compounders' full one. A trend break
+      // here may be the market correctly pricing DIGESTION — a live structural
+      // falsifier — rather than a fear cycle on a proven annuity. Buy the break
+      // at reduced amplitude; the two canaries and the coverage ratio decide.
+      const m = { "above_both_golden": 0, "above_both": 0, "above_50_below_200": -7, "above_200_below_50": -4, "below_both": -18, "below_both_death": -28 };
+      if (m[ma] != null) { score += m[ma]; notes.push(`NVDA MA: ${ma} (${m[ma] !== 0 ? (m[ma] > 0 ? "+" : "") + m[ma] : "normal trend"})`); }
     } else {
       const m = { "above_both_golden": 15, "above_both": 10, "above_50_below_200": -5, "above_200_below_50": 5, "below_both": -10, "below_both_death": -15 };
       if (m[ma] != null) { score += m[ma]; notes.push(`MA: ${ma} (${m[ma] > 0 ? "+" : ""}${m[ma]})`); }
@@ -2129,6 +2560,22 @@ export function scorePositional(data, macro) {
       else if (w52 > 30) { score += -14; notes.push(`CVX 52w: ${w52}% — real drawdown, buy interest if the TCO canary holds`); }
       else if (w52 > 15) { score += -22; notes.push(`CVX 52w: ${w52}% — major drawdown — verify the canary and the normalization`); }
       else               { score += -30; notes.push(`CVX 52w: ${w52}% — at/near lows — trough entries are the framework's buy signal; the deck, not the price, decides`); }
+    } else if (isNVDA) {
+      // UBER's ladder (−35 floor). Coverage-aware top rung: at 52w highs while
+      // the customers are debt-funding the cycle (expansion, coverage < 1.0 or
+      // unknown) is a mild trim lean; at highs with coverage intact is a normal
+      // reading. A 52w low here can be digestion being priced — the canaries
+      // and the coverage ratio, not the price, decide conviction.
+      const reg52 = resolveNVDARegime(data);
+      const cov52 = computeNVDACoverage(data);
+      const anxiety52 = reg52.key === "expansion" && !(cov52.ratio != null && !cov52.partial && cov52.ratio >= NVDA_COVERAGE_STRETCHED);
+      if (w52 > 95)      { score += anxiety52 ? 4 : 0; notes.push(`NVDA 52w: ${w52}% — at highs${anxiety52 ? " on debt-funded capex — mild trim lean" : ""}`); }
+      else if (w52 > 85) { score += 0;   notes.push(`NVDA 52w: ${w52}% — near highs`); }
+      else if (w52 > 70) { score += -2;  notes.push(`NVDA 52w: ${w52}% — mild pullback`); }
+      else if (w52 > 50) { score += -8;  notes.push(`NVDA 52w: ${w52}% — meaningful pullback`); }
+      else if (w52 > 30) { score += -16; notes.push(`NVDA 52w: ${w52}% — real drawdown, buy interest if the canaries hold`); }
+      else if (w52 > 15) { score += -26; notes.push(`NVDA 52w: ${w52}% — major drawdown — verify gross margin and the capex-guide trajectory`); }
+      else               { score += -35; notes.push(`NVDA 52w: ${w52}% — at/near lows — trough entries are the framework's buy signal IF the franchise is intact; the gate, not the price, decides`); }
     } else {
       if (w52 < 5)       { score += -30; notes.push(`52w: ${w52}% — extreme low`); }
       else if (w52 < 10) { score += -20; notes.push(`52w: ${w52}% — near lows`); }
@@ -2281,6 +2728,13 @@ export function scorePositional(data, macro) {
       else if (pctFromSMA < -4)  { score += -2;  notes.push(`CVX ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
       else if (pctFromSMA > 15)  { score += 6;   notes.push(`CVX ${pctFromSMA.toFixed(1)}% above SMA50 — extended`); }
       else if (pctFromSMA > 8)   { score += 2;   notes.push(`CVX ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
+    } else if (isNVDA) {
+      // Beta-2.1 bands: −20/−12/−6 down, +20/+12 up — wider than RDDT's.
+      if (pctFromSMA < -20)      { score += -15; notes.push(`NVDA ${pctFromSMA.toFixed(1)}% below SMA50 — stretched down, strong buy`); }
+      else if (pctFromSMA < -12) { score += -8;  notes.push(`NVDA ${pctFromSMA.toFixed(1)}% below SMA50 — meaningful pullback`); }
+      else if (pctFromSMA < -6)  { score += -3;  notes.push(`NVDA ${pctFromSMA.toFixed(1)}% below SMA50 — pullback`); }
+      else if (pctFromSMA > 20)  { score += 6;   notes.push(`NVDA ${pctFromSMA.toFixed(1)}% above SMA50 — extended (beta-2.1 band)`); }
+      else if (pctFromSMA > 12)  { score += 2;   notes.push(`NVDA ${pctFromSMA.toFixed(1)}% above SMA50 — trending up`); }
     } else {
       if (pctFromSMA < -15)      { score += -10; notes.push(`${pctFromSMA.toFixed(1)}% below SMA50`); }
       else if (pctFromSMA < -8)  { score += -5;  }
@@ -3458,6 +3912,132 @@ export function scorePositional(data, macro) {
     }
   }
 
+  // ─── NVDA POSITIONAL (V8.7): TWO CANARIES + BEAT VS GUIDE + SHARE CAPTURE + CASH CONVERSION ──
+  // ★ ARCHITECTURAL RULE FOR THIS ARCHETYPE: the prints carry little information
+  //   in expansion (14 straight beats), so positional scores the SECOND
+  //   DERIVATIVE — gross margin vs guide, the customers' capex-guide trajectory,
+  //   beat magnitude, share capture, receivables — and revisions only in a
+  //   MODERATION regime (elsewhere they are the cycle talking).
+  //   gross_margin_pct / beat_vs_guide_pct / big4_capex_growth_yoy_pct come from
+  //   fetch v4.21 (per-print config and SEC filings); the rest is LLM-sourced and
+  //   null-safe.
+  if (isNVDA) {
+    const regP = resolveNVDARegime(data);
+    const covP = computeNVDACoverage(data);
+    const anxietyP = regP.key === "expansion" && !(covP.ratio != null && !covP.partial && covP.ratio >= NVDA_COVERAGE_STRETCHED);
+    const fP = data.fundamentals || {};
+    const pP = data.positional || {};
+    const pick = k => fP[k] ?? pP[k] ?? null;
+
+    // SMH vs SPY 30d — factor (not a tailwind while it IS the AI trade in expansion)
+    if (data.factor_flow?.smh_vs_spy_30d_pp != null) {
+      const x = data.factor_flow.smh_vs_spy_30d_pp;
+      if (x > 3 && regP.key !== "expansion") { score += -2; notes.push(`SMH +${x.toFixed(1)}pp vs SPY (30d): AI bid — NVDA tailwind`); }
+      else if (x < -3)                       { score += 2;  notes.push(`SMH ${x.toFixed(1)}pp vs SPY (30d): rotation out of the AI trade`); }
+    }
+
+    // ★★ CANARY ONE — GROSS MARGIN vs the guide. Memory scarcity is the live
+    // pressure (75.0% → 74.0% guide, the first guide-down of the cycle).
+    // "broken" (<70%) is pricing power failing — thesis-level.
+    const gm = nvdaGrossMargin(data);
+    const gmCanary = pick("gross_margin_canary") ?? nvdaMarginCanary(gm);
+    const gmGuide = pick("gross_margin_guide_pct");
+    if (gmCanary) {
+      const gmStr = gm != null ? ` ${gm.toFixed(1)}%` : "";
+      if (gmCanary === "intact")        { score += -3; notes.push(`Gross margin canary INTACT${gmStr} (≥73%)`); }
+      else if (gmCanary === "degraded") { score += 6;  notes.push(`Gross margin canary DEGRADED${gmStr} (70–73%) — memory scarcity eating the platform premium`); }
+      else if (gmCanary === "broken")   { score += 18; notes.push(`Gross margin canary BROKEN${gmStr} (<70%) — pricing power failing. THESIS-LEVEL.`); }
+    }
+    if (gm != null && gmGuide != null && gm - gmGuide >= 1) {
+      notes.push(`Gross margin guide ${gmGuide.toFixed(1)}% vs last actual ${gm.toFixed(1)}%: a GUIDE-DOWN of ${(gm - gmGuide).toFixed(1)}pp — folded into the canary, not scored twice`);
+    }
+
+    // ★★ CANARY TWO — the aggregate hyperscaler CAPEX-GUIDE TRAJECTORY (LLM
+    // categorical from the four latest calls). One cut = trim; two = thesis-level.
+    const traj = pick("capex_guide_trajectory");
+    if (traj) {
+      const t = String(traj).toLowerCase();
+      if (t === "raised")    { score += -6; notes.push(`Hyperscaler capex guides RAISED${gmCanary === "intact" ? " with gross margin intact" : ""} — the cycle extending on the customers' own numbers`); }
+      else if (t === "held") { notes.push(`Hyperscaler capex guides HELD${anxietyP ? " while coverage sits below 1.0 — the spend is being debt-funded (information, not a signal)" : ""}`); }
+      else if (t === "cut")  { score += 8;  notes.push(`A hyperscaler CUT its capex guide — positional trim; a second cut is THESIS-LEVEL`); }
+    }
+
+    // Beat magnitude vs NVIDIA's own guide midpoint — the second derivative.
+    const beat = pick("beat_vs_guide_pct");
+    const beatAvg = pick("beat_vs_guide_avg_pct") ?? 8.1;
+    const inflect = pick("beat_inflection_flag");
+    if (beat != null) {
+      if (inflect === true)     { score += 6;  notes.push(`Beat vs guide ${beat >= 0 ? "+" : ""}${beat.toFixed(1)}% (avg ${beatAvg}%): INFLECTION FLAG — the beat streak is narrowing to nothing${beat < 0 ? " (a MISS)" : ""}`); }
+      else if (beat > beatAvg)  { score += -3; notes.push(`Beat vs guide +${beat.toFixed(1)}% (avg ${beatAvg}%): re-widening — demand outrunning supply`); }
+      else                      { notes.push(`Beat vs guide +${beat.toFixed(1)}% (avg ${beatAvg}%): narrowing but above the 3% inflection line`); }
+    }
+
+    // Rubin ramp — the mix read (guided ~20% of Data Center for Q3 FY27).
+    const rubin = pick("rubin_status");
+    if (rubin === "slipping")    { score += 4; notes.push(`Vera Rubin ramp SLIPPING — the mix shift that carries FY28 is late`); }
+    else if (rubin === "on_track" && pick("rubin_share_pct") != null) { notes.push(`Vera Rubin ${pick("rubin_share_pct")}% of Data Center, on track`); }
+
+    // ★ Guardrail (b) — cash conversion. Single-quarter FCF is null during the
+    // ramp; the receivables canary is the scored read.
+    if (pick("quarterly_fcf_signal_status") === "null_signal_ramp_working_capital") {
+      notes.push(`Quarterly FCF: NULL SIGNAL — inventory / receivables building ahead of Rubin; TTM FCF and the DSO trend carry the read`);
+    }
+    if (pick("receivables_canary_active") === true) {
+      score += 6; notes.push(`RECEIVABLES CANARY: receivables outgrowing revenue two quarters running — stretched or vendor-financed customers`);
+    } else if (pick("dso_trend") === "rising") {
+      notes.push(`DSO rising${pick("dso_days") != null ? ` (${pick("dso_days")}d)` : ""} — one quarter; the canary needs two`);
+    }
+
+    // ★ Guardrail (f) — SHARE CAPTURE: NVDA Data Center YoY growth minus the
+    // big-four's capex YoY growth (the latter computed from filings in fetch
+    // v4.21). Two quarters negative = share loss to custom silicon / AMD.
+    const dcG = pick("dc_revenue_growth_yoy_pct");
+    const cxG = pick("big4_capex_growth_yoy_pct") ?? data.capex_coverage?.big4_capex_growth_yoy_pct ?? null;
+    const scReported = pick("share_capture_pp");
+    const sc = dcG != null && cxG != null ? +(dcG - cxG).toFixed(1) : scReported;
+    const negQ = pick("share_capture_negative_quarters");
+    if (sc != null) {
+      if (sc < 0 && negQ != null && negQ >= 2) { score += 8; notes.push(`Share capture ${sc.toFixed(1)}pp, ${negQ} quarters negative — NVIDIA losing share of its customers' spend to custom silicon / AMD`); }
+      else if (sc < 0)                        { score += 4; notes.push(`Share capture ${sc.toFixed(1)}pp: Data Center growing slower than the customers' capex — one quarter; two is a share-loss flag`); }
+      else if (sc > 10)                       { score += -3; notes.push(`Share capture +${sc.toFixed(1)}pp: NVIDIA taking a growing share of customer capex`); }
+      else                                    { notes.push(`Share capture +${sc.toFixed(1)}pp: holding share`); }
+    }
+
+    // Supply — memory / CoWoS. Feeds the gross-margin canary; not scored twice.
+    if (pick("supply_status") === "constrained") {
+      notes.push(`Supply CONSTRAINED (HBM / CoWoS) — the margin pressure is already in canary one`);
+    }
+
+    // ★ Guardrail (d) — China is an option. Revenue that appears is a small positive.
+    const china = pick("china_dc_revenue_last_q_busd");
+    if (china != null && china > 0) { score += -2; notes.push(`China Data Center revenue $${china}B recognized — the option exercised; zero was in the guide`); }
+    if (pick("china_headline_class") === "enforcement_legal") {
+      notes.push(`China headline: ENFORCEMENT / LEGAL (Megaspeed, Blackwell-loophole, smuggling) — reported, not a positional signal`);
+    }
+
+    // Financed demand — strategic owns the discount; positional notes it.
+    const fin = pick("financed_demand_share_pct");
+    if (fin != null && fin > 15) notes.push(`Financed-demand share ${fin.toFixed(0)}% of revenue — quality discount applied in strategic`);
+
+    // EPS revisions — scored ONLY in a moderation regime; elsewhere they are the cycle.
+    const revStatus = pick("revisions_signal_status") ?? (regP.key === "moderation" ? "execution" : "cycle_driven");
+    if (pick("eps_revisions_90d_pct") != null) {
+      const r90 = pick("eps_revisions_90d_pct");
+      if (revStatus === "execution") {
+        if (r90 > 3)       { score += -3; notes.push(`EPS revisions +${r90.toFixed(1)}% (90d): upward, execution-driven [moderation]`); }
+        else if (r90 < -3) { score += 3;  notes.push(`EPS revisions ${r90.toFixed(1)}% (90d): downward, execution-driven [moderation]`); }
+      } else {
+        notes.push(`EPS revisions ${r90 >= 0 ? "+" : ""}${r90.toFixed(1)}% (90d): CYCLE-DRIVEN [${regP.key}] — not scored`);
+      }
+    }
+
+    if (anxietyP) {
+      notes.push(`Cycle regime EXPANSION${regP.growthPct != null ? ` (guided +${regP.growthPct}% sequential)` : ""} with coverage ${covP.ratio ?? "?"}x${covP.partial ? " (partial)" : ""}: positional reads the canaries only`);
+    } else if (regP.key === "base") {
+      notes.push(`Cycle regime driver ${regP.stale ? "STALE (guide predates the last print)" : "missing"} — base triple; positional reads the canaries only`);
+    }
+  }
+
   return { score: clamp(score), notes };
 }
 
@@ -3487,6 +4067,7 @@ export function scoreStrategic(data, macro) {
   const isMLM = archetype === "reserve_moat_infrastructure_compounder";     // ← V8.4
   const isUBER = archetype === "marketplace_demand_aggregator";             // ← V8.5
   const isCVX = archetype === "integrated_major_capital_returner";          // ← V8.6
+  const isNVDA = archetype === "ai_compute_platform_cycle_leader";          // ← V8.7
 
   if (isIBIT) {
     const phaseInfo = getHalvingPhase();
@@ -4993,6 +5574,173 @@ export function scoreStrategic(data, macro) {
     return { score: clamp(score), notes };
   }
 
+  // ─── NVDA STRATEGIC (V8.7): CAPEX COVERAGE + FORWARD PEG THROUGH THE GATE + CLEAN TRAILING PE ──
+  if (isNVDA) {
+    const reg = resolveNVDARegime(data);
+    const cov = computeNVDACoverage(data);
+    const fS = data.fundamentals || {};
+    const sS = data.strategic || {};
+    const pick = k => fS[k] ?? sS[k] ?? null;
+    const covFullOk = cov.ratio != null && !cov.partial && cov.ratio >= NVDA_COVERAGE_STRETCHED;
+
+    // ★★ GUARDRAIL (a) part 1 — trailing GAAP P/E is NEVER scored. GAAP EPS
+    // carries gains on equity securities (the marks on NVIDIA's own customer
+    // stakes). The CLEAN figure is computed when the LLM supplies the inputs and
+    // scored lightly as context.
+    const pe = data.valuation?.trailingPE;
+    const contaminated = nvdaGaapPeContaminated(data);
+    const gains = pick("equity_gains_ttm_busd"), ni = pick("gaap_net_income_ttm_busd");
+    if (pe != null && pe > 0) {
+      const gStr = gains != null && ni != null && ni > 0 ? ` (equity-securities gains $${gains}B = ${((gains / ni) * 100).toFixed(0)}% of GAAP NI)` : "";
+      notes.push(`GAAP trailing P/E ${pe.toFixed(1)}x: NOT SCORED — ${contaminated ? "equity-gains contaminated" : "clean this period, still a peak-cycle number"}${gStr}`);
+    }
+    const cleanPe = computeNVDACleanTrailingPe(data) ?? pick("clean_trailing_pe");
+    if (cleanPe != null) {
+      if (cleanPe < 24)      { score += -3; notes.push(`Clean trailing P/E ${cleanPe.toFixed(1)}x (ex equity gains): value — context`); }
+      else if (cleanPe > 40) { score += 3;  notes.push(`Clean trailing P/E ${cleanPe.toFixed(1)}x (ex equity gains): rich — context`); }
+      else                   { notes.push(`Clean trailing P/E ${cleanPe.toFixed(1)}x (ex equity gains): fair — context, secondary`); }
+    }
+    // Part 2 — the trailing twin premium vs AVGO. fetch v4.21 hard-codes
+    // premium_pct_reliable = false (equity gains on one leg, VMware amortization on the other).
+    const tv = data.twin_valuation;
+    if (tv && tv.premium_pct != null && tv.premium_pct_reliable === false) {
+      notes.push(`NVDA P/E ${tv.premium_pct >= 0 ? "+" : ""}${tv.premium_pct.toFixed(1)}% vs AVGO [trailing GAAP]: record only, deliberately scored ZERO`);
+    }
+
+    // ★ CAPEX COVERAGE RATIO — the flagship. Can the customers fund the next
+    // year of the cycle from operations?
+    const traj = pick("capex_guide_trajectory");
+    const dd = computeDrawdownFromHigh(data);
+    const nearHigh = dd != null && Math.abs(dd) < 10;
+    if (cov.ratio != null) {
+      const srcStr = cov.ocfBusd != null ? ` (OCF $${cov.ocfBusd}B / capex $${cov.capexBusd}B)` : "";
+      const negStr = cov.negatives.length ? `; FCF-negative: ${cov.negatives.join(", ")}` : "";
+      if (cov.partial) {
+        notes.push(`Capex coverage ${cov.ratio}x [PARTIAL — a company missing; OVERSTATED if the missing name is a cash burner]${srcStr}${negStr}: bounded by the cycle gate, not scored on the buy side`);
+        if (cov.ratio < NVDA_COVERAGE_STRETCHED) { score += 3; notes.push(`Even the partial read is below 1.0 — the customers are debt-funding the cycle`); }
+      }
+      else if (cov.ratio >= 1.3 && traj === "raised") { score += -16; notes.push(`Capex coverage ${cov.ratio}x with guides RAISED${srcStr}: self-funded and extending — strong strategic buy`); }
+      else if (cov.ratio >= NVDA_COVERAGE_SELF_FUNDED) { score += -10; notes.push(`Capex coverage ${cov.ratio}x${srcStr}: SELF-FUNDED cycle — strategic buy${negStr}`); }
+      else if (cov.ratio >= NVDA_COVERAGE_STRETCHED)   { score += 0;   notes.push(`Capex coverage ${cov.ratio}x${srcStr}: STRETCHED — the cycle is funded, barely${negStr}`); }
+      else                                              { score += nearHigh ? 6 : 3; notes.push(`Capex coverage ${cov.ratio}x${srcStr}: DEBT-FUNDED — the digestion precondition${nearHigh ? ", with the stock within 10% of its high — trim bias" : ""}${negStr}`); }
+    } else {
+      notes.push(`Capex coverage: inputs not in the engine's data — the cycle gate fails CLOSED in expansion; the LLM half carries the read`);
+    }
+
+    // Forward PEG on FY2 consensus — read THROUGH the cycle gate. The 13–14x
+    // FY28 multiple is a peak-cycle number; PEG ≤ 1.0 is NECESSARY, not
+    // sufficient, for a buy (the gate below decides).
+    const pg = computeNVDAForwardPeg(data);
+    if (pg.peg != null) {
+      const pegStr = `Forward PEG ${pg.peg.toFixed(2)}${pg.fwdPe2 != null ? ` (FY2 P/E ${pg.fwdPe2}x on +${pg.growthPct}% growth)` : ""}`;
+      if (reg.key === "expansion") {
+        if (pg.peg <= NVDA_PEG_BUY)       { score += -6; notes.push(`${pegStr}: earns the buy IF coverage agrees — necessary, not sufficient [expansion]`); }
+        else if (pg.peg <= NVDA_PEG_FAIR) { score += 0;  notes.push(`${pegStr}: fair [expansion]`); }
+        else if (pg.peg <= NVDA_PEG_TRIM) { score += 6;  notes.push(`${pegStr}: rich for a peak-cycle base [expansion]`); }
+        else                              { score += 10; notes.push(`${pegStr}: very rich [expansion]`); }
+      } else if (reg.key === "digestion") {
+        if (pg.peg > NVDA_PEG_TRIM) { score += 6; notes.push(`${pegStr}: franchise-impairment threshold breached [digestion]`); }
+        else                        { notes.push(`${pegStr} [digestion]: a trough multiple — not scored; the gate owns the trim side`); }
+      } else {
+        if (pg.peg <= NVDA_PEG_BUY)       { score += -8; notes.push(`${pegStr}: value [${reg.key}]`); }
+        else if (pg.peg > NVDA_PEG_FAIR)  { score += 6;  notes.push(`${pegStr}: rich [${reg.key}]`); }
+        else                              { notes.push(`${pegStr}: fair [${reg.key}]`); }
+      }
+    } else {
+      notes.push(`Forward PEG: FY1/FY2 consensus not in the engine's data (LLM-sourced) — the gate cannot open on the buy side without it`);
+    }
+
+    // TTM FCF yield (TTM FCF LLM-sourced; market cap from Finnhub).
+    const fcf = pick("fcf_ttm_busd"), mcap = pick("market_cap_busd") ?? (data.valuation?.marketCap != null ? data.valuation.marketCap / 1000 : null);
+    if (fcf != null && mcap != null && mcap > 0) {
+      const fy = +((fcf / mcap) * 100).toFixed(2);
+      if (fy > 3)        { score += -4; notes.push(`TTM FCF yield ${fy}%: value`); }
+      else if (fy < 1.5) { score += 4;  notes.push(`TTM FCF yield ${fy}%: rich`); }
+      else               { notes.push(`TTM FCF yield ${fy}%: fair`); }
+    }
+
+    // Forward twin premium vs AVGO — SECONDARY (LLM-sourced forward P/Es).
+    const fpe1 = pick("forward_pe_fy1"), ape = pick("avgo_fwd_pe");
+    if (fpe1 != null && fpe1 > 0 && ape != null && ape > 0) {
+      const prem = +(((fpe1 / ape) - 1) * 100).toFixed(1);
+      if (prem < -15)     { score += -4; notes.push(`NVDA forward P/E ${prem}% vs AVGO: discount to the custom-silicon twin (secondary)`); }
+      else if (prem > 15) { score += 4;  notes.push(`NVDA forward P/E +${prem}% vs AVGO: rich vs twin (secondary)`); }
+      else                { notes.push(`NVDA forward P/E ${prem >= 0 ? "+" : ""}${prem}% vs AVGO: normal (secondary)`); }
+    }
+
+    // ★ GUARDRAIL (c) — vendor-financed demand carries a quality discount.
+    const fin = pick("financed_demand_share_pct");
+    if (fin != null) {
+      if (fin > 15) { score += 4; notes.push(`Financed-demand share ${fin.toFixed(0)}% of revenue (OpenAI / CoreWeave / xAI / Nebius / the financing platforms) — quality discount`); }
+      else          { notes.push(`Financed-demand share ${fin.toFixed(0)}%: within tolerance`); }
+    }
+    if (gains != null && gains > 0) notes.push(`Equity-securities gains $${gains}B in GAAP: the marks on customer stakes — never a positive`);
+
+    // Buybacks — diluted share count YoY (NEGATIVE = buyback). ~$235B of capacity.
+    const scYoY = pick("share_count_change_yoy_pct");
+    if (scYoY != null) {
+      if (scYoY <= -2)        { score += -5; notes.push(`Diluted share count ${scYoY.toFixed(1)}% YoY: strong buyback — meets the portfolio criterion`); }
+      else if (scYoY <= -0.5) { score += -3; notes.push(`Diluted share count ${scYoY.toFixed(1)}% YoY: meets the criterion`); }
+      else if (scYoY <= 0.5)  { score += 0;  notes.push(`Diluted share count ${scYoY >= 0 ? "+" : ""}${scYoY.toFixed(1)}% YoY: flat`); }
+      else                    { score += 4;  notes.push(`Diluted share count +${scYoY.toFixed(1)}% YoY: dilutive — $235B of authorization not keeping pace with SBC`); }
+    }
+    if (pick("buyback_pace") === "accelerating" && covFullOk) { score += -2; notes.push(`Buyback pace accelerating with the customers' coverage intact`); }
+
+    // Insiders — plan-based selling is a note; non-plan selling a small headwind.
+    if (pick("insider_net_selling_90d") === true) {
+      if (pick("insider_plan_based") === false) { score += 2; notes.push(`Insider net selling (90d), NOT plan-based — small headwind`); }
+      else                                      { notes.push(`Insider net selling (90d): Rule 10b5-1 plan sales — reported, not scored`); }
+    }
+
+    // ★ GUARDRAIL (g) — Taiwan / supply headlines by CLASS, never on sight.
+    const tw = pick("taiwan_headline_class");
+    if (tw === "duration_changing")  { score += 8; notes.push(`Taiwan headline DURATION-CHANGING (blockade / interdiction / export regime) — the sole-foundry tail is live. Strategic headwind, and said so. Shared with ASML — sized upstream.`); }
+    else if (tw === "nvda_asset")    { score += 3; notes.push(`Taiwan / supply headline hits an NVDA asset (N3 / CoWoS allocation, HBM, a customer) — assessed, small headwind`); }
+    else if (tw === "noise")         { notes.push(`Taiwan headline: routine drills / rhetoric — zero`); }
+
+    // ★ GUARDRAIL (f) — accelerator share. 80–85% is the band; below 75% the
+    // custom-silicon thesis is winning faster than modelled.
+    const accel = pick("accelerator_share_pct");
+    if (accel != null) {
+      if (accel < 75)      { score += 4; notes.push(`Accelerator share ${accel}%: below the 80–85% band — custom silicon taking share faster than modelled`); }
+      else                 { notes.push(`Accelerator share ${accel}% (from ~92% in 2023): inside the band`); }
+    }
+
+    // ⚠ Dividend yield (~0.5%) is a NON-SIGNAL.
+    const dy = data.valuation?.dividendYield;
+    if (dy != null) notes.push(`Dividend yield ${dy}%: non-signal`);
+
+    // VIX overlay — panic is a buy only when the customers can still fund the cycle.
+    const vixS = macro?.vix;
+    if (vixS != null) {
+      if (covFullOk && vixS > 35)      { score += -4; notes.push(`VIX ${vixS}: panic with coverage ≥ 1.0 — platform franchise on sale`); }
+      else if (covFullOk && vixS > 25) { score += -1; notes.push(`VIX ${vixS}: elevated fear`); }
+      else if (vixS > 25)              { notes.push(`VIX ${vixS} with coverage ${cov.ratio ?? "?"}x${cov.partial ? " (partial)" : ""}: fear may be about the cycle — not scored`); }
+    }
+
+    // ★★ GUARDRAIL (e) — CYCLE-POSITION GATE. The flag also drives the same
+    // clamp on the BLENDED score in blendScores().
+    const gate = evaluateNVDACycleGate(data);
+    const regTag = `guided ${reg.growthPct != null ? `${reg.growthPct >= 0 ? "+" : ""}${reg.growthPct}%` : "?"} sequential`;
+    if (gate.active && gate.side === "no_buy") {
+      const why = [
+        cov.ratio == null ? "coverage unavailable" : cov.partial ? `coverage ${cov.ratio}x on a PARTIAL read` : cov.ratio < NVDA_COVERAGE_STRETCHED ? `coverage ${cov.ratio}x < 1.0` : null,
+        pg.peg == null ? "forward PEG unavailable" : pg.peg > NVDA_PEG_BUY ? `forward PEG ${pg.peg} > ${NVDA_PEG_BUY}` : null,
+        nvdaGrossMargin(data) == null ? "gross margin unavailable" : nvdaGrossMargin(data) < NVDA_GM_BROKEN_PCT ? `gross margin ${nvdaGrossMargin(data)}% < 70%` : null,
+      ].filter(Boolean).join("; ");
+      notes.push(`⛔ CYCLE-POSITION GATE (EXPANSION, ${regTag}; ${why}) — strategic ${score} floored at 0. The peak-cycle multiple cannot produce a strategic buy.`);
+      score = Math.max(score, 0);
+      return { score: clamp(score), notes, cycle_gate_active: true, cycle_gate_side: "no_buy" };
+    }
+    if (gate.active && gate.side === "no_trim") {
+      notes.push(`⛔ CYCLE-POSITION GATE (DIGESTION, ${regTag}; franchise intact — gross margin ${nvdaGrossMargin(data) ?? "?"}% ≥ ${NVDA_FRANCHISE_GM_FLOOR_PCT}%, forward PEG ${pg.peg ?? "?"} ≤ ${NVDA_PEG_TRIM}) — strategic ${score} capped at 0. The trough cannot produce a strategic trim.`);
+      score = Math.min(score, 0);
+      return { score: clamp(score), notes, cycle_gate_active: true, cycle_gate_side: "no_trim" };
+    }
+
+    return { score: clamp(score), notes };
+  }
+
   // ─── GENERIC STRATEGIC (fallback — currently only consumed by ASML) ──────
   const pe = data.valuation?.trailingPE;
   if (pe != null && pe > 0) {
@@ -5115,6 +5863,9 @@ export function computeDeterministicScores(data, macro) {
   } else if (data._archetype === "integrated_major_capital_returner") {
     const r = computeCVXRegimeWeights(data);
     weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "brent_vs_70_deck_pct";
+  } else if (data._archetype === "ai_compute_platform_cycle_leader") {
+    const r = computeNVDARegimeWeights(data);
+    weights = r.weights; regime = r.regime; regimeDriver = r.driver; regimeBasis = "guided_sequential_growth_pct";
   }
 
   const composite = Math.round(
@@ -5140,9 +5891,13 @@ export function computeDeterministicScores(data, macro) {
                   // categorical gate — regimeDriver is null, regimeBasis carries it).
                   // CVX: anchored|transitional_high/_low|dislocated_high/_low (V8.6,
                   // same triple; numeric — regimeDriver = Brent % vs the $70 deck).
+                  // NVDA: expansion|moderation|digestion|base|base_stale (V8.7, same
+                  // triple at both extremes; numeric — regimeDriver = guided sequential
+                  // growth %; "base_stale" = fetch v4.21's per-print guide predates the
+                  // last print and the driver was withheld).
     regimePmi,    // numeric geo-weighted PMI used to choose regime (LIN only — kept for contract stability)
     regimeDriver, // V8.1 — numeric driver behind the regime choice (PMI / real rate / pp / %)
-    regimeBasis,  // V8.1/V8.2/V8.4 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp" | "xlc_vs_spy_30d_pp" | "federal_authorization_status" | "av_supply_regime_state" | "brent_vs_70_deck_pct"
+    regimeBasis,  // V8.1/V8.2/V8.4 — "pmi" | "real_rate" | "ita_vs_spy_30d_pp" | "xbi_90d_return_pct" | "duopoly_vs_spy_pp" | "ihi_vs_spy_30d_pp" | "xlc_vs_spy_30d_pp" | "federal_authorization_status" | "av_supply_regime_state" | "brent_vs_70_deck_pct" | "guided_sequential_growth_pct"
     allNotes: [...tactical.notes, ...positional.notes, ...strategic.notes],
   };
 }
@@ -5191,7 +5946,8 @@ export function blendScores(deterministic, llm, weights, archetype) {
   if (valueTrap) strategic = Math.max(strategic, 0);
 
   // V8.6: CVX Guardrail (e) — CYCLE-POSITION clamp on the BLENDED strategic
-  // score, same flag-driven pattern: only the CVX branch sets cycle_gate_*.
+  // score, same flag-driven pattern: only the CVX (V8.6) and NVDA (V8.7)
+  // branches set cycle_gate_* — the clamp itself is archetype-agnostic.
   // "no_buy" (windfall) floors at 0; "no_trim" (trough) caps at 0.
   const cycleSide = deterministic.strategic?.cycle_gate_active === true ? deterministic.strategic.cycle_gate_side : null;
   if (cycleSide === "no_buy") strategic = Math.max(strategic, 0);
