@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// signal-accuracy.mjs v1.8 — Forward-looking signal accuracy tracker.
+// signal-accuracy.mjs v1.9 — Forward-looking signal accuracy tracker.
 //
 // v1.3 (June 2026) — CSV PARSE HARDENING:
 //   The naive split(",") parser accepted rows WIDER than the header and read
@@ -284,6 +284,114 @@
 // stay clean. Aggregation logic remains symbol-agnostic — UBER stats
 // accumulate from its first logged date forward, and PBR.A's historical rows
 // keep aggregating unchanged as closed history.
+
+// v1.9 — NVDA v8.8 context propagation (15th-holding ADD; sync with
+// log-signals V8.8.0, which appends 69 columns and migrates the header
+// 341 → 410 — or from any earlier prefix; all pure appends). BUILT ON v1.8
+// (ENB → CVX): deploy this file INSTEAD of v1.8. As at v1.4–v1.8, the
+// EXACT-width contract is DYNAMIC against the on-disk header (headers.length),
+// so NO width constant changes here. Re-tested rather than assumed: genuine
+// v1.7 and v1.8 parse a post-migration 410-wide file with zero rows skipped,
+// and so does this file. An ADD retires nothing: no closed-history branch
+// changes, and aggregation stays symbol-agnostic — NVDA stats accumulate from
+// its first logged date forward.
+//
+// ★★ AS AT v1.6–v1.8, THE IMPORTANT CHANGES ARE FLAGS, NOT METRICS — and two of
+//    them arrive with NO new code, because log-signals V8.8.0 REUSES columns:
+//   • cycle_gate_active + cycle_gate_side (v1.8's read) now also qualify NVDA's
+//     strategic_score. score-engine V8.7's cycle-position gate FLOORS NVDA's
+//     blended strategic score at 0 ("no_buy") while the capex cycle regime is
+//     EXPANSION unless the big-four capex coverage ratio is ≥ 1.0 on a FULL
+//     four-company read AND forward PEG ≤ 1.0 AND gross margin ≥ 70%, and CAPS
+//     it at 0 ("no_trim") in DIGESTION unless the franchise is impaired (gross
+//     margin < 60% or PEG > 2.5). ⚠ Forward PEG is LLM-sourced and null in the
+//     engine's data, so the gate FAILS CLOSED: every NVDA snapshot reads true /
+//     no_buy while the regime reads expansion. Same consequence as CVX's: a
+//     study fitting strategic scores to forward returns without the flag would
+//     credit the model with calls it never made.
+//   • air_pocket_candidate_active + largest_1d_move_5s_pct + idiosyncratic_pp
+//     (v1.8's read) populate on NVDA rows too — fetch v4.21's screen emits the
+//     same payload keys as v4.20's. ⚠ idiosyncratic_pp is "vs XLE" on CVX rows
+//     and "vs SMH" on NVDA rows; the new smh_same_day_return_pct below is the
+//     aligned leg that makes the NVDA reading explicit. The excluded session on
+//     NVDA is the post-print REACTION day (after-close print), not the print
+//     date.
+//   • premium_pct_reliable + premium_unreliable_reason (v1.6 / v1.7, via the
+//     log-signals fold) qualify twin_premium_pct (v1.4) on NVDA rows as they
+//     do on CVX's: NVDA vs AVGO, trailing GAAP on BOTH legs — equity-securities
+//     gains inflate NVDA's, VMware acquisition amortization depresses AVGO's —
+//     hard-gated false upstream.
+//   New flags, read here for the first time:
+//   • driver_stale travels with regime (v1.1). fetch v4.21's regime driver is a
+//     PER-PRINT CONFIG constant (no API publishes a revenue guide). When the
+//     print date has passed and the guide still predates it, fetch WITHHOLDS the
+//     driver and score-engine V8.7 writes regime "base_stale" and the base
+//     triple rather than scoring the old regime — a label this snapshot has not
+//     carried before. TRUE = the weights on that row were a fallback, not a
+//     regime read.
+//   • coverage_partial travels with capex_coverage_ratio. TRUE = a big-four
+//     company was missing from the read; a three-company ratio that drops a
+//     cash burner (Amazon: TTM FCF −$42.4B) OVERSTATES coverage, and the engine's
+//     gate fails closed on it. "gated by partial" and "gated by the number" are
+//     different facts, and only the pair tells them apart.
+//   • gross_margin_canary travels with gross_margin_pct (intact ≥73 · degraded
+//     70–73 · broken <70 = thesis-level); beat_inflection_flag travels with
+//     beat_vs_guide_pct (<3% or a miss); receivables_canary_active travels with
+//     dso_trend (two quarters of receivables outgrowing revenue).
+//   • earnings_window_active qualifies the TACTICAL score — the LLM half-sizes
+//     conviction inside ±10 days of the print (NVDA also gaps on its customers'
+//     prints). The first flag here that labels a tactical rather than a
+//     strategic number.
+//   Scope, stated precisely as at v1.6–v1.8: calibration-loader v1.3 renders
+//   only regime / regime_pmi / weights / scores / price / role into the LLM
+//   prompt, so none of these reach today's prompt. The exposure is the future
+//   calibration substrate.
+//
+// Yesterday-snapshot additionally propagates:
+//   • capex_coverage_ratio + coverage_partial + coverage_zone +
+//     big4_ocf_ttm_busd + big4_capex_ttm_busd + big4_fcf_negative_names — the
+//     flagship strategic lens (big-four TTM operating cash flow over TTM capex,
+//     computed by fetch v4.21 from SEC filings: 10-Q cash flows are year-to-
+//     date, TTM = latest YTD + prior FY − prior-year YTD), propagated TOGETHER:
+//     the two aggregates reproduce the ratio, the partial flag says whether all
+//     four companies were in it, and the negatives name the cash burners. The
+//     regime band this feeds into already arrives via regime ("expansion" etc.);
+//     the numeric driver via the v1.8-style regime_driver on the row.
+//   • smh_spread_30d_pp + ai_trade_dislocation_active — THE signature tactical
+//     read (NVDA lagging SMH, its own factor, by more than 5pp over 30 days);
+//     peer of CVX's xom_* pair, MLM's vmc_* pair and MA's twin_spread_30d_pp.
+//   • smh_vs_spy_30d_pp — the AI/semis factor overlay (tactical, not the gate).
+//   • smh_same_day_return_pct — the air-pocket screen's aligned leg (see above).
+//   • gross_margin_pct + gross_margin_canary and capex_guide_trajectory — the
+//     two CANARIES (positional's operational metrics).
+//   • beat_vs_guide_pct + beat_inflection_flag — the second derivative.
+//   • share_capture_pp — Data Center YoY growth minus big-four capex YoY growth
+//     (two quarters negative = share loss to custom silicon / AMD).
+//   • dso_trend + receivables_canary_active — the cash-conversion pair.
+//   • forward_peg — the gate's valuation input (FY2 P/E over FY2 growth; the
+//     FY2 multiple is PEAK-CYCLE and is read only through the gate).
+//   • clean_trailing_pe — GAAP EPS ex equity-securities gains (the ~30x behind
+//     the ~27x headline); context, like twin_premium_pct.
+//   • financed_demand_share_pct — revenue from customers NVIDIA has invested in
+//     or financed (Guardrail c: above 15% is a strategic headwind).
+//   • taiwan_headline_class — duration_changing / nvda_asset / noise.
+//
+// Needs nothing new, already read by earlier blocks: regime (v1.1),
+// twin_premium_pct (v1.4), share_count_change_yoy_pct (v1.5), the
+// premium_pct_reliable / premium_unreliable_reason pair (v1.6 / v1.7),
+// cycle_gate_active / cycle_gate_side, market_cap_busd and the air-pocket trio
+// (v1.8). NOT propagated, deliberately: gaap_pe_signal_status (it labels
+// trailing_pe, which the snapshot does not carry — the v1.7 reasoning; the
+// clean figure travels instead), revisions_signal_status (eps_revisions_* are
+// not in the snapshot), the eight per-company OCF / capex inputs (the two
+// aggregates above recompute the ratio; the per-company split stays in
+// signals.csv and daily-log), next_q_guide_midpoint_busd + revenue_last_q_busd
+// (regime_driver is their ratio), and china_headline_class (an option, never
+// run-rate). All remain in signals.csv.
+//
+// Same forward-compatibility pattern throughout: blanks/absent columns no-op,
+// fields attach only when populated, so other holdings and pre-v8.8 history
+// stay clean.
 
 // v1.8 — CVX v8.7 context propagation (ENB → CVX holdings swap; sync with
 // log-signals V8.7.0, which appends 54 columns and migrates the header
@@ -724,6 +832,19 @@ function aggregateStats(forwardReturns) {
 // price event, tco_canary_status, buyback_guide_trend, the five
 // normalized-FCF inputs, and leverage ex-HESM with its state — when the CSV
 // row carries those columns. Added by log-signals V8.7.0. Same pattern.
+//
+// v1.9: Also propagates NVDA v8.8 context — driver_stale (pairs with regime:
+// the per-print regime driver was withheld and the base triple applied),
+// the capex-coverage read (ratio + partial flag + zone + the two aggregates +
+// the FCF-negative names, TOGETHER), the SMH factor spread/dislocation pair,
+// smh_vs_spy_30d_pp, the air-pocket screen's aligned SMH leg, the two canaries
+// (gross margin + its canary label; the capex-guide trajectory), beat vs guide
+// + its inflection flag, share_capture_pp, the dso_trend / receivables-canary
+// pair, forward_peg, clean_trailing_pe, financed_demand_share_pct,
+// earnings_window_active (the first flag here that labels a TACTICAL score),
+// and taiwan_headline_class — when the CSV row carries those columns. Added by
+// log-signals V8.8.0. cycle_gate_active / cycle_gate_side and the air-pocket
+// trio need no new read: log-signals V8.8.0 reuses those columns. Same pattern.
 function getYesterdaySnapshot(rows, tradingDates) {
   if (tradingDates.length < 2) return null;
 
@@ -1121,6 +1242,99 @@ function getYesterdaySnapshot(rows, tradingDates) {
     const hesmState = strOrNull(row.hesm_deconsolidation_state);
     if (ndrExDecon != null) holding.net_debt_ratio_ex_deconsolidation_pct = ndrExDecon;
     if (hesmState != null) holding.hesm_deconsolidation_state = hesmState;
+
+    // v1.9: NVDA v8.8 context — only attached when CSV cells are populated
+    // (NVDA-only in current builds). Pre-v8.8 CSV history leaves these columns
+    // undefined, helpers no-op, other holdings stay clean. NVDA's twin premium
+    // arrives via twin_premium_pct (v1.4) with its qualifier pair (v1.6 / v1.7
+    // fold), its cycle gate via cycle_gate_active / cycle_gate_side (v1.8), its
+    // air-pocket price event via the v1.8 trio (same payload keys as CVX), and
+    // its regime band via regime (v1.1).
+
+    // ★★ Pairs with regime (v1.1). TRUE = fetch v4.21 withheld the per-print
+    // regime driver (the print has passed, the guide predates it) and the engine
+    // wrote "base_stale" + the base triple — the weights on this row are a
+    // fallback, not a regime read. Attached first, beside the gate flags above.
+    const driverStale = boolOrNull(row.driver_stale);
+    if (driverStale != null) holding.driver_stale = driverStale;
+
+    // ★★ The flagship strategic lens travels TOGETHER: the two aggregates
+    // reproduce the ratio, coverage_partial says whether all four big-four
+    // companies were in it (TRUE = overstated if the missing name burns cash;
+    // the engine's gate fails closed on it), and the negatives name the burners.
+    const coverageRatio = numOrNull(row.capex_coverage_ratio);
+    const coveragePartial = boolOrNull(row.coverage_partial);
+    const coverageZone = strOrNull(row.coverage_zone);
+    const big4Ocf = numOrNull(row.big4_ocf_ttm_busd);
+    const big4Capex = numOrNull(row.big4_capex_ttm_busd);
+    const big4Negatives = strOrNull(row.big4_fcf_negative_names);
+    if (coverageRatio != null) holding.capex_coverage_ratio = coverageRatio;
+    if (coveragePartial != null) holding.coverage_partial = coveragePartial;
+    if (coverageZone != null) holding.coverage_zone = coverageZone;
+    if (big4Ocf != null) holding.big4_ocf_ttm_busd = big4Ocf;
+    if (big4Capex != null) holding.big4_capex_ttm_busd = big4Capex;
+    if (big4Negatives != null) holding.big4_fcf_negative_names = big4Negatives;
+
+    // THE signature tactical read — NVDA lagging SMH (its own factor) by more
+    // than 5pp over 30 days. Peer of CVX's xom_* pair and MLM's vmc_* pair.
+    const smhSpread30d = numOrNull(row.smh_spread_30d_pp);
+    const aiTradeDislocation = boolOrNull(row.ai_trade_dislocation_active);
+    const smhVsSpy = numOrNull(row.smh_vs_spy_30d_pp);
+    if (smhSpread30d != null) holding.smh_spread_30d_pp = smhSpread30d;
+    if (aiTradeDislocation != null) holding.ai_trade_dislocation_active = aiTradeDislocation;
+    if (smhVsSpy != null) holding.smh_vs_spy_30d_pp = smhVsSpy;
+
+    // The air-pocket screen's aligned factor leg. The trio above (v1.8) already
+    // attached on this row; this makes "idiosyncratic_pp is vs SMH" explicit.
+    const smhSameDay = numOrNull(row.smh_same_day_return_pct);
+    if (smhSameDay != null) holding.smh_same_day_return_pct = smhSameDay;
+
+    // The two CANARIES — positional's operational metrics. gross_margin_canary
+    // qualifies gross_margin_pct (intact ≥73 · degraded 70–73 · broken <70 =
+    // thesis-level); the trajectory is the LLM's classification of the four
+    // latest hyperscaler guides (raised / held / cut).
+    const grossMargin = numOrNull(row.gross_margin_pct);
+    const grossMarginCanary = strOrNull(row.gross_margin_canary);
+    const capexGuideTrajectory = strOrNull(row.capex_guide_trajectory);
+    if (grossMargin != null) holding.gross_margin_pct = grossMargin;
+    if (grossMarginCanary != null) holding.gross_margin_canary = grossMarginCanary;
+    if (capexGuideTrajectory != null) holding.capex_guide_trajectory = capexGuideTrajectory;
+
+    // The second derivative — beat vs NVIDIA's own guide midpoint, with its
+    // inflection flag (<3% or a miss).
+    const beatVsGuide = numOrNull(row.beat_vs_guide_pct);
+    const beatInflection = boolOrNull(row.beat_inflection_flag);
+    if (beatVsGuide != null) holding.beat_vs_guide_pct = beatVsGuide;
+    if (beatInflection != null) holding.beat_inflection_flag = beatInflection;
+
+    // Share capture (Data Center YoY growth − big-four capex YoY growth) and the
+    // cash-conversion PAIR (two quarters of receivables outgrowing revenue).
+    const shareCapture = numOrNull(row.share_capture_pp);
+    const dsoTrend = strOrNull(row.dso_trend);
+    const receivablesCanary = boolOrNull(row.receivables_canary_active);
+    if (shareCapture != null) holding.share_capture_pp = shareCapture;
+    if (dsoTrend != null) holding.dso_trend = dsoTrend;
+    if (receivablesCanary != null) holding.receivables_canary_active = receivablesCanary;
+
+    // The gate's valuation input (FY2 P/E over FY2 growth — the FY2 multiple is
+    // PEAK-CYCLE and is read only through the gate), the clean trailing P/E
+    // (GAAP EPS ex equity-securities gains — context, like twin_premium_pct),
+    // and the financed-demand share (Guardrail c).
+    const forwardPeg = numOrNull(row.forward_peg);
+    const cleanTrailingPe = numOrNull(row.clean_trailing_pe);
+    const financedDemand = numOrNull(row.financed_demand_share_pct);
+    if (forwardPeg != null) holding.forward_peg = forwardPeg;
+    if (cleanTrailingPe != null) holding.clean_trailing_pe = cleanTrailingPe;
+    if (financedDemand != null) holding.financed_demand_share_pct = financedDemand;
+
+    // ★ Qualifies the TACTICAL score — the LLM half-sizes conviction inside ±10
+    // days of the print. The first flag here that labels a tactical number.
+    const earningsWindow = boolOrNull(row.earnings_window_active);
+    if (earningsWindow != null) holding.earnings_window_active = earningsWindow;
+
+    // Classified, never scored on sight: duration_changing / nvda_asset / noise.
+    const taiwanClass = strOrNull(row.taiwan_headline_class);
+    if (taiwanClass != null) holding.taiwan_headline_class = taiwanClass;
 
     snapshot.holdings[row.symbol] = holding;
   }
