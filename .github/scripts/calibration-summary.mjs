@@ -117,6 +117,44 @@
 // model finding. log-signals V8.7.0 records cycle_gate_active /
 // cycle_gate_side per day.
 //
+// v8.8.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only. The NVDA
+// ADD (14 → 15; nothing retires) behaves like the v8.3.0 MA/ISRG add: NVDA's
+// panel begins accumulating from its first attributed date with small-n /
+// insufficient-data grades for its first weeks, and there is no retiring
+// panel to age out.
+// ⚠ THE RDDT VOLATILITY CAUTION RETURNS, AND BITES HARDER. NVDA is the
+// highest-beta name the book has carried (~2.0 five-year, above RDDT's ~1.94),
+// moving 5–10% on its own prints and 3–5% on its customers' (2026-10-30: −3 to
+// −5%, SOX −6%). score-engine V8.7 bands it RSI 35/70 with a ±2.5% daily noise
+// floor (as UBER) plus a 0–40% drawdown ladder. The known simplification that
+// these grades are unweighted by volatility bites hardest here: a hit rate
+// over a handful of NVDA observations carries less information than the same
+// hit rate on any other name in the book. Read its early panels accordingly.
+// ⚠ THE CALENDAR CAUTION IS THE DENSEST YET, AND TWO-SIDED. NVDA's own Q3
+// FY2027 print is 2026-11-17 after the close (reaction session 2026-11-18) —
+// its 12th session if first logged on 2026-11-02 — so its earliest positional
+// observations straddle the print. And NVDA alone also gaps on its CUSTOMERS'
+// prints: the four hyperscalers report again in late January / early February
+// 2027, inside its first 60 sessions. Plus an UNSCHEDULED event class:
+// AI-capex air pockets (fetch v4.21 screens for sessions that move 4% or more
+// and are SMH-aligned, excluding the reaction day; the LLM classifies them).
+// Prefer panels that begin after the 2026-11-18 reaction session, and judge the
+// strategic panel only once it clears the January customer prints.
+// ⚠⚠ NVDA'S STRATEGIC PANEL IS ONE-SIDED BY RULE FROM DAY ONE — CVX'S CASE
+// AGAIN. score-engine V8.7's cycle-position gate floors NVDA's blended
+// strategic score at 0 while the capex cycle regime reads EXPANSION (guided
+// sequential growth above +10%; +12.2% on the current print) unless the big-
+// four capex coverage ratio is ≥ 1.0 on a full read AND forward PEG ≤ 1.0 AND
+// gross margin ≥ 70%; PEG is LLM-sourced, so the gate fails CLOSED and is
+// active every day. Floored scores land in the neutral band and drop out of
+// the hit rate (correctly — a floored score is not a call), leaving only
+// TRIM-side strategic calls able to register. An NVDA strategic panel showing
+// no buy-side calls while the regime is in expansion is the gate, not a model
+// finding. log-signals V8.8.0 records cycle_gate_active / cycle_gate_side per
+// day — and driver_stale, which flags the sessions after a print on which the
+// per-print regime driver has not yet been refreshed and the engine fell back
+// to the base weight triple (a mechanical shift in blended scores, not a view).
+//
 // Runs nightly after attribute-signals.mjs.
 // ────────────────────────────────────────────────────────────────────────────────
 
