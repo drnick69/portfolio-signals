@@ -1,7 +1,76 @@
 #!/usr/bin/env node
-// generate-signals.mjs v8.7.0 — Hybrid scoring: 50% deterministic + 50% LLM.
+// generate-signals.mjs v8.8.0 — Hybrid scoring: 50% deterministic + 50% LLM.
 // Deterministic layer handles RSI, 52w position, MAs, valuation math.
 // LLM handles qualitative interpretation, catalysts, risks, rationale text.
+// v8.8.0: HOLDINGS ADD — NVDA (NVIDIA, ai_compute_platform_cycle_leader,
+//       20/35/45). 14 → 15 holdings. An ADD, not a swap (the v8.3.0 MA/ISRG
+//       precedent): nothing retires, no slot's logic transfers, no removals.
+//       BUILT ON v8.7.0 (ENB → CVX): every prior swap lives in this file, so
+//       v8.8.0 supersedes v8.7.0 — deploy this one, not both.
+//       Syncs to score-engine V8.7 + fetch-market-data v4.21.
+//       NVDA: the merchant accelerated-computing platform — a PLATFORM
+//       FRANCHISE (CUDA / NVLink / the full-stack rack, 80–85% accelerator
+//       share, 75% gross margins, ~$235B of buyback capacity) that is a
+//       CYCLICAL DRESSED AS A COMPOUNDER: every reported number sits on a
+//       capex cycle funded by four customers' cash flows and, since the
+//       October 2026 prints, by their debt. Scored against THE CUSTOMERS'
+//       CAPACITY TO FUND THE CYCLE, never against its own peak-cycle earnings.
+//       (a) Per-holding prompt blocks: NVDA (cycle-regime line with the
+//         per-print driver and its staleness state, the CAPEX COVERAGE line
+//         with every big-four component from fetch v4.21's SEC-filing read,
+//         the live cycle-gate state from the deterministic result, a
+//         coverage-aware drawdown line, GAAP-P/E warning with the equity-gains
+//         contamination and the peak-cycle FY2 multiple, AVGO twin valuation
+//         GATED, SMH factor dislocation at −5pp with AVGO/AMD/TSM as context,
+//         SMH factor flow, the AI-capex AIR-POCKET screen, the two CANARIES
+//         (gross margin vs guide, capex-guide trajectory) with beat-vs-guide,
+//         signal-status flags, fundamentals and EPS revisions when sourced) in
+//         BOTH tracks.
+//       (b) SEVEN CALIBRATION GUARDRAILS carried into the prompt, all mirroring
+//         score-engine V8.7 so the LLM cannot reintroduce on the qualitative
+//         side what the engine deliberately gated:
+//         - PEAK-MULTIPLE TRAP + GAAP CONTAMINATION: trailing GAAP EPS carries
+//           gains on equity securities (~11% of GAAP NI in Q1–Q2 FY27); the
+//           clean trailing P/E is ~30x, not 26.8x; the 13–14x FY2 forward P/E
+//           is a peak-cycle number read only THROUGH the cycle gate. NOT via
+//           the cyclical inversion (NVDA is deliberately NOT added to
+//           CYCLICAL_ARCHETYPES).
+//         - CASH-CONVERSION NULL: single-quarter FCF is null during the Rubin
+//           ramp; TTM FCF and the DSO trend; the receivables canary scores.
+//         - VENDOR-FINANCED DEMAND: financed revenue carries a quality
+//           discount; the $100B OpenAI LOI — never signed — is never credited.
+//         - CHINA IS AN OPTION: zero in every guide since Q1 FY27.
+//         - CYCLE-POSITION GATE: expansion floors the BLENDED strategic score
+//           at 0 in blendScores() unless coverage ≥ 1.0 on a FULL read AND
+//           forward PEG ≤ 1.0 AND gross margin ≥ 70%; digestion caps it at 0
+//           unless the franchise is impaired. The prompt states the live gate
+//           state — and that forward PEG is LLM-sourced, so the engine-side
+//           gate fails closed every day the regime reads expansion.
+//         - CONCENTRATION + CUSTOM SILICON: share capture (Data Center growth
+//           minus big-four capex growth) is the competitive read.
+//         - TAIWAN / SUPPLY: headlines classified by DURATION vs NVDA ASSET vs
+//           noise, never scored on sight; the tail is shared with ASML and
+//           sized upstream.
+//       (c) Hyperscaler-capex headlines are classified, not reflexively scored:
+//         guide_cut (information) / funding_anxiety (a buy setup ONLY with
+//         coverage ≥ 1.0 — otherwise the digestion mechanism) / nvda_specific
+//         (never bought blind) / macro_rates (broad fear, a setup with the
+//         canaries intact). Precedent: October 29–30, 2026 — Alphabet printed
+//         negative FCF and pointed 2027 capex to ~$300B, Amazon printed a
+//         −$42.4B TTM FCF outflow with capex held, Intel guided down on a
+//         memory-driven PC correction, and NVDA fell 3–5% with the SOX down
+//         6–7%: funding_anxiety with coverage at or below 1.0.
+//       (d) EARNINGS WINDOW: Q3 FY27 prints 2026-11-17 AFTER the close (call
+//         5 p.m. ET) — the window opens 2026-11-07; the post-print reaction
+//         session is 2026-11-18. NVDA also gaps on its customers' prints
+//         (MSFT/GOOGL/AMZN/META/TSM/AVGO), tracked as a secondary window.
+//       (e) TICKER_NEGATIVE_CONSTRAINTS: NVDA gets a MINIMAL entry under the
+//         same exception logic as MLM/UBER/CVX — see the note at the map.
+//       (f) VERIFY_RUN_BUDGET default 7 → 8 with 14 → 15 holdings (~0.5 per
+//         holding density preserved — the v8.3.0 rule). Per-holding cap
+//         unchanged.
+//       Everything else dynamic on HOLDINGS.length already (PORTFOLIO_CONTEXT,
+//       both shared system blocks, the email header, the run summary).
 // v8.7.0: HOLDINGS SWAP — sold ENB (Enbridge, dividend_compounder, 10/45/45),
 //       bought CVX (Chevron, integrated_major_capital_returner, 20/35/45).
 //       14 holdings preserved. BUILT ON v8.6.0 (PBR.A → UBER): both swaps live
@@ -346,7 +415,7 @@ const TEMPORAL_Z = loadTemporalZ();
 // ─── v8.2.0: VERIFICATION GATE ───────────────────────────────────────────────
 // Hard caps — non-negotiable cost control on the corrective loop.
 const VERIFY_MAX_TURNS = Math.max(0, parseInt(process.env.VERIFY_MAX_TURNS || "2", 10));   // per holding
-const VERIFY_RUN_BUDGET = Math.max(0, parseInt(process.env.VERIFY_RUN_BUDGET || "7", 10)); // per run — v8.3.0: 6→7 with 12→14 holdings (~0.5/holding density preserved)
+const VERIFY_RUN_BUDGET = Math.max(0, parseInt(process.env.VERIFY_RUN_BUDGET || "8", 10)); // per run — v8.3.0: 6→7 with 12→14 holdings; v8.8.0: 7→8 with 14→15 (~0.5/holding density preserved)
 let verifyCorrectionsUsed = 0; // module-level run counter
 
 // Documented identity-confusion classes only (the failure modes this book has
@@ -417,6 +486,22 @@ const TICKER_NEGATIVE_CONSTRAINTS = {
   // output may say so). Those risks are handled in the prompt guidance instead,
   // where they cost nothing when the model is right.
   "CVX":   ["chevron deference", "chevron doctrine", "chevron v. nrdc"],   // CVX is Chevron Corporation (oil major), never the administrative-law doctrine
+  // "NVDA" — DOES get an entry (v8.8.0), MINIMAL by design, under the same
+  // exception logic as MLM/UBER/CVX rather than the documented-failures-only rule:
+  //   • The collision is structural: "NVDA" is also the name of the most widely
+  //     used free screen reader (NonVisual Desktop Access, by NV Access), so a
+  //     wrong-subject generation has a distinctive, checkable fingerprint.
+  //   • Only terms with ZERO legitimate use in an NVIDIA equity analysis are
+  //     listed.
+  // NOT banned, deliberately: "broadcom"/"avgo"/"amd"/"tsmc" (the twin, the
+  // merchant rival and the foundry — correct outputs name them constantly);
+  // "openai"/"coreweave"/"nebius"/"xai" (financed customers — guardrail 4
+  // REQUIRES naming them); "hugging face" (a pending acquisition); "groq" (now
+  // part of NVIDIA's inference lineup); "gaming" (the Edge Computing segment);
+  // "accessibility" alone (it can appear legitimately in a compute-access
+  // sentence). Those risks are handled in the prompt guidance instead, where
+  // they cost nothing when the model is right.
+  "NVDA":  ["screen reader", "nonvisual desktop", "nv access"],            // NVDA is NVIDIA Corporation (accelerated computing), never the screen reader
 };
 
 // Semantic + integrity checks on an accepted record_scores payload. Returns an
@@ -492,12 +577,14 @@ const HOLDINGS = [
   { symbol: "AMKBY", name: "Maersk",          sector: "Global Shipping",    archetype: "cyclical_trade_bellwether",        weights: { t:.25, p:.35, s:.40 } },
   { symbol: "MA",    name: "Mastercard",      sector: "Payment Networks",   archetype: "payments_network_quality_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
   { symbol: "ISRG",  name: "Intuitive Surgical", sector: "Surgical Robotics", archetype: "surgical_robotics_moat_compounder", weights: { t:.20, p:.35, s:.45 } }, // ← v8.3.0
+  { symbol: "NVDA",  name: "NVIDIA",          sector: "Accelerated Computing", archetype: "ai_compute_platform_cycle_leader", weights: { t:.20, p:.35, s:.45 } }, // ← v8.8.0 (ADD — 15th holding)
 ];
 
 // ─── CYCLICAL ARCHETYPE DETECTION ───────────────────────────────────────────
 // MOS removed in v7.5 (cyclical_commodity no longer used).
 // PBR.A removed in v8.6.0 (em_state_oil_dividend no longer in book).
 // CVX (v8.7.0) deliberately NOT added — explicit $70-deck normalization supersedes the inverted-P/E rule.
+// NVDA (v8.8.0) deliberately NOT added — the inversion does not apply in expansion, and in digestion the cycle-position gate owns the trough explicitly.
 const CYCLICAL_ARCHETYPES = new Set([
   "diversified_commodity_trader",
   "cyclical_trade_bellwether",
@@ -632,6 +719,7 @@ function buildPrompt(h, detScores) {
   const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
   const isUBER = h.archetype === "marketplace_demand_aggregator";          // ← v8.6.0
   const isCVX = h.archetype === "integrated_major_capital_returner";       // ← v8.7.0
+  const isNVDA = h.archetype === "ai_compute_platform_cycle_leader";       // ← v8.8.0
 
   const curveStr = macro.spread_2s10s != null
     ? `${macro.spread_2s10s >= 0 ? "+" : ""}${macro.spread_2s10s}bps`
@@ -1463,6 +1551,208 @@ function buildPrompt(h, detScores) {
     cvxEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}${exec ? " — ANCHORED regime: execution-driven, scored" : " — COMMODITY-DRIVEN: tracks the strip, not scored"}`;
   }
 
+  // ── NVDA-specific data lines (v8.8.0) ──────────────────────────────────
+  // Cycle regime recomputed from the number — bands IDENTICAL to score-engine
+  // V8.7 resolveNVDARegime(), fetch v4.21 nvdaCycleRegime() and
+  // nvda-strategy.jsx v1 (> +10% expansion · 0–10% moderation · < 0% digestion;
+  // missing or STALE driver → base). Keep all four in sync. fetch's block is an
+  // OBJECT here (md.cycle_regime); its driver_missing / driver_stale flags win.
+  const nvdaBlk = isNVDA && md.cycle_regime && typeof md.cycle_regime === "object" ? md.cycle_regime : null;
+  const nvdaDriverMissing = nvdaBlk?.driver_missing === true;
+  const nvdaGrowthRaw = isNVDA && !nvdaDriverMissing ? (nvdaBlk?.guided_sequential_growth_pct ?? md.fundamentals?.guided_sequential_growth_pct ?? null) : null;
+  const nvdaGrowth = nvdaGrowthRaw != null ? +nvdaGrowthRaw.toFixed(1) : null;
+  const nvdaRegKey = nvdaGrowthRaw == null ? "base" : nvdaGrowthRaw > 10 ? "expansion" : nvdaGrowthRaw < 0 ? "digestion" : "moderation";
+  const nvdaRegTag = nvdaRegKey === "base" ? (nvdaBlk?.driver_stale ? "BASE (STALE DRIVER)" : "BASE (DRIVER MISSING)") : nvdaRegKey.toUpperCase();
+  // Coverage recomputed from the eight components — arithmetic IDENTICAL to
+  // score-engine V8.7 computeNVDACoverage(); partial if ANY company is missing.
+  const nvdaCov = (() => {
+    if (!isNVDA) return null;
+    const co = md.capex_coverage?.companies || {};
+    let ocf = 0, cx = 0, partial = false; const neg = [];
+    for (const k of ["msft", "googl", "amzn", "meta"]) {
+      const o = co[k]?.ocf_ttm_busd ?? md.fundamentals?.[`${k}_ocf_ttm_busd`] ?? null;
+      const c = co[k]?.capex_ttm_busd ?? md.fundamentals?.[`${k}_capex_ttm_busd`] ?? null;
+      if (o == null || c == null || !(c > 0)) { partial = true; continue; }
+      ocf += o; cx += c; if (o - c < 0) neg.push(k.toUpperCase());
+    }
+    let ratio = cx > 0 ? +(ocf / cx).toFixed(2) : null;
+    if (ratio == null && md.capex_coverage?.capex_coverage_ratio != null) { ratio = md.capex_coverage.capex_coverage_ratio; partial = true; }
+    return { ratio, partial, ocf: cx > 0 ? +ocf.toFixed(1) : null, cx: cx > 0 ? +cx.toFixed(1) : null, neg, zone: ratio == null ? null : ratio >= 1.2 ? "self_funded" : ratio >= 1.0 ? "stretched" : "debt_funded" };
+  })();
+  const nvdaCovOk = nvdaCov?.ratio != null && !nvdaCov.partial && nvdaCov.ratio >= 1.0;
+  const nvdaAnxiety = nvdaRegKey === "expansion" && !nvdaCovOk;
+  const nvdaCovTag = nvdaCov?.ratio == null ? "coverage UNAVAILABLE" : `coverage ${nvdaCov.ratio}x${nvdaCov.partial ? " (partial)" : ""}`;
+
+  let nvdaCycleRegimeLine = null;
+  if (isNVDA) {
+    const w = { expansion: "15/30/55", moderation: "25/40/35", digestion: "15/30/55", base: "20/35/45" }[nvdaRegKey];
+    const print = nvdaBlk?.next_print_date ? ` | next print ${nvdaBlk.next_print_date} (${nvdaBlk.days_to_earnings}d, after the close)${nvdaBlk.earnings_window_active ? " — ⚠ EARNINGS WINDOW ACTIVE: halve tactical conviction and say so" : ""}` : "";
+    if (nvdaDriverMissing && nvdaBlk?.driver_stale) {
+      nvdaCycleRegimeLine = `NVDA cycle regime: ⚠ DRIVER STALE — the ${nvdaBlk.next_print_date ?? "last"} print has passed and fetch v4.21's per-print guide (${nvdaBlk.guide_as_of_print ?? "?"}) predates it, so the driver was WITHHELD → BASE triple ${w} (engine V8.7). Source the new quarter yourself: guided sequential growth = next-quarter guide midpoint / the quarter just reported − 1; say which regime it implies — the engine is deliberately NOT scoring the old one${print}`;
+    } else if (nvdaGrowth == null) {
+      nvdaCycleRegimeLine = `NVDA cycle regime: driver UNAVAILABLE → BASE triple ${w} (engine V8.7) — source the latest revenue guide and last reported quarter yourself and say which regime it implies${print}`;
+    } else {
+      nvdaCycleRegimeLine = `NVDA cycle regime: guide $${nvdaBlk?.next_q_guide_midpoint_busd ?? md.fundamentals?.next_q_guide_midpoint_busd ?? "?"}B vs last reported $${nvdaBlk?.last_reported_revenue_busd ?? md.fundamentals?.revenue_last_q_busd ?? "?"}B${nvdaBlk?.last_reported_quarter ? ` (${nvdaBlk.last_reported_quarter})` : ""} = ${nvdaGrowth >= 0 ? "+" : ""}${nvdaGrowth}% guided sequential growth → ${nvdaRegTag} | composite weights ${w} (engine V8.7, regime-conditional; > +10% expansion · 0–10% moderation · < 0% digestion)${print}`;
+    }
+  }
+  // ★ Capex coverage — the flagship strategic lens, computed from the big four's
+  // SEC filings by fetch v4.21 (10-Q cash flows are year-to-date; TTM = latest
+  // YTD + prior FY − prior-year YTD). Every component is listed so the model
+  // can re-run it and refresh any company whose newer 10-Q has landed.
+  let nvdaCoverageLine = null;
+  if (isNVDA) {
+    const cc = md.capex_coverage || {};
+    const co = cc.companies || {};
+    const rows = ["msft", "googl", "amzn", "meta"].map(k => {
+      const c = co[k]; if (!c) return `${k.toUpperCase()} —`;
+      return `${k.toUpperCase()} OCF $${c.ocf_ttm_busd ?? "—"}B / capex $${c.capex_ttm_busd ?? "—"}B${c.fcf_ttm_busd != null ? ` (FCF ${c.fcf_ttm_busd < 0 ? "−" : "+"}$${Math.abs(c.fcf_ttm_busd)}B)` : ""}${c.latest_period_end ? ` to ${c.latest_period_end}` : ""}${c.issues?.length ? ` ⚠ ${c.issues.join("; ")}` : ""}`;
+    }).join(" · ");
+    if (nvdaCov?.ratio != null) {
+      nvdaCoverageLine = `NVDA CAPEX COVERAGE (big-four TTM OCF / TTM capex, from SEC filings${cc.basis ? `; ${cc.basis.replace(/_/g, " ")}` : ""}): ${nvdaCov.ratio}x = ${String(nvdaCov.zone).toUpperCase().replace(/_/g, "-")}${nvdaCov.partial ? " ⚠ PARTIAL — a company is missing; OVERSTATED if that name is a cash burner; the engine's gate FAILS CLOSED on it" : ""}${nvdaCov.ocf != null ? ` | aggregate OCF $${nvdaCov.ocf}B / capex $${nvdaCov.cx}B` : ""}${nvdaCov.neg.length ? ` | FCF-NEGATIVE: ${nvdaCov.neg.join(", ")}` : ""}${cc.big4_capex_growth_yoy_pct != null ? ` | big-four latest-quarter capex ${cc.big4_capex_growth_yoy_pct >= 0 ? "+" : ""}${cc.big4_capex_growth_yoy_pct}% YoY` : ""} | ${rows}. Bands: ≥1.2 self-funded (buy) · 1.0–1.2 stretched · <1.0 debt-funded (the digestion precondition). YOU refresh any company whose newer 10-Q is public, and compute share_capture_pp = NVDA Data Center YoY growth − that capex growth.`;
+    } else {
+      nvdaCoverageLine = `NVDA CAPEX COVERAGE: UNAVAILABLE in the engine's data (${rows}) — the cycle gate FAILS CLOSED in expansion. YOU source each of MSFT/GOOGL/AMZN/META TTM operating cash flow and TTM capex, compute the ratio, and report every input; ≥1.2 self-funded · 1.0–1.2 stretched · <1.0 debt-funded.`;
+    }
+  }
+  // ★ Cycle-gate state comes from the deterministic result so the model sees
+  // exactly what blendScores() will do.
+  let nvdaGateLine = null;
+  if (isNVDA) {
+    const side = detScores?.strategic?.cycle_gate_active === true ? detScores.strategic.cycle_gate_side : null;
+    const pegAvail = md.fundamentals?.forward_peg != null || (md.fundamentals?.fy1_eps_consensus != null && md.fundamentals?.fy2_eps_consensus != null);
+    const st = side === "no_buy"
+      ? `⛔ CYCLE-POSITION GATE ACTIVE (no_buy) — your strategic score will be FLOORED AT 0 after blending; do not score a strategic BUY. ${pegAvail ? "Coverage is below 1.0 or partial, forward PEG is above 1.0, or gross margin is below 70% (see the engine's strategic notes)" : "Forward PEG is LLM-sourced and null in the engine's data, so the engine-side gate fails CLOSED while the regime reads EXPANSION — the floor applies this run whatever PEG and coverage you establish. Report them honestly anyway; they are the record"}`
+      : side === "no_trim"
+      ? `⛔ CYCLE-POSITION GATE ACTIVE (no_trim) — DIGESTION with the franchise intact (gross margin ≥ 60%, forward PEG ≤ 2.5): your strategic score will be CAPPED AT 0 after blending; do not score a strategic TRIM. Trough entries are the framework's buy signal${pegAvail ? "" : " (PEG unavailable, so the cap holds this run regardless)"}`
+      : nvdaRegKey === "expansion" ? "cycle gate clear — the engine established coverage ≥ 1.0 on a full read, forward PEG ≤ 1.0 and gross margin ≥ 70%"
+      : nvdaRegKey === "digestion" ? "cycle gate clear — the franchise is impaired (gross margin < 60% or forward PEG > 2.5), so a strategic trim may stand"
+      : `cycle gate inactive [${nvdaRegTag}] — it binds only in expansion (buy side) and digestion (trim side)`;
+    nvdaGateLine = `NVDA cycle gate: ${st}`;
+  }
+  let nvdaDrawdownLine = null;
+  if (isNVDA && md.price?.current && md.price?.week52_high) {
+    const dd = ((md.price.current - md.price.week52_high) / md.price.week52_high) * 100;
+    const ddMag = Math.abs(dd);
+    const zone = ddMag > 35 ? "EXTREME (max tactical conviction IF both canaries hold)" : ddMag > 25 ? "DEEP (high-conviction setup)" : ddMag > 20 ? "MEANINGFUL" : ddMag > 15 ? "SETUP territory" : ddMag > 8 ? "MILD" : ddMag < 3 ? "AT/NEAR HIGHS" : "MODEST";
+    nvdaDrawdownLine = nvdaAnxiety
+      ? `NVDA drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) [${nvdaRegTag}, ${nvdaCovTag}] — FUNDING ANXIETY being priced: the engine scores it at HALF amplitude (not zero — nine of twelve ≥20% NVDA dips since 2010 were higher a year on); ${ddMag < 3 ? "at/near highs on debt-funded capex is a mild trim lean" : "a full-amplitude buy needs coverage ≥ 1.0 on a full read and both canaries intact"}; ladder scaled to 40% (setup >15%, strong >25%)`
+      : `NVDA drawdown from 52w high: ${dd.toFixed(1)}% (${zone}) [${nvdaRegTag}] — primary tactical signal; ladder scaled to 40% (setup >15%, strong >25%)`;
+  }
+  // ★ GAAP trailing P/E is printed above in the generic block — this line says
+  // why it must not be read, and why the FY2 forward P/E must not be either.
+  let nvdaGaapPeLine = null;
+  if (isNVDA && md.valuation?.trailingPE) {
+    const f = md.fundamentals || {};
+    const gains = f.equity_gains_ttm_busd, ni = f.gaap_net_income_ttm_busd;
+    const gStr = gains != null && ni != null && ni > 0 ? `TTM equity-securities gains $${gains}B = ${((gains / ni) * 100).toFixed(0)}% of GAAP NI` : "TTM gains on equity securities ($15.9B in Q1 FY27, ~$5.7B in Q2 FY27 — the marks on NVIDIA's own customer stakes; ~11% of GAAP net income)";
+    nvdaGaapPeLine = `NVDA GAAP trailing P/E ${md.valuation.trailingPE}x: ⚠⚠ NOT A SIGNAL — EQUITY-GAINS CONTAMINATED (${gStr}); the CLEAN trailing P/E (GAAP EPS ex those gains) is about 29–30x, not ~27x — report it, context only. The 13–14x FY2028 forward P/E (consensus EPS ~$15.9, +71%) is a PEAK-CYCLE number on a 74–75% gross margin and is read ONLY through the cycle gate as forward PEG. NOT inverted either (NVDA is deliberately not in the cyclical set). Non-GAAP has included SBC since Q1 FY27 — add nothing back twice. Engine never scores the trailing multiple; neither should you.`;
+  }
+  // ★ Twin valuation is PERMANENTLY GATED by fetch v4.21 (premium_pct_reliable
+  // hard false — equity gains on NVDA's leg, VMware amortization on AVGO's).
+  let nvdaTwinValuationLine = null;
+  if (isNVDA && md.twin_valuation) {
+    const tv = md.twin_valuation;
+    const prem = tv.premium_pct;
+    nvdaTwinValuationLine = `NVDA P/E: ${tv.nvda_pe ?? "—"}x | AVGO (twin): ${tv.avgo_pe ?? "—"}x | Premium: ${prem != null ? (prem >= 0 ? "+" : "") + prem.toFixed(1) + "%" : "—"} [${tv.basis ?? "trailing_gaap"}] — ⚠⚠ GATED, RECORD ONLY: equity gains inflate NVDA's leg and VMware acquisition amortization depresses AVGO's. Engine scores this ZERO; your forward-basis twin read (±15%) is SECONDARY${tv.reference_amd_pe != null || tv.reference_tsm_pe != null ? ` | AMD ${tv.reference_amd_pe ?? "—"}x / TSM ${tv.reference_tsm_pe ?? "—"}x [trailing]: merchant-rival and foundry REFERENCE only — never averaged into anything NVDA is scored against` : ""}`;
+  }
+  let nvdaCohortRelativeLine = null;
+  if (isNVDA && md.cohort_relative) {
+    const cr = md.cohort_relative;
+    const fs = cr.smh_spread_30d_pp;
+    const p = v => v != null ? `${v >= 0 ? "+" : ""}${(+v).toFixed(1)}%` : "—";
+    const status = cr.ai_trade_dislocation_active
+      ? (fs != null && fs < -12 ? "AI-TRADE DISLOCATION ACTIVE/STRONG (buy setup UNLESS an NVDA-specific event explains it — DOJ, export enforcement, a lost socket)" : "AI-TRADE DISLOCATION ACTIVE (buy setup absent an NVDA-specific event)")
+      : (fs != null && fs > 8 ? "NVDA OUTRUNNING SMH (leading its own factor — stretched)" : "INLINE");
+    const tr = md.twin_relative;
+    const today = tr?.relative_spread_pp != null ? ` | Today: NVDA ${p(tr.nvda_change_pct)} vs AVGO ${p(tr.avgo_change_pct)}` : "";
+    nvdaCohortRelativeLine = `NVDA 30d: ${p(cr.nvda_30d_return_pct)} | SMH 30d: ${p(md.factor_flow?.smh_30d_return_pct)} | Factor spread: ${fs != null ? (fs >= 0 ? "+" : "") + fs.toFixed(1) + "pp" : "—"} (${status}; threshold −5pp — SMH is the factor and NVDA its largest weight, so the spread is NVDA vs the rest of the AI trade, live in every regime)${today} | AVGO ${p(cr.avgo_30d_return_pct)} / AMD ${p(cr.amd_30d_return_pct)} / TSM ${p(cr.tsm_30d_return_pct)} (twin / merchant rival / foundry — context only, engine does not score them)`;
+  }
+  let nvdaFactorFlowLine = null;
+  if (isNVDA && md.factor_flow?.smh_vs_spy_30d_pp != null) {
+    const x = md.factor_flow.smh_vs_spy_30d_pp;
+    const dir = x > 3
+      ? (nvdaRegKey === "expansion" ? "AI BID ACTIVE — but in EXPANSION this IS the AI trade itself, not a tailwind" : "AI BID ACTIVE (NVDA tailwind)")
+      : x < -3 ? "ROTATION OUT OF THE AI TRADE (factor pressure)" : "INLINE";
+    nvdaFactorFlowLine = `SMH vs SPY (30d): ${x >= 0 ? "+" : ""}${x.toFixed(1)}pp (${dir}; ±3pp threshold) — SMH is the AI/semis factor`;
+  }
+  // ★ AI-CAPEX AIR-POCKET SCREEN (fetch v4.21). The price event is established
+  // upstream; CLASSIFICATION of the headline is the model's job — the engine
+  // scores only the cases price alone can classify.
+  let nvdaAirPocketLine = null;
+  if (isNVDA && md.tactical_extras?.largest_1d_move_5s_pct != null) {
+    const tx = md.tactical_extras;
+    const mv = tx.largest_1d_move_5s_pct;
+    const idio = tx.idiosyncratic_pp;
+    const smh = tx.smh_same_day_return_pct != null ? `, SMH ${tx.smh_same_day_return_pct}% that session` : "";
+    let st;
+    if (tx.air_pocket_candidate_active) {
+      if (mv < 0 && idio != null && idio <= -3) st = "CANDIDATE — NVDA-SPECIFIC (≥3pp worse than SMH): possible DOJ / Megaspeed / export-enforcement / lost-socket event — NOT bought blind; YOU identify it";
+      else if (mv < 0 && nvdaAnxiety) st = `CANDIDATE — sector-wide down session [${nvdaRegTag}, ${nvdaCovTag}]: funding anxiety priced across the trade — the digestion MECHANISM, information not oversold (engine scores ZERO)`;
+      else if (mv < 0) st = "CANDIDATE — YOU classify it: a sector-wide air pocket with coverage ≥ 1.0 and no NVDA operating print is a light sympathy buy; a hyperscaler capex GUIDE CUT is information; an NVDA-specific event is not bought";
+      else if (nvdaAnxiety) st = `CANDIDATE — up spike [${nvdaRegTag}]: a rally on debt-funded capex — mild trim lean`;
+      else st = "CANDIDATE — up spike: noted (engine does not score it with coverage intact)";
+      st += ". Classify the headline: guide_cut / funding_anxiety (negative FCF or debt funding, guide HELD) / nvda_specific / macro_rates";
+    } else {
+      st = tx.largest_1d_on_known_print ? "the post-print reaction session — operating information, excluded from the screen" : "below the ±4% screen threshold";
+    }
+    nvdaAirPocketLine = `Air-pocket screen: largest session in the last 5 = ${mv >= 0 ? "+" : ""}${mv}% on ${tx.largest_1d_date ?? "—"}${smh}${idio != null ? ` (${idio >= 0 ? "+" : ""}${idio}pp vs SMH)` : ""} — ${st}`;
+  }
+  // ★ The two CANARIES + beat vs guide. Gross margin and the beat come from
+  // fetch v4.21's per-print config; the capex-guide trajectory is LLM-sourced.
+  let nvdaCanaryLine = null;
+  if (isNVDA && md.fundamentals) {
+    const f = md.fundamentals;
+    const parts = [
+      f.gross_margin_pct != null ? `GROSS MARGIN (canary one): last ${f.gross_margin_pct}%${f.gross_margin_guide_pct != null ? `, guide ${f.gross_margin_guide_pct}%${f.gross_margin_pct - f.gross_margin_guide_pct >= 1 ? ` (a GUIDE-DOWN of ${(f.gross_margin_pct - f.gross_margin_guide_pct).toFixed(1)}pp — memory scarcity)` : ""}` : ""} → ${String(f.gross_margin_canary ?? "?").toUpperCase()} (≥73 intact −3 · 70–73 degraded +6 · <70 broken +18, thesis-level)` : null,
+      f.capex_guide_trajectory ? `CAPEX-GUIDE TRAJECTORY (canary two): ${String(f.capex_guide_trajectory).toUpperCase()}${f.capex_guide_note ? ` — ${f.capex_guide_note}` : ""} (raised −6 · held 0 · one CUT +8 · two cuts thesis-level)` : `CAPEX-GUIDE TRAJECTORY (canary two): not sourced — YOU classify the aggregate of the four latest MSFT/GOOGL/AMZN/META guides as raised / held / cut`,
+      f.beat_vs_guide_pct != null ? `beat vs NVIDIA's own guide midpoint: ${f.beat_vs_guide_pct >= 0 ? "+" : ""}${f.beat_vs_guide_pct}% (avg ${f.beat_vs_guide_avg_pct ?? 8.1}% over the 14-quarter streak)${f.beat_inflection_flag ? " — ⚠ INFLECTION FLAG (<3% or a miss)" : ""}` : null,
+      f.rubin_share_pct != null || f.rubin_status ? `Vera Rubin ${f.rubin_share_pct != null ? `${f.rubin_share_pct}% of Data Center` : ""}${f.rubin_status ? ` (${f.rubin_status})` : ""}` : `Vera Rubin: guided ~20% of Data Center for Q3 FY27 — YOU confirm the mix and ramp status`,
+    ].filter(Boolean);
+    if (parts.length > 0) nvdaCanaryLine = `NVDA canaries: ${parts.join(" | ")}`;
+  }
+  let nvdaStatusLine = null;
+  if (isNVDA && md.fundamentals) {
+    const f = md.fundamentals;
+    const parts = [
+      f.gaap_pe_signal_status ? `GAAP P/E: ${f.gaap_pe_signal_status} (report, never score)` : null,
+      f.forward_pe_signal_status ? `forward P/E: ${f.forward_pe_signal_status}${f.forward_pe_signal_status === "cycle_gated" ? " (read only through the gate, as forward PEG)" : ""}` : null,
+      f.revisions_signal_status ? `EPS revisions: ${f.revisions_signal_status}${f.revisions_signal_status === "cycle_driven" ? " (the cycle talking — not execution, not scored)" : " (moderation — execution-driven, scored)"}` : null,
+      f.coverage_partial != null ? `coverage read: ${f.coverage_partial ? "PARTIAL (gate fails closed)" : "FULL four-company"}` : null,
+      nvdaBlk?.driver_source ? `regime driver: ${nvdaBlk.driver_source}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) nvdaStatusLine = `NVDA signal status (fetch v4.21): ${parts.join(" | ")}`;
+  }
+  let nvdaFundamentalsLine = null;
+  if (isNVDA && md.fundamentals) {
+    const f = md.fundamentals;
+    const parts = [
+      f.dc_revenue_last_q_busd != null ? `Data Center $${f.dc_revenue_last_q_busd}B${f.dc_revenue_growth_yoy_pct != null ? ` (${f.dc_revenue_growth_yoy_pct >= 0 ? "+" : ""}${f.dc_revenue_growth_yoy_pct}% YoY)` : ""}${f.hyperscale_revenue_busd != null ? ` — Hyperscale $${f.hyperscale_revenue_busd}B / ACIE $${f.acie_revenue_busd ?? "?"}B` : ""}` : null,
+      f.share_capture_pp != null ? `share capture ${f.share_capture_pp >= 0 ? "+" : ""}${f.share_capture_pp}pp${f.share_capture_negative_quarters ? ` (${f.share_capture_negative_quarters} quarters negative)` : ""}` : null,
+      f.accelerator_share_pct != null ? `accelerator share ${f.accelerator_share_pct}% (band 80–85)` : null,
+      f.inventory_busd != null || f.dso_days != null ? `inventory $${f.inventory_busd ?? "?"}B, DSO ${f.dso_days ?? "?"}d${f.dso_trend ? ` (${f.dso_trend})` : ""}${f.receivables_canary_active ? " — ⚠ RECEIVABLES CANARY ACTIVE" : ""}` : null,
+      f.quarterly_fcf_signal_status === "null_signal_ramp_working_capital" ? "quarterly FCF: NULL (ramp working capital)" : null,
+      f.fcf_ttm_busd != null ? `TTM FCF $${f.fcf_ttm_busd}B` : null,
+      f.forward_peg != null ? `forward PEG ${f.forward_peg}` : (f.fy1_eps_consensus != null && f.fy2_eps_consensus != null ? `FY1/FY2 consensus EPS $${f.fy1_eps_consensus} / $${f.fy2_eps_consensus}` : null),
+      f.avgo_fwd_pe != null ? `AVGO forward P/E ${f.avgo_fwd_pe}x` : null,
+      f.financed_demand_share_pct != null ? `financed-demand share ${f.financed_demand_share_pct}%${f.financed_demand_share_pct > 15 ? " (quality discount)" : ""}` : null,
+      f.china_dc_revenue_last_q_busd != null ? `China Data Center $${f.china_dc_revenue_last_q_busd}B (zero in the guide)` : null,
+      f.china_headline_class && f.china_headline_class !== "none" ? `China headline: ${f.china_headline_class}` : null,
+      f.share_count_change_yoy_pct != null ? `diluted share count YoY ${f.share_count_change_yoy_pct >= 0 ? "+" : ""}${f.share_count_change_yoy_pct.toFixed(1)}% (NEGATIVE = BUYBACK)` : null,
+      f.buyback_authorization_remaining_busd != null ? `authorization left $${f.buyback_authorization_remaining_busd}B` : null,
+      f.supply_status ? `supply ${f.supply_status}` : null,
+      f.taiwan_headline_class && f.taiwan_headline_class !== "none" ? `Taiwan headline: ${f.taiwan_headline_class}` : null,
+      f.insider_net_selling_90d === true ? `insider net selling 90d${f.insider_plan_based ? " (10b5-1 plan)" : ""}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) nvdaFundamentalsLine = `NVDA fundamentals: ${parts.join(" | ")}`;
+  }
+  let nvdaEpsRevLine = null;
+  if (isNVDA && md.fundamentals && (md.fundamentals.eps_revisions_30d_pct != null || md.fundamentals.eps_revisions_90d_pct != null)) {
+    const r30 = md.fundamentals.eps_revisions_30d_pct;
+    const r90 = md.fundamentals.eps_revisions_90d_pct;
+    const dir = r90 == null ? "" : r90 > 2 ? " (UPWARD)" : r90 < -2 ? " (DOWNWARD)" : " (STABLE)";
+    const exec = md.fundamentals.revisions_signal_status === "execution";
+    nvdaEpsRevLine = `EPS revisions: 30d ${r30 != null ? (r30 >= 0 ? "+" : "") + r30.toFixed(1) + "%" : "—"} | 90d ${r90 != null ? (r90 >= 0 ? "+" : "") + r90.toFixed(1) + "%" : "—"}${dir}${exec ? " — MODERATION regime: execution-driven, scored" : " — CYCLE-DRIVEN: the cycle talking, not scored"}`;
+  }
+
   const dataLines = [
     `Symbol: ${h.symbol} (${h.name}) — ${h.sector}`,
     md.price?.current ? `Price: $${md.price.current} | Change: ${md.price.change_pct}%` : null,
@@ -1484,6 +1774,7 @@ function buildPrompt(h, detScores) {
     mlmDrawdownLine, mlmCohortValuationLine, mlmCohortRelativeLine, mlmTwinLine, mlmFactorFlowLine, mlmFundamentalsLine, mlmEpsRevLine,                   // ← v8.5.0
     uberDrawdownLine, uberGaapPeLine, uberCohortValuationLine, uberCohortRelativeLine, uberFactorFlowLine, uberShockLine, uberConfigLine, uberFundamentalsLine, uberEpsRevLine,  // ← v8.6.0
     cvxOilRegimeLine, cvxNormLine, cvxGateLine, cvxDrawdownLine, cvxGaapPeLine, cvxTwinValuationLine, cvxCohortRelativeLine, cvxFactorFlowLine, cvxAirPocketLine, cvxStatusLine, cvxFundamentalsLine, cvxEpsRevLine,  // ← v8.7.0
+    nvdaCycleRegimeLine, nvdaCoverageLine, nvdaGateLine, nvdaDrawdownLine, nvdaGaapPeLine, nvdaTwinValuationLine, nvdaCohortRelativeLine, nvdaFactorFlowLine, nvdaAirPocketLine, nvdaCanaryLine, nvdaStatusLine, nvdaFundamentalsLine, nvdaEpsRevLine,  // ← v8.8.0
     macro.vix ? `VIX: ${macro.vix}` : null,
     macro.us10y ? `10Y: ${macro.us10y}% | 2Y: ${macro.us2y}%${curveStr ? ` | 2s10s curve: ${curveStr}` : ""}` : null,
     macro.tips10y ? `TIPS 10Y (real): ${macro.tips10y}%${realRate != null ? ` | Fed Funds real rate: ${realRate}%` : ""}` : null,
@@ -2002,6 +2293,58 @@ YOUR VALUE-ADD: TTM adjusted FCF and TTM downstream earnings to complete the nor
 MOST DAYS NEUTRAL: most days the stock is doing nothing remarkable and most signals should sit near zero — scores beyond ±20 on a normal day mean something is miscalibrated (five-year beta 0.52; 2026 realized volatility is the oil war, not the business). Meaningful scores on XOM twin dislocations (engine flags), classified air pockets (you classify), TCO canary changes (you flag), buyback-guide changes (you flag), normalization prints (you compute), earnings-window resets (you flag).
 ` : "";
 
+  const nvdaGuidance = isNVDA ? `
+CRITICAL — NVDA-SPECIFIC SCORING GUIDANCE (V1):
+
+IDENTITY — READ THIS FIRST. NVDA is NVIDIA CORPORATION (Nasdaq: NVDA, CIK 1045810, Santa Clara) — the merchant accelerated-computing platform; fiscal year ends late January, so "Q3 FY27" is the quarter ended October 25, 2026. It is NOT the NVDA screen reader (NonVisual Desktop Access, free accessibility software) — an analysis that mentions screen readers has the wrong subject entirely. It is NOT its gaming business alone: Gaming, Professional Visualization and Automotive were folded into "Edge Computing" (about 7% of revenue) in fiscal 2027; Data Center is about 93%. Broadcom (AVGO) is the TWIN on the AI-silicon multiple and the custom-ASIC alternative; AMD is the merchant rival; TSMC (TSM) is the sole leading-edge foundry; Hugging Face is a pending $12.93B acquisition (DOJ asking questions); Groq's technology is part of NVIDIA's inference lineup (Groq 3 LPX). CoreWeave, Nebius, OpenAI and xAI are CUSTOMERS in which NVIDIA holds stakes — their results are context, not NVIDIA's. This is a 15th-holding ADD: no prior slot's logic transfers, and nothing about ASML's lithography cycle belongs here even though both share the TSMC tail.
+
+NVDA is a PLATFORM FRANCHISE — CUDA, NVLink and Spectrum-X networking, the full-stack Vera Rubin rack, a one-year product cadence, 80–85% of data-center accelerator revenue, 75% gross margins, about $26B returned to shareholders in a single quarter and about $235B of buyback capacity. Three structural attributes at once: (1) that franchise; (2) a CAPEX CYCLE that sets the level of every reported number — about 55% of Data Center revenue comes from four hyperscalers whose combined 2026 capex exceeds $740B against $456B in 2025, and whose free cash flow has now turned negative at two of the four; (3) a SINGLE-FOUNDRY, SINGLE-ISLAND supply chain — TSMC N3/N4 and CoWoS in Taiwan, HBM from three memory makers currently in scarcity.
+
+THE ARCHITECTURAL RULE FOR THIS NAME — INTERNALIZE IT BEFORE SCORING:
+NVIDIA is a CYCLICAL DRESSED AS A COMPOUNDER. Every multiple — 26–27x trailing GAAP, ~22x FY27, 13–14x FY28 — sits on a peak-cycle earnings base at a 74–75% gross margin, and the FY28 number additionally assumes ~70% growth that management itself calls supply-constrained. The business is valued against its CUSTOMERS' CAPACITY TO FUND THE CAPEX — the capex coverage ratio (big-four TTM operating cash flow over TTM capex) — never against its own current earnings. In expansion the prints carry little information (14 straight beats), so the honest question is strategic: what does the price discount about cycle DURATION, and the customers' cash flow answers it. The two clocks meet at the CANARIES: gross margin vs the guide, and the customers' capex-guide trajectory.
+
+V8.7 ENGINE COVERAGE — DO NOT DOUBLE-COUNT THESE:
+• RSI bands 35/70, daily-move noise floor ±2.5% (beta ~2.1)
+• Drawdown-from-52w-high primary tactical, ladder scaled to 40% (>15% setup, >25% strong, >35% extreme). ★ COVERAGE-AWARE: while the regime reads EXPANSION and the coverage ratio is below 1.0 or unknown ("funding anxiety"), drawdowns and down days score at HALF amplitude — not zero, as CVX's windfall unwind does — and at/near highs is a mild trim lean; RSI above 70 with price more than 12% over SMA50 in expansion is a trim lean
+• AI-TRADE DISLOCATION (NVDA lagging SMH by more than 5pp over 30 days) — the signature tactical setup: rotation within the AI trade, not a thesis change, live in every regime. AVGO/AMD/TSM 30d are context only
+• AI-capex AIR-POCKET screen (|move| ≥ 4% in the last 5 sessions, not the post-print reaction day), scored only where price alone classifies it: an NVDA-specific drop (≥3pp worse than SMH) is NOT bought blind; a sector-wide down session is a light sympathy buy with coverage ≥ 1.0 and INFORMATION without it. CLASSIFICATION of the headline is YOURS — express it in your tactical score
+• SMH (VanEck Semiconductor) factor flow vs SPY at ±3pp — in expansion an AI bid IS the AI trade itself, not a tailwind
+• DAMPENED trend scoring — RDDT/UBER-style MA map and a −35 floor on the 52w ladder: a trend break here may be the market pricing digestion, a live structural falsifier
+• The two CANARIES — gross margin vs guide (intact −3 · degraded +6 · broken +18) and the capex-guide trajectory (raised −6 · one cut +8); beat vs guide (inflection flag +6, re-widening −3); Rubin slipping +4; the receivables canary +6; share capture (one quarter negative +4, two +8, >+10pp −3); China revenue appearing −2; EPS revisions scored ONLY in a MODERATION regime — when sourced (most arrive null — YOU source them)
+• Strategic: the CAPEX COVERAGE RATIO as the flagship (≥1.3 with guides raised −16 · ≥1.2 −10 · 1.0–1.2 zero · <1.0 +3, +6 within 10% of the high); forward PEG read THROUGH the gate (expansion: ≤1.0 −6 as necessary-not-sufficient, >1.5 +6, >2.5 +10; digestion: >2.5 +6 only); the clean trailing P/E as light context; TTM FCF yield (>3% −4 · <1.5% +4); the forward twin premium vs AVGO at ±15% (secondary); financed-demand share >15% +4; diluted share count YoY; Taiwan by class (duration_changing +8 · nvda_asset +3 · noise 0); accelerator share <75% +4
+• ⛔ CYCLE-POSITION GATE: EXPANSION → the BLENDED strategic score is floored at 0 in blendScores() unless coverage ≥ 1.0 on a FULL four-company read AND forward PEG ≤ 1.0 AND gross margin ≥ 70%; DIGESTION → capped at 0 unless the franchise is impaired (gross margin < 60% or forward PEG > 2.5). It fails CLOSED on null or partial coverage. Forward PEG is LLM-sourced and null in the engine's data, so the engine-side gate fails closed whenever the regime reads EXPANSION — your strategic number cannot buy through it. The MARKET DATA gate line states the live state
+• Composite weights regime-conditional on the CAPEX CYCLE — guided sequential revenue growth, engine V8.7: expansion (> +10%) 15/30/55 · moderation (0–10%) 25/40/35 · digestion (< 0%) 15/30/55 · driver missing or STALE 20/35/45. ★ Non-monotonic by design: both extremes upweight strategic, because at both extremes the honest question is what the price discounts about the cycle, not the quarter
+
+SEVEN CALIBRATION GUARDRAILS — ALL LOAD-BEARING. GET THESE WRONG AND THE SIGNAL IS NOISE:
+1. PEAK-MULTIPLE TRAP + GAAP CONTAMINATION. GAAP net income includes gains on equity securities — $15.9B in Q1 FY27 and about $5.7B in Q2 FY27 (GAAP net income $59.7B vs non-GAAP $54.0B) — the marks on NVIDIA's own stakes in its customers, about 11% of GAAP net income. NEVER score the trailing GAAP P/E (about 26.8x); report trailing GAAP EPS ($7.91 TTM), TTM equity gains, and the CLEAN trailing P/E = price / (GAAP EPS TTM − equity gains per diluted share) ≈ 29–30x, as context. NEVER score the FY2028 forward P/E (13–14x on consensus EPS about $15.9, +71%) on its own — it is a PEAK-CYCLE number at a 74–75% gross margin; compute forward PEG = FY2 P/E / FY2 growth % and read it only THROUGH the cycle gate. Do NOT invert any of them (NVDA is deliberately not in the cyclical set). Non-GAAP has INCLUDED stock-based compensation since Q1 FY27 with prior periods restated — never add SBC back a second time.
+2. CAPEX COVERAGE — THE FLAGSHIP, MANDATORY EVERY RUN. For each of Microsoft, Alphabet, Amazon and Meta: TTM operating cash flow and TTM capital expenditures (purchases of property and equipment; include finance leases where disclosed and say so). Ratio = sum of OCF / sum of capex: ≥1.2 self-funded · 1.0–1.2 stretched · <1.0 debt-funded (the digestion precondition). fetch v4.21 computes this from the four companies' 10-Q/10-K cash-flow statements and lists every component in the MARKET DATA; if a newer 10-Q is public, refresh that company and report the change. A three-company ratio that drops Amazon (TTM FCF −$42.4B) OVERSTATES coverage — any missing company makes the read PARTIAL and the gate fails closed.
+3. CASH-CONVERSION NULL. Q2 FY27 operating cash flow was $24.1B on $59.7B of GAAP net income (25% of revenue vs 62% the prior quarter) as inventory built to $32B ahead of Vera Rubin and days sales outstanding rose to 60. A single quarter's FCF is a NULL SIGNAL during a product ramp; score TTM free cash flow (about $127B) and the TREND in DSO. Two consecutive quarters of receivables outgrowing revenue IS a canary (stretched or vendor-financed customers) — score it in positional.
+4. VENDOR-FINANCED DEMAND. The $100B OpenAI letter of intent (September 2025) never became a contract — on ice by January 2026 — and was replaced on February 27, 2026 by a $30B direct equity stake in OpenAI's $122B round ($852B post-money, closed March 31, 2026) plus binding commitments for 3 GW of inference and 2 GW of training on Vera Rubin. Count revenue from customers NVIDIA has invested in or financed (OpenAI, CoreWeave, xAI, Nebius, Mistral; the $500B third-party compute-financing platforms with Apollo, BlackRock, Blackstone, Brookfield, Goldman Sachs and KKR once definitive) as financed_demand_share; above 15% is a strategic headwind; the equity marks are never a positive; the $100B is never credited.
+5. CHINA IS AN OPTION, NOT RUN-RATE. Every outlook since Q1 FY27 assumes ZERO Data Center compute revenue from China; Huang told investors in May 2026 to expect nothing; the FY26 10-K calls NVIDIA effectively foreclosed from China's data-center compute market. H200 is case-by-case licensed since January 15, 2026 with a 25% tariff NVIDIA may not be able to pass through; Beijing steers inference to Huawei Ascend (950PR shipping since March 2026). China revenue that appears is a small positional positive; enforcement/legal headlines (the Megaspeed probe, Blackwell-loophole enforcement, smuggling prosecutions) are notes, never thesis.
+6. CYCLE-POSITION GATE. In EXPANSION the strategic layer may not sit on the BUY side unless coverage ≥ 1.0 on a FULL read AND forward PEG ≤ 1.0 AND gross margin ≥ 70%. In DIGESTION it may not sit on the TRIM side unless the franchise is impaired (gross margin < 60% or forward PEG > 2.5) — the framework's trough-entry rule made mechanical: a trailing-P/E spike on collapsing earnings is NOT a sell. Score your strategic number honestly inside it — do not compensate by leaning tactical or positional toward a buy.
+7. CONCENTRATION, CUSTOM SILICON AND TAIWAN. Hyperscale is 55% of Data Center revenue ($48.7B of $89.0B in Q2 FY27). Accelerator share has drifted from ~92% (2023) to 80–85% (2026): Broadcom's AI revenue runs about $56B in FY26 toward more than $100B in FY27 across six custom-ASIC customers (Google, Anthropic, Meta, OpenAI among them); AMD holds 5–7% (OpenAI 6 GW from 2026, MI450/Helios); Google TPU 6–8%; Trainium 2–3%; ASIC share of INFERENCE is modelled 15% (2024) → 40% (2026). SHARE CAPTURE = NVDA Data Center YoY growth − big-four capex YoY growth; two quarters negative = share loss. TAIWAN headlines are CLASSIFIED, never scored on sight: duration_changing (a blockade, exercises with shipping interdiction, a change in the export regime) vs nvda_asset (N3/CoWoS allocation, HBM, a fab incident, a customer loss) vs noise (routine drills, rhetoric). The tail is shared with ASML and sized upstream — not here.
+
+WHAT DRIVES NVDA:
+1. THE CAPEX COVERAGE RATIO (THE strategic anchor). As of the October 2026 prints: Alphabet Q3 capex $51.4B, 2026 above $200B, 2027 pointed to about $300B (a ~50% step-up, partly debt-financed), free cash flow −$9.07B (second straight negative quarter), the stock −12.6% on October 29 (its worst day ever); Amazon TTM free cash flow −$42.4B vs +$14.8B a year earlier, Q3 property-and-equipment spend about $77B vs $35B, 2026 capex HELD at about $220B; Microsoft trimmed its 2026 figure to about $170B from $175B on an accounting change with plans unchanged; Meta raised its 2026 floor to $135–145B. Combined 2026 ceiling above $740B vs $455.8B actual in 2025; combined Q2 2026 capex $166.0B (+87% YoY). Coverage is at or below 1.0 for the first time in this cycle — the gate is almost certainly CLOSED pending a full four-company read.
+2. THE TWO CANARIES (THE operational metrics). GROSS MARGIN: 75.0% in Q2 FY27 (Blackwell Ultra mix); guided 74.0% ±50bp for Q3 — the first guide-down of the cycle, attributed to memory scarcity; analysts model 71–72% if it persists; ≥73 intact · 70–73 degraded · <70 broken (pricing power failing — THESIS-LEVEL). CAPEX-GUIDE TRAJECTORY: this week's four guides read HELD (one trim on accounting, one floor raised, two held) — and the market sold the spenders anyway. One CUT is a positional trim; two is thesis-level.
+3. THE SECOND DERIVATIVE. Beat vs NVIDIA's own guide midpoint: 14 straight beats; 5.7% in Q2 FY27 ($96.2B vs $91.0B) against an 8.1% average — narrowing; under 3% or a miss is an inflection flag unless explicitly supply-limited with a step-up guide. SHARE CAPTURE: Data Center +117% YoY vs big-four capex +87% in the aligned quarter = NVIDIA still taking share of customer spend. DSO 60 days and rising; the receivables canary needs a second quarter.
+4. EXECUTION. Q2 FY27 (quarter ended July 26, reported August 26): revenue $96.22B (+18% QoQ, +106% YoY) vs $91.9B consensus; Data Center $89.0B — Hyperscale $48.7B, ACIE (AI clouds, industrial, enterprise) $40.3B; Edge Computing $7.2B; GAAP EPS $2.46, non-GAAP $2.22 vs $2.08–2.09; operating cash flow $24.1B, free cash flow $21.3B; $19.7B repurchased, $6.0B dividends; Vera Rubin in full production at CoreWeave, Google Cloud, Microsoft Azure, OCI and Nebius, guided ~20% of Data Center in Q3; Groq 3 LPX inference accelerator in full production; management expects FY2028 revenue growth of about 70%, supply-constrained, with CPU revenue more than doubling. Q3 FY27 guide: revenue $108.0B ±2% (consensus had been about $103.8B); gross margin 74.0% ±50bp; opex about $9.0B non-GAAP; no China Data Center compute revenue assumed. Q1 FY27: revenue $81.6B, Data Center $75.2B (compute $60.4B, networking $14.8B +199% YoY), GAAP net income $58.3B INCLUDING $15.9B of equity-securities gains, free cash flow $48.6B. Fiscal 2026: revenue $215.9B (+65%), Data Center $193.7B, free cash flow $96.6B, $41.1B returned.
+5. THE CAPEX TAPE — CONTEXT, CLASSIFIED, NOT REFLEXIVELY SCORED. For every hyperscaler-capex headline ask which class it is: a capex GUIDE CUT (information, not a buy); FUNDING ANXIETY (negative FCF or debt funding with the guide HELD — a buy setup ONLY while coverage ≥ 1.0; otherwise it is the mechanism that produces digestion); NVDA-SPECIFIC (DOJ, Megaspeed, export enforcement, a lost socket — assess, never reflexively buy); MACRO-RATES (a repricing of long-duration growth — broad fear, a setup with the canaries intact). ★ CALIBRATION PRECEDENT: October 29–30, 2026 — Alphabet's negative FCF and 2027 capex step-up, Amazon's −$42.4B TTM FCF with capex held, Intel −29% on a memory-driven PC correction (Q4 guide $15–16B vs ~$17B expected), the SOX down 5.7–7%, NVDA down roughly 3–5% to about $203–207 with its market cap below $5T: funding_anxiety with coverage at or below 1.0 — information, not oversold. Macro the same week: the Fed held in a split vote, September PCE ran hot, markets price a December HIKE, the 10-year near 4.92%, Brent +12% in October — a headwind to long-duration multiples (macro_rates, not nvda_specific).
+6. VALUATION — SECONDARY LENSES. Clean trailing P/E about 29–30x (context); FY27 consensus EPS about $9.31 → about 22–23x; FY28 about $15.91 → about 13–14x (CYCLE-GATED); forward PEG on FY28 about 0.2–0.3 — the number that makes the gate necessary. TTM FCF about $127B → about 2.5% on a $5.0–5.15T market cap (fair: 1.5–3%). AVGO is the twin on the multiple (secondary, ±15%); AMD and TSM are reference. Dividend $0.25 quarterly ($1.00 a year), yield about 0.5% — a non-signal. Buybacks: $150B added late September 2026, about $235B of capacity through fiscal 2028 (analysts estimate ~4.2% share-count reduction and ~1.6% EPS accretion by 2028); diluted weighted shares 24,432M (Q4 FY26) → 24,285M (Q2 FY27), about −0.6% in two quarters. As of October 29: price $213.66, market cap about $5.15T, about 10.7% below the all-time high close of about $239 (October 6; record intraday $237.55 October 2), 52-week low $164.07, YTD about +14.8% vs SPY +13.4% and QQQ +16.7%, beta about 2.1, 30-day average volume about 104M shares. Analysts (October 19): 60 covering — 10 Strong Buy, 49 Buy, 1 Sell; average target about $328.72; 46 upward and 0 downward EPS revisions in 90 days (the cycle talking).
+7. INSIDERS AND HEADLINES. Jensen Huang sells under annual Rule 10b5-1 plans — establish the last-90-day transactions and whether they are plan-based before reading intent into them; never decisive. This week: MEGASPEED (a Singapore cloud customer under U.S. investigation; a New York Times report said U.S. intelligence concluded a Megaspeed executive was allegedly acting as a Chinese intelligence asset with a close relationship to Huang; Huang told Bloomberg on October 29 the dealings were ordinary business and that NVIDIA verified the firm did not ship AI processors to China illegally) and the DOJ's questions on whether the $12.93B Hugging Face acquisition could give NVIDIA control of an AI distribution channel — both nvda_specific / enforcement_legal; questions, not charges.
+8. EARNINGS WINDOW DISCIPLINE: Q3 FY27 (quarter ended October 25, 2026) reports TUESDAY NOVEMBER 17, 2026 AFTER the close (call 5 p.m. ET; CFO commentary in writing ahead of the call) — CONFIRMED by NVIDIA; the window opens November 7 and the reaction session is November 18. Within ±10 days of a report, HALVE the size of any tactical conviction and say so. NVDA also gaps on its customers' prints (MSFT/GOOGL/AMZN/META/TSM/AVGO) — quarter-size the air-pocket read inside 5 days of one. Post-print, score the print: the Q4 FY27 guide midpoint vs Q3 actuals resets the cycle regime FIRST; then gross margin vs 74%; then the coverage read refreshed with the hyperscalers' Q3 filings. fetch v4.21's per-print config is updated by hand after each print — until it is, the MARKET DATA regime line reads STALE and the engine scores NVDA on the base triple.
+
+DO NOT PENALIZE OR REWARD: RSI 38-62, daily moves under 2.5%, a drawdown in the funding-anxiety state as if it were a full-conviction buy (half amplitude), the GAAP trailing P/E in either direction (guardrail 1), the FY28 forward P/E on its own (guardrail 1), a single quarter's FCF during the Rubin ramp (guardrail 3), the $100B OpenAI LOI (guardrail 4), China headlines as thesis (guardrail 5), 46 upward revisions as execution (the cycle), SMH outperformance in expansion as a tailwind (the AI trade itself), AVGO's trailing multiple against NVDA's (gated), routine cross-strait drills, or the ~0.5% dividend yield.
+
+BUY BIAS (in addition to engine signals): capex coverage ≥ 1.2 on a full read with forward PEG ≤ 1.0 and both canaries intact; NVDA lagging SMH by more than 5pp over 30 days with no NVDA-specific event; a drawdown beyond 15% from the 52-week high with both canaries intact and coverage ≥ 1.0; a funding_anxiety or macro_rates air pocket with coverage ≥ 1.0; the aggregate capex guide RAISED with gross margin held; beat magnitude re-widening above the 8% average; share capture turning positive after a negative quarter; a trough regime (digestion) with the franchise intact (gross margin ≥ 60%, share holding) — the framework's cyclical-trough buy; VIX panic with the canaries intact and coverage ≥ 1.0.
+
+TRIM BIAS: capex coverage below 1.0 on a full read while the stock sits within 10% of its high; forward PEG above 1.5 in expansion; gross margin canary degraded two quarters running or broken once; a hyperscaler capex guide CUT (two = thesis-level); share capture negative two quarters running; DSO rising two quarters while revenue growth decelerates; financed-demand share above 15%; a Taiwan headline classed duration_changing; accelerator share below 75%; RSI above 70 with price more than 12% above SMA50 in expansion.
+
+YOUR VALUE-ADD: the capex coverage refresh (any big-four 10-Q newer than the MARKET DATA components) and the forward PEG — the two inputs the gate needs and the engine cannot source; FY1/FY2 consensus; the capex-guide trajectory classification; Data Center growth and the Hyperscale/ACIE split (share capture); Rubin mix and ramp status; inventory, DSO and the receivables read; TTM equity gains and GAAP net income (the clean trailing P/E); TTM FCF; the AVGO forward P/E; financed-demand share; China and Taiwan headline classification; CLASSIFICATION of any air-pocket candidate in the MARKET DATA (guide_cut / funding_anxiety / nvda_specific / macro_rates); insider plan status; earnings-window discipline.
+
+MOST DAYS NEUTRAL: most days the stock is doing nothing remarkable and most signals should sit near zero — scores beyond ±20 on a normal day mean something is miscalibrated (beta ~2.1; NVDA moves 4–8% on other companies' earnings and that is noise unless the classification above says otherwise). Meaningful scores on AI-trade dislocations (engine flags), classified air pockets (you classify), canary changes (you flag), coverage prints (you compute), capex-guide changes (you flag), earnings-window resets (you flag).
+` : "";
+
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
   const confidence = computeConfidence(MARKET_DATA, h.symbol);
@@ -2014,7 +2357,7 @@ MOST DAYS NEUTRAL: most days the stock is doing nothing remarkable and most sign
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}`;
+${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}${nvdaGuidance}`;
 
   const user = `A deterministic engine has already scored the quantitative data:
   Tactical (quant): ${detScores.tactical.score} — ${detScores.tactical.notes.join(", ")}
@@ -2052,6 +2395,7 @@ function buildSearchPrompt(h) {
   const isMLM = h.archetype === "reserve_moat_infrastructure_compounder";  // ← v8.5.0
   const isUBER = h.archetype === "marketplace_demand_aggregator";          // ← v8.6.0
   const isCVX = h.archetype === "integrated_major_capital_returner";       // ← v8.7.0
+  const isNVDA = h.archetype === "ai_compute_platform_cycle_leader";       // ← v8.8.0
   const md = MARKET_DATA[h.symbol] || {};
 
   const cyclicalWarning = isCyclical ? `\nCRITICAL — CYCLICAL VALUATION: ${h.symbol} is a cyclical business. High trailing P/E means earnings are at TROUGH — this is a BUY signal, not a sell signal. Low P/E means peak earnings and cycle rollover risk. Do NOT penalize high trailing P/E for cyclicals.\n` : "";
@@ -2085,6 +2429,8 @@ function buildSearchPrompt(h) {
 
   const cvxGuidance = isCVX ? `\nCRITICAL — CVX SCORING (V1): CVX is CHEVRON CORPORATION (NYSE: CVX, CIK 93410, Houston) — the integrated oil and gas major (Texaco and Caltex are Chevron brands; Hess Corporation is part of Chevron since July 18, 2025). NOT "Chevron deference" (the administrative-law doctrine from Chevron v. NRDC, overruled by Loper Bright in 2024 — an analysis about agency interpretation has the wrong subject); NOT ExxonMobil (XOM is the twin benchmark and Stabroek partner); NOT Hess Midstream (HESM, being exited); NOT Tengizchevroil (TCO, a 50% affiliate). "CPC" is ambiguous — the Caspian Pipeline Consortium (TCO's export route) is NOT Chevron Phillips Chemical (the chemicals JV); name which one every time. This slot previously held Enbridge: no toll-road, Canadian tariff or yield-spread-vs-10Y logic belongs here. A CAPITAL-RETURN FRANCHISE (capex + dividend breakeven < $50 Brent through 2030, $10-20B/yr buybacks at $60-80, 39-year dividend streak) bolted to a commodity that sets every reported number (~$0.60B per $1 Brent, ~$0.70B per $1 Henry Hub). ★ ARCHITECTURAL RULE: value CVX at ITS OWN $70 BRENT DECK, never at spot — execution (production vs guide, cost-out, capex, the buyback guide) and the commodity (realized prices, cracks, revisions, every spot multiple) are SEPARATE signals; they meet at the TCO CANARY. Brent ~$115.81 on Oct 26 is ~64% above the deck → DISLOCATED-HIGH. FIVE CALIBRATION GUARDRAILS, ALL LOAD-BEARING: (1) WINDFALL NORMALIZATION — normalized FCF = TTM adj FCF − (TTM Brent − 70) × 0.60 − (TTM Henry Hub − 3.50) × 0.70 − (TTM downstream − 3.0), in $B; a TTM below the deck adds back; missing HH or downstream = PARTIAL (a ceiling while cracks are elevated). As of the Q2 print, crude-only: ~$30.7B − ~$5.7B ≈ $25.0B ≈ 5.5% on ~$455B, price-implied Brent ~$74; the full normalization is LOWER. NEVER score GAAP trailing P/E (~22.3) or consensus forward P/E (~12.2) in either direction, and do NOT invert them (CVX is not in the cyclical set). ★ CALENDAR TRAP: at the Oct 30 2026 print Q3'25 ($1.82 GAAP on $69 Brent) rolls out and trailing P/E falls ~22x → ~17x with no change in the business; the HESM exit later books a one-time $3-4B loss. (2) TIMING + WORKING CAPITAL — single-quarter EPS and headline CFFO are null signals (Q1'26 CFFO $2.5B vs $7.1B ex-WC); DD&A $23-24B above capex $18-19B means earnings understate cash. (3) HESS ANNIVERSARY — YoY share count across Jul 18 2025 shows ~+14% mechanical dilution: use period-end counts on a clean base (2,013.5M at Sep 30 2025; 1,975.8M at Jun 30 2026); production vs the FY26 3,980-4,100 MBOED guide, never YoY. (4) BALANCE-SHEET OPTICS — the HESM exit removes ~$3.7B of debt with no cash generated; TCO loan repayments flatter adj FCF; read leverage ex-deconsolidation. (5) ⛔ CYCLE-POSITION GATE — Brent above $98: the BLENDED strategic score is floored at 0 unless normalized FCF yield ≥6% on a FULL normalization; below $42: capped at 0 unless yield <4%. Fails closed on a null or partial normalization. Composite weights regime-conditional on spot Brent vs the $70 deck, engine V8.6: anchored (≤20%) 25/40/35 · transitional (≤40%) 20/35/45 · dislocated 15/30/55. ★ GEOPOLITICAL HEADLINES ARE CLASSIFIED: does the news change the DURATION of the supply disruption (Hormuz, Gulf infrastructure, blockade terms) or hit a CHEVRON ASSET (Partitioned Zone, Leviathan, CPC/TCO, Venezuela)? In a dislocated-high regime a de-escalation sell-off is the windfall premium unwinding — not an oversold buy (Apr 1 2026: −4.6%, the worst day of a −21.5% unwind as Brent fell ~$118 → ~$72). EARNINGS WINDOW: Q3 prints FRIDAY OCT 30 2026 before the open (consensus EPS ~$4.86) — within ±10 days HALVE tactical conviction and say so; post-print, the Q4 buyback guide first (prior $2.5-3.0B/quarter; above $3.0B = the windfall reaching shareholders). PRIMARY SIGNALS: normalized FCF yield (>7% deep value / 6-7% value / 4.5-6% fair / <4% rich), price-implied Brent (<$65 buy / $65-80 fair / >$85 rich), the TCO/CPC canary (intact / degraded / broken = CPC suspended >2 weeks or TCO materially curtailed — THESIS-LEVEL; TCO ≈ $6B Chevron-share FCF at $70), production vs guide, capex vs the $18-19B guide and the $21B ceiling, the next-quarter buyback guide, XOM twin dislocation (CVX lagging XOM >4pp/30d with no Chevron-specific event — oil-neutral, live in every regime), breakeven vs $50, net share count on a clean base. RSI 35/70, daily noise ±2%, drawdown ladder to 35% (setup >12%) — in a dislocated-high regime drawdowns score ZERO. SHEL/TTE are a structural-discount reference only. EPS revisions are commodity-driven unless the regime is anchored. Dividend ($1.78/quarter, ~3.1%) judged on coverage by normalized FCF, never as a yield spread. Insiders: all sales in 90 days (CEO Wirth ~$63.6M Aug 14; director John B. Hess ~$137.9M Aug 3) — establish whether option-related; never decisive. Search for: Brent spot and its 5-day change, TTM average Brent and Henry Hub, TTM adjusted FCF, TTM CFFO ex-WC, TTM capex, TTM downstream earnings and the crack environment, last quarter's timing effects and working capital, production vs the FY26 guide, CPC export status and TCO output (any loadings suspensions in the last 30 days), Guyana fifth-FPSO timing, the next-quarter buyback guide, period-end share count, net debt and HESM deconsolidation state, XOM/SHEL/TTE forward P/E, XLE vs SPY 30d, any Iran/Hormuz/CPC/Partitioned Zone/Leviathan headline behind a ≥4% CVX session, EPS revisions 30d/90d, confirmed earnings date. Most days = NEUTRAL — scores beyond ±20 on a normal day mean something is miscalibrated. Meaningful scores: XOM twin dislocations, classified air pockets, TCO canary changes, buyback-guide changes, normalization prints, earnings-window resets.\n` : "";
 
+  const nvdaGuidance = isNVDA ? `\nCRITICAL — NVDA SCORING (V1): NVDA is NVIDIA CORPORATION (Nasdaq: NVDA, CIK 1045810, Santa Clara) — the merchant accelerated-computing platform (GPUs, the Vera CPU, NVLink/Spectrum-X networking, CUDA, the full Vera Rubin rack); fiscal year ends late January, so Q3 FY27 = the quarter ended October 25, 2026. NOT the NVDA screen reader (NonVisual Desktop Access — an analysis mentioning accessibility software has the wrong subject); NOT its gaming business alone (Gaming/ProViz/Auto are "Edge Computing", ~7% of revenue; Data Center ~93%). AVGO is the TWIN (custom-ASIC alternative), AMD the merchant rival, TSM the sole foundry; CoreWeave/Nebius/OpenAI/xAI are customers NVIDIA holds stakes in. A 15th-holding ADD — no prior slot's logic transfers. A PLATFORM FRANCHISE (CUDA, 80–85% accelerator share, 75% gross margins, ~$235B buyback capacity) that is a CYCLICAL DRESSED AS A COMPOUNDER: every number sits on a capex cycle funded by four customers' cash flows and, since October 2026, their debt. ★ ARCHITECTURAL RULE: value NVDA against the CUSTOMERS' CAPACITY TO FUND THE CYCLE — the CAPEX COVERAGE RATIO (MSFT+GOOGL+AMZN+META TTM operating cash flow / TTM capex: ≥1.2 self-funded · 1.0–1.2 stretched · <1.0 debt-funded) — never against its own peak-cycle earnings; a three-company ratio that drops Amazon (TTM FCF −$42.4B) OVERSTATES it and is PARTIAL. SEVEN CALIBRATION GUARDRAILS, ALL LOAD-BEARING: (1) PEAK-MULTIPLE TRAP + GAAP CONTAMINATION — GAAP EPS carries equity-securities gains ($15.9B Q1 FY27, ~$5.7B Q2; ~11% of GAAP NI): NEVER score trailing GAAP P/E (~26.8x; clean ≈ 29–30x, context only) and NEVER score the 13–14x FY28 forward P/E on its own — compute forward PEG (FY2 P/E / FY2 growth %) and read it only through the cycle gate; do NOT invert (not in the cyclical set); non-GAAP includes SBC since Q1 FY27 — add nothing back twice. (2) CASH-CONVERSION NULL — Q2 FY27 OCF $24.1B on $59.7B NI (inventory $32B ahead of Rubin, DSO 60): single-quarter FCF is null during the ramp; TTM FCF (~$127B) and the DSO trend; two quarters of receivables outgrowing revenue IS a canary. (3) VENDOR-FINANCED DEMAND — the $100B OpenAI LOI was never signed (replaced Feb 27, 2026 by a $30B equity stake + 5 GW binding on Vera Rubin); financed revenue above 15% of the total is a strategic headwind; equity marks are never a positive. (4) CHINA IS AN OPTION — zero in every guide since Q1 FY27; H200 case-by-case licensed with a 25% tariff; revenue that appears is a small positive, enforcement/legal headlines (Megaspeed, Blackwell loophole) are notes. (5) ⛔ CYCLE-POSITION GATE — EXPANSION (guided sequential growth > +10%): the BLENDED strategic score is floored at 0 unless coverage ≥ 1.0 on a FULL read AND forward PEG ≤ 1.0 AND gross margin ≥ 70%; DIGESTION (< 0%): capped at 0 unless gross margin < 60% or PEG > 2.5 (franchise impaired). Fails closed on null or partial coverage. (6) CONCENTRATION + CUSTOM SILICON — Hyperscale 55% of Data Center; accelerator share 80–85% (from ~92% in 2023; Broadcom AI ~$56B FY26 → >$100B FY27, AMD 5–7%, TPU 6–8%, Trainium 2–3%); SHARE CAPTURE = Data Center YoY growth − big-four capex YoY growth, two quarters negative = share loss. (7) TAIWAN classified — duration_changing / nvda_asset / noise — never scored on sight; shared tail with ASML, sized upstream. Composite weights regime-conditional on the CAPEX CYCLE (guided sequential growth = next-quarter guide midpoint / last reported quarter − 1), engine V8.7: expansion 15/30/55 · moderation (0–10%) 25/40/35 · digestion 15/30/55 · driver missing/stale 20/35/45. Q3 FY27 guide $108.0B vs Q2 actual $96.22B = +12.2% → EXPANSION, gate live on the buy side. ★ HYPERSCALER-CAPEX HEADLINES ARE CLASSIFIED: guide_cut (information) / funding_anxiety (negative FCF or debt funding, guide HELD — a buy setup ONLY with coverage ≥ 1.0, otherwise the digestion mechanism) / nvda_specific (DOJ, Megaspeed, export enforcement — never bought blind) / macro_rates (broad fear — a setup with the canaries intact). Precedent Oct 29–30, 2026: Alphabet FCF −$9.07B and 2027 capex → ~$300B, Amazon TTM FCF −$42.4B with capex held at ~$220B, Intel −29% on a memory-driven PC correction, SOX −6–7%, NVDA −3–5% to ~$203–207 — funding_anxiety with coverage ≤ 1.0, information not oversold. TWO CANARIES: gross margin vs the 74.0% guide (Q2 75.0% — the first guide-down of the cycle, memory scarcity; ≥73 intact / 70–73 degraded / <70 broken = thesis-level) and the aggregate capex-guide TRAJECTORY (this week HELD: MSFT ~$170B on accounting, GOOGL >$200B with 2027 ~$300B, META floor $135–145B, AMZN $220B; one CUT = trim, two = thesis). Beat vs guide 5.7% last vs 8.1% avg (14 straight) — under 3% or a miss = inflection flag. SIGNATURE TACTICAL: AI-trade dislocation (NVDA lagging SMH >5pp/30d, no NVDA event); drawdown ladder 40% (setup >15%, strong >25%) at HALF amplitude while coverage < 1.0 or unknown. EARNINGS WINDOW: Q3 FY27 prints TUESDAY NOVEMBER 17, 2026 AFTER the close (confirmed; window from Nov 7; reaction day Nov 18) — within ±10 days HALVE tactical conviction and say so; post-print, the Q4 guide resets the regime first, then gross margin vs 74%, then coverage on the hyperscalers' Q3 filings. PRIMARY SIGNALS: coverage ratio (every big-four input reported), forward PEG, gross margin canary, capex-guide trajectory, beat vs guide, share capture, DSO trend, Rubin share (~20% guided), financed-demand share, diluted share count YoY (24,432M → 24,285M, −0.6% in two quarters; $235B authorization), AVGO forward P/E (secondary, ±15%), Taiwan class. Context Oct 29: $213.66, mcap ~$5.15T, ~10.7% below the ~$239 Oct 6 high, YTD ~+15%, beta ~2.1; 60 analysts (10 Strong Buy / 49 Buy / 1 Sell), avg target ~$329; Huang sells under 10b5-1 plans — establish plan status, never decisive. Search for: NVDA price, 52w range, RSI, SMA50/200, 30d return vs SMH/AVGO/AMD/TSM/SPY, each big-four TTM OCF and capex (latest 10-Q), their current capex guides, FY1/FY2 consensus EPS, TTM equity gains and GAAP NI, TTM FCF, inventory and DSO, Data Center growth and the Hyperscale/ACIE split, Rubin mix, HBM/CoWoS supply, China H200 status, Megaspeed/DOJ status, any Taiwan headline, insider transactions, confirmed earnings date. Most days = NEUTRAL — scores beyond ±20 on a normal day mean something is miscalibrated. Meaningful scores: AI-trade dislocations, classified air pockets, canary changes, coverage prints, capex-guide changes, earnings-window resets.\n` : "";
+
 
   const calibrationBlock = buildCalibrationBlock(h.symbol, CALIBRATION, md.price?.current);
   const temporalLine = buildTemporalLine(h.symbol, TEMPORAL_Z); // v8.2.0: own-history context (empty when ineligible)
@@ -2092,7 +2438,7 @@ function buildSearchPrompt(h) {
   // v8.0: static (cacheable) blocks in system; dynamic data in the user message.
   const perTickerSystem = `HOLDING: ${h.symbol} (${h.name} — ${h.sector}) | Archetype: ${h.archetype}
 Composite weights: tactical ${Math.round(h.weights.t*100)}%, positional ${Math.round(h.weights.p*100)}%, strategic ${Math.round(h.weights.s*100)}%.
-${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}`;
+${cyclicalWarning}${asmlGuidance}${amkbyGuidance}${kofGuidance}${glncyGuidance}${linGuidance}${msftGuidance}${lhxGuidance}${tmoGuidance}${nowGuidance}${maGuidance}${isrgGuidance}${mlmGuidance}${uberGuidance}${cvxGuidance}${nvdaGuidance}`;
 
   const user = `VERIFIED DATA (from APIs — do NOT override these):
 ${(() => {
