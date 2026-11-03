@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// paper-trader.mjs v8.8 — Simulates portfolio performance following daily signals.
+// paper-trader.mjs v8.9 — Simulates portfolio performance following daily signals.
 // Starting: $1M equally distributed across the holdings present on day one.
 // Daily: $10,000 new capital. Buys the 3 buy signals, trims the trim signal.
 //
@@ -240,6 +240,53 @@
 //       holding two retired names at stale marks. Landing this file EARLIER
 //       than the rest is harmless: each migration waits, logging "<symbol>
 //       price unavailable", until generate-signals v8.7.0 scores UBER and CVX.
+//
+// v8.9: HOLDINGS ADD — NVDA (NVIDIA), 14 → 15, via ORGANIC ENTRY — the V8.3
+//       path, NOT the swap path. BUILT ON v8.8 (ENB → CVX, executed 2026-10-29;
+//       the book now holds UBER and CVX and neither retired name): everything
+//       above lives in this file, so v8.9 supersedes v8.8 — deploy this one,
+//       not both. NOTE-ONLY: no migration entry, no exit price, no seed
+//       position, NO CODE CHANGE. Nothing leaves, so there is nothing to sell;
+//       and an add gets no seed because the book measures SIGNAL-FOLLOWING P&L
+//       (the V8.3 rule). Re-verified against the code below at build time:
+//         • the buy loop routes cash only to assignments.tacticalBuy /
+//           positionalBuy / strategicBuy and creates the position on the first
+//           buy (`if (!portfolio.holdings[sym]) … { shares: 0, cost_basis: 0 }`),
+//           so NVDA becomes tradeable the moment generate-signals v8.8.0 first
+//           assigns it — at a real signal price, honest cost basis, P&L from $0;
+//         • a TRIM assignment on a not-yet-held name no-ops (the existing
+//           `&& portfolio.holdings[assignments.trim]` guard);
+//         • no universe list exists anywhere in the trading logic, and the
+//           equal-split initializer already divides by the day-one holding
+//           count (unreachable for the live book either way).
+//       Consequences to expect, all correct behaviour:
+//         • NVDA starts at $0 and grows only as the system assigns it buys. The
+//           first NVDA trade is a BUY in whichever slot assigns it; until then
+//           the daily $10K keeps going to the incumbents exactly as today.
+//         • ★ The strategic slot is effectively closed to NVDA for now.
+//           score-engine V8.7's cycle-position gate FLOORS NVDA's blended
+//           strategic score at 0 while the capex cycle regime reads EXPANSION
+//           unless the big-four coverage ratio is ≥ 1.0 on a full read AND
+//           forward PEG ≤ 1.0 AND gross margin ≥ 70% — and PEG is LLM-sourced,
+//           so the gate fails closed today. A score floored at 0 cannot be the
+//           most negative strategic score, so NVDA cannot be strategicBuy until
+//           the gate clears or the regime leaves expansion. Its entry routes are
+//           the tactical and positional slots (the SMH-dislocation and
+//           air-pocket setups are built for exactly that). This is the gate
+//           doing its job, not the paper book ignoring the name.
+//         • The two legs of benchmark-scorecard will hold DIFFERENT memberships
+//           for a while: its equal-weight leg funds NVDA at 1/15 from the first
+//           logged date; this book only on signals. benchmark-scorecard v1.5
+//           records the same from its side — that difference IS the tilt being
+//           measured, not a reconciliation item.
+//       If a rebalance-mirror of the real book is ever wanted instead, seed
+//       positions require real fill dates/prices + funding trims — a one-time
+//       migration block in the V7.6 pattern, deliberately NOT built here (the
+//       V8.3 rule, unchanged).
+//       DEPLOY ORDERING: none. Unlike a swap, nothing leaves fetch's SYMBOLS and
+//       no migration waits on a price, so this file can land before or after the
+//       rest of the v8.8.0 set with no effect either way; it does nothing
+//       NVDA-specific until generate-signals v8.8.0 first assigns the name.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 
