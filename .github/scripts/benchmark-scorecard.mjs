@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// benchmark-scorecard.mjs v1.4 — Signal-following P&L vs equal-weight and SPY.
+// benchmark-scorecard.mjs v1.5 — Signal-following P&L vs equal-weight and SPY.
 //
 // v1.1 (July 2026, first prod run feedback):
 //   • RETIREMENT DEBOUNCE — the point-in-time membership convention read
@@ -29,9 +29,10 @@
 // MEMBERSHIP CONVENTION (approved v8.3): POINT-IN-TIME, no retroactive
 // restatement. Implemented generically: a date's members are exactly the
 // symbols present in that date's daily-log.jsonl entry. So the benchmark is
-// 1/12-weighted before the MA/ISRG add date and 1/14-weighted after, the
-// historical ETHA era is honored as it was lived, and any future membership
-// change needs zero changes here. When a held symbol disappears from the log
+// 1/12-weighted before the MA/ISRG add date, 1/14-weighted after it and
+// 1/15-weighted after the NVDA add (v8.8.0), the historical ETHA era is
+// honored as it was lived, and any future membership change needs zero changes
+// here. When a held symbol disappears from the log
 // (a retirement/swap), the benchmark liquidates it at its last known price
 // and folds the proceeds into that day's deposit pool — redeployed equally
 // across the surviving members the same day.
@@ -141,6 +142,41 @@
 //       comparisons across the swap boundary are not apples-to-apples.
 //     • CVX enters the TWR series at n=0; the EARLY (n<60) grade guard covers
 //       the small-sample period.
+//
+// v8.8.0 sync (October 2026) — ⚠ NOT NOTE-ONLY, the same ONE LIVE EDIT — but
+//   the first membership event since v8.3 that is an ADD, not a swap. BUILT ON
+//   the v8.7.0 sync above (ENB → CVX): all four swaps and this add live in this
+//   file. The mechanism absorbs the NVDA add generically — that is the whole
+//   point of point-in-time via log presence: NVDA joins membership at 1/15 on
+//   its first logged date, nothing retires, and the headline member count moves
+//   14 → 15 for the first time since the MA/ISRG add. No logic changes.
+//   membership_convention names the add and the new count, and the version
+//   bumps 1.4 → 1.5 for the same provenance reason as before. The console
+//   banner, left at "v1.1" since v1.2 (a third place the version lived; the
+//   v8.6.0 note caught the header line, not this), now reads 1.5 too.
+//   Expect, all designed behaviour:
+//     • NO stale-mark discontinuity — nothing is liquidated, so there is no
+//       last-logged-price exit to reconcile against paper-trader. The first
+//       membership event without one.
+//     • The redeployment step is a FLOW-MIX step, not a mark: from NVDA's first
+//       logged date the day's pool splits 15 ways, so each incumbent's share of
+//       that day's $10K drops from 1/14 to 1/15 and NVDA takes the fifteenth.
+//       Existing positions are untouched — the equal-weight leg does not
+//       rebalance into a new member, it only directs new flow to it, so NVDA's
+//       weight in the leg grows from zero at ~$667/day. Expect the add to be
+//       nearly invisible in the EW series on the day.
+//     • The two legs can hold DIFFERENT memberships for a while, and that is
+//       the tilt being measured, not a defect: the equal-weight leg funds NVDA
+//       from its first logged date; the signal-following leg (paper-trader)
+//       buys it only when a signal fires. Until then "signal vs EW" includes
+//       the decision not to own NVDA at equal weight.
+//     • The equal-weight leg's factor mix adds a high-beta AI-semis name
+//       (beta ~2, essentially no dividend) alongside MSFT and ASML. The leg
+//       gets MORE volatile from the add date; excess-return comparisons across
+//       the add boundary are not apples-to-apples — the membership changed,
+//       not just the market.
+//     • NVDA enters the TWR series at n=0 like any new member; the EARLY (n<60)
+//       grade guard covers the small-sample period.
 //
 // INPUTS (all existing history; no new state files):
 //   docs/history/paper-portfolio.json — the signal-following value series +
@@ -397,7 +433,7 @@ function windowTwr(series, key, days) {
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("Benchmark Scorecard v1.1");
+  console.log("Benchmark Scorecard v1.5");
   console.log("========================");
   const first = paperHistory[0].date, last = paperHistory[paperHistory.length - 1].date;
   console.log(`Span: ${first} → ${last} (${paperHistory.length} trading days)`);
@@ -427,8 +463,8 @@ async function main() {
 
   const out = {
     generated: new Date().toISOString(),
-    version: "1.4",
-    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 pre-add, 1/14 post-add; IBIT→RDDT swap at v8.4.0, RDDT→MLM swap at v8.5.0, PBR.A→UBER swap at v8.6.0 and ENB→CVX swap at v8.7.0 each hold the count at 14, with the retiring symbol leaving on the 3rd debounced absent day)",
+    version: "1.5",
+    membership_convention: "point-in-time via daily-log presence (approved v8.3 — no retroactive restatement; 1/12 before the MA/ISRG add, 1/14 after it, 1/15 after the NVDA add at v8.8.0; IBIT→RDDT swap at v8.4.0, RDDT→MLM swap at v8.5.0, PBR.A→UBER swap at v8.6.0 and ENB→CVX swap at v8.7.0 each held the count at 14, with the retiring symbol leaving on the 3rd debounced absent day; the NVDA add retires nothing)",
     days: series.length,
     date_range: { first, last },
     grade,
