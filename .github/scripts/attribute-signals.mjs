@@ -3,10 +3,10 @@
 //
 // What it does:
 //   1. Reads every logged signal from docs/history/daily-log.jsonl
-//      (one line per DAY containing all holdings — 14 since v8.3.0's MA/ISRG
-//      add; still 14 after the v8.4.0 IBIT → RDDT, v8.5.0 RDDT → MLM,
-//      v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps; flattens to
-//      per-symbol rows)
+//      (one line per DAY containing all holdings — 15 since v8.8.0's NVDA
+//      add; 14 from v8.3.0's MA/ISRG add through the v8.4.0 IBIT → RDDT,
+//      v8.5.0 RDDT → MLM, v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps;
+//      flattens to per-symbol rows)
 //   2. Deduplicates by (symbol, date) — most recent write wins
 //   3. For each signal, fetches Alpaca daily bars covering entry_date → today
 //   4. Computes forward returns at 1d, 3d, 5d, 10d, 20d, 40d, 60d, 120d
@@ -117,6 +117,40 @@
 //     NOT a price event, and so irrelevant to this file: the GAAP trailing P/E
 //     falls from ~22x toward ~17x at the same print as Q3'25 leaves the TTM
 //     window. Accounting only — returns are untouched.
+//
+//     v8.8.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//     The NVDA ADD (14 → 15; nothing retires) needs nothing here. NVIDIA is a
+//     plain US listing (Nasdaq, since 1999), so Alpaca bar coverage is complete
+//     from its first logged date; no SYMBOL_MAP entry, no TwelveData fallback.
+//     An add has no closed-history leg: no retiring symbol's rows to keep
+//     filling in. Coverage simply begins at NVDA's first daily-log entry.
+//     ⚠ THE RDDT VOLATILITY CAVEAT RETURNS, for the first time since v8.5.0.
+//     NVDA is the highest-beta name in the book (~2.0 five-year) — above RDDT's
+//     ~1.94 — and it moves 5–10% on its own prints and 3–5% on its customers'
+//     (2026-10-30, the hyperscaler reporting day: −3 to −5%, SOX −6%).
+//     score-engine V8.7 bands it RSI 35/70 with a ±2.5% daily noise floor (as
+//     UBER) plus a 0–40% drawdown ladder. A single large session dominating
+//     whatever forward-return bucket it lands in is a REAL risk on this name
+//     again, not a moderate one. Computed faithfully here, as always.
+//     ⚠ The calendar hazard is the densest yet, and it is TWO-SIDED. NVDA's own
+//     Q3 FY2027 print is 2026-11-17 AFTER the close (reaction session
+//     2026-11-18) — if first logged on 2026-11-02 that is its 12th session, so
+//     its first 10d windows end on the print and every 20d window straddles
+//     it. And unlike any other holding, NVDA also gaps on its CUSTOMERS'
+//     prints: the four hyperscalers report again in late January / early
+//     February 2027, inside its first 60 sessions. On top of both, the
+//     UNSCHEDULED event class: AI-capex air pockets (fetch v4.21 screens for
+//     sessions that move 4% or more and are SMH-aligned, excluding the
+//     reaction day; the LLM classifies them — a drop on a customer's earnings
+//     day is about the customer's ability to pay, not NVIDIA's product). A
+//     panel reader should know NVDA's earliest observations sit on top of its
+//     own print, its customers' prints and a factor-driven tape.
+//     NOT a price event, and so irrelevant to this file: NVDA's GAAP trailing
+//     P/E (~27x) is contaminated by gains on equity securities (~$21B TTM —
+//     stakes in its own customers); the clean figure is ~30x. fetch v4.21
+//     labels it (gaap_pe_signal_status) and score-engine V8.7 never scores the
+//     contaminated figure (the clean one is scored as context only). Accounting
+//     only — returns are untouched.
 //
 //     October 2026 — TWELVEDATA FALLBACK FOR OTC ADRs (code change).
 //     AMKBY and GLNCY trade over the counter, and Alpaca's free IEX feed
@@ -463,7 +497,7 @@ async function main() {
     return;
   }
 
-  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 14 since v8.3.0; unchanged by the v8.4.0 IBIT → RDDT, v8.5.0 RDDT → MLM, v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps)
+  // 2. Flatten daily-log entries (each entry has all holdings nested inside — 15 since v8.8.0's NVDA add; 14 from v8.3.0 through the v8.4.0 IBIT → RDDT, v8.5.0 RDDT → MLM, v8.6.0 PBR.A → UBER and v8.7.0 ENB → CVX swaps)
   //    into per-(symbol, date) rows. Already-flat rows pass through.
   const rawSignals = flattenDailyLogEntries(rawEntries);
   console.log(`  flattened to ${rawSignals.length} per-symbol signal records`);
