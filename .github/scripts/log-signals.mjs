@@ -491,8 +491,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 //   keys (payload names); two new objects carry fetch v4.21's blocks whole —
 //   cycle_regime and capex_coverage (the latter INCLUDING companies.*.components,
 //   the L/F/P filing entries each TTM was built from, so the arithmetic can be
-//   re-run from daily-log alone); smh_vs_spy_30d_pp, smh_same_day_return_pct and
-//   the fundamentals are flat keys; and strategic.cycle_gate_active /
+//   re-run from daily-log alone); smh_vs_spy_30d_pp, smh_30d_return_pct (the
+//   factor leg — payload factor_flow, not cohort_relative), smh_same_day_return_pct
+//   and the fundamentals are flat keys; and strategic.cycle_gate_active /
 //   cycle_gate_side now populate on NVDA entries too. Every pre-existing key and
 //   value is unchanged — the additions read null on non-NVDA entries.
 //
@@ -2387,6 +2388,10 @@ const dailyEntry = {
       } : null,
       // AI/semis factor overlay. Spread only, as for xle/xlb/xly/ihi/igv.
       smh_vs_spy_30d_pp:               md.factor_flow?.smh_vs_spy_30d_pp ?? null,
+      // The factor leg of smh_spread_30d_pp (payload: factor_flow, not
+      // cohort_relative). Flat here so the CSV column rebuilds from daily-log —
+      // without it, rebuild-signals-csv would have no JSONL source for it.
+      smh_30d_return_pct:              md.factor_flow?.smh_30d_return_pct ?? null,
       // The air-pocket screen's other keys are flattened above under the payload
       // names CVX shares (largest_1d_*, idiosyncratic_pp, air_pocket_candidate_
       // active); this is the aligned SMH leg. ⚠ largest_1d_on_known_print is TRUE
