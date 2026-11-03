@@ -1,5 +1,106 @@
 #!/usr/bin/env node
-// fetch-market-data.mjs v4.20 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+// fetch-market-data.mjs v4.21 — Finnhub (quotes) + TwelveData (technicals) + FRED (macro) + NY Fed (GSCPI) + Alpaca (bars)
+//
+// v4.21 (October 2026): HOLDINGS ADD — NVDA (NVIDIA /
+// ai_compute_platform_cycle_leader). 14 → 15 scored holdings. An ADD, not a
+// swap (the v4.14 MA/ISRG precedent): nothing is removed, no slot's logic
+// transfers, and NVDA appends to SYMBOLS after ISRG. BUILT ON v4.20
+// (ENB → CVX): every prior swap lives in this file, so v4.21 supersedes v4.20
+// — deploy this one, not both.
+//   Additions for NVDA (TWIN pattern, same as MA/V, MLM/VMC and CVX/XOM):
+//     - AVGO aux quote WITH metrics — the twin on the AI-silicon multiple
+//       (the custom-ASIC alternative; six custom customers incl. Google,
+//       Anthropic, Meta, OpenAI).
+//     - AMD, TSM aux quotes WITH metrics — a REFERENCE, not a cohort. AMD is
+//       the merchant rival (5–7% accelerator share), TSM the sole leading-edge
+//       foundry (the supplier read). Their trailing P/Es are carried for the
+//       record and never averaged into anything NVDA is scored against.
+//     - SMH aux quote (VanEck Semiconductor ETF — the AI/semis factor proxy).
+//     - twin_valuation (NVDA vs AVGO trailing P/E) — ★ PERMANENTLY GATED:
+//       premium_pct_reliable is hard FALSE. NVDA's trailing GAAP EPS carries
+//       gains on equity securities ($15.9B Q1 FY27, ~$5.7B Q2 FY27 — the marks
+//       on its own customer stakes), and AVGO's trailing GAAP EPS carries
+//       VMware acquisition amortization; the two contaminations run in
+//       opposite directions, so the trailing premium is noise. The model's
+//       twin read is FORWARD P/E, LLM-sourced downstream, and secondary even
+//       there.
+//     - twin_relative (daily NVDA − AVGO spread) and cohort_relative (30d:
+//       smh_spread_30d_pp, ai_trade_dislocation_active = TRUE if < -5pp — the
+//       signature tactical setup: NVDA lagging its own factor with no
+//       NVDA-specific event is rotation WITHIN the AI trade, not a thesis
+//       change; AVGO/AMD/TSM 30d carried as reference only)
+//     - factor_flow.smh_vs_spy_30d_pp (AI/semis factor bid: active >+3pp |
+//       neutral ±3pp | absent <-3pp — wider than CVX's ±2 because SMH's beta
+//       to the AI trade swamps 2pp on an ordinary day)
+//     - tactical_extras: AI-CAPEX AIR-POCKET PRICE SCREEN — largest
+//       single-session move in the last 5 sessions in EITHER direction, SMH on
+//       that same date, the idiosyncratic residual, and a candidate flag at
+//       |move| ≥ 4% off the Q3 FY27 REACTION date. NVDA prints AFTER the close
+//       (2026-11-17), so the session excluded is the next one (2026-11-18) —
+//       unlike CVX, whose pre-market print excludes the print date itself.
+//       Classification (guide_cut / funding_anxiety / nvda_specific /
+//       macro_rates) is LLM territory and lands in the strategy model.
+//     - New fetchNVDAHistoricalReturns() (6 Alpaca calls: NVDA, AVGO, AMD,
+//       TSM, SMH, SPY — same budget as the MLM, UBER and CVX functions)
+//   ★ CAPEX CYCLE REGIME — PER-PRINT CONFIG, SELF-CLEARING STALENESS. The
+//     regime driver is guided_sequential_growth_pct = next-quarter revenue
+//     guide midpoint / last reported quarterly revenue − 1 (> +10% expansion
+//     15/30/55 · 0–10% moderation 25/40/35 · < 0% digestion 15/30/55). Both
+//     numbers are in the quarterly press release and no API publishes them, so
+//     they are constants reviewed FOUR TIMES A YEAR ON KNOWN DATES — the
+//     narrowest human-maintenance surface in this file after UBER's. The
+//     v4.17 → v4.18 lesson is applied in both directions: the config SHIPS
+//     POPULATED (Q3 FY27 guide $108.0B vs Q2 actual $96.22B = +12.2% →
+//     EXPANSION), and it CANNOT GO SILENTLY STALE — once NVDA_NEXT_PRINT_DATE
+//     has passed while NVDA_GUIDE_AS_OF_PRINT still predates it, the driver is
+//     emitted NULL with driver_stale TRUE and the engine falls to the base
+//     triple (the house "missing driver → base" convention). A stale guide
+//     scoring EXPANSION for weeks after a guide-down is exactly the MLM
+//     failure mode; here it fails to neutral and logs loudly every run.
+//     The same per-print block carries the gross-margin pair (last actual
+//     75.0% / guide 74.0% → gross_margin_canary computed: ≥73 intact, 70–73
+//     degraded, <70 broken) and the beat pair (last actual $96.22B vs the
+//     prior $91.0B guide → beat_vs_guide_pct +5.7%, beat_inflection_flag at
+//     <3%). Identical bands and boundary handling to nvda-strategy.jsx v1.
+//   ★ CAPEX COVERAGE RATIO — NUMERIC AND SELF-UPDATING FROM SEC FILINGS. The
+//     model's flagship strategic lens is the big-four's (MSFT/GOOGL/AMZN/META)
+//     aggregate TTM operating cash flow over aggregate TTM capex: can the
+//     customers fund the next year of the cycle? New fetchNVDACapexCoverage()
+//     pulls Finnhub's as-reported XBRL financials (free tier; 4 calls) and
+//     computes it deterministically — the CVX deck precedent (FRED supplied
+//     the normalization inputs an API had; the LLM supplied the rest):
+//       • 10-Q cash-flow statements are YEAR-TO-DATE, not discrete quarters,
+//         so TTM = latest YTD + prior fiscal year − prior-year same-period YTD
+//         (exact; fiscal-year-agnostic — MSFT's June year-end needs no special
+//         case). A 10-K latest entry is the TTM outright.
+//       • Discrete latest-quarter capex (YTD less the prior YTD in the same
+//         fiscal year) feeds big4_capex_growth_yoy_pct, aggregated only when
+//         all four latest quarter-ends align within 10 days (they do — all
+//         four close September 30); otherwise null with aligned FALSE.
+//       • Basis: the cash-flow-statement capex line (purchases of property and
+//         equipment), EXCLUDING finance leases — MSFT and META disclose those
+//         separately and the LLM may refine. Labelled in the output.
+//       • Each company's pair must land inside plausibility bands (OCF $15–400B,
+//         capex $5–500B) or it is treated as MISSING — a mis-parsed YTD cannot
+//         masquerade as a TTM. Any missing company → coverage_partial TRUE, and
+//         the engine's cycle gate FAILS CLOSED in expansion (a three-company
+//         ratio that drops Amazon, TTM FCF −$42.4B, OVERSTATES coverage).
+//         Every component (L, F, P with dates) is emitted so the arithmetic can
+//         be re-run from the JSON.
+//     Zones: ≥ 1.2 self_funded · 1.0–1.2 stretched · < 1.0 debt_funded. Also
+//     emitted: big4_fcf_ttm_busd and big4_fcf_negative_names.
+//   ★ STRUCTURAL CATEGORICALS emitted non-null (the MLM / UBER / CVX precedent):
+//     gaap_pe_signal_status is "null_signal_equity_gains_contaminated" (the
+//     known property of the current reporting period — Q1–Q2 FY27 equity gains
+//     ran ~11% of GAAP net income; the engine may clear it on LLM evidence that
+//     TTM gains fell below 5%); forward_pe_signal_status and
+//     revisions_signal_status derive from the regime; earnings_window_active
+//     and days_to_earnings derive from the date and the confirmed print date.
+//   NOT done here, by design: NVDA's own Data Center growth, Rubin mix, DSO,
+//   equity gains, FY1/FY2 consensus and the big-four capex GUIDES are
+//   LLM-sourced (segment and guidance data are not standard XBRL tags) and
+//   ship as explicit nulls. share_capture_pp is computed downstream from the
+//   LLM's dc_revenue_growth_yoy_pct and this file's big4_capex_growth_yoy_pct.
 //
 // v4.20 (October 2026): HOLDINGS SWAP — sold ENB (Enbridge / dividend_compounder),
 // bought CVX (Chevron / integrated_major_capital_returner). Still 14 scored
@@ -344,6 +445,7 @@ const SYMBOLS = [
   { symbol: "AMKBY", finnhub: "AMKBY", td: "AMKBY" },
   { symbol: "MA",    finnhub: "MA",    td: "MA" },
   { symbol: "ISRG",  finnhub: "ISRG",  td: "ISRG" },
+  { symbol: "NVDA",  finnhub: "NVDA",  td: "NVDA" },   // ← v4.21 (ADD — 15th holding)
 ];
 
 // ── Auxiliary symbols (not scored, used as inputs to other holdings) ──
@@ -383,6 +485,10 @@ const AUX_SYMBOLS = [
   { symbol: "SHEL",  finnhub: "SHEL",  purpose: "cvx_reference",     needsMetrics: true },  // Shell ADR — structural-discount REFERENCE only, never scored
   { symbol: "TTE",   finnhub: "TTE",   purpose: "cvx_reference",     needsMetrics: true },  // TotalEnergies ADR — structural-discount REFERENCE only, never scored
   { symbol: "XLE",   finnhub: "XLE",   purpose: "cvx_energy_factor" },                      // Energy Select Sector SPDR — energy factor proxy
+  { symbol: "AVGO",  finnhub: "AVGO",  purpose: "nvda_twin",         needsMetrics: true },  // Broadcom — NVDA twin on the AI-silicon multiple (the custom-ASIC alternative)
+  { symbol: "AMD",   finnhub: "AMD",   purpose: "nvda_reference",    needsMetrics: true },  // AMD — merchant rival REFERENCE only, never scored
+  { symbol: "TSM",   finnhub: "TSM",   purpose: "nvda_reference",    needsMetrics: true },  // TSMC ADR — sole leading-edge foundry, supplier REFERENCE only, never scored
+  { symbol: "SMH",   finnhub: "SMH",   purpose: "nvda_ai_factor" },                         // VanEck Semiconductor ETF — AI/semis factor proxy
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -398,7 +504,7 @@ async function fetchJSON(url, label) {
   }
 }
 
-// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 14 symbols) ────────
+// ─── STAGE 1: FINNHUB QUOTES (60 calls/min — plenty for 15 symbols) ────────
 // Each call returns: c (current), d (change $), dp (change %), h (high), l (low), o (open), pc (prev close)
 // Plus we get basic financials from /stock/metric for PE, PB, div yield, 52w range, ROI, op margin.
 async function fetchQuotes() {
@@ -502,7 +608,7 @@ async function fetchAuxQuotes() {
 }
 
 // ─── STAGE 2: TWELVEDATA TECHNICALS ─────────────────────────────────────────
-// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 42 total.
+// Free tier: 8 calls/min. 3 calls per symbol (RSI + SMA50 + SMA200) = 45 total.
 // Pacing: 8s between each set of 3, so ~8 calls/min.
 async function fetchTechnicals(quotes) {
   if (!TD_KEY) return {};
@@ -1979,6 +2085,403 @@ async function fetchCVXHistoricalReturns() {
   return result;
 }
 
+// ─── NVDA AI-CAPEX CYCLE REGIME — PER-PRINT CONFIG (v4.21) ──────────────────
+// Reviewed FOUR TIMES A YEAR, on known dates: the evening of each NVIDIA print.
+// Both regime inputs are in the press release; no API publishes them. Update
+// the four per-print numbers AND bump NVDA_GUIDE_AS_OF_PRINT to the print date
+// AND set the next print / reaction dates. Until that edit lands, the run after
+// the print emits the driver NULL (driver_stale TRUE) and the engine scores
+// NVDA on the base triple — it does not keep scoring the old regime.
+//
+// Regime bands — identical to nvda-strategy.jsx v1 resolveCycleRegime() and to
+// the score-engine gate:
+//   guided_sequential_growth_pct > +10%  → "expansion"  (15/30/55)
+//   0% ≤ … ≤ +10%                        → "moderation" (25/40/35)
+//   < 0%                                  → "digestion"  (15/30/55)
+// Missing or stale driver → null regime, driver_missing TRUE (base 20/35/45).
+const NVDA_LAST_REPORTED_QUARTER      = "Q2 FY27";
+const NVDA_LAST_REPORTED_QUARTER_END  = "2026-07-26";
+const NVDA_LAST_REPORTED_REVENUE_BUSD = 96.22;   // press release 2026-08-26
+const NVDA_PRIOR_GUIDE_MID_BUSD       = 91.0;    // the guide Q2 FY27 was measured against → beat +5.7%
+const NVDA_NEXT_Q_GUIDE_MID_BUSD      = 108.0;   // Q3 FY27 guide, ±2%
+const NVDA_LAST_GROSS_MARGIN_PCT      = 75.0;    // Q2 FY27, GAAP = non-GAAP
+const NVDA_GROSS_MARGIN_GUIDE_PCT     = 74.0;    // Q3 FY27 guide, ±50bp — the first guide-down of the cycle (memory scarcity)
+const NVDA_GUIDE_AS_OF_PRINT          = "2026-08-26";  // the print these numbers came from
+const NVDA_NEXT_PRINT_DATE            = "2026-11-17";  // Q3 FY27, AFTER the close — CONFIRMED by NVIDIA
+const NVDA_PRINT_REACTION_DATE        = "2026-11-18";  // first session after the print — excluded from the air-pocket screen
+const NVDA_BEAT_VS_GUIDE_AVG_PCT      = 8.1;     // running average beat over the 14-quarter streak
+const NVDA_BEAT_INFLECTION_PCT        = 3.0;     // a beat under this (or a miss) = inflection flag
+const NVDA_REGIME_EXPANSION_MIN_PCT   = 10;
+const NVDA_REGIME_DIGESTION_MAX_PCT   = 0;
+const NVDA_EARNINGS_WINDOW_DAYS       = 10;
+const NVDA_GM_INTACT_PCT              = 73.0;    // ≥ intact · ≥ broken and < intact degraded · < broken broken
+const NVDA_GM_BROKEN_PCT              = 70.0;
+
+const nvdaAddDaysISO = (iso, d) =>
+  new Date(Date.parse(iso + "T00:00:00Z") + d * 86400000).toISOString().slice(0, 10);
+const nvdaDaysBetween = (aISO, bISO) =>
+  Math.round((Date.parse(bISO + "T00:00:00Z") - Date.parse(aISO + "T00:00:00Z")) / 86400000);
+
+// Pure — tested. Regime from the two per-print numbers; null on an invalid or
+// stale config. "Stale" = the next print has happened (today > print date) and
+// the guide still predates it.
+function nvdaCycleRegime(todayISO, cfg = {}) {
+  const last  = cfg.lastRevenue ?? NVDA_LAST_REPORTED_REVENUE_BUSD;
+  const guide = cfg.nextGuide   ?? NVDA_NEXT_Q_GUIDE_MID_BUSD;
+  const asOf  = cfg.asOfPrint   ?? NVDA_GUIDE_AS_OF_PRINT;
+  const next  = cfg.nextPrint   ?? NVDA_NEXT_PRINT_DATE;
+  const base = { guided_sequential_growth_pct: null, cycle_regime: null, regime_direction: "none", driver_missing: true, driver_stale: false, config_invalid: false };
+  if (!(last > 0) || !(guide > 0)) return { ...base, config_invalid: true };
+  if (todayISO > next && asOf < next) return { ...base, driver_stale: true };
+  const g = +((guide / last - 1) * 100).toFixed(1);
+  const key = g > NVDA_REGIME_EXPANSION_MIN_PCT ? "expansion"
+    : g < NVDA_REGIME_DIGESTION_MAX_PCT ? "digestion"
+    : "moderation";
+  return {
+    guided_sequential_growth_pct: g,
+    cycle_regime:     key,
+    regime_direction: key === "expansion" ? "high" : key === "digestion" ? "low" : "none",
+    driver_missing:   false,
+    driver_stale:     false,
+    config_invalid:   false,
+  };
+}
+
+// Pure — tested. Gross-margin canary bands.
+function nvdaMarginCanary(gmPct) {
+  if (gmPct == null || !Number.isFinite(gmPct)) return null;
+  if (gmPct >= NVDA_GM_INTACT_PCT) return "intact";
+  if (gmPct >= NVDA_GM_BROKEN_PCT) return "degraded";
+  return "broken";
+}
+
+// ─── STAGE 3n: NVDA TWIN / REFERENCE HISTORICAL RETURNS (v4.21) ─────────────
+// Pulls daily closes for NVDA, AVGO, AMD, TSM, SMH, SPY and computes:
+//   • smh_spread_30d_pp = NVDA 30d − SMH 30d. SMH is the FACTOR (NVDA is its
+//     largest weight, so the spread is "NVDA vs the rest of the AI trade").
+//     < -5pp with no NVDA-specific event = the signature tactical setup.
+//   • avgo/amd/tsm 30d — reference only (twin, merchant rival, foundry).
+//   • smh_vs_spy_30d_pp = AI/semis factor bid (±3pp bands).
+//   • AI-CAPEX AIR-POCKET PRICE SCREEN — largest single-session move in EITHER
+//     direction over the last 5 sessions, SMH's return on that same date
+//     (aligned by DATE, not index), the idiosyncratic residual, and a candidate
+//     flag at |move| ≥ 4% off the known REACTION date. The screen establishes
+//     that a price event happened; its classification is downstream LLM work.
+const NVDA_AI_TRADE_DISLOCATION_PP = -5;
+const NVDA_AIR_POCKET_MOVE_PCT     = 4;
+const NVDA_AIR_POCKET_SESSIONS     = 5;
+
+// Pure — tested.
+function nvdaAirPocketScreen(nvdaCloses, nvdaDates, smhCloses, smhDates, sessions = NVDA_AIR_POCKET_SESSIONS) {
+  let move = null, moveDate = null, smhSameDay = null;
+  if (nvdaCloses && nvdaDates && nvdaCloses.length > sessions) {
+    for (let i = nvdaCloses.length - sessions; i < nvdaCloses.length; i++) {
+      const prev = nvdaCloses[i - 1], cur = nvdaCloses[i];
+      if (!prev || !cur) continue;
+      const r = +(((cur - prev) / prev) * 100).toFixed(3);
+      if (move == null || Math.abs(r) > Math.abs(move)) { move = r; moveDate = nvdaDates[i] ?? null; }
+    }
+  }
+  if (moveDate && smhCloses && smhDates) {
+    const j = smhDates.indexOf(moveDate);
+    if (j > 0 && smhCloses[j - 1] && smhCloses[j]) {
+      smhSameDay = +(((smhCloses[j] - smhCloses[j - 1]) / smhCloses[j - 1]) * 100).toFixed(3);
+    }
+  }
+  const onKnownPrint = moveDate === NVDA_PRINT_REACTION_DATE;
+  return {
+    largest_1d_move_5s_pct:      move,
+    largest_1d_date:             moveDate,
+    largest_1d_direction:        move == null ? null : move < 0 ? "down" : "up",
+    smh_same_day_return_pct:     smhSameDay,
+    idiosyncratic_pp:            move != null && smhSameDay != null ? +(move - smhSameDay).toFixed(3) : null,
+    largest_1d_on_known_print:   onKnownPrint,
+    air_pocket_candidate_active: move != null ? (Math.abs(move) >= NVDA_AIR_POCKET_MOVE_PCT && !onKnownPrint) : null,
+  };
+}
+
+async function fetchNVDAHistoricalReturns() {
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    console.log("  [ALPACA-NVDA] No keys — skipping NVDA historical returns");
+    return null;
+  }
+
+  console.log("  [ALPACA-NVDA] Fetching NVDA/AVGO/AMD/TSM/SMH/SPY bars for factor spread + AI bid + air-pocket screen...");
+  const symbols = ["NVDA", "AVGO", "AMD", "TSM", "SMH", "SPY"];
+  const closes = {};
+  const dates = {};
+  const end = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 86400000 * 60).toISOString().split("T")[0];
+
+  for (const sym of symbols) {
+    try {
+      const resp = await alpacaBarsFetch(
+        `https://data.alpaca.markets/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=60&adjustment=split&feed=sip`
+      );
+      if (!resp.ok) { console.log(`    ✗ ${sym}: Alpaca ${resp.status}`); continue; }
+      const data = await resp.json();
+      const bars = data.bars || [];
+      if (bars.length < 31) { console.log(`    ✗ ${sym}: only ${bars.length} bars (need 31+)`); continue; }
+      closes[sym] = bars.map(b => b.c);
+      dates[sym] = bars.map(b => (b.t || "").slice(0, 10));
+      console.log(`    ✓ ${sym}: ${bars.length} bars`);
+    } catch (e) {
+      console.log(`    ✗ ${sym}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  const retNDays = (arr, n) => {
+    if (!arr || arr.length < n + 1) return null;
+    const last = arr[arr.length - 1];
+    const ago = arr[arr.length - 1 - n];
+    if (!last || !ago) return null;
+    return +(((last - ago) / ago) * 100).toFixed(3);
+  };
+
+  const nvdaRet30 = retNDays(closes.NVDA, 30);
+  const avgoRet30 = retNDays(closes.AVGO, 30);
+  const amdRet30  = retNDays(closes.AMD,  30);
+  const tsmRet30  = retNDays(closes.TSM,  30);
+  const smhRet30  = retNDays(closes.SMH,  30);
+  const spyRet30  = retNDays(closes.SPY,  30);
+
+  const smhSpreadPp = (nvdaRet30 != null && smhRet30 != null)
+    ? +(nvdaRet30 - smhRet30).toFixed(3)
+    : null;
+
+  const smhVsSpyPp = (smhRet30 != null && spyRet30 != null)
+    ? +(smhRet30 - spyRet30).toFixed(3)
+    : null;
+
+  const pocket = nvdaAirPocketScreen(closes.NVDA, dates.NVDA, closes.SMH, dates.SMH);
+
+  const result = {
+    nvda_30d_return_pct:         nvdaRet30,
+    avgo_30d_return_pct:         avgoRet30,
+    amd_30d_return_pct:          amdRet30,
+    tsm_30d_return_pct:          tsmRet30,
+    smh_30d_return_pct:          smhRet30,
+    spy_30d_return_pct:          spyRet30,
+    smh_spread_30d_pp:           smhSpreadPp,
+    ai_trade_dislocation_active: smhSpreadPp != null && smhSpreadPp < NVDA_AI_TRADE_DISLOCATION_PP,
+    smh_vs_spy_30d_pp:           smhVsSpyPp,
+    ai_factor_bid:               smhVsSpyPp == null ? null : smhVsSpyPp > 3 ? "active" : smhVsSpyPp < -3 ? "absent" : "neutral",
+    ...pocket,
+  };
+
+  const factorStr = smhSpreadPp == null ? "—"
+    : `${smhSpreadPp >= 0 ? "+" : ""}${smhSpreadPp}pp${result.ai_trade_dislocation_active ? " [AI-TRADE DISLOCATION — buy setup absent an NVDA-specific event]" : ""}`;
+  const bidStr = smhVsSpyPp == null ? "—" : `${smhVsSpyPp >= 0 ? "+" : ""}${smhVsSpyPp}pp (${result.ai_factor_bid})`;
+  const pocketStr = pocket.largest_1d_move_5s_pct == null ? "—"
+    : `largest 5s ${pocket.largest_1d_move_5s_pct}% on ${pocket.largest_1d_date} (SMH ${pocket.smh_same_day_return_pct ?? "—"}%)${pocket.air_pocket_candidate_active ? " [AIR-POCKET CANDIDATE — LLM to classify]" : ""}${pocket.largest_1d_on_known_print ? " [print reaction day — excluded]" : ""}`;
+  console.log(`  [ALPACA-NVDA] ✓ NVDA 30d=${nvdaRet30 != null ? (nvdaRet30 >= 0 ? "+" : "") + nvdaRet30 + "%" : "—"} | vs SMH: ${factorStr} | AVGO ${avgoRet30 ?? "—"}% AMD ${amdRet30 ?? "—"}% TSM ${tsmRet30 ?? "—"}% (ref) | SMH-SPY 30d: ${bidStr} | ${pocketStr}`);
+  return result;
+}
+
+// ─── STAGE 3o: NVDA CAPEX COVERAGE (Finnhub as-reported XBRL — big-four TTM OCF + capex) ──
+// The model's flagship strategic lens, computed from SEC filings so that it is
+// never an LLM guess. Finnhub's /stock/financials-reported returns each 10-Q
+// and 10-K cash-flow statement as filed. 10-Q statements are YEAR-TO-DATE, so:
+//   TTM = latest YTD + prior fiscal year (10-K) − prior-year same-period YTD
+// which is exact and needs no fiscal-calendar special cases (MSFT ends in
+// June; the other three in December). Discrete quarters for the YoY read are
+// the YTD less the prior YTD within the same fiscal year.
+const NVDA_BIG4 = [
+  { key: "msft",  finnhub: "MSFT"  },
+  { key: "googl", finnhub: "GOOGL" },
+  { key: "amzn",  finnhub: "AMZN"  },
+  { key: "meta",  finnhub: "META"  },
+];
+const NVDA_XBRL_OCF_CONCEPTS = [
+  "NetCashProvidedByUsedInOperatingActivities",
+  "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+];
+const NVDA_XBRL_CAPEX_CONCEPTS = [
+  "PaymentsToAcquirePropertyPlantAndEquipment",
+  "PaymentsToAcquireProductiveAssets",
+  "PaymentsForCapitalImprovements",
+];
+const NVDA_XBRL_CAPEX_LABEL_RE = /(purchases?|additions?|acquisition) of property[, ]+(plant )?(and|&) equipment/i;
+const NVDA_COVERAGE_BANDS_BUSD = { ocf: [15, 400], capex: [5, 500] };   // per company — outside = treated as missing
+const NVDA_COVERAGE_SELF_FUNDED = 1.2;
+const NVDA_COVERAGE_STRETCHED   = 1.0;
+const NVDA_PERIOD_TOLERANCE_D   = 10;    // fiscal period ends drift a few days year to year
+const NVDA_FILINGS_LOOKBACK_D   = 800;   // enough for the prior 10-K and the prior-year 10-Q under any fiscal calendar
+
+const nvdaNormConcept = c => String(c || "").replace(/^(us-gaap|ifrs-full)[_:]/i, "").toLowerCase();
+const nvdaYearBack = iso => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y - 1, m - 1, d)).toISOString().slice(0, 10);
+};
+const nvdaMonthsBack = (iso, n) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 - n, d)).toISOString().slice(0, 10);
+};
+const nvdaNear = (aISO, bISO, tol = NVDA_PERIOD_TOLERANCE_D) => Math.abs(nvdaDaysBetween(aISO, bISO)) <= tol;
+
+// Pure — tested. Extracts one cash-flow concept from every filing in a Finnhub
+// financials-reported payload → [{ form, startDate, endDate, filedDate, value }]
+// sorted by endDate. `kind` is "ocf" | "capex". Capex is returned as a positive
+// outflow regardless of presentation sign.
+function nvdaExtractCashFlowSeries(payload, kind) {
+  const concepts = (kind === "ocf" ? NVDA_XBRL_OCF_CONCEPTS : NVDA_XBRL_CAPEX_CONCEPTS).map(c => c.toLowerCase());
+  const out = [];
+  for (const f of payload?.data || []) {
+    const form = f?.form;
+    if (form !== "10-Q" && form !== "10-K") continue;
+    const cf = f?.report?.cf || [];
+    let hit = null;
+    for (const c of concepts) {
+      hit = cf.find(r => nvdaNormConcept(r.concept) === c && Number.isFinite(+r.value));
+      if (hit) break;
+    }
+    if (!hit && kind === "capex") {
+      hit = cf.find(r => NVDA_XBRL_CAPEX_LABEL_RE.test(String(r.label || "")) && Number.isFinite(+r.value));
+    }
+    if (!hit) continue;
+    const v = +hit.value;
+    out.push({
+      form,
+      startDate: String(f.startDate || "").slice(0, 10),
+      endDate:   String(f.endDate   || "").slice(0, 10),
+      filedDate: String(f.filedDate || "").slice(0, 10),
+      value:     kind === "capex" ? Math.abs(v) : v,
+      concept:   hit.concept,
+    });
+  }
+  return out
+    .filter(e => e.startDate && e.endDate)
+    .sort((a, b) => (a.endDate < b.endDate ? -1 : a.endDate > b.endDate ? 1 : 0));
+}
+
+// Pure — tested. TTM from year-to-date filings. Returns the components so the
+// arithmetic can be re-run from the JSON.
+function nvdaTtmFromYtd(entries) {
+  if (!entries || entries.length === 0) return { ttm: null, basis: null, reason: "no_entries", L: null, F: null, P: null };
+  const L = entries[entries.length - 1];
+  if (L.form === "10-K") return { ttm: L.value, basis: "fiscal_year", reason: null, L, F: null, P: null };
+  const P = entries.find(e => e.form === "10-Q"
+    && nvdaNear(e.endDate, nvdaYearBack(L.endDate))
+    && nvdaNear(e.startDate, nvdaYearBack(L.startDate)));
+  const F = entries.find(e => e.form === "10-K"
+    && e.endDate < L.startDate
+    && nvdaDaysBetween(e.endDate, L.startDate) <= NVDA_PERIOD_TOLERANCE_D);
+  if (!P || !F) return { ttm: null, basis: null, reason: !P ? "no_prior_year_same_period" : "no_prior_fiscal_year", L, F: F ?? null, P: P ?? null };
+  return { ttm: L.value + F.value - P.value, basis: "ytd_plus_prior_fy_less_prior_ytd", reason: null, L, F, P };
+}
+
+// Pure — tested. Discrete value for the quarter ending at entry E: its YTD less
+// the YTD of the entry three months earlier in the same fiscal year. A first-
+// quarter filing (period ≤ ~4 months) is already discrete.
+function nvdaDiscreteQuarter(entries, E) {
+  if (!E) return null;
+  const months = Math.round(nvdaDaysBetween(E.startDate, E.endDate) / 30.44);
+  if (months <= 4) return E.value;
+  const prev = entries.find(e => e.endDate < E.endDate
+    && nvdaNear(e.startDate, E.startDate)
+    && nvdaNear(e.endDate, nvdaMonthsBack(E.endDate, 3)));
+  return prev ? E.value - prev.value : null;
+}
+
+const nvdaInBand = (v, [lo, hi]) => v != null && Number.isFinite(v) && v >= lo && v <= hi;
+
+async function fetchNVDACapexCoverage(now = new Date()) {
+  if (!FK) {
+    console.log("  [NVDA-COVERAGE] No Finnhub key — capex coverage unavailable (partial; cycle gate fails closed in expansion)");
+    return null;
+  }
+  const todayISO = now.toISOString().split("T")[0];
+  const from = nvdaAddDaysISO(todayISO, -NVDA_FILINGS_LOOKBACK_D);
+  const out = { companies: {}, basis: "xbrl_cash_flow_statement_capex_excl_finance_leases", as_of: todayISO };
+
+  for (const co of NVDA_BIG4) {
+    console.log(`  [NVDA-COVERAGE] ${co.finnhub}: as-reported financials...`);
+    const payload = await fetchJSON(
+      `https://finnhub.io/api/v1/stock/financials-reported?symbol=${co.finnhub}&freq=quarterly&from=${from}&to=${todayISO}&token=${FK}`,
+      `FH financials-reported ${co.finnhub}`
+    );
+    const ocfSeries   = nvdaExtractCashFlowSeries(payload, "ocf");
+    const capexSeries = nvdaExtractCashFlowSeries(payload, "capex");
+    const ocf   = nvdaTtmFromYtd(ocfSeries);
+    const capex = nvdaTtmFromYtd(capexSeries);
+    const toB = v => (v == null ? null : +(v / 1e9).toFixed(1));
+    let ocfB = toB(ocf.ttm), capexB = toB(capex.ttm);
+    const issues = [];
+    if (ocf.ttm == null)   issues.push(`OCF: ${ocf.reason}`);
+    if (capex.ttm == null) issues.push(`capex: ${capex.reason}`);
+    if (ocfB != null && !nvdaInBand(ocfB, NVDA_COVERAGE_BANDS_BUSD.ocf))       { issues.push(`OCF $${ocfB}B implausible — treated as missing`); ocfB = null; }
+    if (capexB != null && !nvdaInBand(capexB, NVDA_COVERAGE_BANDS_BUSD.capex)) { issues.push(`capex $${capexB}B implausible — treated as missing`); capexB = null; }
+
+    // Discrete latest quarter and its prior-year twin, for the YoY read.
+    const latestQ      = nvdaDiscreteQuarter(capexSeries, capex.L);
+    const priorYearQ   = capex.P ? nvdaDiscreteQuarter(capexSeries, capex.P) : null;
+    const latestQB     = toB(latestQ), priorYearQB = toB(priorYearQ);
+
+    out.companies[co.key] = {
+      ocf_ttm_busd:          ocfB,
+      capex_ttm_busd:        capexB,
+      fcf_ttm_busd:          ocfB != null && capexB != null ? +(ocfB - capexB).toFixed(1) : null,
+      latest_period_end:     capex.L?.endDate ?? ocf.L?.endDate ?? null,
+      latest_filed:          capex.L?.filedDate ?? ocf.L?.filedDate ?? null,
+      latest_form:           capex.L?.form ?? ocf.L?.form ?? null,
+      ttm_basis:             capex.basis ?? ocf.basis ?? null,
+      capex_latest_q_busd:   latestQB,
+      capex_prior_year_q_busd: priorYearQB,
+      capex_q_yoy_pct:       latestQB != null && priorYearQB > 0 ? +((latestQB / priorYearQB - 1) * 100).toFixed(1) : null,
+      components: {
+        ocf:   { L: ocf.L   ? { end: ocf.L.endDate,   value_busd: toB(ocf.L.value) }   : null, F: ocf.F   ? { end: ocf.F.endDate,   value_busd: toB(ocf.F.value) }   : null, P: ocf.P   ? { end: ocf.P.endDate,   value_busd: toB(ocf.P.value) }   : null },
+        capex: { L: capex.L ? { end: capex.L.endDate, value_busd: toB(capex.L.value) } : null, F: capex.F ? { end: capex.F.endDate, value_busd: toB(capex.F.value) } : null, P: capex.P ? { end: capex.P.endDate, value_busd: toB(capex.P.value) } : null },
+      },
+      issues,
+    };
+    const c = out.companies[co.key];
+    console.log(`  [NVDA-COVERAGE] ${issues.length ? "⚠" : "✓"} ${co.finnhub}: OCF TTM $${c.ocf_ttm_busd ?? "—"}B | capex TTM $${c.capex_ttm_busd ?? "—"}B | FCF $${c.fcf_ttm_busd ?? "—"}B | latest ${c.latest_form ?? "—"} to ${c.latest_period_end ?? "—"} (filed ${c.latest_filed ?? "—"}) | Q capex $${c.capex_latest_q_busd ?? "—"}B vs $${c.capex_prior_year_q_busd ?? "—"}B (${c.capex_q_yoy_pct != null ? (c.capex_q_yoy_pct >= 0 ? "+" : "") + c.capex_q_yoy_pct + "%" : "—"})${issues.length ? " | " + issues.join("; ") : ""}`);
+    await sleep(1100);
+  }
+
+  // Aggregate — partial if ANY company is missing either leg.
+  let ocfSum = 0, capexSum = 0, partial = false;
+  const negatives = [];
+  for (const co of NVDA_BIG4) {
+    const c = out.companies[co.key];
+    if (c.ocf_ttm_busd == null || c.capex_ttm_busd == null) { partial = true; continue; }
+    ocfSum += c.ocf_ttm_busd; capexSum += c.capex_ttm_busd;
+    if (c.fcf_ttm_busd < 0) negatives.push(co.finnhub);
+  }
+  out.capex_coverage_ratio = capexSum > 0 ? +(ocfSum / capexSum).toFixed(2) : null;
+  out.coverage_partial     = partial || out.capex_coverage_ratio == null;
+  out.coverage_zone        = out.capex_coverage_ratio == null ? null
+    : out.capex_coverage_ratio >= NVDA_COVERAGE_SELF_FUNDED ? "self_funded"
+    : out.capex_coverage_ratio >= NVDA_COVERAGE_STRETCHED ? "stretched"
+    : "debt_funded";
+  out.big4_ocf_ttm_busd    = capexSum > 0 ? +ocfSum.toFixed(1) : null;
+  out.big4_capex_ttm_busd  = capexSum > 0 ? +capexSum.toFixed(1) : null;
+  out.big4_fcf_ttm_busd    = capexSum > 0 ? +(ocfSum - capexSum).toFixed(1) : null;
+  out.big4_fcf_negative_names = negatives.length ? negatives.join(", ") : (partial ? null : "none");
+
+  // Latest-quarter capex YoY, aggregated only when all four quarter-ends align.
+  const ends = NVDA_BIG4.map(co => out.companies[co.key].latest_period_end).filter(Boolean);
+  const aligned = ends.length === 4 && ends.every(e => nvdaNear(e, ends[0]));
+  let lq = 0, pq = 0, yoyOk = aligned;
+  for (const co of NVDA_BIG4) {
+    const c = out.companies[co.key];
+    if (c.capex_latest_q_busd == null || c.capex_prior_year_q_busd == null) { yoyOk = false; break; }
+    lq += c.capex_latest_q_busd; pq += c.capex_prior_year_q_busd;
+  }
+  out.big4_capex_latest_q_busd     = yoyOk ? +lq.toFixed(1) : null;
+  out.big4_capex_prior_year_q_busd = yoyOk ? +pq.toFixed(1) : null;
+  out.big4_capex_growth_yoy_pct    = yoyOk && pq > 0 ? +((lq / pq - 1) * 100).toFixed(1) : null;
+  out.big4_quarter_ends_aligned    = aligned;
+
+  const ratioStr = out.capex_coverage_ratio == null ? "—" : `${out.capex_coverage_ratio}x (${out.coverage_zone})`;
+  console.log(`  [NVDA-COVERAGE] ${out.coverage_partial ? "⚠ PARTIAL" : "✓ FULL"}: big-4 OCF $${out.big4_ocf_ttm_busd ?? "—"}B / capex $${out.big4_capex_ttm_busd ?? "—"}B = coverage ${ratioStr} | FCF $${out.big4_fcf_ttm_busd ?? "—"}B (negative: ${out.big4_fcf_negative_names ?? "—"}) | Q capex YoY ${out.big4_capex_growth_yoy_pct != null ? (out.big4_capex_growth_yoy_pct >= 0 ? "+" : "") + out.big4_capex_growth_yoy_pct + "%" : "— (quarter-ends " + (aligned ? "aligned, a leg missing" : "not aligned") + ")"}`);
+  if (out.coverage_partial) {
+    console.log(`  [NVDA-COVERAGE]    A partial read OVERSTATES coverage if the missing name is a cash burner. The engine's cycle gate fails CLOSED on partial in expansion — NVDA strategic is bounded at neutral on the buy side until all four resolve.`);
+  }
+  return out;
+}
+
 // ─── STAGE 3: FRED MACRO ────────────────────────────────────────────────────
 async function fetchMacro() {
   if (!FRED_KEY) return {};
@@ -2167,6 +2670,14 @@ async function main() {
   // Stage 3m: CVX twin/reference historical returns (Alpaca — XOM twin spread + XLE factor + air-pocket screen)
   console.log("\n─── STAGE 3m: CVX TWIN / REFERENCE HISTORICAL RETURNS (Alpaca) ───");
   const cvxHistReturns = await fetchCVXHistoricalReturns();
+
+  // Stage 3n: NVDA twin/reference historical returns (Alpaca — SMH factor spread + AI bid + air-pocket screen)
+  console.log("\n─── STAGE 3n: NVDA TWIN / REFERENCE HISTORICAL RETURNS (Alpaca) ───");
+  const nvdaHistReturns = await fetchNVDAHistoricalReturns();
+
+  // Stage 3o: NVDA capex coverage (Finnhub as-reported XBRL — big-four TTM OCF + capex)
+  console.log("\n─── STAGE 3o: NVDA CAPEX COVERAGE (Finnhub as-reported financials) ───");
+  const nvdaCoverage = await fetchNVDACapexCoverage();
 
   // ─── ASSEMBLE + VALIDATE ────────────────────────────────────────────────────
   const output = {};
@@ -3647,6 +4158,273 @@ async function main() {
     }
   }
 
+  // ─── NVDA (v4.21) — cycle regime + capex coverage + twin valuation + factor relative ──
+  // TWIN is AVGO. AMD/TSM are a REFERENCE, never a cohort average NVDA is scored
+  // against. SMH is the factor. The big-four coverage ratio is the strategic lens.
+  //
+  // ★★ CRITICAL — TRAILING TWIN P/E IS PERMANENTLY GATED ★★
+  //   NVDA's trailing GAAP EPS carries gains on equity securities (the marks on
+  //   its own customer stakes — ~11% of GAAP net income in Q1–Q2 FY27) and
+  //   AVGO's carries VMware acquisition amortization. One leg is inflated, the
+  //   other depressed, for reasons unrelated to value. premium_pct is emitted for
+  //   the record and premium_pct_reliable is hard FALSE. The model's twin read is
+  //   FORWARD P/E, LLM-sourced, and secondary even there.
+  if (output.NVDA) {
+    const todayISO = new Date().toISOString().split("T")[0];
+
+    // ── Capex cycle regime (the composite-weight driver — per-print config) ──
+    const regime = nvdaCycleRegime(todayISO);
+    const daysToPrint = nvdaDaysBetween(todayISO, NVDA_NEXT_PRINT_DATE);
+    output.NVDA.cycle_regime = {
+      guided_sequential_growth_pct: regime.guided_sequential_growth_pct,
+      cycle_regime:                 regime.cycle_regime,
+      regime_direction:             regime.regime_direction,
+      driver_missing:               regime.driver_missing,
+      driver_stale:                 regime.driver_stale,
+      config_invalid:               regime.config_invalid,
+      last_reported_quarter:        NVDA_LAST_REPORTED_QUARTER,
+      last_reported_quarter_end:    NVDA_LAST_REPORTED_QUARTER_END,
+      last_reported_revenue_busd:   NVDA_LAST_REPORTED_REVENUE_BUSD,
+      next_q_guide_midpoint_busd:   NVDA_NEXT_Q_GUIDE_MID_BUSD,
+      guide_as_of_print:            NVDA_GUIDE_AS_OF_PRINT,
+      next_print_date:              NVDA_NEXT_PRINT_DATE,
+      days_to_earnings:             daysToPrint,
+      earnings_window_active:       daysToPrint >= -1 && daysToPrint <= NVDA_EARNINGS_WINDOW_DAYS,
+      driver_source:                "per_print_config (press release; reviewed 4x/yr on print dates)",
+    };
+    if (regime.config_invalid) {
+      console.log(`  NVDA cycle regime: ✗ INVALID CONFIG — NVDA_LAST_REPORTED_REVENUE_BUSD / NVDA_NEXT_Q_GUIDE_MID_BUSD must both be > 0. Emitting null (engine falls back to the base triple). Fix the constants.`);
+    } else if (regime.driver_stale) {
+      console.log(`  NVDA cycle regime: ✗ STALE CONFIG — the ${NVDA_NEXT_PRINT_DATE} print has passed (${-daysToPrint}d ago) but NVDA_GUIDE_AS_OF_PRINT still reads ${NVDA_GUIDE_AS_OF_PRINT}.`);
+      console.log(`  NVDA    Emitting the driver NULL — NVDA scores on the base triple (20/35/45) until the four per-print numbers, the as-of date and the next print / reaction dates are updated. It does NOT keep scoring the old regime.`);
+    } else {
+      console.log(`  NVDA cycle regime: guide $${NVDA_NEXT_Q_GUIDE_MID_BUSD}B vs last reported $${NVDA_LAST_REPORTED_REVENUE_BUSD}B (${NVDA_LAST_REPORTED_QUARTER}) = ${regime.guided_sequential_growth_pct >= 0 ? "+" : ""}${regime.guided_sequential_growth_pct}% sequential → ${regime.cycle_regime.toUpperCase()} | next print ${NVDA_NEXT_PRINT_DATE} (${daysToPrint}d)${output.NVDA.cycle_regime.earnings_window_active ? " — EARNINGS WINDOW ACTIVE, half-size tactical" : ""}`);
+    }
+
+    // ── Capex coverage (the strategic lens — computed from SEC filings) ─────
+    if (nvdaCoverage) {
+      output.NVDA.capex_coverage = {
+        capex_coverage_ratio:         nvdaCoverage.capex_coverage_ratio,
+        coverage_partial:             nvdaCoverage.coverage_partial,
+        coverage_zone:                nvdaCoverage.coverage_zone,
+        big4_ocf_ttm_busd:            nvdaCoverage.big4_ocf_ttm_busd,
+        big4_capex_ttm_busd:          nvdaCoverage.big4_capex_ttm_busd,
+        big4_fcf_ttm_busd:            nvdaCoverage.big4_fcf_ttm_busd,
+        big4_fcf_negative_names:      nvdaCoverage.big4_fcf_negative_names,
+        big4_capex_latest_q_busd:     nvdaCoverage.big4_capex_latest_q_busd,
+        big4_capex_prior_year_q_busd: nvdaCoverage.big4_capex_prior_year_q_busd,
+        big4_capex_growth_yoy_pct:    nvdaCoverage.big4_capex_growth_yoy_pct,
+        big4_quarter_ends_aligned:    nvdaCoverage.big4_quarter_ends_aligned,
+        basis:                        nvdaCoverage.basis,
+        companies:                    nvdaCoverage.companies,
+      };
+    } else {
+      output.NVDA.capex_coverage = {
+        capex_coverage_ratio: null, coverage_partial: true, coverage_zone: null,
+        big4_ocf_ttm_busd: null, big4_capex_ttm_busd: null, big4_fcf_ttm_busd: null, big4_fcf_negative_names: null,
+        big4_capex_latest_q_busd: null, big4_capex_prior_year_q_busd: null, big4_capex_growth_yoy_pct: null, big4_quarter_ends_aligned: null,
+        basis: "unavailable", companies: {},
+      };
+      console.log(`  NVDA capex coverage: ✗ unavailable — partial; the cycle gate fails CLOSED in expansion`);
+    }
+
+    // ── Twin valuation (trailing — GATED, record only) ──────────────────────
+    const nvdaPE = output.NVDA.valuation?.trailingPE;
+    const avgoPE = auxQuotes.AVGO?.pe;
+    const amdPE  = auxQuotes.AMD?.pe;
+    const tsmPE  = auxQuotes.TSM?.pe;
+    const pos = v => (v != null && v > 0 ? v : null);
+    if (pos(nvdaPE) && pos(avgoPE)) {
+      const premiumPct = +(((nvdaPE - avgoPE) / avgoPE) * 100).toFixed(2);
+      output.NVDA.twin_valuation = {
+        nvda_pe: nvdaPE,
+        avgo_pe: avgoPE,
+        premium_pct: premiumPct,
+        basis: "trailing_gaap",
+        // ↓ The gate. Hard FALSE: nothing downstream may read premium_pct as a
+        //   valuation signal for this name — the number is the record only.
+        premium_pct_reliable: false,
+        unreliable_reason: "nvda_equity_gains_and_avgo_acquisition_amortization",
+        reference_amd_pe: amdPE ?? null,
+        reference_tsm_pe: tsmPE ?? null,
+        reference_note: "merchant rival + foundry reference only — never scored",
+      };
+      console.log(`  NVDA twin-valuation: NVDA ${nvdaPE}x | AVGO ${avgoPE}x | premium ${premiumPct >= 0 ? "+" : ""}${premiumPct}% (GATED — record only, trailing GAAP) | AMD ${amdPE ?? "—"}x TSM ${tsmPE ?? "—"}x [trailing basis, reference]`);
+    } else {
+      const reason = !pos(nvdaPE) ? "no usable NVDA P/E" : "no usable AVGO P/E";
+      console.log(`  NVDA twin-valuation: skipped (${reason})`);
+    }
+
+    // ── Twin relative (daily NVDA − AVGO spread) ────────────────────────────
+    const nvdaChange = output.NVDA.price?.change_pct;
+    const avgoChange = auxQuotes.AVGO?.change_pct;
+    if (nvdaChange != null && avgoChange != null) {
+      const spread = +(nvdaChange - avgoChange).toFixed(3);
+      output.NVDA.twin_relative = {
+        nvda_change_pct: nvdaChange,
+        avgo_change_pct: avgoChange,
+        avgo_price: auxQuotes.AVGO?.price ?? null,
+        relative_spread_pp: spread,
+      };
+      const twinStr = spread > 0.5 ? `NVDA outperforming AVGO by ${spread}pp`
+        : spread < -0.5 ? `AVGO outperforming NVDA by ${(-spread).toFixed(2)}pp (custom-silicon rotation watch)`
+        : "inline";
+      console.log(`  NVDA twin-relative: ${twinStr}`);
+    } else {
+      console.log(`  NVDA twin-relative: skipped (no AVGO daily change)`);
+    }
+
+    // ── 30d factor spread, reference returns, AI bid, air-pocket screen ─────
+    if (nvdaHistReturns) {
+      output.NVDA.cohort_relative = {
+        nvda_30d_return_pct:         nvdaHistReturns.nvda_30d_return_pct,
+        avgo_30d_return_pct:         nvdaHistReturns.avgo_30d_return_pct,
+        amd_30d_return_pct:          nvdaHistReturns.amd_30d_return_pct,
+        tsm_30d_return_pct:          nvdaHistReturns.tsm_30d_return_pct,
+        smh_spread_30d_pp:           nvdaHistReturns.smh_spread_30d_pp,
+        ai_trade_dislocation_active: nvdaHistReturns.ai_trade_dislocation_active,
+      };
+      output.NVDA.factor_flow = {
+        smh_vs_spy_30d_pp:  nvdaHistReturns.smh_vs_spy_30d_pp,
+        smh_30d_return_pct: nvdaHistReturns.smh_30d_return_pct,
+        spy_30d_return_pct: nvdaHistReturns.spy_30d_return_pct,
+        ai_factor_bid:      nvdaHistReturns.ai_factor_bid,
+      };
+      output.NVDA.tactical_extras = {
+        largest_1d_move_5s_pct:      nvdaHistReturns.largest_1d_move_5s_pct,
+        largest_1d_date:             nvdaHistReturns.largest_1d_date,
+        largest_1d_direction:        nvdaHistReturns.largest_1d_direction,
+        smh_same_day_return_pct:     nvdaHistReturns.smh_same_day_return_pct,
+        idiosyncratic_pp:            nvdaHistReturns.idiosyncratic_pp,
+        largest_1d_on_known_print:   nvdaHistReturns.largest_1d_on_known_print,
+        air_pocket_candidate_active: nvdaHistReturns.air_pocket_candidate_active,
+      };
+
+      const fs = nvdaHistReturns.smh_spread_30d_pp;
+      const fsStr = fs == null ? "—"
+        : nvdaHistReturns.ai_trade_dislocation_active ? `NVDA lagging SMH by ${(-fs).toFixed(1)}pp/30d (AI-TRADE DISLOCATION ACTIVE — buy setup if no NVDA-specific event)`
+        : fs < 0 ? `NVDA lagging SMH by ${(-fs).toFixed(1)}pp/30d (mild)`
+        : `NVDA leading SMH by ${fs.toFixed(1)}pp/30d`;
+      console.log(`  NVDA factor 30d: ${fsStr}`);
+      if (nvdaHistReturns.air_pocket_candidate_active) {
+        console.log(`  NVDA air-pocket screen: ${nvdaHistReturns.largest_1d_move_5s_pct}% on ${nvdaHistReturns.largest_1d_date} (SMH ${nvdaHistReturns.smh_same_day_return_pct ?? "—"}%) — CANDIDATE; downstream must classify it, and a funding_anxiety drop with coverage below 1.0 is NOT a buy`);
+      }
+    } else {
+      console.log(`  NVDA factor 30d: skipped (no historical returns)`);
+      output.NVDA.cohort_relative = {
+        nvda_30d_return_pct: null, avgo_30d_return_pct: null, amd_30d_return_pct: null, tsm_30d_return_pct: null,
+        smh_spread_30d_pp: null, ai_trade_dislocation_active: false,
+      };
+      output.NVDA.factor_flow = { smh_vs_spy_30d_pp: null, smh_30d_return_pct: null, spy_30d_return_pct: null, ai_factor_bid: null };
+      output.NVDA.tactical_extras = {
+        largest_1d_move_5s_pct: null, largest_1d_date: null, largest_1d_direction: null, smh_same_day_return_pct: null,
+        idiosyncratic_pp: null, largest_1d_on_known_print: null, air_pocket_candidate_active: null,
+      };
+    }
+
+    // NVDA fundamentals — explicit nulls for fields needing earnings disclosure
+    // or consensus data. LLM web-search prompt sources these as fallback fetch
+    // targets. Key names match the nvda-strategy.jsx v1 JSON contract exactly.
+    const expansionOrDigestion = regime.cycle_regime === "expansion" || regime.cycle_regime === "digestion";
+    const mcapM = output.NVDA.valuation?.marketCap;
+    const beatPct = NVDA_PRIOR_GUIDE_MID_BUSD > 0 ? +((NVDA_LAST_REPORTED_REVENUE_BUSD / NVDA_PRIOR_GUIDE_MID_BUSD - 1) * 100).toFixed(1) : null;
+    const gmCanary = nvdaMarginCanary(NVDA_LAST_GROSS_MARGIN_PCT);
+
+    // ── CYCLE REGIME + COVERAGE INPUTS (computed, non-null when sources answer) ──
+    output.NVDA.fundamentals.guided_sequential_growth_pct = regime.guided_sequential_growth_pct;
+    output.NVDA.fundamentals.cycle_regime                 = regime.cycle_regime;
+    output.NVDA.fundamentals.regime_direction             = regime.regime_direction;
+    output.NVDA.fundamentals.next_q_guide_midpoint_busd   = NVDA_NEXT_Q_GUIDE_MID_BUSD;
+    output.NVDA.fundamentals.revenue_last_q_busd          = NVDA_LAST_REPORTED_REVENUE_BUSD;
+    output.NVDA.fundamentals.market_cap_busd              = mcapM != null ? +(mcapM / 1000).toFixed(1) : null;  // Finnhub reports $M
+    for (const co of NVDA_BIG4) {
+      output.NVDA.fundamentals[`${co.key}_ocf_ttm_busd`]   = nvdaCoverage?.companies?.[co.key]?.ocf_ttm_busd ?? null;
+      output.NVDA.fundamentals[`${co.key}_capex_ttm_busd`] = nvdaCoverage?.companies?.[co.key]?.capex_ttm_busd ?? null;
+    }
+    output.NVDA.fundamentals.capex_coverage_ratio         = nvdaCoverage?.capex_coverage_ratio ?? null;
+    output.NVDA.fundamentals.coverage_partial             = nvdaCoverage?.coverage_partial ?? true;
+    output.NVDA.fundamentals.coverage_zone                = nvdaCoverage?.coverage_zone ?? null;
+    output.NVDA.fundamentals.big4_fcf_ttm_busd            = nvdaCoverage?.big4_fcf_ttm_busd ?? null;
+    output.NVDA.fundamentals.big4_fcf_negative_names      = nvdaCoverage?.big4_fcf_negative_names ?? null;
+    output.NVDA.fundamentals.big4_capex_growth_yoy_pct    = nvdaCoverage?.big4_capex_growth_yoy_pct ?? null;
+
+    // ── POSITIONAL — canaries, beat, mix, cash conversion, share capture ────
+    // ⚠ CANARY ONE. From the per-print config; the LLM refreshes on print day.
+    output.NVDA.fundamentals.gross_margin_pct             = NVDA_LAST_GROSS_MARGIN_PCT;
+    output.NVDA.fundamentals.gross_margin_guide_pct       = NVDA_GROSS_MARGIN_GUIDE_PCT;
+    output.NVDA.fundamentals.gross_margin_canary          = gmCanary;       // computed: intact / degraded / broken
+    // ⚠ CANARY TWO. Guides are not XBRL — LLM-sourced categorical.
+    output.NVDA.fundamentals.capex_guide_trajectory       = null;  // categorical: raised/held/cut (LLM, from the four latest calls)
+    output.NVDA.fundamentals.beat_vs_guide_pct            = beatPct;        // computed from the per-print config
+    output.NVDA.fundamentals.beat_vs_guide_avg_pct        = NVDA_BEAT_VS_GUIDE_AVG_PCT;
+    output.NVDA.fundamentals.beat_inflection_flag         = beatPct != null ? beatPct < NVDA_BEAT_INFLECTION_PCT : null;
+    output.NVDA.fundamentals.dc_revenue_last_q_busd       = null;  // earnings release (Q2 FY27: 89.0)
+    output.NVDA.fundamentals.dc_revenue_growth_yoy_pct    = null;  // earnings release (Q2 FY27: +117) — share_capture_pp needs this
+    output.NVDA.fundamentals.hyperscale_revenue_busd      = null;  // earnings release (Q2 FY27: 48.7)
+    output.NVDA.fundamentals.acie_revenue_busd            = null;  // earnings release (Q2 FY27: 40.3)
+    output.NVDA.fundamentals.networking_revenue_busd      = null;  // earnings release / CFO commentary
+    output.NVDA.fundamentals.rubin_share_pct              = null;  // CFO commentary (guided ~20 for Q3 FY27)
+    output.NVDA.fundamentals.rubin_status                 = null;  // categorical: on_track/slipping
+    output.NVDA.fundamentals.inventory_busd               = null;  // 10-Q (Q2 FY27: 32)
+    output.NVDA.fundamentals.dso_days                     = null;  // 10-Q (Q2 FY27: 60)
+    output.NVDA.fundamentals.dso_trend                    = null;  // categorical: rising/stable/falling
+    output.NVDA.fundamentals.quarterly_fcf_signal_status  = null;  // categorical — LLM, per quarter (ramp working capital → null signal)
+    output.NVDA.fundamentals.receivables_canary_active    = null;  // boolean — two quarters of receivables outgrowing revenue
+    output.NVDA.fundamentals.supply_status                = null;  // categorical: constrained/easing/loose (HBM, CoWoS)
+    output.NVDA.fundamentals.share_capture_pp             = null;  // computed downstream = dc_revenue_growth_yoy_pct − big4_capex_growth_yoy_pct
+    output.NVDA.fundamentals.accelerator_share_pct        = null;  // best estimate (80–85 in 2026)
+    output.NVDA.fundamentals.china_dc_revenue_last_q_busd = null;  // earnings release — ZERO assumed in every guide since Q1 FY27
+    output.NVDA.fundamentals.china_headline_class         = null;  // categorical: upside_option/enforcement_legal/none
+    output.NVDA.fundamentals.financed_demand_share_pct    = null;  // best estimate — revenue from customers NVDA has invested in or financed
+    output.NVDA.fundamentals.eps_revisions_30d_pct        = null;
+    output.NVDA.fundamentals.eps_revisions_90d_pct        = null;
+    // ⚠ Revisions track the cycle. Structural, regime-derived.
+    output.NVDA.fundamentals.revisions_signal_status      = regime.cycle_regime === "moderation" ? "execution" : "cycle_driven";
+
+    // ── STRATEGIC — peak multiples gated; structural categoricals non-null ──
+    // ⚠ GAAP trailing P/E is contaminated by equity-securities gains (Guardrail
+    // A). Structural default for the current reporting period; the engine may
+    // clear it on LLM evidence that TTM gains fell below 5% of GAAP net income.
+    output.NVDA.fundamentals.gaap_pe_signal_status        = "null_signal_equity_gains_contaminated";
+    output.NVDA.fundamentals.equity_gains_ttm_busd        = null;  // 10-Q/10-K notes (Q1 FY27 15.9 + Q2 FY27 ~5.7 + prior two quarters)
+    output.NVDA.fundamentals.gaap_net_income_ttm_busd     = null;  // 10-Q/10-K
+    output.NVDA.fundamentals.clean_trailing_pe            = null;  // computed downstream from the two above
+    output.NVDA.fundamentals.fy1_eps_consensus            = null;  // consensus (FY27 ≈ 9.31)
+    output.NVDA.fundamentals.fy2_eps_consensus            = null;  // consensus (FY28 ≈ 15.91)
+    output.NVDA.fundamentals.forward_peg                  = null;  // computed downstream = fwd PE FY2 / FY2 growth %
+    output.NVDA.fundamentals.forward_pe_signal_status     = expansionOrDigestion ? "cycle_gated" : "clean";
+    output.NVDA.fundamentals.avgo_fwd_pe                  = null;  // LLM-sourced — the forward twin read
+    output.NVDA.fundamentals.fcf_ttm_busd                 = null;  // 10-Q/10-K (through Q2 FY27 ≈ 127)
+    output.NVDA.fundamentals.buyback_ttm_busd             = null;  // 10-Q/10-K
+    output.NVDA.fundamentals.buyback_authorization_remaining_busd = null;  // (≈ 235 through FY2028 after the $150B addition)
+    output.NVDA.fundamentals.diluted_shares_m             = null;  // 10-Q (Q2 FY27: 24,285)
+    // ⚠ Diluted share count YoY, NEGATIVE = buyback.
+    output.NVDA.fundamentals.share_count_change_yoy_pct   = null;
+    output.NVDA.fundamentals.insider_net_selling_90d      = null;  // boolean
+    output.NVDA.fundamentals.insider_plan_based           = null;  // boolean — Huang sells under 10b5-1 plans
+    output.NVDA.fundamentals.taiwan_headline_class        = null;  // categorical: duration_changing/nvda_asset/noise/none
+    output.NVDA.fundamentals.cycle_gate_active            = null;  // computed in score-engine (fails closed on partial coverage in expansion)
+    output.NVDA.fundamentals.cycle_gate_side              = null;
+
+    const nvdaCoverageList = [
+      !regime.driver_missing ? "cycle-regime" : null,
+      output.NVDA.fundamentals.capex_coverage_ratio != null ? (output.NVDA.fundamentals.coverage_partial ? "coverage(PARTIAL)" : "coverage") : null,
+      output.NVDA.fundamentals.big4_capex_growth_yoy_pct != null ? "big4-capex-YoY" : null,
+      gmCanary ? "GM-canary" : null,
+      beatPct != null ? "beat-vs-guide" : null,
+      output.NVDA.twin_valuation ? "twin-PE(trailing, GATED)" : null,
+      output.NVDA.cohort_relative?.smh_spread_30d_pp != null ? "SMH-spread" : null,
+      output.NVDA.factor_flow?.smh_vs_spy_30d_pp != null ? "SMH-SPY" : null,
+      output.NVDA.tactical_extras?.largest_1d_move_5s_pct != null ? "air-pocket-screen" : null,
+    ].filter(Boolean);
+    console.log(`  NVDA canaries: GM ${NVDA_LAST_GROSS_MARGIN_PCT}% (${gmCanary?.toUpperCase() ?? "—"}; guide ${NVDA_GROSS_MARGIN_GUIDE_PCT}%) | beat vs guide ${beatPct != null ? (beatPct >= 0 ? "+" : "") + beatPct + "%" : "—"} (avg ${NVDA_BEAT_VS_GUIDE_AVG_PCT}%${output.NVDA.fundamentals.beat_inflection_flag ? " — INFLECTION FLAG" : ""}) | mcap $${output.NVDA.fundamentals.market_cap_busd ?? "—"}B`);
+    console.log(`  NVDA v1 sourced: ${nvdaCoverageList.length > 0 ? nvdaCoverageList.join(", ") : "(none)"} | pending external data: Data Center growth + Hyperscale/ACIE split (share capture), capex-guide trajectory, Rubin share, inventory + DSO, equity gains + GAAP NI (clean trailing PE), FY1/FY2 consensus (forward PEG), forward twin PE, TTM FCF, buybacks + diluted share count, financed demand, China, Taiwan classification`);
+    console.log(`  NVDA ⚠ GAAP trailing P/E is EQUITY-GAINS CONTAMINATED and the FY2 forward P/E is a PEAK-CYCLE number — neither scored on its own; downstream routes to the capex coverage ratio through the cycle gate`);
+    if (output.NVDA.cycle_regime.earnings_window_active) {
+      console.log(`  NVDA ⚠ EARNINGS WINDOW: Q3 FY27 prints ${NVDA_NEXT_PRINT_DATE} after the close (${daysToPrint}d) — halve tactical conviction; the Q4 guide resets the cycle regime first, then gross margin vs ${NVDA_GROSS_MARGIN_GUIDE_PCT}%, then coverage on the hyperscalers' Q3 filings`);
+    }
+  }
+
   output._macro = macro;
   output._meta = {
     needsWebSearch,
@@ -3705,6 +4483,13 @@ async function main() {
   console.log(`  CVX vs XOM:     ${output.CVX?.cohort_relative?.xom_spread_30d_pp != null ? `${output.CVX.cohort_relative.xom_spread_30d_pp >= 0 ? "+" : ""}${output.CVX.cohort_relative.xom_spread_30d_pp}pp/30d${output.CVX.cohort_relative.twin_dislocation_active ? " [TWIN DISLOCATION]" : ""}` : "unavailable"}`);
   console.log(`  CVX XLE-SPY:    ${output.CVX?.factor_flow?.xle_vs_spy_30d_pp != null ? `${output.CVX.factor_flow.xle_vs_spy_30d_pp >= 0 ? "+" : ""}${output.CVX.factor_flow.xle_vs_spy_30d_pp}pp (${output.CVX.factor_flow.energy_factor_bid})` : "unavailable"}`);
   console.log(`  CVX air pocket: ${output.CVX?.tactical_extras?.largest_1d_move_5s_pct != null ? `largest 5s ${output.CVX.tactical_extras.largest_1d_move_5s_pct}% on ${output.CVX.tactical_extras.largest_1d_date}${output.CVX.tactical_extras.air_pocket_candidate_active ? " [CANDIDATE]" : ""}` : "unavailable"}`);
+  console.log(`  NVDA regime:    ${output.NVDA?.cycle_regime ? (output.NVDA.cycle_regime.driver_missing ? (output.NVDA.cycle_regime.driver_stale ? "STALE CONFIG — base triple" : "NO DRIVER — base triple") : `guide $${output.NVDA.cycle_regime.next_q_guide_midpoint_busd}B vs $${output.NVDA.cycle_regime.last_reported_revenue_busd}B = ${output.NVDA.cycle_regime.guided_sequential_growth_pct >= 0 ? "+" : ""}${output.NVDA.cycle_regime.guided_sequential_growth_pct}% → ${output.NVDA.cycle_regime.cycle_regime}`) + ` | print ${output.NVDA.cycle_regime.next_print_date} (${output.NVDA.cycle_regime.days_to_earnings}d)${output.NVDA.cycle_regime.earnings_window_active ? " [WINDOW]" : ""}` : "unavailable"}`);
+  console.log(`  NVDA coverage:  ${output.NVDA?.capex_coverage?.capex_coverage_ratio != null ? `${output.NVDA.capex_coverage.capex_coverage_ratio}x (${output.NVDA.capex_coverage.coverage_zone})${output.NVDA.capex_coverage.coverage_partial ? " ⚠ PARTIAL" : ""} | big-4 FCF $${output.NVDA.capex_coverage.big4_fcf_ttm_busd}B (neg: ${output.NVDA.capex_coverage.big4_fcf_negative_names ?? "—"}) | Q capex YoY ${output.NVDA.capex_coverage.big4_capex_growth_yoy_pct != null ? (output.NVDA.capex_coverage.big4_capex_growth_yoy_pct >= 0 ? "+" : "") + output.NVDA.capex_coverage.big4_capex_growth_yoy_pct + "%" : "—"}` : "unavailable (PARTIAL — gate fails closed)"}`);
+  console.log(`  NVDA canaries:  ${output.NVDA?.fundamentals ? `GM ${output.NVDA.fundamentals.gross_margin_pct ?? "—"}% (${output.NVDA.fundamentals.gross_margin_canary ?? "—"}; guide ${output.NVDA.fundamentals.gross_margin_guide_pct ?? "—"}%) | beat ${output.NVDA.fundamentals.beat_vs_guide_pct != null ? (output.NVDA.fundamentals.beat_vs_guide_pct >= 0 ? "+" : "") + output.NVDA.fundamentals.beat_vs_guide_pct + "%" : "—"}${output.NVDA.fundamentals.beat_inflection_flag ? " [INFLECTION]" : ""}` : "unavailable"}`);
+  console.log(`  NVDA twin PE:   ${output.NVDA?.twin_valuation ? `NVDA ${output.NVDA.twin_valuation.nvda_pe}x vs AVGO ${output.NVDA.twin_valuation.avgo_pe}x = ${output.NVDA.twin_valuation.premium_pct}% premium [trailing GAAP] ⚠ GATED — record only` : "unavailable"}`);
+  console.log(`  NVDA vs SMH:    ${output.NVDA?.cohort_relative?.smh_spread_30d_pp != null ? `${output.NVDA.cohort_relative.smh_spread_30d_pp >= 0 ? "+" : ""}${output.NVDA.cohort_relative.smh_spread_30d_pp}pp/30d${output.NVDA.cohort_relative.ai_trade_dislocation_active ? " [AI-TRADE DISLOCATION]" : ""}` : "unavailable"}`);
+  console.log(`  NVDA SMH-SPY:   ${output.NVDA?.factor_flow?.smh_vs_spy_30d_pp != null ? `${output.NVDA.factor_flow.smh_vs_spy_30d_pp >= 0 ? "+" : ""}${output.NVDA.factor_flow.smh_vs_spy_30d_pp}pp (${output.NVDA.factor_flow.ai_factor_bid})` : "unavailable"}`);
+  console.log(`  NVDA air pocket: ${output.NVDA?.tactical_extras?.largest_1d_move_5s_pct != null ? `largest 5s ${output.NVDA.tactical_extras.largest_1d_move_5s_pct}% on ${output.NVDA.tactical_extras.largest_1d_date}${output.NVDA.tactical_extras.air_pocket_candidate_active ? " [CANDIDATE]" : ""}` : "unavailable"}`);
   console.log(`  Aux quotes:     ${Object.keys(auxQuotes).length} symbols (${Object.keys(auxQuotes).join(", ")})`);
   console.log(`═══════════════════════════════════`);
 
