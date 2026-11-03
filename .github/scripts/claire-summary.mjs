@@ -1,7 +1,7 @@
 // ─── claire-summary.mjs ────────────────────────────────────────────────────────
 // Generates plain-English one-line summaries of each holding for the "Claire"
 // tab on the hub. Reads the latest entry from docs/history/daily-log.jsonl,
-// batches all holdings (14 as of v2.1) into one Claude call, writes docs/history/claire.json.
+// batches all holdings (15 as of v2.7) into one Claude call, writes docs/history/claire.json.
 //
 // Voice: conversational but grounded, descriptive not prescriptive, assumes
 // intelligence but zero market vocabulary. One sentence each. No jargon, no
@@ -246,6 +246,71 @@
 //   court" (Chevron is a party to real litigation a correct sentence could
 //   mention), and "enbridge" (the replaced holding). ENB never had an entry;
 //   nothing removed.
+//
+// v2.7 (October 2026): HOLDINGS ADD — NVDA (generate-signals v8.8.0 sync; 14 →
+//   15). An ADD, not a swap (the v2.1 MA/ISRG precedent): nothing is replaced,
+//   NVDA appends to PORTFOLIO after ISRG, and PORTFOLIO.length carries the new
+//   count into the prompt. BUILT ON v2.6 (ENB → CVX): everything above lives in
+//   this file, so v2.7 supersedes v2.6 — deploy this one, not both. On a
+//   complete run that does not yet carry NVDA (this file landing ahead of the
+//   pipeline add), the v2.5 path gives Nvidia its "isn't in today's update yet"
+//   sentence. TICKER_IDENTITY, the prompt glossary and the disambiguation block
+//   gain an entry; the voice examples gain one (9 → 10) — the first new example
+//   since UBER at v2.4.
+//
+//   NVDA is the name Claire has heard most about and understands least — "the
+//   AI chip company" — attached to a business whose reported numbers are, right
+//   now, mostly a spending boom by four other companies. Three fluent-but-false
+//   failure modes follow, and all use ordinary words a correct sentence also
+//   uses, so — as for RDDT at v2.2, UBER at v2.4 and CVX at v2.6 — the prompt
+//   carries them:
+//     • the RECORD-SALES sentence: "Nvidia is doing great — sales doubled
+//       again." True of the reported numbers, uninformative about the company:
+//       it has beaten its own forecast fourteen quarters running. The story is
+//       by how much less each time, whether the profit margin on each chip
+//       held, and whether the customers can keep paying.
+//     • the CUSTOMER-NEWS sentence that reads a drop on Google's or Amazon's
+//       earnings day as trouble at Nvidia (or a jump on their bigger spending
+//       plans as Nvidia improving). The drop IS about Nvidia — but about its
+//       customers' ability to pay, not its own business: in late October 2026
+//       Alphabet and Amazon reported they are spending more on computing gear
+//       than their businesses bring in, and are borrowing the difference.
+//     • the CHEAP sentence. The "bargain" screen rests on profits at the top of
+//       a spending boom, and part of the reported profit is paper gains on
+//       stakes Nvidia holds in its own customers (OpenAI among them).
+//   The disambiguation block also carries four traps (the MLM v2.3 pattern):
+//   (a) record sales are not the story; (b) don't call it cheap; (c) a drop on
+//   a customer's earnings day is about the customers' wallets, not Nvidia's
+//   business — and that IS worth saying; (d) China sales are a bonus, not a
+//   loss — Nvidia plans on none.
+//   ★ The data Claire's model reads will carry two phrases that need plain
+//   English: "capex coverage" (whether the four big customers' businesses bring
+//   in enough cash to pay for the computing gear they are buying, or whether
+//   they are borrowing to do it) and "cycle regime" (whether the spending boom
+//   is still accelerating). The prompt tells the model what each means and
+//   never to write either phrase.
+//
+//   HARD identity gate: NVDA gets a MINIMAL entry under the v2.3 MLM test — an
+//   exact, certain collision whose banned strings have ZERO legitimate use in a
+//   correct Claire sentence. "NVDA" is also the name of the most widely used
+//   free screen reader (NonVisual Desktop Access, by NV Access), so a
+//   wrong-subject generation has a distinctive, checkable fingerprint. Banned:
+//   "screen reader", "nonvisual desktop", "nv access", "accessibility
+//   software", "visually impaired".
+//   ⚠ DIVERGENCE FROM generate-signals v8.8.0, deliberate, same register
+//   reasoning as MLM/"lockheed" (v2.3), UBER/"über" (v2.4) and CVX/"loper
+//   bright" (v2.6): that file bans only the first three. "accessibility
+//   software" and "visually impaired" could appear in analytical prose about
+//   an accessibility product line; a Claire sentence about the AI chip company
+//   never contains them, so either means the model has left the company.
+//   NOT banned, deliberately: "broadcom"/"amd"/"intel"/"tsmc"/"taiwan" (the
+//   rival, the merchant competitor, the foundry — the Visa/Vulcan/Exxon
+//   precedent), "microsoft"/"google"/"amazon"/"meta"/"openai" (its customers —
+//   a correct sentence NAMES them; Microsoft is also a holding, and the gate is
+//   per-ticker), "gaming"/"video game"/"graphics" (its original business and
+//   what "GPU" stands for), "chatgpt", "china". The likely failures — the
+//   record-sales sentence, the customer-news sentence and the cheap sentence —
+//   are QUALITY problems in ordinary words; the prompt carries them.
 // ────────────────────────────────────────────────────────────────────────────────
 
 import fs from "fs/promises";
@@ -260,7 +325,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL_ID = "claude-opus-4-8";
 const ENSEMBLE_N = Math.max(1, parseInt(process.env.CLAIRE_ENSEMBLE_N || "3", 10));
 
-const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "CVX", "NOW", "GLNCY", "MLM", "KOF", "UBER", "AMKBY", "MA", "ISRG"];
+const PORTFOLIO = ["LHX", "ASML", "LIN", "MSFT", "TMO", "CVX", "NOW", "GLNCY", "MLM", "KOF", "UBER", "AMKBY", "MA", "ISRG", "NVDA"];   // v2.7: NVDA appended (ADD — 15th)
 
 // ─── TICKER IDENTITY MAP ──────────────────────────────────────────────────────
 // Explicit disambiguation — some ADR tickers (AMKBY especially) are easy for
@@ -280,6 +345,7 @@ const TICKER_IDENTITY = {
   "AMKBY": { name: "A.P. Møller-Mærsk",    business: "Danish container shipping and integrated logistics giant — a bellwether for global trade. Note: AMKBY is Maersk; it is NOT AmBev (the Brazilian beer company, ticker ABEV) and NOT any other company." },
   "MA":    { name: "Mastercard",           business: "one of the two big payment networks (Visa is the other) — every time someone taps or swipes a Mastercard, they collect a tiny toll, in every country, millions of times a day. Note: the ticker MA means Mastercard here, never Massachusetts or anything else" },
   "ISRG":  { name: "Intuitive Surgical",   business: "maker of the da Vinci surgical robot — the machines surgeons use for minimally invasive operations, in over eleven thousand hospitals worldwide. Most of their money comes from the instruments and supplies each surgery uses, not the robots themselves. Note: ISRG is Intuitive SURGICAL, the medical robot company; it is NOT Intuit (the TurboTax/QuickBooks software company, ticker INTU)" },
+  "NVDA":  { name: "Nvidia",               business: "the company that makes the chips — and now the whole cabinet of equipment built around them — that artificial-intelligence systems run on. Nearly everything it sells goes to a handful of enormous buyers: the four biggest tech companies (Microsoft, Google, Amazon and Meta) take about half, and AI start-ups such as OpenAI and the computing-rental companies take most of the rest. Its sales have roughly doubled every year and it keeps about three-quarters of every dollar as gross profit, which is extraordinary. The catch is that all of this rests on how much those few customers decide to spend on computing gear each year — and as of late October 2026 two of the four (Google's parent and Amazon) are spending more on it than their businesses bring in and borrowing the difference. Whether the customers can keep paying is the whole question, and it is a question about them, not about Nvidia's product. Nvidia has also put money into several of its own customers, including OpenAI, and the paper gains on those stakes make its reported profit look bigger than the business alone earns. It sells essentially nothing to China (the US government restricts it), so any China sale is a bonus rather than a loss. Note: NVDA here is Nvidia, the chip company. It is NOT the free screen-reader software that shares the name, and its customers (Microsoft, Google, Amazon, Meta, OpenAI) are separate companies — Microsoft is also in this portfolio" },
 };
 
 // ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -302,6 +368,7 @@ TICKER GLOSSARY — use these exact company identities, do not substitute or inf
 - AMKBY   = A.P. Møller-Mærsk (Danish container shipping / logistics giant)
 - MA      = Mastercard (global payments network — one half of the Visa/Mastercard duopoly)
 - ISRG    = Intuitive Surgical (maker of the da Vinci surgical robot; revenue mostly from per-surgery instruments and supplies)
+- NVDA    = Nvidia (makes the chips and equipment that AI systems run on; sells mostly to Microsoft, Google, Amazon, Meta and AI start-ups; NOT the screen-reader software of the same name)
 
 CRITICAL DISAMBIGUATION:
 - AMKBY is A.P. Møller-Mærsk. It is NEVER AmBev. AmBev is the Brazilian beer company with ticker ABEV, which is not in this portfolio. If you are about to write the word "beer," "brewer," "AmBev," or "beverage" in an AMKBY sentence, STOP — you have the wrong company. Maersk moves containers on ships.
@@ -316,6 +383,8 @@ CRITICAL DISAMBIGUATION:
 - MLM is Martin Marietta Materials, which owns quarries and sells crushed stone, sand and gravel. This is the easiest ticker in the portfolio to get wrong, and it can go wrong in two completely different directions. FIRST: "MLM" is also the everyday abbreviation for multi-level marketing — the pyramid-style selling schemes people get recruited into. That has nothing whatsoever to do with this company. If you are about to write "multi-level marketing", "network marketing", "downline", or "pyramid", STOP — you are writing about the wrong subject entirely. SECOND: Martin Marietta is NOT Lockheed Martin. The original Martin Marietta merged with Lockheed back in 1995, but the materials business was split off separately and has no defense, aerospace or military work of any kind. This portfolio already holds L3Harris (LHX) for defense — do not let the two bleed into one another. Mentioning Vulcan Materials is fine and often useful; it is the one genuine competitor and the two are constantly compared.
   What an MLM sentence SHOULD be about: the price they get per ton of rock, how much rock they are actually shipping, whether government road funding keeps flowing, and how the lime acquisition is going. Two specific traps to avoid. (a) WEATHER IS NOT DEMAND. Heavy rain stops construction crews working, so a wet quarter means less rock shipped — that is the sky, not the business weakening, and saying "demand is falling" when it rained would read perfectly fluently and be false. (b) DO NOT CALL IT CHEAP. Their reported earnings currently look artificially large because of a one-off gain from swapping some assets, which makes the stock screen as though it is on a bargain price. It is not. Never describe this one as cheap or a bargain on that basis.
 - ISRG is Intuitive Surgical, the da Vinci surgical robot company. It is NEVER Intuit — Intuit is the TurboTax/QuickBooks software company (ticker INTU), which is not in this portfolio. If you are about to write "TurboTax," "QuickBooks," or "tax software" in an ISRG sentence, STOP — you have the wrong company. Intuitive Surgical makes robots that help surgeons operate. Mentioning Medtronic or Johnson & Johnson as competitors is fine — they're real rivals building competing surgical robots.
+- NVDA is Nvidia, the company that makes the chips and the equipment around them that artificial-intelligence systems run on. Two identity notes. FIRST: "NVDA" is also the name of a free screen-reader program used by blind computer users — it has nothing whatsoever to do with this company. If you are about to write about screen readers or accessibility software, STOP — you are writing about the wrong subject entirely. SECOND, and far more likely to go wrong: Nvidia's customers are not Nvidia. Microsoft, Google, Amazon and Meta buy roughly half of what it sells, and AI start-ups such as OpenAI buy much of the rest; Broadcom and AMD are rivals. A sentence that describes what Google or Amazon announced as if it were Nvidia's own result would be fluent and false. Mentioning those customers is fine and often necessary — their spending IS Nvidia's sales — but the sentence must be ABOUT Nvidia. In the data, "capex coverage" means whether the four big customers' businesses bring in enough cash to pay for all the computing gear they are buying, or whether they are borrowing to do it; "cycle regime" means whether that spending boom is still accelerating. Explain the idea in plain words; never write either phrase.
+  What an NVDA sentence SHOULD be about: whether its big customers can keep paying for the chips out of their own cash rather than by borrowing, whether Nvidia's profit margin on each chip is holding (memory-chip shortages have started to pinch it), and whether those customers are still raising their spending plans. Four traps to avoid. (a) RECORD SALES ARE NOT THE STORY. Nvidia has beaten its own forecast fourteen quarters in a row; "sales doubled again" tells her nothing. What matters is by how much less it beat each time, and whether the margin held. (b) DO NOT CALL IT CHEAP. The stock screens as a bargain only if you assume the spending boom lasts, and part of its reported profit is paper gains on stakes it holds in its own customers — the business alone earns less than the headline number. (c) A DROP ON A CUSTOMER'S EARNINGS DAY IS ABOUT THE CUSTOMER'S WALLET, NOT NVIDIA'S PRODUCT — and that is worth saying plainly. In late October 2026 Nvidia fell when Google's parent and Amazon showed they are spending more on computing gear than they earn and borrowing the rest; nothing changed at Nvidia, but those are the people who pay its bills. A jump on a customer's bigger spending plan is the same thing in reverse. (d) CHINA IS A BONUS, NOT A LOSS. Nvidia plans on selling nothing there because of US export rules; news of a sale is extra, news of a crackdown or an investigation is not a hole in the business.
 
 RULES:
 - One sentence per holding. Natural, conversational, not breezy.
@@ -337,6 +406,7 @@ EXAMPLES of the voice:
 - "ServiceNow is holding up well — corporate IT departments keep signing on for their AI tools, and those tend to be long-term contracts that take years to wind down."
 - "Mastercard slipped again on worries that new payment technology could someday cut out the card networks — but people keep tapping their cards more than ever, so for now it's a fear story, not a business story."
 - "The surgical robot company had a good week — hospitals keep doing more procedures with their machines, and every operation means more supplies sold."
+- "Nvidia fell along with the rest of the AI names after Google and Amazon showed they're now borrowing to pay for all the computing gear they buy — nothing changed at Nvidia itself, but those companies are its biggest customers, so whether they can keep spending is the whole question."
 
 OUTPUT: a JSON object mapping each ticker symbol to its one-sentence summary. Example:
 {
@@ -473,6 +543,24 @@ const HARD_BANNED_BY_TICKER = {
   // the war-news sentence — are QUALITY problems in ordinary words; the prompt
   // carries them, as for RDDT at v2.2 and UBER at v2.4.
   "CVX":   [/\bchevron deference\b/i, /\bchevron doctrine\b/i, /\bloper bright\b/i, /\badministrative law\b/i],
+  // v2.7: NVDA gets a MINIMAL entry under the v2.3 MLM test — an exact,
+  // certain collision ("NVDA" is also the most widely used free screen reader,
+  // NonVisual Desktop Access by NV Access) whose banned strings have ZERO
+  // legitimate use in a correct Claire sentence about the AI chip company.
+  // ⚠ Bans MORE than generate-signals v8.8.0 (screen reader / nonvisual
+  // desktop / nv access). Same register reasoning as "lockheed", "über" and
+  // "loper bright" above: analytical prose might discuss an accessibility
+  // product line; a one-line Claire sentence about Nvidia never does.
+  // NOT banned, deliberately: /broadcom/, /amd/, /intel/, /tsmc/, /taiwan/
+  // (rival, competitor, foundry — the Visa/Vulcan/Exxon precedent);
+  // /microsoft/, /google/, /alphabet/, /amazon/, /meta/, /openai/ (the
+  // CUSTOMERS — a correct sentence names them; the gate is per-ticker, so the
+  // MSFT row is unaffected); /gaming/, /video game/, /graphics/ (its original
+  // business and what "GPU" stands for); /chatgpt/; /china/. The likely
+  // failures — the record-sales sentence, the customer-news sentence and the
+  // cheap sentence — are QUALITY problems in ordinary words; the prompt
+  // carries them, as for RDDT at v2.2, UBER at v2.4 and CVX at v2.6.
+  "NVDA":  [/\bscreen[- ]reader\b/i, /\bnonvisual desktop\b/i, /\bnv access\b/i, /\baccessibility software\b/i, /\bvisually impaired\b/i],
 };
 
 // Jargon blacklist (from prompt RULES). Soft.
@@ -588,7 +676,7 @@ function voteOnSentences(symbol, candidates, row) {
 }
 
 // ─── CLAUDE CALL ──────────────────────────────────────────────────────────────
-// One call = one full candidate set (all tickers — 14 as of v2.1). System + user blocks carry
+// One call = one full candidate set (all tickers — 15 as of v2.7). System + user blocks carry
 // cache_control and are identical across the run, so candidates 2..N are nearly
 // all cache reads. One retry per candidate; ensemble proceeds with successes.
 async function callClaudeOnce(userMessage) {
