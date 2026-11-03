@@ -1,4 +1,4 @@
-// ─── rebuild-signals-csv.mjs v2.1 ────────────────────────────────────────────
+// ─── rebuild-signals-csv.mjs v2.2 ────────────────────────────────────────────
 // Rebuilds docs/history/signals.csv from docs/history/daily-log.jsonl under the
 // CURRENT log-signals header. The repair tool for the CSV: run it (Actions →
 // "Rebuild signals.csv") whenever log-signals reports a header mismatch that is
@@ -51,6 +51,41 @@
 //   cohort block first and fall back to twin_valuation — the same either-key
 //   fold log-signals V8.7.0 applies, so CVX rows rebuild with their gate. Every
 //   other CVX column is a same-named flat key and needs nothing here.
+//
+// v2.2 (October 2026): log-signals V8.8.0 (NVDA ADD, 341 → 410) sync — the
+//   extractors for the 22 NVDA columns whose JSONL path differs from the column
+//   name. The other 47 new columns are same-named flat keys on the logged
+//   holding (smh_vs_spy_30d_pp, smh_30d_return_pct, smh_same_day_return_pct,
+//   the eight per-company OCF / capex inputs, the two canaries, beat vs guide and
+//   every LLM-sourced scaffold) and need nothing here — the v2.0 default.
+//   • The twin leg (twin_valuation.avgo_pe / reference_amd_pe /
+//     reference_tsm_pe); the reused twin_premium_pct and the v2.1 either-key
+//     fold for premium_pct_reliable / premium_unreliable_reason already cover
+//     the premium and its (permanently false) gate on NVDA rows.
+//   • The SMH factor rotation (cohort_relative.nvda_30d_return_pct /
+//     avgo_ / amd_ / tsm_30d_return_pct / smh_spread_30d_pp /
+//     ai_trade_dislocation_active — payload names, no renames).
+//   • The capex cycle regime's inputs out of the cycle_regime OBJECT:
+//     next_q_guide_midpoint_busd and revenue_last_q_busd read the block first and
+//     fall back to the flat fundamentals copy — the same either-key fold
+//     log-signals V8.8.0 applies — and revenue_last_q_busd is the column name for
+//     the block's last_reported_revenue_busd (a rename, as xom_dislocation_active
+//     was at v2.1). driver_stale, days_to_earnings and earnings_window_active
+//     live only in the block. The driver itself is the reused regime_driver.
+//   • Capex coverage out of the capex_coverage OBJECT (capex_coverage_ratio,
+//     coverage_partial, coverage_zone, big4_ocf / capex / fcf_ttm_busd,
+//     big4_fcf_negative_names — a comma-joined string, so it goes through esc()
+//     like every other cell — and big4_capex_growth_yoy_pct). log-signals writes
+//     the block whole, companies.*.components included; the rebuild reads only
+//     the eight columns the CSV carries.
+//   • Nothing for the reused columns: regime_driver / regime_basis, the air-
+//     pocket five (same payload keys as CVX, flat), market_cap_busd,
+//     share_count_change_yoy_pct, buyback_ttm_busd, insider_net_selling_90d and
+//     the engine's cycle_gate_active / cycle_gate_side (v2.1) all rebuild on NVDA
+//     rows through their existing paths.
+//   Verified by running log-signals V8.8.0 end-to-end on a fixture, rebuilding
+//   from the daily-log it wrote, and reconciling: every shared cell on the NVDA
+//   and CVX rows matches across all 410 columns (the six NOT_IN_JSONL excepted).
 //
 // Formatting matches log-signals exactly where the JSONL allows: z_composite to
 // 3 decimals, regime_pmi to 2, booleans as "true"/"false", div_flagged joined
@@ -126,6 +161,7 @@ const kmValue = (h) => typeof h.key_metric === "string"
 const cv = (h, k) => h.cohort_valuation?.[k];
 const cr = (h, k) => h.cohort_relative?.[k];
 const dr = (h, k) => h.duopoly_relative?.[k];
+const cc = (h, k) => h.capex_coverage?.[k];     // v2.2 — NVDA's coverage block
 
 const NOT_IN_JSONL = new Set([
   "z_tactical", "z_positional", "z_strategic",
@@ -242,6 +278,35 @@ const EXTRACTORS = {
   // Engine output stored beside the blended score it bounds (log-signals V8.7.0)
   cycle_gate_active: (h) => layer(h, "strategic").cycle_gate_active,
   cycle_gate_side:   (h) => layer(h, "strategic").cycle_gate_side,
+  // v2.2 — NVDA (log-signals V8.8.0). Twin leg + merchant-rival / foundry reference.
+  avgo_pe:          (h) => h.twin_valuation?.avgo_pe,
+  reference_amd_pe: (h) => h.twin_valuation?.reference_amd_pe,
+  reference_tsm_pe: (h) => h.twin_valuation?.reference_tsm_pe,
+  // SMH factor rotation (payload names, no renames). smh_30d_return_pct itself
+  // is a flat key (payload factor_flow) and takes the default.
+  nvda_30d_return_pct:         (h) => cr(h, "nvda_30d_return_pct"),
+  avgo_30d_return_pct:         (h) => cr(h, "avgo_30d_return_pct"),
+  amd_30d_return_pct:          (h) => cr(h, "amd_30d_return_pct"),
+  tsm_30d_return_pct:          (h) => cr(h, "tsm_30d_return_pct"),
+  smh_spread_30d_pp:           (h) => cr(h, "smh_spread_30d_pp"),
+  ai_trade_dislocation_active: (h) => cr(h, "ai_trade_dislocation_active"),
+  // Capex cycle regime inputs (the block first, the flat fundamentals copy
+  // second — the same either-key fold log-signals V8.8.0 applies). ⚠ Column
+  // renamed vs its block key: revenue_last_q_busd ← last_reported_revenue_busd.
+  next_q_guide_midpoint_busd: (h) => h.cycle_regime?.next_q_guide_midpoint_busd ?? h.next_q_guide_midpoint_busd,
+  revenue_last_q_busd:        (h) => h.cycle_regime?.last_reported_revenue_busd ?? h.revenue_last_q_busd,
+  driver_stale:               (h) => h.cycle_regime?.driver_stale,
+  days_to_earnings:           (h) => h.cycle_regime?.days_to_earnings,
+  earnings_window_active:     (h) => h.cycle_regime?.earnings_window_active,
+  // Capex coverage (the block; the CSV carries eight of its keys).
+  capex_coverage_ratio:      (h) => cc(h, "capex_coverage_ratio"),
+  coverage_partial:          (h) => cc(h, "coverage_partial"),
+  coverage_zone:             (h) => cc(h, "coverage_zone"),
+  big4_ocf_ttm_busd:         (h) => cc(h, "big4_ocf_ttm_busd"),
+  big4_capex_ttm_busd:       (h) => cc(h, "big4_capex_ttm_busd"),
+  big4_fcf_ttm_busd:         (h) => cc(h, "big4_fcf_ttm_busd"),
+  big4_fcf_negative_names:   (h) => cc(h, "big4_fcf_negative_names"),   // "GOOGL, AMZN" — esc() quotes it
+  big4_capex_growth_yoy_pct: (h) => cc(h, "big4_capex_growth_yoy_pct"),
 };
 
 function extract(col, h, entry) {
