@@ -130,6 +130,15 @@
     // UBER's #eb92c5 is 220 away. Enbridge orange (#e8963e — itself only 59
     // from the SELL orange) leaves the map with ENB; its historical rows fall
     // back to the default text colour, as PBR.A's do.
+    //
+    // Accent note (v8.8.0, NVDA ADD — 15th holding, nothing leaves): NVDA is
+    // #c8ff00, the nvda-strategy.jsx v1 accent, used UNCHANGED. Same redmean
+    // metric: its nearest neighbours are MLM #dada80 at 205, NOW #62d84e at 218
+    // and LHX #b8a04a at 222; the nearest signal colour is the SELL orange
+    // #f4a261 at 245, the TACTICAL green #00ff88 is 379 away, and every other
+    // holding accent and signal colour is 322 or more. All far clear of the
+    // ~120 same-colour floor — the most separated accent on the map. An ADD, so
+    // no colour leaves and no historical rows fall back.
     const HOLDINGS = {
       LHX: { name: "L3Harris", accent: "#b8a04a" }, ASML: { name: "ASML", accent: "#5b8dee" },
       LIN: { name: "Linde", accent: "#5b8c7c" }, MSFT: { name: "Microsoft", accent: "#5e8ba8" },
@@ -138,6 +147,7 @@
       MLM: { name: "Martin Marietta", accent: "#dada80" }, KOF: { name: "Coca-Cola FEMSA", accent: "#e63946" },
       UBER: { name: "Uber", accent: "#eb92c5" }, AMKBY: { name: "Maersk", accent: "#009fda" },
       MA: { name: "Mastercard", accent: "#c65b52" }, ISRG: { name: "Intuitive Surgical", accent: "#4a9db5" },
+      NVDA: { name: "NVIDIA", accent: "#c8ff00" },   // v8.8.0 ADD
     };
     const ROLES = {
       tacticalBuy: { label: "TACTICAL BUY", icon: "⚡", color: "#00ff88", bg: "rgba(0,255,136,0.08)", border: "rgba(0,255,136,0.25)" },
