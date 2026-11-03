@@ -144,6 +144,50 @@
 //   v4.20 labels it and score-engine V8.6 never scores it, so it does not
 //   touch temporal z.
 //
+// v8.8.0 sync (October 2026) — NO CODE CHANGE REQUIRED; note only.
+//   The NVDA ADD (14 → 15; nothing retires) needs nothing here. The v1.3
+//   pending mechanism was built for exactly this case (the MA/ISRG add):
+//     • NVDA enters at n=0 and surfaces "CALIBRATION PENDING — 0/60
+//       observations" from its first run, with the accompanying instruction
+//       not to make own-history-percentile claims. If it is first logged on
+//       2026-11-02, the 60th session falls on 2027-01-28; any later deploy
+//       pushes that back day for day.
+//     • No retirement leg: an add removes nothing from calibration-v2.json.
+//   The MLM note above applies again, and more sharply than for any name yet:
+//   NVIDIA has the deepest, most-watched price history in the book, and its
+//   score history in THIS system starts at zero on the add date. The 60-
+//   observation gate measures the latter. Same gate, same discipline.
+//   ⚠⚠ LIKE CVX'S GATE, NVDA'S IS ON FROM DAY ONE — AND FOR THE SAME REASON.
+//   score-engine V8.7's cycle-position gate floors NVDA's blended strategic
+//   score at 0 while the capex cycle regime reads EXPANSION (guided sequential
+//   growth above +10%; +12.2% on the current print) unless the big-four capex
+//   coverage ratio is ≥ 1.0 on a FULL four-company read AND forward PEG ≤ 1.0
+//   AND gross margin ≥ 70%. Forward PEG is LLM-sourced and null in the engine's
+//   data, so the gate fails CLOSED: every NVDA strategic score is bounded at
+//   ≥ 0 from the first run. The strategic baseline is one-sided — censored at
+//   zero from below — for as long as the regime stays in expansion; its
+//   dispersion is compressed, and |tz| on the first ungated day will read
+//   larger than the move deserves. log-signals V8.8.0 records
+//   strategic.cycle_gate_active / cycle_gate_side on NVDA rows; calibration-v2
+//   .mjs does not read them. Read NVDA's strategic tz with that in mind.
+//   ⚠ A SECOND baseline artifact, new with this name. The regime driver is a
+//   PER-PRINT CONFIG constant in fetch v4.21 (no API publishes a revenue
+//   guide). After the 2026-11-17 print, until the four constants are updated,
+//   fetch withholds the driver and the engine writes regime "base_stale" with
+//   the base weight triple (20/35/45) instead of expansion's (15/30/55) — a
+//   MECHANICAL shift in every blended score, not a change of view. A run of
+//   base_stale sessions inside NVDA's first 60 observations is a baseline
+//   discontinuity. log-signals V8.8.0 records driver_stale per row; signal-
+//   accuracy v1.9 propagates it beside regime. Prefer a baseline that begins
+//   after the constants are refreshed if the stale stretch is more than a few
+//   days.
+//   ⚠ Not to be confused with NVDA's GAAP trailing P/E, which carries ~$21B of
+//   TTM gains on equity securities (stakes in its own customers): fetch v4.21
+//   labels it (gaap_pe_signal_status) and score-engine V8.7 never scores the
+//   contaminated figure (the clean one is scored as context only), so — like
+//   MLM's Quikrete artifact and CVX's Q3'25 roll-off — it does not touch
+//   temporal z.
+//
 // Imported by generate-signals.mjs:
 //   import { loadCalibration, buildCalibrationBlock } from "./calibration-loader.mjs";
 //
