@@ -1,5 +1,79 @@
 #!/usr/bin/env node
-// risk-language-diff.mjs v1.6 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+// risk-language-diff.mjs v1.7 — 10-Q/10-K/20-F/40-F risk-section temporal diffing.
+//
+// v1.7 (October 2026): HOLDINGS ADD — NVDA (NVIDIA Corporation, CIK 1045810),
+// generate-signals v8.8.0 sync; 14 → 15. An ADD, not a swap (the v1.1 MA/ISRG
+// precedent): nothing is removed, no fallback CIK retires. BUILT ON v1.6
+// (ENB → CVX): everything below lives in this file, so v1.7 supersedes v1.6 —
+// deploy this one, not both. NVDA is a plain US filer (10-K/10-Q Item 1A — the
+// MSFT/NOW/MA/ISRG/MLM/UBER/CVX class), so no form handling changes. CIK
+// verified against the EDGAR submissions API at build time: NVIDIA CORP, CIK
+// 0001045810, Nasdaq: NVDA, Delaware, SIC 3674 (Semiconductors & Related
+// Devices), EIN 94-3177549, fiscal year end 0131 (the fiscal year ends on the
+// last Sunday of January — FY2026 ended 2026-01-25, Q2 FY2027 ended
+// 2026-07-26; the 10-K lands in late February, not March). The Sunday workflow
+// is symbol-agnostic and unchanged; weekly load rises ~3 EDGAR requests.
+//
+// ★ NVDA's 10-Q ITEM 1A IS THE CURATED-UPDATE FORM. It opens "Other than the
+// risk factors listed below, there have been no material changes from the risk
+// factors previously described under Item 1A of our Annual Report on Form
+// 10-K…" and then restates IN FULL only the factors management chose to update
+// (~5 pages in the Q2 FY2027 10-Q, 0001045810-26-000075, filed 2026-08-26 —
+// the print date itself, NVIDIA's pattern — pp. 34–39). Two consequences:
+//   • The ~5 pages clear MIN_SECTION_CHARS by a wide margin — this is NOT the
+//     two-paragraph cross-reference the COMPARISON BASIS note warns about.
+//     ⚠ BUT extractRiskSection() is UNVERIFIED against any real filing (the
+//     v1.4 STATUS caveat), and a build-time fixture laid out like a real 10-Q
+//     (dotted-leader TOC, Part I financial statements, Part II Item 1A) shows
+//     the TOC's "Item 1A. Risk Factors … 34" hit becoming a candidate that runs
+//     through Part I to the body's "Item 2" and WINNING ON LENGTH over the real
+//     section — for every US 10-Q filer, not NVDA alone. The --selftest fixture
+//     does not catch it (its TOC candidate swallows "Item 1. Business" plus the
+//     real section, and the diff still passes because Business is identical on
+//     both sides). Not fixed here — a filer-entry build does not touch the
+//     extractor; a TOC-candidate filter is the proposed separate change.
+//   • A 10-Q vs 10-Q diff compares two CURATED SUBSETS: when different quarters
+//     update different factors, delta_score runs structurally high and says
+//     nothing. Read added_snippets, not the magnitude — the v1.3/v1.4 rule,
+//     sharper here than for any other holding. The 10-K vs 10-K comparison
+//     (each February) is the full-baseline read.
+//   Until the Q3 FY2027 10-Q lands on 2026-11-17 (after-close print; same-day
+//   filing expected), the NVDA comparison is the Q2 10-Q against the Q1 10-Q
+//   (0001045810-26-000052, period 2026-04-26).
+//
+// ⚠ EXPECTED CHURN IN NVDA'S NEXT FILINGS — read the substance, not the
+// magnitude:
+//   (a) EXPORT CONTROLS AND CHINA. The export-control risk factor is revised
+//       nearly every quarter (licence regimes, the China revenue-share
+//       arrangement, Chinese customs and antitrust pushback, new rules for
+//       other regions). A revision is near-certain and is NOT thesis-level on
+//       its own: the model carries China as an option with ZERO in the guide
+//       (fetch v4.21 / score-engine V8.7 Guardrail d). Only a shift in SCOPE —
+//       restrictions described as reaching products or regions outside
+//       China — carries information.
+//   (b) CUSTOMER CONCENTRATION AND INVESTMENTS IN CUSTOMERS. The $30B OpenAI
+//       stake (the $100B LOI was never signed), the 5 GW deployment commitment
+//       and the stakes in other customers will likely add language on
+//       investments in customers, equity-securities fair-value volatility
+//       ($15.9B of gains in Q1 FY2027 alone) and customer dependence. That is
+//       the company describing its own transactions — the inputs to Guardrail
+//       c (financed demand) and Guardrail a (equity-gains contamination), which
+//       the engine already reads from fundamentals, not from this file.
+//   (c) SUPPLY. Memory (HBM / DRAM) tightness, the Rubin ramp and TSMC /
+//       Taiwan capacity language will move with the cycle. Direction — a
+//       constraint described as easing vs binding — is the read.
+//
+// Lookback: filings.recent reaches back to 2020-09 across its 1,000 rows
+// (~165 filings a year — the CEO's 10b5-1 sales and officer vests make heavy
+// Form 4 volume), roughly 40 rows between consecutive 10-Qs. Under the
+// pre-v1.4 40-row window the 10-Q comparator would have sat AT the edge and
+// the 10-K comparator far outside it; at 1000 both are moot — the UBER case,
+// milder.
+//
+// STATUS: unchanged from v1.5/v1.6 — the 2026-10-25 run still recorded "EDGAR
+// 403" on every SEC filer (and still carried ENB / PBR.A: it ran the pre-v1.4
+// file). NVDA will record "error" like every other filer until RLD_USER_AGENT
+// is set; nothing here changes that. First live output: read by eye.
 //
 // v1.6 (October 2026): HOLDINGS SWAP — ENB out, CVX in (Chevron Corporation,
 // CIK 93410), generate-signals v8.7.0 sync; still 14. BUILT ON v1.5 (v1.4's
@@ -213,7 +287,7 @@
 // nothing. If no prior same-form filing exists in the lookback, the holding
 // reports status "no_prior_same_form" rather than shipping a misleading diff.
 //
-// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, CVX, MLM, UBER, MA, ISRG) via
+// COVERAGE: US filers (MSFT, NOW, LHX, TMO, LIN, CVX, MLM, UBER, MA, ISRG, NVDA) via
 // 10-K/10-Q Item 1A; foreign private issuers (ASML, KOF) via 20-F Item 3.D /
 // Risk Factors. GLNCY (Glencore — LSE, OTC ADR) and
 // AMKBY (Maersk — Copenhagen, OTC ADR) are not SEC reporting companies: they
@@ -265,6 +339,7 @@ const HOLDINGS = [
   { symbol: "MLM",   edgarTicker: "MLM" },   // Martin Marietta Materials — 10-K/10-Q Item 1A (v1.3); ~2 decades of Item 1A history
   { symbol: "MA",    edgarTicker: "MA" },    // Mastercard — 10-K/10-Q Item 1A (v1.1)
   { symbol: "ISRG",  edgarTicker: "ISRG" },  // Intuitive Surgical — 10-K/10-Q Item 1A (v1.1)
+  { symbol: "NVDA",  edgarTicker: "NVDA" },  // NVIDIA — 10-K/10-Q Item 1A (v1.7); FYE last Sunday of January; 10-Q Item 1A is the curated-update form (see header)
   { symbol: "GLNCY", edgarTicker: null },    // Glencore — LSE listing, no SEC reporting
   { symbol: "AMKBY", edgarTicker: null },    // Maersk — Copenhagen listing, no SEC reporting
 ];
@@ -282,6 +357,9 @@ const FALLBACK_CIK = {
                                 //        submissions API (Delaware, SIC 7389, NYSE: UBER, FYE 1231)
   CVX: 93410,                   // v1.6 — Chevron Corp; verified against the EDGAR submissions
                                 //        API (Delaware, SIC 2911, NYSE: CVX, FYE 1231, EIN 94-0890210)
+  NVDA: 1045810,                // v1.7 — NVIDIA Corp; verified against the EDGAR submissions API
+                                //        (Delaware, SIC 3674 Semiconductors & Related Devices,
+                                //        Nasdaq: NVDA, FYE 0131, EIN 94-3177549)
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -490,7 +568,7 @@ function selftest() {
 async function main() {
   if (process.argv.includes("--selftest")) { selftest(); return; }
 
-  console.log("risk-language-diff v1.6 — SEC risk-factor temporal diff (data producer only; nothing consumes this yet)");
+  console.log("risk-language-diff v1.7 — SEC risk-factor temporal diff (data producer only; nothing consumes this yet)");
   if (!UA_HAS_CONTACT) {
     console.warn("⚠ User-Agent has no contact email. SEC asks automated tools to declare \"Name email@domain\" and refuses");
     console.warn("⚠ undeclared ones with HTTP 403. Set the RLD_USER_AGENT repository secret (see risk-language.yml).");
