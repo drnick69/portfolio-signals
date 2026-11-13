@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-12T20:00:12.776Z",
-  "signal_date": "2026-11-12",
+  "generated_at": "2026-11-13T19:45:01.732Z",
+  "signal_date": "2026-11-13",
   "portfolio": [
     "LHX",
     "ASML",
@@ -22,117 +22,124 @@
     "samples_requested": 3,
     "samples_ok": 3
   },
+  "run_note": "Heads up: today's update only covers 13 of the usual 15 holdings. ASML Holding and Glencore plc weren't scored because of a technical problem on our side — nothing to do with the companies themselves.",
   "data_quality": {
     "expected": 15,
-    "scored": 15,
-    "missing": [],
-    "failures": {},
-    "complete": true
+    "scored": 13,
+    "missing": [
+      "ASML",
+      "GLNCY"
+    ],
+    "failures": {
+      "ASML": "Invalid structure",
+      "GLNCY": "Invalid structure"
+    },
+    "complete": false
   },
   "summaries": {
     "LHX": {
-      "sentence": "L3Harris has fallen about 28% from its high, which is unusually steep for a steady defense company, especially while the rest of the defense sector is doing well — so nothing about the business has really changed, it's just out of favor.",
+      "sentence": "L3Harris is down a bit and now sits well off its high from last year, but defense budgets are still growing steadily, so nothing has really changed about the underlying business.",
       "recommendation": "HOLD",
-      "composite_score": -22,
-      "signal_date": "2026-11-12",
-      "gate": "soft"
-    },
-    "ASML": {
-      "sentence": "ASML has pulled back a bit, but it's still the only company on earth that makes the machines needed to print the most advanced chips, so nothing about its position has shifted.",
-      "recommendation": "HOLD",
-      "composite_score": -5,
-      "signal_date": "2026-11-12",
+      "composite_score": -23,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
+    "ASML": {
+      "sentence": "ASML Holding didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.",
+      "recommendation": null,
+      "composite_score": null,
+      "signal_date": "2026-11-13",
+      "gate": "missing"
+    },
     "LIN": {
-      "sentence": "Linde is having a flat, uneventful week — they supply oxygen, nitrogen and other industrial gases on long contracts and nudge prices up a little each quarter, which is the whole quiet story with this one.",
+      "sentence": "Linde is having a quiet day — industrial gas demand is steady and they keep nudging prices up a little each quarter, which is the whole story with this one.",
       "recommendation": "HOLD",
-      "composite_score": -2,
-      "signal_date": "2026-11-12",
+      "composite_score": -3,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "MSFT": {
-      "sentence": "Microsoft is calm — the stock is fully priced and barely off its highs, and the AI-cloud story keeps grinding along without any drama.",
+      "sentence": "Microsoft is quiet and holding up better than most of its tech peers lately — the Azure cloud and AI story keeps grinding along without much drama.",
       "recommendation": "HOLD",
-      "composite_score": -1,
-      "signal_date": "2026-11-12",
+      "composite_score": 0,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "TMO": {
-      "sentence": "Thermo Fisher dipped again; it sells the equipment and supplies that labs and drugmakers run on, and that demand is scraping along a low point right now — the kind of lull that usually comes before a recovery.",
+      "sentence": "Thermo Fisher is sitting near its highs and barely moved — the rough patch for lab-equipment buyers looks mostly behind it now.",
       "recommendation": "HOLD",
-      "composite_score": -10,
-      "signal_date": "2026-11-12",
+      "composite_score": -3,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "CVX": {
-      "sentence": "Chevron rose with oil prices, which are swollen because fighting involving Iran has disrupted Persian Gulf shipments — so these are unusually fat profits from the oil price, not from anything the company itself did better.",
+      "sentence": "Chevron ticked up with oil prices, which are unusually high right now because fighting involving Iran has disrupted Persian Gulf shipments — so its profits are swollen by the oil price rather than anything the company itself did.",
       "recommendation": "HOLD",
-      "composite_score": 0,
-      "signal_date": "2026-11-12",
+      "composite_score": -1,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "NOW": {
-      "sentence": "ServiceNow is down sharply from its high, more than 40%, even as big companies and government agencies keep signing up for its workflow and AI-assistant tools on long contracts — so the business looks fine and the stock has just gotten cheaper.",
+      "sentence": "ServiceNow bounced a little today but is still way down from its high, even as big companies and government agencies keep signing on for its AI workflow tools under long-term contracts — a case where the share price has fallen further than the business.",
       "recommendation": "HOLD",
       "composite_score": -23,
-      "signal_date": "2026-11-12",
-      "gate": "soft"
-    },
-    "GLNCY": {
-      "sentence": "Glencore edged up and is holding up better than copper prices themselves — its giant commodity-trading arm tends to make money when markets are choppy, which cushions the blow when metal prices sag.",
-      "recommendation": "HOLD",
-      "composite_score": -15,
-      "signal_date": "2026-11-12",
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
+    "GLNCY": {
+      "sentence": "Glencore plc didn't get scored in today's run because of a technical problem on our side — nothing happened to the company itself. It should be back in tomorrow's update.",
+      "recommendation": null,
+      "composite_score": null,
+      "signal_date": "2026-11-13",
+      "gate": "missing"
+    },
     "MLM": {
-      "sentence": "Martin Marietta slipped a touch, but the price it gets per ton of crushed rock is still creeping up year over year — its quarries each quietly own their patch of the map, which is the part that actually matters.",
+      "sentence": "Martin Marietta slipped slightly, but the price it gets per ton of crushed stone is still creeping up faster than its costs — the part that actually matters — so the business is intact.",
       "recommendation": "BUY",
       "composite_score": -35,
-      "signal_date": "2026-11-12",
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "KOF": {
-      "sentence": "Coca-Cola FEMSA drifted down mostly because the Mexican peso weakened, which shrinks the value of its earnings when converted to dollars — the bottling business itself is steady, this is just a currency headwind.",
+      "sentence": "The Mexican Coca-Cola bottler had a nice up day, though a weakening peso is a mild headwind since most of its sales are earned in pesos and worth a bit less in dollars.",
       "recommendation": "HOLD",
-      "composite_score": 4,
-      "signal_date": "2026-11-12",
+      "composite_score": 5,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "UBER": {
-      "sentence": "Uber dipped, but people are booking more rides than ever, and there's still no sign that self-driving cars are pulling business away — so for now it's a worry about the future, not a problem today.",
+      "sentence": "Uber edged up, and people keep booking more rides and food orders than ever with no sign robotaxi companies are pulling their cars off the app — so the self-driving question is still about the future, not today's business.",
       "recommendation": "HOLD",
-      "composite_score": -19,
-      "signal_date": "2026-11-12",
+      "composite_score": -20,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "AMKBY": {
-      "sentence": "Maersk ticked up and is trading below what it would cost to replace its own fleet of ships — a rock-bottom valuation that often marks the floor for this kind of shipping company, which moves containers around the world and reflects the health of global trade.",
-      "recommendation": "BUY",
-      "composite_score": -25,
-      "signal_date": "2026-11-12",
+      "sentence": "Maersk rose a bit, and you can currently buy its fleet of ships for well below what it would cost to build them — a sign the stock is priced cheaply against its actual assets.",
+      "recommendation": "HOLD",
+      "composite_score": -21,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "MA": {
-      "sentence": "Mastercard slipped slightly, but people keep tapping their cards more than ever and the business is growing a touch faster than Visa's — this is a steady toll-taker with nothing broken.",
+      "sentence": "Mastercard had a good day, and people keep tapping their cards more than ever — the tiny toll it collects on every transaction remains a remarkably steady business.",
       "recommendation": "HOLD",
-      "composite_score": -4,
-      "signal_date": "2026-11-12",
+      "composite_score": -5,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "ISRG": {
-      "sentence": "The surgical robot company is down meaningfully from its high even though hospitals keep doing more procedures with its machines — and since most of its money comes from the supplies each operation uses, the underlying business is still humming.",
+      "sentence": "The surgical robot company had a good day and is down meaningfully from its high even as hospitals keep doing more operations with its machines — and every procedure means more disposable supplies sold, which is where most of their money comes from.",
       "recommendation": "HOLD",
-      "composite_score": -16,
-      "signal_date": "2026-11-12",
+      "composite_score": -19,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     },
     "NVDA": {
-      "sentence": "Nvidia dropped almost 6% after Google's parent and Amazon showed they're now spending more on computing gear than their businesses bring in and borrowing the rest — nothing changed at Nvidia itself, but those companies are its biggest customers, so whether they can keep paying is the whole question.",
+      "sentence": "Nvidia fell again after Google's parent and Amazon showed they're now spending more on computing gear than their businesses bring in and borrowing the difference — nothing changed at Nvidia itself, but those are the customers whose wallets pay its bills, so whether they can keep spending is the whole question.",
       "recommendation": "HOLD",
-      "composite_score": -22,
-      "signal_date": "2026-11-12",
+      "composite_score": -23,
+      "signal_date": "2026-11-13",
       "gate": "pass"
     }
   }
